@@ -3,7 +3,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { Annotation, ToolType, AppSettings } from '../types';
 import * as turf from '@turf/turf';
-import { createCirclePolygon, calculateDistance, simplifyLine } from '../utils/mapUtils';
+import { createCirclePolygon, calculateDistance, simplifyLine, transliterateToGerman } from '../utils/mapUtils';
 
 interface MapContainerProps {
   activeTool: ToolType;
@@ -44,6 +44,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const originalFiltersRef = useRef<{ [layerId: string]: any }>({});
   const markersRef = useRef<{ [id: string]: mapboxgl.Marker }>({});
   const activeDrawMarkersRef = useRef<{ [id: string]: mapboxgl.Marker }>({});
 
@@ -103,8 +104,10 @@ export const MapContainer: React.FC<MapContainerProps> = ({
       let firstSymbolId;
       for (let i = 0; i < layers.length; i++) {
         if (layers[i].type === 'symbol') {
-          firstSymbolId = layers[i].id;
-          break;
+          if (!firstSymbolId) firstSymbolId = layers[i].id;
+          if (!layers[i].id.startsWith('custom-')) {
+            originalFiltersRef.current[layers[i].id] = layers[i].filter || null;
+          }
         }
       }
 
@@ -542,6 +545,73 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     });
   }, [annotations, activeTool, mapLoaded, selectedAnnotationId, settings.icons]);
 
+  // Handle Map Label Density
+  useEffect(() => {
+    if (!mapRef.current || !mapLoaded || settings.labelDensity === undefined) return;
+    
+    const density = settings.labelDensity;
+    const style = mapRef.current.getStyle();
+
+    if (style && style.layers) {
+      style.layers.forEach(layer => {
+        if (layer.type === 'symbol' && !layer.id.startsWith('custom-')) {
+          const origFilter = originalFiltersRef.current[layer.id];
+          let extraCondition: any = null;
+
+          const id = layer.id.toLowerCase();
+          const sourceLayer = layer['source-layer'] ? layer['source-layer'].toLowerCase() : '';
+
+          if (id.includes('place') || sourceLayer.includes('place')) {
+            if (density < 100) {
+              let maxRank = 1;
+              if (density > 0 && density <= 20) {
+                maxRank = 2 + Math.floor(((density - 1) / 19) * 8);
+              } else if (density > 20) {
+                maxRank = 11 + Math.floor(((density - 21) / 79) * 9);
+              }
+
+              const rankCondition = ['<=', ['coalesce', ['get', 'symbolrank'], 1], maxRank];
+              
+              let capCondition: any[] = ['==', '1', '2'];
+              if (density === 0) {
+                 capCondition = ['all', ['has', 'capital'], ['==', ['get', 'capital'], 2]]; // National capitals only
+              } else if (density < 10) {
+                 capCondition = ['all', ['has', 'capital'], ['<=', ['get', 'capital'], 3]]; // National + State capitals
+              } else {
+                 capCondition = ['all', ['has', 'capital'], ['>', ['get', 'capital'], 0]];   // All capitals
+              }
+              
+              const isCountry = ['any', ['==', ['get', 'class'], 'country'], ['==', ['get', 'type'], 'country']];
+
+              extraCondition = ['any', rankCondition, capCondition, isCountry];
+            }
+          } else if (id.includes('poi') || id.includes('transit') || sourceLayer.includes('poi')) {
+            if (density < 15) {
+              extraCondition = ['==', 1, 2]; // Hide
+            } else if (density < 100) {
+              const maxScaleRank = Math.max(1, Math.ceil(Math.sqrt((density - 15) / 85) * 5));
+              extraCondition = ['<=', ['coalesce', ['get', 'scalerank'], 1], maxScaleRank];
+            }
+          } else if (id.includes('road') || id.includes('water') || id.includes('natural')) {
+            if (density < 5) {
+              extraCondition = ['==', 1, 2]; // Hide
+            }
+          }
+
+          try {
+            if (extraCondition) {
+              mapRef.current!.setFilter(layer.id, origFilter ? ['all', origFilter, extraCondition] : extraCondition);
+            } else {
+              mapRef.current!.setFilter(layer.id, origFilter || null);
+            }
+          } catch (e) {
+            // ignore filter errors
+          }
+        }
+      });
+    }
+  }, [settings.labelDensity, mapLoaded]);
+
   // Update selected annotation filter
   useEffect(() => {
     if (!mapRef.current || !mapRef.current.getLayer('custom-selected-line')) return;
@@ -679,7 +749,18 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         const symbolFeature = features.find(f => f.layer?.type === 'symbol' && (f.properties?.name || f.properties?.name_en || f.properties?.name_de));
         if (symbolFeature) {
           const props = symbolFeature.properties || {};
-          const name = props.name_de || props.name_en || props.name || props.name_int;
+          // Prioritize the native name (usually Cyrillic for Ukraine/Russia)
+          const nameNative = props.name || '';
+          const hasCyrillic = /[А-Яа-яЁёІіЇїЄєҐґ]/.test(nameNative);
+          
+          let name = props.name_de || props.name_en || props.name_int || props.name || '';
+          if (hasCyrillic) {
+            // Determine if it's Russian by checking if native name matches name_ru, OR if it lacks Ukr-specific letters
+            // Mapbox usually provides name_ru and name_uk for major cities in both countries.
+            const isRussian = props.name_ru && props.name === props.name_ru && props.name !== props.name_uk;
+            name = transliterateToGerman(nameNative, isRussian);
+          }
+          
           let coords: [number, number] = [e.lngLat.lng, e.lngLat.lat];
           if (symbolFeature.geometry.type === 'Point') {
             coords = symbolFeature.geometry.coordinates as [number, number];

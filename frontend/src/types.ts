@@ -27,6 +27,7 @@ export interface AppSettings {
   };
   colorPalette: string[];
   icons: { id: string; svg: string }[];
+  labelDensity?: number;
 }
 
 export interface AppState {
