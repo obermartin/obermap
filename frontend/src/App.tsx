@@ -55,6 +55,15 @@ function App() {
     });
   }, [annotations, settings]);
 
+  const handleColorSelect = useCallback((color: string) => {
+    setCurrentColor(color);
+    if (selectedAnnotationId) {
+      setAnnotations(prev => prev.map(a => 
+        a.id === selectedAnnotationId ? { ...a, color } : a
+      ));
+    }
+  }, [selectedAnnotationId]);
+
   const handleDelete = useCallback(() => {
     if (selectedAnnotationId) {
       setAnnotations(prev => prev.filter(a => a.id !== selectedAnnotationId));
@@ -108,7 +117,7 @@ function App() {
         activeTool={activeTool}
         setActiveTool={setActiveTool}
         currentColor={currentColor}
-        setCurrentColor={setCurrentColor}
+        setCurrentColor={handleColorSelect}
         onSave={handleSave}
         onDelete={handleDelete}
         hasSelection={!!selectedAnnotationId}
