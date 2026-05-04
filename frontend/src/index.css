@@ -106,3 +106,13 @@ html, body, #root {
 .mapboxgl-ctrl-compass:hover .mapboxgl-ctrl-icon {
   filter: none !important;
 }
+
+/* Force SVG icons to be white line drawings */
+.icon-svg-wrapper svg * {
+  stroke: currentColor !important;
+  fill: none !important;
+}
+.icon-svg-wrapper svg {
+  width: 100%;
+  height: 100%;
+}

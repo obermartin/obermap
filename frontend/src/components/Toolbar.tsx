@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Tag, Highlighter, Paintbrush, Hexagon, Circle as CircleIcon, Ruler, Save, Trash2, X, Settings } from 'lucide-react';
+import { Tag, Highlighter, Paintbrush, Hexagon, Circle as CircleIcon, Ruler, Save, Trash2, X, Settings, MapPin } from 'lucide-react';
 import type { ToolType, AppSettings } from '../types';
 import clsx from 'clsx';
 
@@ -23,7 +23,19 @@ const TOOLS = [
   { id: 'polygon', icon: Hexagon, label: 'Polygon' },
   { id: 'circle', icon: CircleIcon, label: 'Circle' },
   { id: 'measure', icon: Ruler, label: 'Measure' },
+  { id: 'icon', icon: MapPin, label: 'Add Icon' },
 ] as const;
+
+function getContrastYIQ(hexcolor: string) {
+  if (!hexcolor) return '#ffffff';
+  if (hexcolor.startsWith('#')) hexcolor = hexcolor.slice(1);
+  if (hexcolor.length === 3) hexcolor = hexcolor.split('').map(c => c + c).join('');
+  const r = parseInt(hexcolor.substr(0, 2), 16) || 0;
+  const g = parseInt(hexcolor.substr(2, 2), 16) || 0;
+  const b = parseInt(hexcolor.substr(4, 2), 16) || 0;
+  const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+  return yiq >= 128 ? '#000000' : '#ffffff';
+}
 
 export const Toolbar: React.FC<ToolbarProps> = ({
   activeTool,
@@ -43,6 +55,50 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
+  
+  const iconDragItem = useRef<number | null>(null);
+  const iconDragOverItem = useRef<number | null>(null);
+
+  const startIconDrag = (e: React.PointerEvent, iconId: string) => {
+    if (activeTool !== 'icon') return;
+    e.preventDefault();
+    const iconObj = settings.icons?.find(i => i.id === iconId);
+    if (!iconObj) return;
+
+    const ghost = document.createElement('div');
+    ghost.className = 'fixed pointer-events-none z-[100] w-8 h-8 flex items-center justify-center opacity-80 p-2 icon-svg-wrapper';
+    ghost.style.backgroundColor = currentColor;
+    ghost.style.color = getContrastYIQ(currentColor);
+    ghost.innerHTML = iconObj.svg;
+    
+    ghost.style.left = `${e.clientX - 16}px`;
+    ghost.style.top = `${e.clientY - 16}px`;
+    document.body.appendChild(ghost);
+
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      ghost.style.left = `${moveEvent.clientX - 16}px`;
+      ghost.style.top = `${moveEvent.clientY - 16}px`;
+    };
+
+    const onPointerUp = (upEvent: PointerEvent) => {
+      document.body.removeChild(ghost);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+
+      const dropEvent = new CustomEvent('requestDropIcon', {
+        detail: {
+          clientX: upEvent.clientX,
+          clientY: upEvent.clientY,
+          iconId,
+          color: currentColor
+        }
+      });
+      window.dispatchEvent(dropEvent);
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+  };
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     dragItem.current = index;
@@ -88,9 +144,83 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     setSettings(prev => ({ ...prev, colorPalette: prev.colorPalette.filter(c => c !== color) }));
   };
 
+  const handleIconDragStart = (e: React.DragEvent, index: number) => {
+    iconDragItem.current = index;
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleIconDragEnter = (index: number) => {
+    iconDragOverItem.current = index;
+  };
+
+  const handleIconDragEnd = () => {
+    const fromIndex = iconDragItem.current;
+    const toIndex = iconDragOverItem.current;
+
+    if (fromIndex !== null && toIndex !== null && fromIndex !== toIndex) {
+      setSettings(prev => {
+        const newIcons = [...(prev.icons || [])];
+        const [movedItem] = newIcons.splice(fromIndex, 1);
+        newIcons.splice(toIndex, 0, movedItem);
+        return { ...prev, icons: newIcons };
+      });
+    }
+    iconDragItem.current = null;
+    iconDragOverItem.current = null;
+  };
+
+  const removeIcon = (iconId: string) => {
+    setSettings(prev => ({ ...prev, icons: (prev.icons || []).filter(i => i.id !== iconId) }));
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (text.includes('<svg')) {
+        const newIcon = {
+          id: `icon-${Date.now()}`,
+          svg: text
+        };
+        setSettings(prev => ({
+          ...prev,
+          icons: [...(prev.icons || []), newIcon]
+        }));
+      } else {
+        alert('Invalid SVG file.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   return (
     <div className="absolute bottom-6 left-6 z-10 flex flex-col items-start max-w-[calc(100vw-3rem)] sm:max-w-none">
       <AnimatePresence>
+        {isOpen && !isSettingsOpen && activeTool === 'icon' && (
+          <motion.div
+            initial={{ y: 10, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 10, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="flex relative border-b-2 border-black/50 max-w-full overflow-x-auto overflow-y-hidden no-scrollbar shrink-0 mb-1"
+          >
+            {settings.icons?.map((iconObj) => (
+              <button
+                key={iconObj.id}
+                onPointerDown={(e) => startIconDrag(e, iconObj.id)}
+                className="w-12 h-12 relative flex justify-center items-center cursor-grab active:cursor-grabbing border-r border-white/20 shrink-0 p-2 icon-svg-wrapper bg-white/10"
+                style={{ backgroundColor: currentColor, color: getContrastYIQ(currentColor) }}
+                title="Drag to place on map"
+                dangerouslySetInnerHTML={{ __html: iconObj.svg }}
+              />
+            ))}
+          </motion.div>
+        )}
+
         {isOpen && !isSettingsOpen && (
           <motion.div
             initial={{ y: 10, opacity: 0 }}
@@ -103,7 +233,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               <button
                 key={c}
                 onClick={() => setCurrentColor(c)}
-                className="w-12 h-12 relative flex justify-center items-end"
+                className="w-12 h-12 relative flex justify-center items-end shrink-0"
                 style={{ backgroundColor: c }}
                 title={c}
               >
@@ -201,6 +331,37 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                     <button onClick={confirmAddColor} className="text-white hover:bg-white hover:text-black px-2 font-semibold border border-white/20 text-xs h-6">OK</button>
                   </div>
                 )}
+              </div>
+            </div>
+            
+            <div>
+              <label className="text-xs text-white/50 mb-1 block font-semibold tracking-wider">ICONS</label>
+              <div className="flex flex-wrap gap-2 items-center">
+                {settings.icons?.map((iconObj, index) => (
+                  <div 
+                    key={iconObj.id} 
+                    className="w-8 h-8 border border-white/20 relative group cursor-grab active:cursor-grabbing flex items-center justify-center bg-white/10"
+                    draggable
+                    onDragStart={(e) => handleIconDragStart(e, index)}
+                    onDragEnter={() => handleIconDragEnter(index)}
+                    onDragEnd={handleIconDragEnd}
+                    onDragOver={(e) => e.preventDefault()}
+                  >
+                    <div className="w-full h-full p-1 icon-svg-wrapper" style={{ color: 'white' }} dangerouslySetInnerHTML={{ __html: iconObj.svg }} />
+                    <button 
+                      onClick={() => removeIcon(iconObj.id)}
+                      className="absolute inset-0 bg-black/80 text-white hidden group-hover:flex items-center justify-center text-xs font-bold transition-opacity"
+                      title="Remove icon"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                
+                <label className="w-8 h-8 border border-white/20 flex items-center justify-center hover:bg-white hover:text-black transition-colors shrink-0 cursor-pointer" title="Upload SVG Icon">
+                  +
+                  <input type="file" accept=".svg" className="hidden" onChange={handleFileUpload} />
+                </label>
               </div>
             </div>
           </motion.div>

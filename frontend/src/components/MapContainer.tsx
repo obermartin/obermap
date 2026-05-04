@@ -312,6 +312,23 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     return () => window.removeEventListener('saveLabel', handleSaveLabel);
   }, [labelPrompt, currentColor, setAnnotations, setLabelPrompt]);
 
+  // Handle drop icon event from Toolbar drag and drop
+  useEffect(() => {
+    const handleDropIcon = ((e: CustomEvent<{ clientX: number, clientY: number, iconId: string, color: string }>) => {
+      if (!mapRef.current) return;
+      const lngLat = mapRef.current.unproject([e.detail.clientX, e.detail.clientY]);
+      setAnnotations(prev => [...prev, {
+        id: Date.now().toString(),
+        type: 'icon',
+        iconId: e.detail.iconId,
+        color: e.detail.color,
+        coordinates: [lngLat.lng, lngLat.lat]
+      }]);
+    }) as EventListener;
+    window.addEventListener('requestDropIcon', handleDropIcon);
+    return () => window.removeEventListener('requestDropIcon', handleDropIcon);
+  }, [setAnnotations]);
+
   // Update mapbox features when annotations change
   useEffect(() => {
     if (!mapRef.current || !mapLoaded) return;
@@ -483,6 +500,32 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         } catch (e) {
           console.error('Error generating circle markers', e);
         }
+      } else if (ann.type === 'icon' && ann.coordinates) {
+        const iconObj = settings.icons?.find(i => i.id === ann.iconId);
+        if (iconObj) {
+          const el = document.createElement('div');
+          el.className = 'w-8 h-8 flex items-center justify-center p-2 icon-svg-wrapper';
+          el.style.backgroundColor = ann.color || '#ffffff';
+          el.style.color = getContrastYIQ(ann.color || '#ffffff');
+          el.innerHTML = iconObj.svg;
+          el.style.cursor = 'pointer';
+          
+          el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (activeTool !== 'none') {
+              setSelectedAnnotationId(ann.id);
+            }
+          });
+          el.addEventListener('mousedown', (e) => e.stopPropagation());
+          
+          if (ann.id === selectedAnnotationId) {
+            el.style.filter = 'drop-shadow(0 0 6px rgba(255,255,255,1)) drop-shadow(0 0 12px rgba(255,255,255,0.8))';
+            el.style.zIndex = '1000';
+            el.style.outline = '2px dashed #ffffff';
+            el.style.outlineOffset = '2px';
+          }
+          expectedMarkers.set(ann.id, { lngLat: ann.coordinates, el });
+        }
       }
     });
 
@@ -497,7 +540,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         .setLngLat(data.lngLat)
         .addTo(mapRef.current!);
     });
-  }, [annotations, activeTool, mapLoaded, selectedAnnotationId]);
+  }, [annotations, activeTool, mapLoaded, selectedAnnotationId, settings.icons]);
 
   // Update selected annotation filter
   useEffect(() => {

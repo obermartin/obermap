@@ -1,4 +1,4 @@
-export type ToolType = 'none' | 'label' | 'highlight' | 'paint' | 'polygon' | 'circle' | 'measure';
+export type ToolType = 'none' | 'label' | 'highlight' | 'paint' | 'polygon' | 'circle' | 'measure' | 'icon';
 
 export interface Annotation {
   id: string;
@@ -7,6 +7,7 @@ export interface Annotation {
   coordinates?: any;
   text?: string;
   radius?: number;
+  iconId?: string;
   view?: {
     center: [number, number];
     zoom: number;
@@ -25,6 +26,7 @@ export interface AppSettings {
     bearing: number;
   };
   colorPalette: string[];
+  icons: { id: string; svg: string }[];
 }
 
 export interface AppState {
