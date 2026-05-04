@@ -1,0 +1,82 @@
+{
+  "annotations": [
+    {
+      "id": "1777736599977",
+      "type": "highlight",
+      "color": "#DD0000",
+      "coordinates": [
+        36.1695671081543,
+        47.64503657020023
+      ],
+      "text": "Salisnytschne",
+      "view": {
+        "center": [
+          36.1695671081543,
+          47.64503657020023
+        ],
+        "zoom": 9.184405762729957,
+        "pitch": 45.00000000000001,
+        "bearing": 0
+      }
+    },
+    {
+      "id": "1777736717980",
+      "type": "highlight",
+      "color": "#DD0000",
+      "coordinates": [
+        37.79619812965393,
+        48.578303619053656
+      ],
+      "text": "Mykolajiwka",
+      "view": {
+        "center": [
+          37.79619812965393,
+          48.578303619053656
+        ],
+        "zoom": 13.44449892709451,
+        "pitch": 55.49999999999999,
+        "bearing": -36.79999999999973
+      }
+    },
+    {
+      "id": "1777739151676",
+      "type": "label",
+      "color": "#FFF700",
+      "text": "Osten",
+      "coordinates": [
+        36.948343437347916,
+        49.344167104358235
+      ],
+      "view": {
+        "center": [
+          37.03873672733758,
+          49.38316102489284
+        ],
+        "zoom": 10.882605384382565,
+        "pitch": 37.500000000000064,
+        "bearing": -7.2659986470685
+      }
+    }
+  ],
+  "settings": {
+    "mapboxToken": "pk.eyJ1Ijoib2Jlcm1hcnRpbiIsImEiOiJja25ybGlpYTgyNDRhMnVwcmo5eml4ZGdzIn0.W_ZjSsvTOlZs-Xd7m72DIQ",
+    "mapboxStyle": "mapbox://styles/obermartin/cmm3bkmfc004h01s6570sgc5v",
+    "defaultView": {
+      "center": [
+        31.68547269914825,
+        47.87521051262351
+      ],
+      "zoom": 5.929531710899788,
+      "pitch": 37.50000000000004,
+      "bearing": -7.2659986470685
+    },
+    "colorPalette": [
+      "#DD0000",
+      "#436BE5",
+      "#99FF00",
+      "#FF00FF",
+      "#FFF700",
+      "#00FF7B"
+    ]
+  }
+}
