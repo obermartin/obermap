@@ -66,7 +66,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     if (!iconObj) return;
 
     const ghost = document.createElement('div');
-    ghost.className = 'fixed pointer-events-none z-[100] w-8 h-8 flex items-center justify-center opacity-80 p-2 icon-svg-wrapper';
+    ghost.className = 'fixed pointer-events-none z-[100] w-8 h-8 flex items-center justify-center opacity-80 p-1 icon-svg-wrapper';
     ghost.style.backgroundColor = currentColor;
     ghost.style.color = getContrastYIQ(currentColor);
     ghost.innerHTML = iconObj.svg;
@@ -206,7 +206,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 10, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="flex relative border-b-2 border-black/50 max-w-full overflow-x-auto overflow-y-hidden no-scrollbar shrink-0 mb-1"
+            className="flex relative max-w-full overflow-x-auto overflow-y-hidden no-scrollbar shrink-0"
           >
             {settings.icons?.map((iconObj) => (
               <button

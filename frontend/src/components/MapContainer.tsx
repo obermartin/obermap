@@ -504,7 +504,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         const iconObj = settings.icons?.find(i => i.id === ann.iconId);
         if (iconObj) {
           const el = document.createElement('div');
-          el.className = 'w-8 h-8 flex items-center justify-center p-2 icon-svg-wrapper';
+          el.className = 'w-8 h-8 flex items-center justify-center p-1 icon-svg-wrapper';
           el.style.backgroundColor = ann.color || '#ffffff';
           el.style.color = getContrastYIQ(ann.color || '#ffffff');
           el.innerHTML = iconObj.svg;
