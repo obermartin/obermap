@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Reorder, useDragControls } from 'framer-motion';
-import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers } from 'lucide-react';
+import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2 } from 'lucide-react';
 import type { AppSettings, MapLayer } from '../types';
 import { parseMapFile } from '../utils/fileUtils';
 
@@ -269,8 +269,8 @@ function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer }: {
         {layer.visible ? <Eye size={18} /> : <EyeOff size={18} />}
       </button>
       {!['deepstate', 'satellite'].includes(layer.id) && (
-        <button onClick={() => removeLayer(layer.id)} className="text-red-400/50 hover:text-red-400 ml-1">
-          <X size={16} />
+        <button onClick={() => removeLayer(layer.id)} className="text-white/50 hover:text-white transition-colors ml-1">
+          <Trash2 size={16} />
         </button>
       )}
     </Reorder.Item>
