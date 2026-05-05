@@ -1,0 +1,1554 @@
+<?xml version='1.0' encoding="UTF-8" standalone="no" ?>
+<!DOCTYPE WMT_MS_Capabilities SYSTEM "http://schemas.opengis.net/wms/1.1.1/WMS_MS_Capabilities.dtd"
+ [
+<!ELEMENT VendorSpecificCapabilities (inspire_vs:ExtendedCapabilities)><!ELEMENT inspire_vs:ExtendedCapabilities ((inspire_common:MetadataUrl, inspire_common:SupportedLanguages, inspire_common:ResponseLanguage) | (inspire_common:ResourceLocator+, inspire_common:ResourceType, inspire_common:TemporalReference+, inspire_common:Conformity+, inspire_common:MetadataPointOfContact+, inspire_common:MetadataDate, inspire_common:SpatialDataServiceType, inspire_common:MandatoryKeyword+, inspire_common:Keyword*, inspire_common:SupportedLanguages, inspire_common:ResponseLanguage, inspire_common:MetadataUrl?))><!ATTLIST inspire_vs:ExtendedCapabilities xmlns:inspire_vs CDATA #FIXED "http://inspire.ec.europa.eu/schemas/inspire_vs/1.0" ><!ELEMENT inspire_common:MetadataUrl (inspire_common:URL, inspire_common:MediaType*)><!ATTLIST inspire_common:MetadataUrl xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" xmlns:xsi CDATA #FIXED "http://www.w3.org/2001/XMLSchema-instance" xsi:type CDATA #FIXED "inspire_common:resourceLocatorType" ><!ELEMENT inspire_common:URL (#PCDATA)><!ATTLIST inspire_common:URL xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0"><!ELEMENT inspire_common:MediaType (#PCDATA)><!ATTLIST inspire_common:MediaType xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0"><!ELEMENT inspire_common:SupportedLanguages (inspire_common:DefaultLanguage, inspire_common:SupportedLanguage*)><!ATTLIST inspire_common:SupportedLanguages xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" ><!ELEMENT inspire_common:DefaultLanguage (inspire_common:Language)><!ATTLIST inspire_common:DefaultLanguage xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" ><!ELEMENT inspire_common:SupportedLanguage (inspire_common:Language)><!ATTLIST inspire_common:SupportedLanguage xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" ><!ELEMENT inspire_common:ResponseLanguage (inspire_common:Language)><!ATTLIST inspire_common:ResponseLanguage xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" ><!ELEMENT inspire_common:Language (#PCDATA)><!ATTLIST inspire_common:Language xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" ><!ELEMENT inspire_common:ResourceLocator (inspire_common:URL, inspire_common:MediaType*)><!ATTLIST inspire_common:ResourceLocator xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0"><!ELEMENT inspire_common:ResourceType (#PCDATA)> <!ATTLIST inspire_common:ResourceType xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" ><!ELEMENT inspire_common:TemporalReference (inspire_common:DateOfCreation?, inspire_common:DateOfLastRevision?, inspire_common:DateOfPublication*, inspire_common:TemporalExtent*)><!ATTLIST inspire_common:TemporalReference xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" ><!ELEMENT inspire_common:DateOfCreation (#PCDATA)> <!ATTLIST inspire_common:DateOfCreation xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0"><!ELEMENT inspire_common:DateOfLastRevision (#PCDATA)><!ATTLIST inspire_common:DateOfLastRevision xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0"><!ELEMENT inspire_common:DateOfPublication (#PCDATA)><!ATTLIST inspire_common:DateOfPublication xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0"><!ELEMENT inspire_common:TemporalExtent (inspire_common:IndividualDate | inspire_common:IntervalOfDates)><!ATTLIST inspire_common:TemporalExtent xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" ><!ELEMENT inspire_common:IndividualDate (#PCDATA)> <!ATTLIST inspire_common:IndividualDate xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0"><!ELEMENT inspire_common:IntervalOfDates (inspire_common:StartingDate, inspire_common:EndDate)><!ATTLIST inspire_common:IntervalOfDates xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" ><!ELEMENT inspire_common:StartingDate (#PCDATA)><!ATTLIST inspire_common:StartingDate xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" ><!ELEMENT inspire_common:EndDate (#PCDATA)><!ATTLIST inspire_common:EndDate xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" ><!ELEMENT inspire_common:Conformity (inspire_common:Specification, inspire_common:Degree)><!ATTLIST inspire_common:Conformity xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" ><!ELEMENT inspire_common:Specification (inspire_common:Title, (inspire_common:DateOfPublication | inspire_common:DateOfCreation | inspire_common:DateOfLastRevision), inspire_common:URI*, inspire_common:ResourceLocator*)><!ATTLIST inspire_common:Specification xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" ><!ELEMENT inspire_common:Title (#PCDATA)><!ATTLIST inspire_common:Title xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" ><!ELEMENT inspire_common:URI (#PCDATA)><!ATTLIST inspire_common:URI xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" ><!ELEMENT inspire_common:Degree (#PCDATA)><!ATTLIST inspire_common:Degree xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" ><!ELEMENT inspire_common:MetadataPointOfContact (inspire_common:OrganisationName, inspire_common:EmailAddress)><!ATTLIST inspire_common:MetadataPointOfContact xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" ><!ELEMENT inspire_common:OrganisationName (#PCDATA)><!ATTLIST inspire_common:OrganisationName  xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" ><!ELEMENT inspire_common:EmailAddress (#PCDATA)><!ATTLIST inspire_common:EmailAddress xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" ><!ELEMENT inspire_common:MetadataDate (#PCDATA)><!ATTLIST inspire_common:MetadataDate xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" ><!ELEMENT inspire_common:SpatialDataServiceType (#PCDATA)><!ATTLIST inspire_common:SpatialDataServiceType xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" ><!ELEMENT inspire_common:MandatoryKeyword (inspire_common:KeywordValue)><!ATTLIST inspire_common:MandatoryKeyword xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" ><!ELEMENT inspire_common:KeywordValue (#PCDATA)><!ATTLIST inspire_common:KeywordValue xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" ><!ELEMENT inspire_common:Keyword (inspire_common:OriginatingControlledVocabulary?, inspire_common:KeywordValue)><!ATTLIST inspire_common:Keyword xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0" xmlns:xsi CDATA #FIXED "http://www.w3.org/2001/XMLSchemainstance" xsi:type (inspire_common:inspireTheme_bul | inspire_common:inspireTheme_cze | inspire_common:inspireTheme_dan | inspire_common:inspireTheme_dut | inspire_common:inspireTheme_eng | inspire_common:inspireTheme_est | inspire_common:inspireTheme_fin | inspire_common:inspireTheme_fre | inspire_common:inspireTheme_ger | inspire_common:inspireTheme_gre | inspire_common:inspireTheme_hun | inspire_common:inspireTheme_gle | inspire_common:inspireTheme_ita | inspire_common:inspireTheme_lav | inspire_common:inspireTheme_lit | inspire_common:inspireTheme_mlt | inspire_common:inspireTheme_pol | inspire_common:inspireTheme_por | inspire_common:inspireTheme_rum | inspire_common:inspireTheme_slo | inspire_common:inspireTheme_slv | inspire_common:inspireTheme_spa | inspire_common:inspireTheme_swe) #IMPLIED ><!ELEMENT inspire_common:OriginatingControlledVocabulary (inspire_common:Title, (inspire_common:DateOfPublication | inspire_common:DateOfCreation | inspire_common:DateOfLastRevision), inspire_common:URI*, inspire_common:ResourceLocator*)><!ATTLIST inspire_common:OriginatingControlledVocabulary xmlns:inspire_common CDATA #FIXED "http://inspire.ec.europa.eu/schemas/common/1.0">
+ ]>  <!-- end of DOCTYPE declaration -->
+
+<WMT_MS_Capabilities version="1.1.1">
+<Service>
+  <Name>OGC:WMS</Name>
+  <Title>EFFIS</Title>
+  <Abstract>The European Forest Fire Information System (EFFIS) supports the services in charge of the protection of forests against fires in the EU countries and provides the European Commission services and the European Parliament with updated and reliable information on wildland fires in Europe.</Abstract>
+  <KeywordList>
+      <Keyword>Europe</Keyword>
+      <Keyword>Wildfire</Keyword>
+      <Keyword>Forest</Keyword>
+      <Keyword>Forest Fires</Keyword>
+      <Keyword>FWI</Keyword>
+      <Keyword>Fire Weather Index</Keyword>
+  </KeywordList>
+  <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?"/>
+  <ContactInformation>
+    <ContactPersonPrimary>
+      <ContactPerson>Jesús San-Miguel-Ayanz</ContactPerson>
+      <ContactOrganization>European Commission, Joint Research Centre</ContactOrganization>
+    </ContactPersonPrimary>
+      <ContactPosition>European Union</ContactPosition>
+    <ContactAddress>
+        <AddressType>postal</AddressType>
+        <Address>Via E. Fermi 2749 - TP 261</Address>
+        <City>Ispra</City>
+        <StateOrProvince>VA</StateOrProvince>
+        <PostCode>I-21027</PostCode>
+        <Country>Italy</Country>
+    </ContactAddress>
+      <ContactVoiceTelephone>+39 0332 786138</ContactVoiceTelephone>
+      <ContactFacsimileTelephone>+39 0332 789803</ContactFacsimileTelephone>
+  <ContactElectronicMailAddress>effis@jrc.ec.europa.eu</ContactElectronicMailAddress>
+  </ContactInformation>
+  <Fees>none</Fees>
+  <AccessConstraints>None</AccessConstraints>
+</Service>
+
+<Capability>
+  <Request>
+    <GetCapabilities>
+      <Format>application/vnd.ogc.wms_xml</Format>
+      <DCPType>
+        <HTTP>
+          <Get><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;"/></Get>
+          <Post><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;"/></Post>
+        </HTTP>
+      </DCPType>
+    </GetCapabilities>
+    <GetMap>
+      <Format>image/png</Format>
+      <Format>image/gif</Format>
+      <Format>image/png; mode=8bit</Format>
+      <Format>image/jpeg</Format>
+      <Format>image/vnd.jpeg-png</Format>
+      <Format>image/vnd.jpeg-png8</Format>
+      <Format>image/tiff</Format>
+      <Format>application/x-pdf</Format>
+      <Format>image/svg+xml</Format>
+      <Format>application/vnd.google-earth.kml+xml</Format>
+      <Format>application/vnd.google-earth.kmz</Format>
+      <Format>application/vnd.mapbox-vector-tile</Format>
+      <Format>application/x-protobuf</Format>
+      <Format>application/json</Format>
+      <DCPType>
+        <HTTP>
+          <Get><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;"/></Get>
+          <Post><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;"/></Post>
+        </HTTP>
+      </DCPType>
+    </GetMap>
+    <GetFeatureInfo>
+      <Format>text/html</Format>
+      <Format>application/vnd.ogc.gml</Format>
+      <Format>text/plain</Format>
+      <DCPType>
+        <HTTP>
+          <Get><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;"/></Get>
+          <Post><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;"/></Post>
+        </HTTP>
+      </DCPType>
+    </GetFeatureInfo>
+    <DescribeLayer>
+      <Format>text/xml</Format>
+      <DCPType>
+        <HTTP>
+          <Get><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;"/></Get>
+          <Post><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;"/></Post>
+        </HTTP>
+      </DCPType>
+    </DescribeLayer>
+    <GetLegendGraphic>
+      <Format>image/png</Format>
+      <Format>image/gif</Format>
+      <Format>image/png; mode=8bit</Format>
+      <Format>image/jpeg</Format>
+      <Format>image/vnd.jpeg-png</Format>
+      <Format>image/vnd.jpeg-png8</Format>
+      <DCPType>
+        <HTTP>
+          <Get><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;"/></Get>
+          <Post><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;"/></Post>
+        </HTTP>
+      </DCPType>
+    </GetLegendGraphic>
+    <GetStyles>
+      <Format>text/xml</Format>
+      <DCPType>
+        <HTTP>
+          <Get><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;"/></Get>
+          <Post><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;"/></Post>
+        </HTTP>
+      </DCPType>
+    </GetStyles>
+  </Request>
+  <Exception>
+    <Format>application/vnd.ogc.se_xml</Format>
+    <Format>application/vnd.ogc.se_inimage</Format>
+    <Format>application/vnd.ogc.se_blank</Format>
+  </Exception>
+  <VendorSpecificCapabilities>
+  <inspire_vs:ExtendedCapabilities>
+    <inspire_common:ResourceLocator>
+      <inspire_common:URL>http://maps.effis.emergency.copernicus.eu/effis?</inspire_common:URL>
+    </inspire_common:ResourceLocator>
+    <inspire_common:ResourceType>service</inspire_common:ResourceType>
+    <inspire_common:TemporalReference>
+      <inspire_common:DateOfLastRevision>2014-08-08</inspire_common:DateOfLastRevision>
+    </inspire_common:TemporalReference>
+    <inspire_common:Conformity>
+      <inspire_common:Specification>
+        <inspire_common:Title>-</inspire_common:Title>
+        <inspire_common:DateOfLastRevision>2014-08-08</inspire_common:DateOfLastRevision>
+      </inspire_common:Specification>
+      <inspire_common:Degree>notEvaluated</inspire_common:Degree>
+    </inspire_common:Conformity>
+    <inspire_common:MetadataPointOfContact>
+      <inspire_common:OrganisationName>Jesús San-Miguel-Ayanz</inspire_common:OrganisationName>
+      <inspire_common:EmailAddress>effis@jrc.ec.europa.eu</inspire_common:EmailAddress>
+    </inspire_common:MetadataPointOfContact>
+      <inspire_common:MetadataDate>2014-08-08</inspire_common:MetadataDate>
+    <inspire_common:SpatialDataServiceType>view</inspire_common:SpatialDataServiceType>
+    <inspire_common:MandatoryKeyword>
+      <inspire_common:KeywordValue>Wildfire</inspire_common:KeywordValue>
+    </inspire_common:MandatoryKeyword>
+    <inspire_common:SupportedLanguages>
+      <inspire_common:DefaultLanguage><inspire_common:Language>eng</inspire_common:Language></inspire_common:DefaultLanguage>
+    </inspire_common:SupportedLanguages>
+    <inspire_common:ResponseLanguage><inspire_common:Language>eng</inspire_common:Language></inspire_common:ResponseLanguage>
+  </inspire_vs:ExtendedCapabilities>
+  </VendorSpecificCapabilities>
+  <UserDefinedSymbolization SupportSLD="1" UserLayer="0" UserStyle="1" RemoteWFS="0"/>
+  <Layer queryable="1">
+    <Name>EFFIS</Name>
+    <Title>EFFIS</Title>
+    <Abstract>The European Forest Fire Information System (EFFIS) supports the services in charge of the protection of forests against fires in the EU countries and provides the European Commission services and the European Parliament with updated and reliable information on wildland fires in Europe.</Abstract>
+    <KeywordList>
+        <Keyword>Europe</Keyword>
+        <Keyword>Wildfire</Keyword>
+        <Keyword>Forest</Keyword>
+        <Keyword>Forest Fires</Keyword>
+        <Keyword>FWI</Keyword>
+        <Keyword>Fire Weather Index</Keyword>
+    </KeywordList>
+    <SRS>EPSG:4326</SRS>
+    <SRS>EPSG:3035</SRS>
+    <SRS>EPSG:3034</SRS>
+    <SRS>EPSG:3857</SRS>
+    <SRS>EPSG:900913</SRS>
+    <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+    <BoundingBox SRS="EPSG:4326"
+                minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+    <Attribution>
+        <Title>The geodata are released under the terms and conditions of the EU Data License, available at https://ec.europa.eu/geninfo/legal_notices_en.htm</Title>
+        <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="https://ec.europa.eu/geninfo/legal_notices_en.htm"/>
+    </Attribution>
+    <Style>
+       <Name>default</Name>
+       <Title>default</Title>
+       <LegendURL width="207" height="2768">
+          <Format>image/png</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=EFFIS&amp;format=image/png&amp;STYLE=default"/>
+       </LegendURL>
+    </Style>
+    <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>mf010.query</Name>
+        <Title>mf010.query</Title>
+        <SRS>EPSG:4326</SRS>
+        <LatLonBoundingBox minx="-25.000000" miny="25.000000" maxx="50.000000" maxy="72.000000" />
+        <BoundingBox SRS="EPSG:4326"
+                    minx="-25.000000" miny="25.000000" maxx="50.000000" maxy="72.000000" />
+        <Dimension name="time" units="ISO8601"/>
+        <Extent name="time" default="2019-01-01" nearestValue="0">2018-01-01/2099-12-31</Extent>
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=mf010.query"/>
+        </MetadataURL>
+    </Layer>
+    <Layer queryable="0" opaque="0" cascaded="0">
+        <Name>mf010.fwi</Name>
+        <Title>mf010.fwi</Title>
+        <SRS>EPSG:4326</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="EPSG:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <Dimension name="time" units="ISO8601"/>
+        <Extent name="time" default="2021-01-01" nearestValue="0">2018-01-01/2099-12-31</Extent>
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=mf010.fwi"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="146" height="95">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=mf010.fwi&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+    </Layer>
+    <Layer queryable="0" opaque="0" cascaded="0">
+        <Name>mf010.ffmc</Name>
+        <Title>mf010.ffmc</Title>
+        <SRS>EPSG:4326</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="EPSG:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <Dimension name="time" units="ISO8601"/>
+        <Extent name="time" default="2019-01-01" nearestValue="0">2018-01-01/2099-12-31</Extent>
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=mf010.ffmc"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="146" height="95">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=mf010.ffmc&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+    </Layer>
+    <Layer queryable="0" opaque="0" cascaded="0">
+        <Name>mf010.dmc</Name>
+        <Title>mf010.dmc</Title>
+        <SRS>EPSG:4326</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="EPSG:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <Dimension name="time" units="ISO8601"/>
+        <Extent name="time" default="2019-01-01" nearestValue="0">2018-01-01/2099-12-31</Extent>
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=mf010.dmc"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="149" height="95">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=mf010.dmc&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+    </Layer>
+    <Layer queryable="0" opaque="0" cascaded="0">
+        <Name>mf010.dc</Name>
+        <Title>mf010.dc</Title>
+        <SRS>EPSG:4326</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="EPSG:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <Dimension name="time" units="ISO8601"/>
+        <Extent name="time" default="2019-01-01" nearestValue="0">2018-01-01/2099-12-31</Extent>
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=mf010.dc"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="158" height="95">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=mf010.dc&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+    </Layer>
+    <Layer queryable="0" opaque="0" cascaded="0">
+        <Name>mf010.isi</Name>
+        <Title>mf010.isi</Title>
+        <SRS>EPSG:4326</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="EPSG:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <Dimension name="time" units="ISO8601"/>
+        <Extent name="time" default="2019-01-01" nearestValue="0">2018-01-01/2099-12-31</Extent>
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=mf010.isi"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="143" height="95">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=mf010.isi&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+    </Layer>
+    <Layer queryable="0" opaque="0" cascaded="0">
+        <Name>mf010.bui</Name>
+        <Title>mf010.bui</Title>
+        <SRS>EPSG:4326</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="EPSG:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <Dimension name="time" units="ISO8601"/>
+        <Extent name="time" default="2019-01-01" nearestValue="0">2018-01-01/2099-12-31</Extent>
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=mf010.bui"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="152" height="95">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=mf010.bui&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+    </Layer>
+    <Layer queryable="0" opaque="0" cascaded="0">
+        <Name>mf010.anomaly</Name>
+        <Title>mf010.anomaly</Title>
+        <SRS>EPSG:4326</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="EPSG:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <Dimension name="time" units="ISO8601"/>
+        <Extent name="time" default="2019-01-01" nearestValue="0">2018-01-01/2099-12-31</Extent>
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=mf010.anomaly"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="137" height="95">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=mf010.anomaly&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+    </Layer>
+    <Layer queryable="0" opaque="0" cascaded="0">
+        <Name>mf010.ranking</Name>
+        <Title>mf010.ranking</Title>
+        <SRS>EPSG:4326</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="EPSG:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <Dimension name="time" units="ISO8601"/>
+        <Extent name="time" default="2019-01-01" nearestValue="0">2018-01-01/2099-12-31</Extent>
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=mf010.ranking"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="161" height="95">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=mf010.ranking&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+    </Layer>
+    <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>all.hs</Name>
+        <Title>all.hs</Title>
+        <Abstract>Active fires (VIIRS)</Abstract>
+        <SRS>EPSG:4326</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="EPSG:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <Dimension name="time" units="ISO8601"/>
+        <Extent name="time" default="2020-01-01" nearestValue="0">2000-01-01/2099-12-31</Extent>
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=all.hs"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="202" height="319">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=all.hs&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+    </Layer>
+    <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>viirs.hs</Name>
+        <Title>viirs.hs</Title>
+        <Abstract>Active fires (VIIRS)</Abstract>
+        <SRS>EPSG:4326</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="EPSG:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <Dimension name="time" units="ISO8601"/>
+        <Extent name="time" default="2020-01-01" nearestValue="0">2000-01-01/2099-12-31</Extent>
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=viirs.hs"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="207" height="281">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=viirs.hs&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+    </Layer>
+    <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>noaa.hs</Name>
+        <Title>noaa.hs</Title>
+        <Abstract>Active fires (VIIRS)</Abstract>
+        <SRS>EPSG:4326</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="EPSG:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <Dimension name="time" units="ISO8601"/>
+        <Extent name="time" default="2020-01-01" nearestValue="0">2000-01-01/2099-12-31</Extent>
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=noaa.hs"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="191" height="97">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=noaa.hs&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+    </Layer>
+    <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.hs</Name>
+        <Title>modis.hs</Title>
+        <Abstract>Active fires (VIIRS)</Abstract>
+        <SRS>EPSG:4326</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="EPSG:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <Dimension name="time" units="ISO8601"/>
+        <Extent name="time" default="2020-01-01" nearestValue="0">2000-01-01/2099-12-31</Extent>
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.hs"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="198" height="193">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.hs&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+    </Layer>
+    <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>all.hs.query</Name>
+        <Title>all.hs.query</Title>
+        <Abstract>Active fires (VIIRS)</Abstract>
+        <SRS>EPSG:4326</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="EPSG:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <Dimension name="time" units="ISO8601"/>
+        <Extent name="time" default="2020-01-01" nearestValue="0">2000-01-01/2099-12-31</Extent>
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=all.hs.query"/>
+        </MetadataURL>
+    </Layer>
+    <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>viirs.hs.query</Name>
+        <Title>viirs.hs.query</Title>
+        <Abstract>Active fires (VIIRS)</Abstract>
+        <SRS>EPSG:4326</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="EPSG:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <Dimension name="time" units="ISO8601"/>
+        <Extent name="time" default="2020-01-01" nearestValue="0">2000-01-01/2099-12-31</Extent>
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=viirs.hs.query"/>
+        </MetadataURL>
+    </Layer>
+    <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>noaa.hs.query</Name>
+        <Title>noaa.hs.query</Title>
+        <Abstract>Active fires (VIIRS)</Abstract>
+        <SRS>EPSG:4326</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="EPSG:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <Dimension name="time" units="ISO8601"/>
+        <Extent name="time" default="2020-01-01" nearestValue="0">2000-01-01/2099-12-31</Extent>
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=noaa.hs.query"/>
+        </MetadataURL>
+    </Layer>
+    <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.hs.query</Name>
+        <Title>modis.hs.query</Title>
+        <Abstract>Active fires (VIIRS)</Abstract>
+        <SRS>EPSG:4326</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="EPSG:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <Dimension name="time" units="ISO8601"/>
+        <Extent name="time" default="2020-01-01" nearestValue="0">2000-01-01/2099-12-31</Extent>
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.hs.query"/>
+        </MetadataURL>
+    </Layer>
+    <Layer queryable="1">
+      <Name>modis.ba</Name>
+<!-- WARNING: Mandatory metadata "wms_GROUP_TITLE" or "ows_GROUP_TITLE" was missing in this context. -->
+      <Title>modis.ba</Title>
+      <Abstract>modis.ba</Abstract>
+    <Style>
+       <Name>default</Name>
+       <Title>default</Title>
+       <LegendURL width="99" height="125">
+          <Format>image/png</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba&amp;format=image/png&amp;STYLE=default"/>
+       </LegendURL>
+    </Style>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.poly</Name>
+        <Title>modis.ba.poly</Title>
+        <Abstract>Current Season Burned Areas</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <Dimension name="time" units="ISO8601"/>
+        <Extent name="time" default="2016-05-01" nearestValue="0">2000-01-01/2099-12-31</Extent>
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.poly"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="99" height="65">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.poly&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="0.000498902848429637" max="498.902349526789" />
+      </Layer>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.point</Name>
+        <Title>modis.ba.point</Title>
+        <Abstract>Current Season Burned Areas</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <Dimension name="time" units="ISO8601"/>
+        <Extent name="time" default="2016-05-01" nearestValue="0">2000-01-01/2099-12-31</Extent>
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.point"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="99" height="65">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.point&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="498.902848429637" max="49890.2848429637" />
+      </Layer>
+    </Layer>
+    <Layer queryable="1">
+      <Name>effis.nrt.ba</Name>
+<!-- WARNING: Mandatory metadata "wms_GROUP_TITLE" or "ows_GROUP_TITLE" was missing in this context. -->
+      <Title>effis.nrt.ba</Title>
+      <Abstract>effis.nrt.ba</Abstract>
+    <Style>
+       <Name>default</Name>
+       <Title>default</Title>
+       <LegendURL width="99" height="125">
+          <Format>image/png</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=effis.nrt.ba&amp;format=image/png&amp;STYLE=default"/>
+       </LegendURL>
+    </Style>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>effis.nrt.ba.poly</Name>
+        <Title>viirs.ba.poly</Title>
+        <Abstract>Current Season Burned Areas</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <Dimension name="time" units="ISO8601"/>
+        <Extent name="time" default="2016-05-01" nearestValue="0">2000-01-01/2099-12-31</Extent>
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=effis.nrt.ba.poly"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="99" height="65">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=effis.nrt.ba.poly&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="0.000498902848429637" max="498.902349526789" />
+      </Layer>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>effis.nrt.ba.point</Name>
+        <Title>viirs.ba.point</Title>
+        <Abstract>Current Season Burned Areas</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <Dimension name="time" units="ISO8601"/>
+        <Extent name="time" default="2016-05-01" nearestValue="0">2000-01-01/2099-12-31</Extent>
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=effis.nrt.ba.point"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="99" height="65">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=effis.nrt.ba.point&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="498.902848429637" max="49890.2848429637" />
+      </Layer>
+    </Layer>
+    <Layer queryable="1">
+      <Name>modis.ba.today</Name>
+<!-- WARNING: Mandatory metadata "wms_GROUP_TITLE" or "ows_GROUP_TITLE" was missing in this context. -->
+      <Title>modis.ba.today</Title>
+      <Abstract>modis.ba.today</Abstract>
+    <Style>
+       <Name>default</Name>
+       <Title>default</Title>
+       <LegendURL width="99" height="125">
+          <Format>image/png</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.today&amp;format=image/png&amp;STYLE=default"/>
+       </LegendURL>
+    </Style>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.poly.today</Name>
+        <Title>modis.ba.poly.today</Title>
+        <Abstract>Current Season Burned Areas</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.poly.today"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="99" height="65">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.poly.today&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="0.000498902848429637" max="498.902349526789" />
+      </Layer>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.point.today</Name>
+        <Title>modis.ba.point</Title>
+        <Abstract>Current Season Burned Areas</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.point.today"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="99" height="65">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.point.today&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="498.902848429637" max="49890.2848429637" />
+      </Layer>
+    </Layer>
+    <Layer queryable="1">
+      <Name>modis.ba.week</Name>
+<!-- WARNING: Mandatory metadata "wms_GROUP_TITLE" or "ows_GROUP_TITLE" was missing in this context. -->
+      <Title>modis.ba.week</Title>
+      <Abstract>modis.ba.week</Abstract>
+    <Style>
+       <Name>default</Name>
+       <Title>default</Title>
+       <LegendURL width="99" height="125">
+          <Format>image/png</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.week&amp;format=image/png&amp;STYLE=default"/>
+       </LegendURL>
+    </Style>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.poly.week</Name>
+        <Title>modis.ba.poly.week</Title>
+        <Abstract>Current Season Burned Areas</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.poly.week"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="99" height="65">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.poly.week&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="0.000498902848429637" max="498.902349526789" />
+      </Layer>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.point.week</Name>
+        <Title>modis.ba.point</Title>
+        <Abstract>Current Season Burned Areas</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.point.week"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="99" height="65">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.point.week&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="498.902848429637" max="49890.2848429637" />
+      </Layer>
+    </Layer>
+    <Layer queryable="1">
+      <Name>modis.ba.month</Name>
+<!-- WARNING: Mandatory metadata "wms_GROUP_TITLE" or "ows_GROUP_TITLE" was missing in this context. -->
+      <Title>modis.ba.month</Title>
+      <Abstract>modis.ba.month</Abstract>
+    <Style>
+       <Name>default</Name>
+       <Title>default</Title>
+       <LegendURL width="99" height="125">
+          <Format>image/png</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.month&amp;format=image/png&amp;STYLE=default"/>
+       </LegendURL>
+    </Style>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.poly.month</Name>
+        <Title>modis.ba.poly.month</Title>
+        <Abstract>Current Season Burned Areas</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.poly.month"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="99" height="65">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.poly.month&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="0.000498902848429637" max="498.902349526789" />
+      </Layer>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.point.month</Name>
+        <Title>modis.ba.point</Title>
+        <Abstract>Current Season Burned Areas</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.point.month"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="99" height="65">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.point.month&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="498.902848429637" max="49890.2848429637" />
+      </Layer>
+    </Layer>
+    <Layer queryable="1">
+      <Name>modis.ba.season</Name>
+<!-- WARNING: Mandatory metadata "wms_GROUP_TITLE" or "ows_GROUP_TITLE" was missing in this context. -->
+      <Title>modis.ba.season</Title>
+      <Abstract>modis.ba.season</Abstract>
+    <Style>
+       <Name>default</Name>
+       <Title>default</Title>
+       <LegendURL width="99" height="125">
+          <Format>image/png</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.season&amp;format=image/png&amp;STYLE=default"/>
+       </LegendURL>
+    </Style>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.poly.season</Name>
+        <Title>modis.ba.poly.season</Title>
+        <Abstract>Current Season Burned Areas</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.poly.season"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="99" height="65">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.poly.season&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="0.000498902848429637" max="498.902349526789" />
+      </Layer>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.point.season</Name>
+        <Title>modis.ba.point</Title>
+        <Abstract>Current Season Burned Areas</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.point.season"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="99" height="65">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.point.season&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="498.902848429637" max="49890.2848429637" />
+      </Layer>
+    </Layer>
+    <Layer queryable="1">
+      <Name>modis.ba.2016</Name>
+<!-- WARNING: Mandatory metadata "wms_GROUP_TITLE" or "ows_GROUP_TITLE" was missing in this context. -->
+      <Title>modis.ba.2016</Title>
+      <Abstract>modis.ba.2016</Abstract>
+    <Style>
+       <Name>default</Name>
+       <Title>default</Title>
+       <LegendURL width="121" height="35">
+          <Format>image/png</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.2016&amp;format=image/png&amp;STYLE=default"/>
+       </LegendURL>
+    </Style>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.poly.2016</Name>
+        <Title>modis.ba.poly.2016</Title>
+        <Abstract>Burned Areas 2016</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.poly.2016"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="121" height="20">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.poly.2016&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="0.000498902848429637" max="498.902349526789" />
+      </Layer>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.point.2016</Name>
+        <Title>modis.ba.point.2016</Title>
+        <Abstract>Burned Areas 2016</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.point.2016"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="121" height="20">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.point.2016&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="498.902848429637" max="49890.2848429637" />
+      </Layer>
+    </Layer>
+    <Layer queryable="1">
+      <Name>modis.ba.2017</Name>
+<!-- WARNING: Mandatory metadata "wms_GROUP_TITLE" or "ows_GROUP_TITLE" was missing in this context. -->
+      <Title>modis.ba.2017</Title>
+      <Abstract>modis.ba.2017</Abstract>
+    <Style>
+       <Name>default</Name>
+       <Title>default</Title>
+       <LegendURL width="121" height="35">
+          <Format>image/png</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.2017&amp;format=image/png&amp;STYLE=default"/>
+       </LegendURL>
+    </Style>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.poly.2017</Name>
+        <Title>modis.ba.poly.2017</Title>
+        <Abstract>Burned Areas 2017</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.poly.2017"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="121" height="20">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.poly.2017&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="0.000498902848429637" max="498.902349526789" />
+      </Layer>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.point.2017</Name>
+        <Title>modis.ba.point.2017</Title>
+        <Abstract>Burned Areas 2017</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.point.2017"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="121" height="20">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.point.2017&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="498.902848429637" max="49890.2848429637" />
+      </Layer>
+    </Layer>
+    <Layer queryable="1">
+      <Name>modis.ba.2018</Name>
+<!-- WARNING: Mandatory metadata "wms_GROUP_TITLE" or "ows_GROUP_TITLE" was missing in this context. -->
+      <Title>modis.ba.2018</Title>
+      <Abstract>modis.ba.2018</Abstract>
+    <Style>
+       <Name>default</Name>
+       <Title>default</Title>
+       <LegendURL width="121" height="35">
+          <Format>image/png</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.2018&amp;format=image/png&amp;STYLE=default"/>
+       </LegendURL>
+    </Style>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.poly.2018</Name>
+        <Title>modis.ba.poly.2018</Title>
+        <Abstract>Burned Areas 2018</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.poly.2018"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="121" height="20">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.poly.2018&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="0.000498902848429637" max="498.902349526789" />
+      </Layer>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.point.2018</Name>
+        <Title>modis.ba.point.2018</Title>
+        <Abstract>Burned Areas 2018</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.point.2018"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="121" height="20">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.point.2018&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="498.902848429637" max="49890.2848429637" />
+      </Layer>
+    </Layer>
+    <Layer queryable="1">
+      <Name>modis.ba.2019</Name>
+<!-- WARNING: Mandatory metadata "wms_GROUP_TITLE" or "ows_GROUP_TITLE" was missing in this context. -->
+      <Title>modis.ba.2019</Title>
+      <Abstract>modis.ba.2019</Abstract>
+    <Style>
+       <Name>default</Name>
+       <Title>default</Title>
+       <LegendURL width="121" height="35">
+          <Format>image/png</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.2019&amp;format=image/png&amp;STYLE=default"/>
+       </LegendURL>
+    </Style>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.poly.2019</Name>
+        <Title>modis.ba.poly.2019</Title>
+        <Abstract>Burned Areas 2019</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.poly.2019"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="121" height="20">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.poly.2019&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="0.000498902848429637" max="498.902349526789" />
+      </Layer>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.point.2019</Name>
+        <Title>modis.ba.point.2019</Title>
+        <Abstract>Burned Areas 2019</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.point.2019"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="121" height="20">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.point.2019&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="498.902848429637" max="49890.2848429637" />
+      </Layer>
+    </Layer>
+    <Layer queryable="1">
+      <Name>modis.ba.2020</Name>
+<!-- WARNING: Mandatory metadata "wms_GROUP_TITLE" or "ows_GROUP_TITLE" was missing in this context. -->
+      <Title>modis.ba.2020</Title>
+      <Abstract>modis.ba.2020</Abstract>
+    <Style>
+       <Name>default</Name>
+       <Title>default</Title>
+       <LegendURL width="121" height="35">
+          <Format>image/png</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.2020&amp;format=image/png&amp;STYLE=default"/>
+       </LegendURL>
+    </Style>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.poly.2020</Name>
+        <Title>modis.ba.poly.2020</Title>
+        <Abstract>Burned Areas 2020</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.poly.2020"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="121" height="20">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.poly.2020&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="0.000498902848429637" max="498.902349526789" />
+      </Layer>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.point.2020</Name>
+        <Title>modis.ba.point.2020</Title>
+        <Abstract>Burned Areas 2020</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.point.2020"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="121" height="20">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.point.2020&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="498.902848429637" max="49890.2848429637" />
+      </Layer>
+    </Layer>
+    <Layer queryable="1">
+      <Name>modis.ba.2021</Name>
+<!-- WARNING: Mandatory metadata "wms_GROUP_TITLE" or "ows_GROUP_TITLE" was missing in this context. -->
+      <Title>modis.ba.2021</Title>
+      <Abstract>modis.ba.2021</Abstract>
+    <Style>
+       <Name>default</Name>
+       <Title>default</Title>
+       <LegendURL width="121" height="35">
+          <Format>image/png</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.2021&amp;format=image/png&amp;STYLE=default"/>
+       </LegendURL>
+    </Style>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.poly.2021</Name>
+        <Title>modis.ba.poly.2021</Title>
+        <Abstract>Burned Areas 2021</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.poly.2021"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="121" height="20">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.poly.2021&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="0.000498902848429637" max="498.902349526789" />
+      </Layer>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.point.2021</Name>
+        <Title>modis.ba.point.2021</Title>
+        <Abstract>Burned Areas 2021</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.point.2021"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="121" height="20">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.point.2021&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="498.902848429637" max="49890.2848429637" />
+      </Layer>
+    </Layer>
+    <Layer queryable="1">
+      <Name>modis.ba.2022</Name>
+<!-- WARNING: Mandatory metadata "wms_GROUP_TITLE" or "ows_GROUP_TITLE" was missing in this context. -->
+      <Title>modis.ba.2022</Title>
+      <Abstract>modis.ba.2022</Abstract>
+    <Style>
+       <Name>default</Name>
+       <Title>default</Title>
+       <LegendURL width="121" height="35">
+          <Format>image/png</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.2022&amp;format=image/png&amp;STYLE=default"/>
+       </LegendURL>
+    </Style>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.poly.2022</Name>
+        <Title>modis.ba.poly.2022</Title>
+        <Abstract>Burned Areas 2022</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.poly.2022"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="121" height="20">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.poly.2022&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="0.000498902848429637" max="498.902349526789" />
+      </Layer>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.point.2022</Name>
+        <Title>modis.ba.point.2022</Title>
+        <Abstract>Burned Areas 2022</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.point.2022"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="121" height="20">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.point.2022&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="498.902848429637" max="49890.2848429637" />
+      </Layer>
+    </Layer>
+    <Layer queryable="1">
+      <Name>modis.ba.2023</Name>
+<!-- WARNING: Mandatory metadata "wms_GROUP_TITLE" or "ows_GROUP_TITLE" was missing in this context. -->
+      <Title>modis.ba.2023</Title>
+      <Abstract>modis.ba.2023</Abstract>
+    <Style>
+       <Name>default</Name>
+       <Title>default</Title>
+       <LegendURL width="121" height="35">
+          <Format>image/png</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.2023&amp;format=image/png&amp;STYLE=default"/>
+       </LegendURL>
+    </Style>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.poly.2023</Name>
+        <Title>modis.ba.poly.2023</Title>
+        <Abstract>Burned Areas 2023</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.poly.2023"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="121" height="20">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.poly.2023&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="0.000498902848429637" max="498.902349526789" />
+      </Layer>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.point.2023</Name>
+        <Title>modis.ba.point.2023</Title>
+        <Abstract>Burned Areas 2023</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.point.2023"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="121" height="20">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.point.2023&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="498.902848429637" max="49890.2848429637" />
+      </Layer>
+    </Layer>
+    <Layer queryable="1">
+      <Name>modis.ba.2024</Name>
+<!-- WARNING: Mandatory metadata "wms_GROUP_TITLE" or "ows_GROUP_TITLE" was missing in this context. -->
+      <Title>modis.ba.2024</Title>
+      <Abstract>modis.ba.2024</Abstract>
+    <Style>
+       <Name>default</Name>
+       <Title>default</Title>
+       <LegendURL width="121" height="35">
+          <Format>image/png</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.2024&amp;format=image/png&amp;STYLE=default"/>
+       </LegendURL>
+    </Style>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.poly.2024</Name>
+        <Title>modis.ba.poly.2024</Title>
+        <Abstract>Burned Areas 2024</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.poly.2024"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="121" height="20">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.poly.2024&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="0.000498902848429637" max="498.902349526789" />
+      </Layer>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.point.2024</Name>
+        <Title>modis.ba.point.2024</Title>
+        <Abstract>Burned Areas 2024</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.point.2024"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="121" height="20">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.point.2024&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="498.902848429637" max="49890.2848429637" />
+      </Layer>
+    </Layer>
+    <Layer queryable="1">
+      <Name>modis.ba.2025</Name>
+<!-- WARNING: Mandatory metadata "wms_GROUP_TITLE" or "ows_GROUP_TITLE" was missing in this context. -->
+      <Title>modis.ba.2025</Title>
+      <Abstract>modis.ba.2025</Abstract>
+    <Style>
+       <Name>default</Name>
+       <Title>default</Title>
+       <LegendURL width="121" height="35">
+          <Format>image/png</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.2025&amp;format=image/png&amp;STYLE=default"/>
+       </LegendURL>
+    </Style>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.poly.2025</Name>
+        <Title>modis.ba.poly.2025</Title>
+        <Abstract>Burned Areas 2025</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.poly.2025"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="121" height="20">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.poly.2025&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="0.000498902848429637" max="498.902349526789" />
+      </Layer>
+      <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>modis.ba.point.2025</Name>
+        <Title>modis.ba.point.2025</Title>
+        <Abstract>Burned Areas 2025</Abstract>
+        <SRS>epsg:4326</SRS>
+        <SRS>epsg:3035</SRS>
+        <SRS>EPSG:900913</SRS>
+        <LatLonBoundingBox minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <BoundingBox SRS="epsg:4326"
+                    minx="-180.000000" miny="-90.000000" maxx="180.000000" maxy="90.000000" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=modis.ba.point.2025"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="121" height="20">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=modis.ba.point.2025&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <ScaleHint min="498.902848429637" max="49890.2848429637" />
+      </Layer>
+    </Layer>
+    <Layer queryable="0" opaque="0" cascaded="0">
+        <Name>fuel_map</Name>
+        <Title>effis.fuel_map</Title>
+        <Abstract>Fuel Map - ver. 2017</Abstract>
+        <SRS>EPSG:3035</SRS>
+        <LatLonBoundingBox minx="-72.805568" miny="22.215177" maxx="90.382300" maxy="81.847374" />
+        <BoundingBox SRS="EPSG:3035"
+                    minx="800000" miny="700000" maxx="7.5e+06" maxy="6.5e+06" />
+        <MetadataURL type="TC211">
+          <Format>text/xml</Format>
+          <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;request=GetMetadata&amp;layer=fuel_map"/>
+        </MetadataURL>
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="141" height="158">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://maps.effis.emergency.copernicus.eu/effis?language=eng&amp;version=1.1.1&amp;service=WMS&amp;request=GetLegendGraphic&amp;layer=fuel_map&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+    </Layer>
+  </Layer>
+</Capability>
+</WMT_MS_Capabilities>

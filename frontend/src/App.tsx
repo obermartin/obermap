@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { MapContainer } from './components/MapContainer';
 import { Toolbar } from './components/Toolbar';
 import { SavedViews } from './components/SavedViews';
-import type { Annotation, ToolType, AppSettings } from './types';
+import type { Annotation, ToolType, AppSettings, MapLayer } from './types';
 
 const DEFAULT_SETTINGS: AppSettings = {
   mapboxToken: 'pk.eyJ1Ijoib2Jlcm1hcnRpbiIsImEiOiJja25ybGlpYTgyNDRhMnVwcmo5eml4ZGdzIn0.W_ZjSsvTOlZs-Xd7m72DIQ',
@@ -19,8 +19,15 @@ const DEFAULT_SETTINGS: AppSettings = {
     { id: 'star', svg: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>' },
     { id: 'flag', svg: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>' }
   ],
-  labelDensity: 50
+  labelDensity: 50,
+  layers: [
+    { id: 'deepstate', name: 'DeepStateMap Overlay', type: 'geojson', visible: false },
+    { id: 'satellite', name: 'Satellite Map Overlay (Mapbox)', type: 'satellite', visible: false }
+  ]
 };
+
+import { LayerSidebar } from './components/LayerSidebar';
+import { Layers } from 'lucide-react';
 
 function App() {
   const [activeTool, setActiveTool] = useState<ToolType>('none');
@@ -31,6 +38,7 @@ function App() {
   const [activeDistance, setActiveDistance] = useState<number | null>(null);
   const [labelInput, setLabelInput] = useState('');
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
+  const [isLayerSidebarOpen, setIsLayerSidebarOpen] = useState(false);
 
   useEffect(() => {
     // Load from backend
@@ -41,7 +49,20 @@ function App() {
           setAnnotations(data.annotations);
         }
         if (data.settings) {
-          setSettings(data.settings);
+          setSettings(prev => {
+            const savedLayers = data.settings.layers || [];
+            // Merge saved layers into prev.layers to preserve any dynamic data like geojson
+            const mergedLayers = [...prev.layers];
+            savedLayers.forEach((savedLayer: MapLayer) => {
+              const prevIndex = mergedLayers.findIndex(l => l.id === savedLayer.id);
+              if (prevIndex !== -1) {
+                mergedLayers[prevIndex] = { ...mergedLayers[prevIndex], ...savedLayer, data: mergedLayers[prevIndex].data || savedLayer.data };
+              } else {
+                mergedLayers.push(savedLayer);
+              }
+            });
+            return { ...prev, ...data.settings, layers: mergedLayers };
+          });
         }
       })
       .catch(err => console.error('Error loading data:', err));
@@ -137,19 +158,22 @@ function App() {
           <span className="font-semibold text-lg">{activeDistance.toFixed(2)} km</span>
         </div>
       )}
+      {/* Layers Toggle Button */}
+      <button 
+        onClick={() => setIsLayerSidebarOpen(true)}
+        className="absolute top-[70px] right-6 z-10 bg-black/80 border border-white/20 w-12 h-12 flex items-center justify-center hover:bg-white/20 transition-colors text-white backdrop-blur-sm"
+        title="Manage Layers"
+      >
+        <Layers size={20} strokeWidth={1.5} />
+      </button>
 
-      {/* Label Density Slider */}
-      <div className="absolute top-[72px] right-6 z-10 bg-black border border-white/10 border-t-0 w-[48px] h-36 flex items-center justify-center">
-        <input 
-          type="range" 
-          min="0" 
-          max="100" 
-          value={settings.labelDensity ?? 50} 
-          onChange={e => setSettings(prev => ({ ...prev, labelDensity: Number(e.target.value) }))}
-          className="w-[110px] accent-white h-1 bg-white/20 appearance-none cursor-pointer -rotate-90"
-          title="Map Label Density"
-        />
-      </div>
+      {/* Layer Sidebar */}
+      <LayerSidebar 
+        settings={settings} 
+        setSettings={setSettings} 
+        isOpen={isLayerSidebarOpen} 
+        setIsOpen={setIsLayerSidebarOpen} 
+      />
 
       {labelPrompt && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40">

@@ -16,6 +16,15 @@ export interface Annotation {
   };
 }
 
+export interface MapLayer {
+  id: string;
+  name: string;
+  type: 'geojson' | 'raster' | 'satellite';
+  visible: boolean;
+  data?: any; // For GeoJSON
+  url?: string; // For XYZ/WMTS
+}
+
 export interface AppSettings {
   mapboxToken: string;
   mapboxStyle: string;
@@ -28,6 +37,7 @@ export interface AppSettings {
   colorPalette: string[];
   icons: { id: string; svg: string }[];
   labelDensity?: number;
+  layers: MapLayer[];
 }
 
 export interface AppState {

@@ -4,6 +4,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import type { Annotation, ToolType, AppSettings } from '../types';
 import * as turf from '@turf/turf';
 import { createCirclePolygon, calculateDistance, simplifyLine, transliterateToGerman } from '../utils/mapUtils';
+import anyAscii from 'any-ascii';
 
 interface MapContainerProps {
   activeTool: ToolType;
@@ -82,75 +83,72 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true, showZoom: false }), 'top-right');
 
     map.on('load', () => {
-      // Add DeepState geojson source
-      map.addSource('deepstate', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] } // Empty initially
-      });
+      if (mapRef.current !== map) return;
 
-      // Fetch the actual data
-      fetch('https://deepstatemap.live/api/history/last')
-        .then(res => res.json())
-        .then(data => {
-          if (data && data.map) {
-            const deepstateSource = map.getSource('deepstate') as mapboxgl.GeoJSONSource;
-            if (deepstateSource) deepstateSource.setData(data.map);
-          }
-        })
-        .catch(err => console.error('Error fetching deepstate:', err));
 
       // Find first symbol layer to render deepstate below labels
-      const layers = map.getStyle().layers;
+      const styleLayers = map.getStyle().layers || [];
       let firstSymbolId;
-      for (let i = 0; i < layers.length; i++) {
-        if (layers[i].type === 'symbol') {
-          if (!firstSymbolId) firstSymbolId = layers[i].id;
-          if (!layers[i].id.startsWith('custom-')) {
-            originalFiltersRef.current[layers[i].id] = layers[i].filter || null;
+      let initFirstAdminId;
+      for (let i = 0; i < styleLayers.length; i++) {
+        const id = styleLayers[i].id;
+        if (!initFirstAdminId && (id.includes('admin') || id.includes('border') || id.includes('boundar') || id.includes('coutry'))) {
+          initFirstAdminId = id;
+        }
+        if (styleLayers[i].type === 'symbol') {
+          if (!firstSymbolId) firstSymbolId = id;
+          if (!id.startsWith('custom-')) {
+            originalFiltersRef.current[id] = styleLayers[i].filter || null;
           }
         }
       }
+      const targetInitId = initFirstAdminId || firstSymbolId;
+
+      // Add DeepState geojson source
+      map.addSource('deepstate', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+      });
+
+      // Fetch the actual data directly to mapbox to avoid React state bloat
+      fetch('https://deepstatemap.live/api/history/last')
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.map && data.map.features) {
+            const polygonsOnly = {
+              ...data.map,
+              features: data.map.features.filter((f: any) => 
+                f.geometry?.type === 'Polygon' || f.geometry?.type === 'MultiPolygon'
+              )
+            };
+            const deepstateSource = map.getSource('deepstate') as mapboxgl.GeoJSONSource;
+            if (deepstateSource) deepstateSource.setData(polygonsOnly);
+          }
+        })
+        .catch(err => console.error('Error fetching deepstate:', err));
 
       // Add DeepState layer with custom colors
       map.addLayer({
         id: 'deepstate-polygons',
         type: 'fill',
         source: 'deepstate',
-        filter: ['==', '$type', 'Polygon'],
+        layout: { visibility: 'none' }, // Default hidden until synced
         paint: {
           'fill-opacity': 0.5,
           'fill-color': [
             'case',
-            ['in', 'unknown', ['downcase', ['get', 'name']]], '#F15A38',
-            ['in', 'liberated', ['downcase', ['get', 'name']]], '#317FE0',
-            ['in', 'occupied', ['downcase', ['get', 'name']]], '#C91D2C',
-            ['in', 'cadr', ['downcase', ['get', 'name']]], '#AB1926',
-            ['in', 'crimea', ['downcase', ['get', 'name']]], '#AB1926',
-            '#888888' // fallback
+            ['in', 'UNKNOWN', ['upcase', ['coalesce', ['get', 'name'], '']]], '#F15A38',
+            ['in', 'LIBERATED', ['upcase', ['coalesce', ['get', 'name'], '']]], '#317FE0',
+            ['in', 'OCCUPIED', ['upcase', ['coalesce', ['get', 'name'], '']]], '#C91D2C',
+            ['in', 'CADR', ['upcase', ['coalesce', ['get', 'name'], '']]], '#AB1926',
+            ['in', 'CRIMEA', ['upcase', ['coalesce', ['get', 'name'], '']]], '#AB1926',
+            '#888888'
           ]
         }
-      }, firstSymbolId);
+      }, targetInitId);
 
-      // Outlines for deepstate
-      map.addLayer({
-        id: 'deepstate-lines',
-        type: 'line',
-        source: 'deepstate',
-        filter: ['==', '$type', 'Polygon'],
-        paint: {
-          'line-width': 1,
-          'line-color': [
-            'case',
-            ['in', 'unknown', ['downcase', ['get', 'name']]], '#F15A38',
-            ['in', 'liberated', ['downcase', ['get', 'name']]], '#317FE0',
-            ['in', 'occupied', ['downcase', ['get', 'name']]], '#C91D2C',
-            ['in', 'cadr', ['downcase', ['get', 'name']]], '#AB1926',
-            ['in', 'crimea', ['downcase', ['get', 'name']]], '#AB1926',
-            '#888888'
-          ],
-          'line-opacity': 1
-        }
-      }, firstSymbolId); // Add custom annotations source
+
+      // Add custom annotations source
       map.addSource('custom-annotations', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] }
@@ -550,7 +548,12 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     if (!mapRef.current || !mapLoaded || settings.labelDensity === undefined) return;
     
     const density = settings.labelDensity;
-    const style = mapRef.current.getStyle();
+    let style;
+    try {
+      style = mapRef.current.getStyle();
+    } catch(e) {
+      return; // Style not loaded yet, ignore
+    }
 
     if (style && style.layers) {
       style.layers.forEach(layer => {
@@ -620,6 +623,122 @@ export const MapContainer: React.FC<MapContainerProps> = ({
       mapRef.current.setFilter('custom-selected-glow', ['==', 'id', selectedAnnotationId || 'none']);
     }
   }, [selectedAnnotationId]);
+
+  // Synchronize dynamic map layers
+  useEffect(() => {
+    if (!mapRef.current || !mapLoaded) return;
+    const map = mapRef.current;
+    
+    let style;
+    try {
+      style = map.getStyle();
+    } catch(e) {
+      return; // Style not loaded yet
+    }
+    
+    const layers = settings.layers || [];
+    const firstSymbolId = style?.layers?.find(l => l.type === 'symbol')?.id;
+    const firstAdminId = style?.layers?.find(l => 
+      l.id.includes('admin') || 
+      l.id.includes('border') || 
+      l.id.includes('boundar') || 
+      l.id.includes('coutry')
+    )?.id || firstSymbolId;
+
+
+
+    // Identify current custom dynamic layers
+    const dynamicLayerIds = (style?.layers || [])
+      .filter(l => l.id.startsWith('dynamic-layer-'))
+      .map(l => l.id.replace('dynamic-layer-', ''));
+
+    // Remove deleted layers
+    dynamicLayerIds.forEach(id => {
+      if (!layers.find(l => l.id === id)) {
+        if (map.getLayer(`dynamic-layer-${id}`)) map.removeLayer(`dynamic-layer-${id}`);
+        if (map.getLayer(`dynamic-line-${id}`)) map.removeLayer(`dynamic-line-${id}`);
+        if (map.getSource(`dynamic-source-${id}`)) map.removeSource(`dynamic-source-${id}`);
+      }
+    });
+
+    // Add / Update layers
+    layers.forEach((layer) => {
+      const sourceId = `dynamic-source-${layer.id}`;
+      const layerId = `dynamic-layer-${layer.id}`;
+      const lineId = `dynamic-line-${layer.id}`;
+
+      if (!map.getSource(sourceId)) {
+        if (layer.type === 'geojson' && layer.data) {
+          map.addSource(sourceId, { type: 'geojson', data: layer.data });
+        } else if (layer.type === 'raster' && layer.url) {
+          map.addSource(sourceId, { type: 'raster', tiles: [layer.url], tileSize: 256 });
+        } else if (layer.type === 'satellite') {
+          map.addSource(sourceId, { type: 'raster', url: 'mapbox://mapbox.satellite', tileSize: 256 });
+        }
+      } else {
+        if (layer.type === 'geojson' && layer.data) {
+          (map.getSource(sourceId) as mapboxgl.GeoJSONSource).setData(layer.data);
+        }
+      }
+
+      if (!map.getLayer(layerId) && map.getSource(sourceId)) {
+        if (layer.type === 'geojson') {
+          map.addLayer({
+            id: layerId,
+            type: 'fill',
+            source: sourceId,
+            layout: { visibility: layer.visible ? 'visible' : 'none' },
+            paint: {
+              'fill-color': '#00A79D',
+              'fill-opacity': 0.4
+            }
+          }, firstAdminId);
+        } else if (layer.type === 'raster' || layer.type === 'satellite') {
+          map.addLayer({
+            id: layerId,
+            type: 'raster',
+            source: sourceId,
+            layout: { visibility: layer.visible ? 'visible' : 'none' },
+            paint: { 'raster-opacity': 1.0 }
+          }, firstAdminId);
+        }
+      } else if (map.getLayer(layerId)) {
+        map.setLayoutProperty(layerId, 'visibility', layer.visible ? 'visible' : 'none');
+        if (map.getLayer(lineId)) {
+          map.setLayoutProperty(lineId, 'visibility', layer.visible ? 'visible' : 'none');
+        }
+      }
+
+      // Hardcoded hook for deepstate to avoid react state bloat
+      if (layer.id === 'deepstate' && map.getLayer('deepstate-polygons')) {
+        map.setLayoutProperty('deepstate-polygons', 'visibility', layer.visible ? 'visible' : 'none');
+      }
+    });
+
+    // Reorder layers dynamically. Iterate backwards to place the bottom-most layer right before firstAdminId.
+    for (let i = layers.length - 1; i >= 0; i--) {
+      const layer = layers[i];
+      const idsToMove = [];
+      
+      if (layer.id === 'deepstate') {
+        idsToMove.push('deepstate-polygons');
+      } else {
+        idsToMove.push(`dynamic-layer-${layer.id}`);
+        if (map.getLayer(`dynamic-line-${layer.id}`)) {
+          idsToMove.push(`dynamic-line-${layer.id}`);
+        }
+      }
+      
+      idsToMove.forEach(id => {
+        if (map.getLayer(id)) {
+          try {
+            map.moveLayer(id, firstAdminId);
+          } catch (e) {}
+        }
+      });
+    }
+
+  }, [settings.layers, mapLoaded]);
 
   // Dynamically update clip polygons to match screen-space of highlight DOM labels
   useEffect(() => {
@@ -759,6 +878,13 @@ export const MapContainer: React.FC<MapContainerProps> = ({
             // Mapbox usually provides name_ru and name_uk for major cities in both countries.
             const isRussian = props.name_ru && props.name === props.name_ru && props.name !== props.name_uk;
             name = transliterateToGerman(nameNative, isRussian);
+          } else if (!props.name_de && !props.name_en && !props.name_int && nameNative) {
+            // If no Latin translation exists, check if the native script contains exotic non-Latin characters (Arabic, Farsi, Chinese, etc.)
+            // We only do this if all standard Latin name fields are missing, to avoid destroying valid Latin accents (like 'ü').
+            const needsTransliteration = /[^\u0000-\u024F\u1E00-\u1EFF]/.test(nameNative);
+            if (needsTransliteration) {
+              name = anyAscii(nameNative);
+            }
           }
           
           let coords: [number, number] = [e.lngLat.lng, e.lngLat.lat];

@@ -126,10 +126,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     dragOverItem.current = null;
   };
 
-  const handleCaptureView = () => {
-    const event = new CustomEvent('requestViewCapture');
-    window.dispatchEvent(event);
-  };
+
 
   const confirmAddColor = () => {
     if (/^#[0-9A-F]{6}$/i.test(newColorHex)) {
@@ -253,31 +250,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             transition={{ duration: 0.2 }}
             className="bg-black border border-white/20 p-4 mb-1 w-80 max-w-full text-white flex flex-col gap-4 shadow-xl shrink-0 overflow-y-auto max-h-[60vh] no-scrollbar"
           >
-            <div>
-              <label className="text-xs text-white/50 mb-1 block font-semibold tracking-wider">MAPBOX TOKEN</label>
-              <input 
-                className="w-full bg-white/10 px-2 py-1 outline-none font-mono text-sm border border-transparent focus:border-white/50 transition-colors" 
-                value={settings.mapboxToken} 
-                onChange={e => setSettings(prev => ({ ...prev, mapboxToken: e.target.value }))} 
-              />
-            </div>
-            <div>
-              <label className="text-xs text-white/50 mb-1 block font-semibold tracking-wider">MAPBOX STYLE</label>
-              <input 
-                className="w-full bg-white/10 px-2 py-1 outline-none font-mono text-sm border border-transparent focus:border-white/50 transition-colors" 
-                value={settings.mapboxStyle} 
-                onChange={e => setSettings(prev => ({ ...prev, mapboxStyle: e.target.value }))} 
-              />
-            </div>
-            <div>
-              <label className="text-xs text-white/50 mb-1 block font-semibold tracking-wider">DEFAULT VIEW</label>
-              <button 
-                onClick={handleCaptureView}
-                className="w-full bg-white/20 hover:bg-white hover:text-black transition-colors px-2 py-1 text-sm font-semibold tracking-wider border border-white/10"
-              >
-                CAPTURE CURRENT VIEW
-              </button>
-            </div>
+
             <div>
               <label className="text-xs text-white/50 mb-1 block font-semibold tracking-wider">COLOR PALETTE</label>
               <div className="flex flex-wrap gap-2 items-center">
