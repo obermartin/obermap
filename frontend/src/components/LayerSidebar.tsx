@@ -14,14 +14,14 @@ interface LayerSidebarProps {
   selectedGeojsonFeatureId: string | number | null;
 }
 
-export function LayerSidebar({ 
-  settings, 
-  setSettings, 
-  isOpen, 
+export function LayerSidebar({
+  settings,
+  setSettings,
+  isOpen,
   setIsOpen,
   activeGeojsonLayerId,
   setActiveGeojsonLayerId,
-  selectedGeojsonFeatureId 
+  selectedGeojsonFeatureId
 }: LayerSidebarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [urlInput, setUrlInput] = useState('');
@@ -92,10 +92,10 @@ export function LayerSidebar({
     setShowUrlInput(false);
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="absolute top-0 right-0 h-full w-80 bg-zinc-900 border-l border-white/10 flex flex-col shadow-2xl z-40 text-white">
+    <div
+      className={`absolute top-0 left-0 h-full w-80 bg-zinc-900 border-r border-white/10 flex flex-col shadow-2xl z-40 text-white transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
+    >
       <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/20">
         <h2 className="font-semibold flex items-center gap-2 text-sm"><Layers size={18} /> Map Settings</h2>
         <button onClick={() => setIsOpen(false)} className="hover:text-red-400 transition-colors">
@@ -104,13 +104,13 @@ export function LayerSidebar({
       </div>
 
       <div className="flex border-b border-white/10 text-xs font-semibold tracking-wider">
-        <button 
+        <button
           onClick={() => setActiveTab('layers')}
           className={`flex-1 py-3 text-center transition-colors ${activeTab === 'layers' ? 'bg-white text-black' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}
         >
           LAYERS
         </button>
-        <button 
+        <button
           onClick={() => setActiveTab('basemap')}
           className={`flex-1 py-3 text-center transition-colors ${activeTab === 'basemap' ? 'bg-white text-black' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}
         >
@@ -124,10 +124,10 @@ export function LayerSidebar({
             <label className="text-xs text-white/50 mb-2 block font-semibold tracking-wider">LABEL DENSITY</label>
             <div className="flex items-center gap-3">
               <span className="text-xs">0%</span>
-              <input 
-                type="range" 
-                min="0" max="100" 
-                value={settings.labelDensity ?? 50} 
+              <input
+                type="range"
+                min="0" max="100"
+                value={settings.labelDensity ?? 50}
                 onChange={e => setSettings(prev => ({ ...prev, labelDensity: Number(e.target.value) }))}
                 className="flex-1 accent-white h-1 bg-white/20 appearance-none cursor-pointer"
               />
@@ -139,12 +139,12 @@ export function LayerSidebar({
             <label className="text-xs text-white/50 mb-1 block font-semibold tracking-wider">LAYER STACK</label>
             <Reorder.Group axis="y" values={settings.layers} onReorder={handleReorder} className="flex flex-col gap-2">
               {settings.layers.map(layer => (
-                <LayerItem 
-                  key={layer.id} 
-                  layer={layer} 
-                  toggleVisibility={toggleLayerVisibility} 
-                  removeLayer={removeLayer} 
-                  renameLayer={renameLayer} 
+                <LayerItem
+                  key={layer.id}
+                  layer={layer}
+                  toggleVisibility={toggleLayerVisibility}
+                  removeLayer={removeLayer}
+                  renameLayer={renameLayer}
                   colorPalette={settings.colorPalette}
                   isActiveEdit={activeGeojsonLayerId === layer.id}
                   setActiveEdit={() => {
@@ -157,14 +157,22 @@ export function LayerSidebar({
                       ...prev,
                       layers: prev.layers.map(l => {
                         if (l.id !== layerId || !l.data || !l.data.features) return l;
-                        const newData = { ...l.data, features: l.data.features.map((f: any) => {
-                          if (featureId === null || f.properties?.id === featureId) {
-                            return { ...f, properties: { ...f.properties, ...styleChanges } };
-                          }
-                          return f;
-                        })};
+                        const newData = {
+                          ...l.data, features: l.data.features.map((f: any) => {
+                            if (featureId === null || f.properties?.id === featureId) {
+                              return { ...f, properties: { ...f.properties, ...styleChanges } };
+                            }
+                            return f;
+                          })
+                        };
                         return { ...l, data: newData };
                       })
+                    }));
+                  }}
+                  updateLayerOpacity={(layerId, opacity) => {
+                    setSettings(prev => ({
+                      ...prev,
+                      layers: prev.layers.map(l => l.id === layerId ? { ...l, opacity } : l)
                     }));
                   }}
                 />
@@ -173,7 +181,7 @@ export function LayerSidebar({
           </div>
 
           <div className="p-4 border-t border-white/10 flex flex-col gap-3">
-            <button 
+            <button
               onClick={() => fileInputRef.current?.click()}
               className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors"
             >
@@ -183,9 +191,9 @@ export function LayerSidebar({
 
             {showUrlInput ? (
               <div className="flex flex-col gap-2">
-                <input 
-                  type="text" 
-                  placeholder="WMTS/ZYX URL..." 
+                <input
+                  type="text"
+                  placeholder="WMTS URL..."
                   value={urlInput}
                   onChange={e => setUrlInput(e.target.value)}
                   className="w-full bg-black/50 border border-white/10 px-3 py-2 text-sm outline-none focus:border-white/30"
@@ -196,11 +204,11 @@ export function LayerSidebar({
                 </div>
               </div>
             ) : (
-              <button 
+              <button
                 onClick={() => setShowUrlInput(true)}
                 className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors"
               >
-                <Link size={16} /> Add ZYX/WMTS URL
+                <Link size={16} /> Add WMTS URL
               </button>
             )}
           </div>
@@ -209,24 +217,24 @@ export function LayerSidebar({
         <div className="p-4 flex flex-col gap-6 flex-1 overflow-y-auto">
           <div>
             <label className="text-xs text-white/50 mb-2 block font-semibold tracking-wider">MAPBOX TOKEN</label>
-            <input 
-              className="w-full bg-black/40 px-3 py-2 outline-none font-mono text-sm border border-white/10 focus:border-white/50 transition-colors" 
-              value={settings.mapboxToken} 
-              onChange={e => setSettings(prev => ({ ...prev, mapboxToken: e.target.value }))} 
+            <input
+              className="w-full bg-black/40 px-3 py-2 outline-none font-mono text-sm border border-white/10 focus:border-white/50 transition-colors"
+              value={settings.mapboxToken}
+              onChange={e => setSettings(prev => ({ ...prev, mapboxToken: e.target.value }))}
             />
           </div>
           <div>
             <label className="text-xs text-white/50 mb-2 block font-semibold tracking-wider">MAPBOX STYLE</label>
-            <input 
-              className="w-full bg-black/40 px-3 py-2 outline-none font-mono text-sm border border-white/10 focus:border-white/50 transition-colors" 
-              value={settings.mapboxStyle} 
-              onChange={e => setSettings(prev => ({ ...prev, mapboxStyle: e.target.value }))} 
+            <input
+              className="w-full bg-black/40 px-3 py-2 outline-none font-mono text-sm border border-white/10 focus:border-white/50 transition-colors"
+              value={settings.mapboxStyle}
+              onChange={e => setSettings(prev => ({ ...prev, mapboxStyle: e.target.value }))}
             />
           </div>
           <div>
             <label className="text-xs text-white/50 mb-2 block font-semibold tracking-wider">DEFAULT VIEW</label>
             <p className="text-xs text-white/40 mb-3">Save the current map position and zoom level as the default view when loading the application.</p>
-            <button 
+            <button
               onClick={handleCaptureView}
               className="w-full py-2 bg-white/10 hover:bg-white hover:text-black flex items-center justify-center gap-2 text-sm transition-colors font-semibold tracking-wider"
             >
@@ -239,8 +247,8 @@ export function LayerSidebar({
   );
 }
 
-function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer, colorPalette, isActiveEdit, setActiveEdit, selectedFeatureId, updateLayerStyle }: { 
-  layer: MapLayer; 
+function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer, colorPalette, isActiveEdit, setActiveEdit, selectedFeatureId, updateLayerStyle, updateLayerOpacity }: {
+  layer: MapLayer;
   toggleVisibility: (id: string) => void;
   removeLayer: (id: string) => void;
   renameLayer: (id: string, newName: string) => void;
@@ -249,6 +257,7 @@ function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer, colorPal
   setActiveEdit: () => void;
   selectedFeatureId: string | number | null;
   updateLayerStyle: (layerId: string, featureId: string | number | null, styleChanges: any) => void;
+  updateLayerOpacity: (layerId: string, opacity: number) => void;
 }) {
   const controls = useDragControls();
   const [isEditing, setIsEditing] = useState(false);
@@ -335,7 +344,7 @@ function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer, colorPal
           title="Transparent"
         >
           <div className="absolute inset-0 bg-white/10 flex items-center justify-center">
-             <div className="w-full h-0 border-t border-red-500 transform rotate-45"></div>
+            <div className="w-full h-0 border-t border-red-500 transform rotate-45"></div>
           </div>
         </button>
       );
@@ -353,20 +362,20 @@ function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer, colorPal
 
   return (
     <div className={`flex flex-col ${isActiveEdit ? 'gap-0' : 'gap-[2px]'}`}>
-      <Reorder.Item 
-        value={layer} 
-        dragListener={false} 
+      <Reorder.Item
+        value={layer}
+        dragListener={false}
         dragControls={controls}
         className={`p-3 flex items-center gap-3 select-none group ${isActiveEdit ? 'bg-white/10 border border-white/30 border-b-transparent z-10' : 'bg-black/40 border border-white/10'}`}
       >
-        <div 
+        <div
           className="cursor-grab active:cursor-grabbing text-white/30 hover:text-white/70"
           onPointerDown={(e) => controls.start(e)}
         >
           <GripVertical size={16} />
         </div>
 
-        <button 
+        <button
           onClick={() => toggleVisibility(layer.id)}
           className="text-white/50 hover:text-white transition-colors flex-shrink-0"
         >
@@ -389,12 +398,12 @@ function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer, colorPal
           )}
           <div className="text-[10px] text-white/40 uppercase tracking-wider">{layer.type}</div>
         </div>
-        
-        {layer.type === 'geojson' && layer.id !== 'deepstate' && (
-          <button 
+
+        {(layer.type === 'geojson' || layer.type === 'raster') && layer.id !== 'deepstate' && (
+          <button
             onClick={setActiveEdit}
             className={`transition-colors ${isActiveEdit ? 'text-white' : 'text-white/30 hover:text-white/70'}`}
-            title="Toggle GeoJSON Edit Mode"
+            title={`Toggle ${layer.type === 'geojson' ? 'GeoJSON' : 'Layer'} Edit Mode`}
           >
             <Edit2 size={16} />
           </button>
@@ -409,69 +418,86 @@ function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer, colorPal
 
       {isActiveEdit && (
         <div className="bg-white/10 border border-white/30 border-t-transparent p-3 pt-2 flex flex-col gap-4 text-sm animate-in slide-in-from-top-2 relative z-0">
-          {/* Swatches */}
-          <div className="flex flex-wrap gap-1">
-            {colorPalette.map(renderColorSwatch)}
-            {renderColorSwatch('transparent')}
-          </div>
-
-          <div className="flex items-center justify-between">
-            {/* Toggle fill / outline target & Swap */}
-            <div className="flex gap-2">
-              <button 
-                onClick={() => setEditTarget('fill')}
-                className={`p-1 flex items-center justify-center transition-colors ${editTarget === 'fill' ? 'text-white' : 'text-white/50 hover:text-white'}`}
-                title="Edit Fill"
-              >
-                <Square size={16} fill="currentColor" stroke="none" />
-              </button>
-              <button 
-                onClick={() => setEditTarget('outline')}
-                className={`p-1 flex items-center justify-center transition-colors ${editTarget === 'outline' ? 'text-white' : 'text-white/50 hover:text-white'}`}
-                title="Edit Outline"
-              >
-                <Square size={16} />
-              </button>
-              <button onClick={handleSwap} className="text-white/50 hover:text-white transition-colors p-1" title="Swap Fill and Outline">
-                <RefreshCcw size={16} />
-              </button>
+          {layer.type === 'raster' ? (
+            <div className="flex flex-col gap-1 pb-2">
+              <div className="flex justify-between items-end">
+                <label className="text-[10px] text-white/50 font-semibold tracking-wider">OPACITY</label>
+                <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.opacity ?? 1.0) * 100)}%</span>
+              </div>
+              <input
+                type="range" min="0" max="100"
+                value={(layer.opacity ?? 1.0) * 100}
+                onChange={e => updateLayerOpacity(layer.id, Number(e.target.value) / 100)}
+                className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
+              />
             </div>
+          ) : (
+            <>
+              {/* Swatches */}
+              <div className="flex flex-wrap gap-1">
+                {colorPalette.map(renderColorSwatch)}
+                {renderColorSwatch('transparent')}
+              </div>
 
-            {/* Reset */}
-            <div className="flex gap-2">
-              <button onClick={handleReset} className="text-white/50 hover:text-white transition-colors p-1" title="Reset Styles">
-                <RotateCcw size={16} />
-              </button>
-            </div>
-          </div>
+              <div className="flex items-center justify-between">
+                {/* Toggle fill / outline target & Swap */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setEditTarget('fill')}
+                    className={`p-1 flex items-center justify-center transition-colors ${editTarget === 'fill' ? 'text-white' : 'text-white/50 hover:text-white'}`}
+                    title="Edit Fill"
+                  >
+                    <Square size={16} fill="currentColor" stroke="none" />
+                  </button>
+                  <button
+                    onClick={() => setEditTarget('outline')}
+                    className={`p-1 flex items-center justify-center transition-colors ${editTarget === 'outline' ? 'text-white' : 'text-white/50 hover:text-white'}`}
+                    title="Edit Outline"
+                  >
+                    <Square size={16} />
+                  </button>
+                  <button onClick={handleSwap} className="text-white/50 hover:text-white transition-colors p-1" title="Swap Fill and Outline">
+                    <RefreshCcw size={16} />
+                  </button>
+                </div>
 
-          {/* Opacity slider */}
-          <div className="flex flex-col gap-1">
-            <div className="flex justify-between items-end">
-              <label className="text-[10px] text-white/50 font-semibold tracking-wider">OPACITY</label>
-              <span className="text-[10px] text-white/70 font-mono">{Math.round((editTarget === 'fill' ? currentFillOpacity : currentOutlineOpacity) * 100)}%</span>
-            </div>
-            <input 
-              type="range" min="0" max="100" 
-              value={(editTarget === 'fill' ? currentFillOpacity : currentOutlineOpacity) * 100}
-              onChange={e => handleOpacityChange(Number(e.target.value) / 100)}
-              className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
-            />
-          </div>
+                {/* Reset */}
+                <div className="flex gap-2">
+                  <button onClick={handleReset} className="text-white/50 hover:text-white transition-colors p-1" title="Reset Styles">
+                    <RotateCcw size={16} />
+                  </button>
+                </div>
+              </div>
 
-          {/* Outline width slider */}
-          <div className="flex flex-col gap-1 pb-2">
-            <div className="flex justify-between items-end">
-              <label className="text-[10px] text-white/50 font-semibold tracking-wider">STROKE WIDTH</label>
-              <span className="text-[10px] text-white/70 font-mono">{currentOutlineWidth}px</span>
-            </div>
-            <input 
-              type="range" min="0" max="20" 
-              value={currentOutlineWidth}
-              onChange={e => handleWidthChange(Number(e.target.value))}
-              className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
-            />
-          </div>
+              {/* Opacity slider */}
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between items-end">
+                  <label className="text-[10px] text-white/50 font-semibold tracking-wider">OPACITY</label>
+                  <span className="text-[10px] text-white/70 font-mono">{Math.round((editTarget === 'fill' ? currentFillOpacity : currentOutlineOpacity) * 100)}%</span>
+                </div>
+                <input
+                  type="range" min="0" max="100"
+                  value={(editTarget === 'fill' ? currentFillOpacity : currentOutlineOpacity) * 100}
+                  onChange={e => handleOpacityChange(Number(e.target.value) / 100)}
+                  className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
+                />
+              </div>
+
+              {/* Outline width slider */}
+              <div className="flex flex-col gap-1 pb-2">
+                <div className="flex justify-between items-end">
+                  <label className="text-[10px] text-white/50 font-semibold tracking-wider">STROKE WIDTH</label>
+                  <span className="text-[10px] text-white/70 font-mono">{currentOutlineWidth}px</span>
+                </div>
+                <input
+                  type="range" min="0" max="20"
+                  value={currentOutlineWidth}
+                  onChange={e => handleWidthChange(Number(e.target.value))}
+                  className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
+                />
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

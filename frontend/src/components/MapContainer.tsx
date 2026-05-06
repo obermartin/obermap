@@ -766,11 +766,14 @@ export const MapContainer: React.FC<MapContainerProps> = ({
             type: 'raster',
             source: sourceId,
             layout: { visibility: layer.visible ? 'visible' : 'none' },
-            paint: { 'raster-opacity': 1.0 }
+            paint: { 'raster-opacity': layer.opacity ?? 1.0 }
           }, firstAdminId);
         }
       } else if (map.getLayer(layerId)) {
         map.setLayoutProperty(layerId, 'visibility', layer.visible ? 'visible' : 'none');
+        if (layer.type === 'raster' || layer.type === 'satellite') {
+          map.setPaintProperty(layerId, 'raster-opacity', layer.opacity ?? 1.0);
+        }
         if (map.getLayer(lineId)) {
           map.setLayoutProperty(lineId, 'visibility', layer.visible ? 'visible' : 'none');
         }

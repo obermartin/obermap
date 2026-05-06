@@ -195,7 +195,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   };
 
   return (
-    <div className="absolute bottom-6 left-6 z-10 flex flex-col items-start max-w-[calc(100vw-3rem)] sm:max-w-none">
+    <div className="relative flex flex-col items-start max-w-[calc(100vw-3rem)] sm:max-w-none">
       <AnimatePresence>
         {isOpen && !isSettingsOpen && activeTool === 'icon' && (
           <motion.div
@@ -425,7 +425,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               setActiveTool('none');
             }
           }}
-          className="w-12 h-12 flex items-center justify-center hover:bg-white/20 transition-colors shrink-0"
+          className="w-12 h-12 flex items-center justify-center bg-black text-white hover:bg-white hover:text-black transition-colors shrink-0"
         >
           <X 
             size={24} 

@@ -11,13 +11,14 @@ interface SavedViewsProps {
     pitch: number;
     bearing: number;
   };
+  isSidebarOpen?: boolean;
 }
 
-export const SavedViews: React.FC<SavedViewsProps> = ({ annotations, onFlyTo, defaultView }) => {
+export const SavedViews: React.FC<SavedViewsProps> = ({ annotations, onFlyTo, defaultView, isSidebarOpen }) => {
   const labelAnnotations = annotations.filter(a => (a.type === 'label' || a.type === 'highlight') && a.text && a.view);
 
   return (
-    <div className="absolute top-6 left-6 z-10 flex flex-col gap-2">
+    <div className={`absolute top-6 left-6 z-10 flex flex-col gap-2 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-[20rem]' : 'translate-x-0'}`}>
       <AnimatePresence>
         <motion.button
           initial={{ opacity: 0, x: -20 }}

@@ -152,33 +152,37 @@ function App() {
         annotations={annotations}
         onFlyTo={handleFlyTo}
         defaultView={settings.defaultView}
+        isSidebarOpen={isLayerSidebarOpen}
       />
-      <Toolbar 
-        activeTool={activeTool}
-        setActiveTool={setActiveTool}
-        currentColor={currentColor}
-        setCurrentColor={handleColorSelect}
-        onSave={handleSave}
-        onDelete={handleDelete}
-        hasSelection={!!selectedAnnotationId}
-        settings={settings}
-        setSettings={setSettings}
-      />
-
       {/* Floating active distance readout for Measure and Circle tools */}
       {(activeTool === 'measure' || activeTool === 'circle') && activeDistance !== null && (
         <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 bg-black text-white px-6 py-3 border border-white/20 flex items-center gap-2">
           <span className="font-semibold text-lg">{activeDistance.toFixed(2)} km</span>
         </div>
       )}
-      {/* Layers Toggle Button */}
-      <button 
-        onClick={() => setIsLayerSidebarOpen(true)}
-        className="absolute top-[70px] right-6 z-10 bg-black/80 border border-white/20 w-12 h-12 flex items-center justify-center hover:bg-white/20 transition-colors text-white backdrop-blur-sm"
-        title="Manage Layers"
-      >
-        <Layers size={20} strokeWidth={1.5} />
-      </button>
+
+      {/* Bottom Left UI Controls */}
+      <div className={`absolute bottom-6 left-6 z-10 flex gap-2 transition-transform duration-300 ease-in-out ${isLayerSidebarOpen ? 'translate-x-[20rem]' : 'translate-x-0'}`}>
+        <button 
+          onClick={() => setIsLayerSidebarOpen(!isLayerSidebarOpen)}
+          className="bg-black w-12 h-12 flex flex-shrink-0 items-center justify-center hover:bg-white hover:text-black transition-colors text-white shadow-lg"
+          title="Manage Layers"
+        >
+          <Layers size={20} strokeWidth={1.5} />
+        </button>
+
+        <Toolbar 
+          activeTool={activeTool}
+          setActiveTool={setActiveTool}
+          currentColor={currentColor}
+          setCurrentColor={handleColorSelect}
+          onSave={handleSave}
+          onDelete={handleDelete}
+          hasSelection={!!selectedAnnotationId}
+          settings={settings}
+          setSettings={setSettings}
+        />
+      </div>
 
       <LayerSidebar 
         settings={settings} 

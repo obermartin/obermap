@@ -23,6 +23,7 @@ export interface MapLayer {
   visible: boolean;
   data?: any; // For GeoJSON
   url?: string; // For XYZ/WMTS
+  opacity?: number;
 }
 
 export interface AppSettings {
