@@ -135,7 +135,7 @@ export function LayerSidebar({
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col gap-2">
             <label className="text-xs text-white/50 mb-1 block font-semibold tracking-wider">LAYER STACK</label>
             <Reorder.Group axis="y" values={settings.layers} onReorder={handleReorder} className="flex flex-col gap-2">
               {settings.layers.map(layer => (
@@ -214,7 +214,7 @@ export function LayerSidebar({
           </div>
         </>
       ) : (
-        <div className="p-4 flex flex-col gap-6 flex-1 overflow-y-auto">
+        <div className="p-4 flex flex-col gap-6 flex-1 overflow-y-auto custom-scrollbar">
           <div>
             <label className="text-xs text-white/50 mb-2 block font-semibold tracking-wider">MAPBOX TOKEN</label>
             <input
@@ -366,7 +366,7 @@ function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer, colorPal
         value={layer}
         dragListener={false}
         dragControls={controls}
-        className={`p-3 flex items-center gap-3 select-none group ${isActiveEdit ? 'bg-white/10 border border-white/30 border-b-transparent z-10' : 'bg-black/40 border border-white/10'}`}
+        className={`p-3 flex items-center gap-3 select-none group transition-opacity duration-200 ${isActiveEdit ? 'bg-white/10 border border-white/30 border-b-transparent z-10' : 'bg-black/40 border border-white/10'} ${!layer.visible ? 'opacity-40' : 'opacity-100'}`}
       >
         <div
           className="cursor-grab active:cursor-grabbing text-white/30 hover:text-white/70"
@@ -401,7 +401,10 @@ function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer, colorPal
 
         {(layer.type === 'geojson' || layer.type === 'raster') && layer.id !== 'deepstate' && (
           <button
-            onClick={setActiveEdit}
+            onClick={() => {
+              if (!layer.visible) toggleVisibility(layer.id);
+              setActiveEdit();
+            }}
             className={`transition-colors ${isActiveEdit ? 'text-white' : 'text-white/30 hover:text-white/70'}`}
             title={`Toggle ${layer.type === 'geojson' ? 'GeoJSON' : 'Layer'} Edit Mode`}
           >
@@ -417,7 +420,7 @@ function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer, colorPal
       </Reorder.Item>
 
       {isActiveEdit && (
-        <div className="bg-white/10 border border-white/30 border-t-transparent p-3 pt-2 flex flex-col gap-4 text-sm animate-in slide-in-from-top-2 relative z-0">
+        <div className={`bg-white/10 border border-white/30 border-t-transparent p-3 pt-2 flex flex-col gap-4 text-sm animate-in slide-in-from-top-2 relative z-0 transition-opacity duration-200 ${!layer.visible ? 'opacity-40' : 'opacity-100'}`}>
           {layer.type === 'raster' ? (
             <div className="flex flex-col gap-1 pb-2">
               <div className="flex justify-between items-end">
