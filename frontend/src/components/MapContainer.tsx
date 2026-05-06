@@ -620,7 +620,26 @@ export const MapContainer: React.FC<MapContainerProps> = ({
           const id = layer.id.toLowerCase();
           const sourceLayer = layer['source-layer'] ? layer['source-layer'].toLowerCase() : '';
 
-          if (id.includes('place') || sourceLayer.includes('place')) {
+          if (id.includes('ukraine')) {
+            if (density < 100) {
+              // Smooth population curve: density 0 = 2,000,000 (shows only Kyiv); density 50 = ~125,000; density 80 = ~3,200; density 100 = 0
+              const minPopulation = Math.floor(2000000 * Math.pow((100 - density) / 100, 4));
+              
+              const popCondition = ['>=', ['coalesce', ['to-number', ['get', 'population']], 0], minPopulation];
+              
+              // Fallback for capitals if they exist in this dataset
+              let capCondition: any[] = ['==', '1', '2'];
+              if (density === 0) {
+                 capCondition = ['all', ['has', 'capital'], ['==', ['get', 'capital'], 2]];
+              } else if (density < 10) {
+                 capCondition = ['all', ['has', 'capital'], ['<=', ['get', 'capital'], 3]]; 
+              } else {
+                 capCondition = ['all', ['has', 'capital'], ['>', ['get', 'capital'], 0]];
+              }
+              
+              extraCondition = ['any', popCondition, capCondition];
+            }
+          } else if (id.includes('place') || sourceLayer.includes('place')) {
             if (density < 100) {
               let maxRank = 1;
               if (density > 0 && density <= 20) {
