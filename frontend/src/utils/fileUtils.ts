@@ -30,3 +30,18 @@ export async function parseMapFile(file: File): Promise<any> {
   
   throw new Error('Unsupported file format. Please upload GeoJSON, KML, or KMZ.');
 }
+
+export async function parseMapFileWithIds(file: File): Promise<any> {
+  const geojson = await parseMapFile(file);
+  
+  if (geojson && geojson.type === 'FeatureCollection' && Array.isArray(geojson.features)) {
+    geojson.features.forEach((feature: any) => {
+      if (!feature.properties) feature.properties = {};
+      if (!feature.properties.id) {
+        feature.properties.id = `feature-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      }
+    });
+  }
+  
+  return geojson;
+}

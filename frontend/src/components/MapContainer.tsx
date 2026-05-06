@@ -17,6 +17,10 @@ interface MapContainerProps {
   selectedAnnotationId: string | null;
   setSelectedAnnotationId: React.Dispatch<React.SetStateAction<string | null>>;
   settings: AppSettings;
+  activeGeojsonLayerId: string | null;
+  setActiveGeojsonLayerId: React.Dispatch<React.SetStateAction<string | null>>;
+  selectedGeojsonFeatureId: string | number | null;
+  setSelectedGeojsonFeatureId: React.Dispatch<React.SetStateAction<string | number | null>>;
 }
 
 function getContrastYIQ(hexcolor: string) {
@@ -41,6 +45,10 @@ export const MapContainer: React.FC<MapContainerProps> = ({
   selectedAnnotationId,
   setSelectedAnnotationId,
   settings,
+  activeGeojsonLayerId,
+  setActiveGeojsonLayerId,
+  selectedGeojsonFeatureId,
+  setSelectedGeojsonFeatureId,
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -240,6 +248,33 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         filter: ['==', '$type', 'Polygon'],
         paint: { 'fill-opacity': 0.3, 'fill-color': ['coalesce', ['get', 'color'], '#ffffff'] }
       });
+
+      // Selected GeoJSON feature highlighting
+      map.addSource('selected-geojson-feature', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+      });
+      map.addLayer({
+        id: 'geojson-selected-glow',
+        type: 'line',
+        source: 'selected-geojson-feature',
+        paint: {
+          'line-width': 12,
+          'line-color': '#ffffff',
+          'line-blur': 8,
+          'line-opacity': 0.8
+        }
+      }, firstSymbolId);
+      map.addLayer({
+        id: 'geojson-selected-line',
+        type: 'line',
+        source: 'selected-geojson-feature',
+        paint: {
+          'line-width': 8,
+          'line-color': '#ffffff',
+          'line-dasharray': [2, 2]
+        }
+      }, firstSymbolId);
     });
 
     // Add flyTo listener
@@ -543,6 +578,27 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     });
   }, [annotations, activeTool, mapLoaded, selectedAnnotationId, settings.icons]);
 
+  // Synchronize selected geojson feature
+  useEffect(() => {
+    if (!mapRef.current || !mapLoaded) return;
+    const source = mapRef.current.getSource('selected-geojson-feature') as mapboxgl.GeoJSONSource;
+    if (!source) return;
+
+    if (activeGeojsonLayerId && selectedGeojsonFeatureId) {
+      const layer = settings.layers.find(l => l.id === activeGeojsonLayerId);
+      if (layer && layer.data && layer.data.features) {
+        const feature = layer.data.features.find((f: any) => f.properties?.id === selectedGeojsonFeatureId);
+        if (feature) {
+          source.setData({ type: 'FeatureCollection', features: [feature] });
+          return;
+        }
+      }
+    }
+    
+    // Clear selection
+    source.setData({ type: 'FeatureCollection', features: [] });
+  }, [activeGeojsonLayerId, selectedGeojsonFeatureId, settings.layers, mapLoaded]);
+
   // Handle Map Label Density
   useEffect(() => {
     if (!mapRef.current || !mapLoaded || settings.labelDensity === undefined) return;
@@ -689,8 +745,19 @@ export const MapContainer: React.FC<MapContainerProps> = ({
             source: sourceId,
             layout: { visibility: layer.visible ? 'visible' : 'none' },
             paint: {
-              'fill-color': '#00A79D',
-              'fill-opacity': 0.4
+              'fill-color': ['coalesce', ['get', 'fillColor'], '#00A79D'],
+              'fill-opacity': ['coalesce', ['get', 'fillOpacity'], 0.5]
+            }
+          }, firstAdminId);
+          map.addLayer({
+            id: lineId,
+            type: 'line',
+            source: sourceId,
+            layout: { visibility: layer.visible ? 'visible' : 'none' },
+            paint: {
+              'line-color': ['coalesce', ['get', 'outlineColor'], 'transparent'],
+              'line-width': ['coalesce', ['get', 'outlineWidth'], 0],
+              'line-opacity': ['coalesce', ['get', 'outlineOpacity'], 1.0]
             }
           }, firstAdminId);
         } else if (layer.type === 'raster' || layer.type === 'satellite') {
@@ -842,6 +909,30 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     if (!map) return;
 
     const onClick = (e: mapboxgl.MapMouseEvent) => {
+      // Handle GeoJSON Edit Mode first
+      if (activeGeojsonLayerId) {
+        const geojsonLayerId = `dynamic-layer-${activeGeojsonLayerId}`;
+        const geojsonLineLayerId = `dynamic-line-${activeGeojsonLayerId}`;
+        let clickedGeojsonFeatureId: string | number | null = null;
+        
+        try {
+          const features = map.queryRenderedFeatures(e.point, { layers: [geojsonLayerId, geojsonLineLayerId] });
+          if (features.length > 0) {
+            clickedGeojsonFeatureId = features[0].properties?.id || features[0].id;
+          }
+        } catch (err) {
+          // Layer might not exist
+        }
+
+        if (clickedGeojsonFeatureId) {
+          setSelectedGeojsonFeatureId(clickedGeojsonFeatureId);
+        } else {
+          setActiveGeojsonLayerId(null);
+          setSelectedGeojsonFeatureId(null);
+        }
+        return; // Prevent other interactions
+      }
+
       // Handle selection first
       const features = map.queryRenderedFeatures(e.point, { layers: ['custom-polygons', 'custom-lines'] });
       if (features.length > 0) {
@@ -1205,7 +1296,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
       map.off('touchmove', onTouchMove);
       map.off('touchend', onTouchEnd);
     };
-  }, [activeTool, currentColor, setAnnotations]);
+  }, [activeTool, currentColor, setAnnotations, activeGeojsonLayerId, setActiveGeojsonLayerId, setSelectedGeojsonFeatureId]);
 
   return <div ref={mapContainer} className="w-full h-full" />;
 };

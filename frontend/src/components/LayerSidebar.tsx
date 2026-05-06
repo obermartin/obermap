@@ -1,17 +1,28 @@
 import React, { useRef, useState } from 'react';
 import { Reorder, useDragControls } from 'framer-motion';
-import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2 } from 'lucide-react';
+import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2, Edit2, Square, RefreshCcw, RotateCcw } from 'lucide-react';
 import type { AppSettings, MapLayer } from '../types';
-import { parseMapFile } from '../utils/fileUtils';
+import { parseMapFileWithIds } from '../utils/fileUtils';
 
 interface LayerSidebarProps {
   settings: AppSettings;
   setSettings: React.Dispatch<React.SetStateAction<AppSettings>>;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
+  activeGeojsonLayerId: string | null;
+  setActiveGeojsonLayerId: React.Dispatch<React.SetStateAction<string | null>>;
+  selectedGeojsonFeatureId: string | number | null;
 }
 
-export function LayerSidebar({ settings, setSettings, isOpen, setIsOpen }: LayerSidebarProps) {
+export function LayerSidebar({ 
+  settings, 
+  setSettings, 
+  isOpen, 
+  setIsOpen,
+  activeGeojsonLayerId,
+  setActiveGeojsonLayerId,
+  selectedGeojsonFeatureId 
+}: LayerSidebarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [urlInput, setUrlInput] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(false);
@@ -52,7 +63,7 @@ export function LayerSidebar({ settings, setSettings, isOpen, setIsOpen }: Layer
     if (!file) return;
 
     try {
-      const geojson = await parseMapFile(file);
+      const geojson = await parseMapFileWithIds(file);
       const newLayer: MapLayer = {
         id: `upload-${Date.now()}`,
         name: file.name,
@@ -128,7 +139,35 @@ export function LayerSidebar({ settings, setSettings, isOpen, setIsOpen }: Layer
             <label className="text-xs text-white/50 mb-1 block font-semibold tracking-wider">LAYER STACK</label>
             <Reorder.Group axis="y" values={settings.layers} onReorder={handleReorder} className="flex flex-col gap-2">
               {settings.layers.map(layer => (
-                <LayerItem key={layer.id} layer={layer} toggleVisibility={toggleLayerVisibility} removeLayer={removeLayer} renameLayer={renameLayer} />
+                <LayerItem 
+                  key={layer.id} 
+                  layer={layer} 
+                  toggleVisibility={toggleLayerVisibility} 
+                  removeLayer={removeLayer} 
+                  renameLayer={renameLayer} 
+                  colorPalette={settings.colorPalette}
+                  isActiveEdit={activeGeojsonLayerId === layer.id}
+                  setActiveEdit={() => {
+                    if (activeGeojsonLayerId === layer.id) setActiveGeojsonLayerId(null);
+                    else setActiveGeojsonLayerId(layer.id);
+                  }}
+                  selectedFeatureId={selectedGeojsonFeatureId}
+                  updateLayerStyle={(layerId, featureId, styleChanges) => {
+                    setSettings(prev => ({
+                      ...prev,
+                      layers: prev.layers.map(l => {
+                        if (l.id !== layerId || !l.data || !l.data.features) return l;
+                        const newData = { ...l.data, features: l.data.features.map((f: any) => {
+                          if (featureId === null || f.properties?.id === featureId) {
+                            return { ...f, properties: { ...f.properties, ...styleChanges } };
+                          }
+                          return f;
+                        })};
+                        return { ...l, data: newData };
+                      })
+                    }));
+                  }}
+                />
               ))}
             </Reorder.Group>
           </div>
@@ -136,7 +175,7 @@ export function LayerSidebar({ settings, setSettings, isOpen, setIsOpen }: Layer
           <div className="p-4 border-t border-white/10 flex flex-col gap-3">
             <button 
               onClick={() => fileInputRef.current?.click()}
-              className="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center gap-2 text-sm transition-colors"
+              className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors"
             >
               <Upload size={16} /> Upload GeoJSON/KML/KMZ
             </button>
@@ -159,7 +198,7 @@ export function LayerSidebar({ settings, setSettings, isOpen, setIsOpen }: Layer
             ) : (
               <button 
                 onClick={() => setShowUrlInput(true)}
-                className="w-full py-2 bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center gap-2 text-sm transition-colors"
+                className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors"
               >
                 <Link size={16} /> Add ZYX/WMTS URL
               </button>
@@ -189,7 +228,7 @@ export function LayerSidebar({ settings, setSettings, isOpen, setIsOpen }: Layer
             <p className="text-xs text-white/40 mb-3">Save the current map position and zoom level as the default view when loading the application.</p>
             <button 
               onClick={handleCaptureView}
-              className="w-full py-2 bg-white/10 hover:bg-white hover:text-black border border-white/10 flex items-center justify-center gap-2 text-sm transition-colors font-semibold tracking-wider"
+              className="w-full py-2 bg-white/10 hover:bg-white hover:text-black flex items-center justify-center gap-2 text-sm transition-colors font-semibold tracking-wider"
             >
               CAPTURE CURRENT VIEW
             </button>
@@ -200,19 +239,26 @@ export function LayerSidebar({ settings, setSettings, isOpen, setIsOpen }: Layer
   );
 }
 
-function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer }: { 
+function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer, colorPalette, isActiveEdit, setActiveEdit, selectedFeatureId, updateLayerStyle }: { 
   layer: MapLayer; 
   toggleVisibility: (id: string) => void;
   removeLayer: (id: string) => void;
   renameLayer: (id: string, newName: string) => void;
+  colorPalette: string[];
+  isActiveEdit: boolean;
+  setActiveEdit: () => void;
+  selectedFeatureId: string | number | null;
+  updateLayerStyle: (layerId: string, featureId: string | number | null, styleChanges: any) => void;
 }) {
   const controls = useDragControls();
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(layer.name);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const [editTarget, setEditTarget] = useState<'fill' | 'outline'>('fill');
+
   const handleDoubleClick = () => {
-    if (['deepstate', 'satellite'].includes(layer.id)) return; // Prevent renaming default layers
+    if (['deepstate', 'satellite'].includes(layer.id)) return;
     setIsEditing(true);
     setEditName(layer.name);
     setTimeout(() => inputRef.current?.focus(), 50);
@@ -233,46 +279,201 @@ function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer }: {
     }
   };
 
-  return (
-    <Reorder.Item 
-      value={layer} 
-      dragListener={false} 
-      dragControls={controls}
-      className="bg-black/40 border border-white/10 p-3 flex items-center gap-3 select-none group"
-    >
-      <div 
-        className="cursor-grab active:cursor-grabbing text-white/30 hover:text-white/70"
-        onPointerDown={(e) => controls.start(e)}
-      >
-        <GripVertical size={16} />
-      </div>
-      <div className="flex-1 overflow-hidden" onDoubleClick={handleDoubleClick}>
-        {isEditing ? (
-          <input
-            ref={inputRef}
-            type="text"
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            onBlur={handleRenameSubmit}
-            onKeyDown={handleKeyDown}
-            className="w-full bg-black border border-white/20 text-sm font-medium px-1 outline-none text-white focus:border-white/50"
-          />
-        ) : (
-          <div className="text-sm font-medium truncate cursor-text" title={layer.name}>{layer.name}</div>
-        )}
-        <div className="text-[10px] text-white/40 uppercase tracking-wider">{layer.type}</div>
-      </div>
-      <button 
-        onClick={() => toggleVisibility(layer.id)}
-        className="text-white/50 hover:text-white transition-colors"
-      >
-        {layer.visible ? <Eye size={18} /> : <EyeOff size={18} />}
-      </button>
-      {!['deepstate', 'satellite'].includes(layer.id) && (
-        <button onClick={() => removeLayer(layer.id)} className="text-white/50 hover:text-white transition-colors ml-1">
-          <Trash2 size={16} />
+  const handleColorClick = (color: string) => {
+    if (editTarget === 'fill') {
+      updateLayerStyle(layer.id, selectedFeatureId, { fillColor: color });
+    } else {
+      updateLayerStyle(layer.id, selectedFeatureId, { outlineColor: color });
+    }
+  };
+
+  const handleOpacityChange = (opacity: number) => {
+    if (editTarget === 'fill') {
+      updateLayerStyle(layer.id, selectedFeatureId, { fillOpacity: opacity });
+    } else {
+      updateLayerStyle(layer.id, selectedFeatureId, { outlineOpacity: opacity });
+    }
+  };
+
+  const handleWidthChange = (width: number) => {
+    updateLayerStyle(layer.id, selectedFeatureId, { outlineWidth: width });
+  };
+
+  const feature = layer.data?.features?.find((f: any) => selectedFeatureId ? f.properties?.id === selectedFeatureId : true);
+  const currentFillColor = feature?.properties?.fillColor || '#00A79D';
+  const currentFillOpacity = feature?.properties?.fillOpacity ?? 0.5;
+  const currentOutlineColor = feature?.properties?.outlineColor || 'transparent';
+  const currentOutlineOpacity = feature?.properties?.outlineOpacity ?? 1.0;
+  const currentOutlineWidth = feature?.properties?.outlineWidth ?? 0;
+
+  const handleSwap = () => {
+    updateLayerStyle(layer.id, selectedFeatureId, {
+      fillColor: currentOutlineColor,
+      fillOpacity: currentOutlineOpacity,
+      outlineColor: currentFillColor,
+      outlineOpacity: currentFillOpacity
+    });
+  };
+
+  const handleReset = () => {
+    updateLayerStyle(layer.id, selectedFeatureId, {
+      fillColor: '#00A79D',
+      fillOpacity: 0.5,
+      outlineColor: 'transparent',
+      outlineWidth: 0,
+      outlineOpacity: 1.0
+    });
+  };
+
+  const renderColorSwatch = (color: string) => {
+    if (color === 'transparent') {
+      return (
+        <button
+          key="transparent"
+          onClick={() => handleColorClick('transparent')}
+          className="w-6 h-6 relative overflow-hidden flex-shrink-0 transition-colors"
+          title="Transparent"
+        >
+          <div className="absolute inset-0 bg-white/10 flex items-center justify-center">
+             <div className="w-full h-0 border-t border-red-500 transform rotate-45"></div>
+          </div>
         </button>
+      );
+    }
+    return (
+      <button
+        key={color}
+        onClick={() => handleColorClick(color)}
+        className="w-6 h-6 flex-shrink-0 transition-colors"
+        style={{ backgroundColor: color }}
+        title={color}
+      />
+    );
+  };
+
+  return (
+    <div className={`flex flex-col ${isActiveEdit ? 'gap-0' : 'gap-[2px]'}`}>
+      <Reorder.Item 
+        value={layer} 
+        dragListener={false} 
+        dragControls={controls}
+        className={`p-3 flex items-center gap-3 select-none group ${isActiveEdit ? 'bg-white/10 border border-white/30 border-b-transparent z-10' : 'bg-black/40 border border-white/10'}`}
+      >
+        <div 
+          className="cursor-grab active:cursor-grabbing text-white/30 hover:text-white/70"
+          onPointerDown={(e) => controls.start(e)}
+        >
+          <GripVertical size={16} />
+        </div>
+
+        <button 
+          onClick={() => toggleVisibility(layer.id)}
+          className="text-white/50 hover:text-white transition-colors flex-shrink-0"
+        >
+          {layer.visible ? <Eye size={18} /> : <EyeOff size={18} />}
+        </button>
+
+        <div className="flex-1 overflow-hidden" onDoubleClick={handleDoubleClick}>
+          {isEditing ? (
+            <input
+              ref={inputRef}
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              onBlur={handleRenameSubmit}
+              onKeyDown={handleKeyDown}
+              className="w-full bg-black border border-white/20 text-sm font-medium px-1 outline-none text-white focus:border-white/50"
+            />
+          ) : (
+            <div className="text-sm font-medium truncate cursor-text" title={layer.name}>{layer.name}</div>
+          )}
+          <div className="text-[10px] text-white/40 uppercase tracking-wider">{layer.type}</div>
+        </div>
+        
+        {layer.type === 'geojson' && layer.id !== 'deepstate' && (
+          <button 
+            onClick={setActiveEdit}
+            className={`transition-colors ${isActiveEdit ? 'text-white' : 'text-white/30 hover:text-white/70'}`}
+            title="Toggle GeoJSON Edit Mode"
+          >
+            <Edit2 size={16} />
+          </button>
+        )}
+
+        {!['deepstate', 'satellite'].includes(layer.id) && (
+          <button onClick={() => removeLayer(layer.id)} className="text-white/50 hover:text-white transition-colors ml-1">
+            <Trash2 size={16} />
+          </button>
+        )}
+      </Reorder.Item>
+
+      {isActiveEdit && (
+        <div className="bg-white/10 border border-white/30 border-t-transparent p-3 pt-2 flex flex-col gap-4 text-sm animate-in slide-in-from-top-2 relative z-0">
+          {/* Swatches */}
+          <div className="flex flex-wrap gap-1">
+            {colorPalette.map(renderColorSwatch)}
+            {renderColorSwatch('transparent')}
+          </div>
+
+          <div className="flex items-center justify-between">
+            {/* Toggle fill / outline target & Swap */}
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setEditTarget('fill')}
+                className={`p-1 flex items-center justify-center transition-colors ${editTarget === 'fill' ? 'text-white' : 'text-white/50 hover:text-white'}`}
+                title="Edit Fill"
+              >
+                <Square size={16} fill="currentColor" stroke="none" />
+              </button>
+              <button 
+                onClick={() => setEditTarget('outline')}
+                className={`p-1 flex items-center justify-center transition-colors ${editTarget === 'outline' ? 'text-white' : 'text-white/50 hover:text-white'}`}
+                title="Edit Outline"
+              >
+                <Square size={16} />
+              </button>
+              <button onClick={handleSwap} className="text-white/50 hover:text-white transition-colors p-1" title="Swap Fill and Outline">
+                <RefreshCcw size={16} />
+              </button>
+            </div>
+
+            {/* Reset */}
+            <div className="flex gap-2">
+              <button onClick={handleReset} className="text-white/50 hover:text-white transition-colors p-1" title="Reset Styles">
+                <RotateCcw size={16} />
+              </button>
+            </div>
+          </div>
+
+          {/* Opacity slider */}
+          <div className="flex flex-col gap-1">
+            <div className="flex justify-between items-end">
+              <label className="text-[10px] text-white/50 font-semibold tracking-wider">OPACITY</label>
+              <span className="text-[10px] text-white/70 font-mono">{Math.round((editTarget === 'fill' ? currentFillOpacity : currentOutlineOpacity) * 100)}%</span>
+            </div>
+            <input 
+              type="range" min="0" max="100" 
+              value={(editTarget === 'fill' ? currentFillOpacity : currentOutlineOpacity) * 100}
+              onChange={e => handleOpacityChange(Number(e.target.value) / 100)}
+              className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
+            />
+          </div>
+
+          {/* Outline width slider */}
+          <div className="flex flex-col gap-1 pb-2">
+            <div className="flex justify-between items-end">
+              <label className="text-[10px] text-white/50 font-semibold tracking-wider">STROKE WIDTH</label>
+              <span className="text-[10px] text-white/70 font-mono">{currentOutlineWidth}px</span>
+            </div>
+            <input 
+              type="range" min="0" max="20" 
+              value={currentOutlineWidth}
+              onChange={e => handleWidthChange(Number(e.target.value))}
+              className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
+            />
+          </div>
+        </div>
       )}
-    </Reorder.Item>
+    </div>
   );
 }

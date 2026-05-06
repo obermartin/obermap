@@ -39,6 +39,8 @@ function App() {
   const [labelInput, setLabelInput] = useState('');
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [isLayerSidebarOpen, setIsLayerSidebarOpen] = useState(false);
+  const [activeGeojsonLayerId, setActiveGeojsonLayerId] = useState<string | null>(null);
+  const [selectedGeojsonFeatureId, setSelectedGeojsonFeatureId] = useState<string | number | null>(null);
 
   useEffect(() => {
     // Load from backend
@@ -54,6 +56,13 @@ function App() {
             // Merge saved layers into prev.layers to preserve any dynamic data like geojson
             const mergedLayers = [...prev.layers];
             savedLayers.forEach((savedLayer: MapLayer) => {
+              // Ensure features have IDs
+              if (savedLayer.type === 'geojson' && savedLayer.data && savedLayer.data.features) {
+                savedLayer.data.features.forEach((f: any) => {
+                  if (!f.properties) f.properties = {};
+                  if (!f.properties.id) f.properties.id = `feature-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                });
+              }
               const prevIndex = mergedLayers.findIndex(l => l.id === savedLayer.id);
               if (prevIndex !== -1) {
                 mergedLayers[prevIndex] = { ...mergedLayers[prevIndex], ...savedLayer, data: mergedLayers[prevIndex].data || savedLayer.data };
@@ -134,6 +143,10 @@ function App() {
         selectedAnnotationId={selectedAnnotationId}
         setSelectedAnnotationId={setSelectedAnnotationId}
         settings={settings}
+        activeGeojsonLayerId={activeGeojsonLayerId}
+        setActiveGeojsonLayerId={setActiveGeojsonLayerId}
+        selectedGeojsonFeatureId={selectedGeojsonFeatureId}
+        setSelectedGeojsonFeatureId={setSelectedGeojsonFeatureId}
       />
       <SavedViews 
         annotations={annotations}
@@ -167,12 +180,14 @@ function App() {
         <Layers size={20} strokeWidth={1.5} />
       </button>
 
-      {/* Layer Sidebar */}
       <LayerSidebar 
         settings={settings} 
         setSettings={setSettings} 
         isOpen={isLayerSidebarOpen} 
         setIsOpen={setIsLayerSidebarOpen} 
+        activeGeojsonLayerId={activeGeojsonLayerId}
+        setActiveGeojsonLayerId={setActiveGeojsonLayerId}
+        selectedGeojsonFeatureId={selectedGeojsonFeatureId}
       />
 
       {labelPrompt && (
