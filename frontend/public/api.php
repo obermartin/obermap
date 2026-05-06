@@ -42,6 +42,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo json_encode(['error' => 'Invalid JSON payload']);
         exit;
     }
+    // Differential Save Logic
+    if (isset($decoded['settings']['layers']) && file_exists($db_file)) {
+        $existing_json = file_get_contents($db_file);
+        if ($existing_json !== false) {
+            $existing_data = json_decode($existing_json, true);
+            if (isset($existing_data['settings']['layers'])) {
+                $existing_layers = [];
+                foreach ($existing_data['settings']['layers'] as $layer) {
+                    if (isset($layer['id'])) {
+                        $existing_layers[$layer['id']] = $layer;
+                    }
+                }
+                
+                foreach ($decoded['settings']['layers'] as &$layer) {
+                    if (isset($layer['_keepExistingData']) && $layer['_keepExistingData'] === true) {
+                        if (isset($layer['id']) && isset($existing_layers[$layer['id']]['data'])) {
+                            $layer['data'] = $existing_layers[$layer['id']]['data'];
+                        }
+                        unset($layer['_keepExistingData']);
+                    }
+                    if (isset($layer['_isDirty'])) {
+                        unset($layer['_isDirty']);
+                    }
+                }
+                $json = json_encode($decoded);
+            }
+        }
+    }
     
     // Write to file
     $result = file_put_contents($db_file, $json);

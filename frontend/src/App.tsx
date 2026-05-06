@@ -27,7 +27,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 import { LayerSidebar } from './components/LayerSidebar';
-import { Layers } from 'lucide-react';
+import { Layers, Loader2 } from 'lucide-react';
 
 function App() {
   const [activeTool, setActiveTool] = useState<ToolType>('none');
@@ -41,6 +41,8 @@ function App() {
   const [isLayerSidebarOpen, setIsLayerSidebarOpen] = useState(false);
   const [activeGeojsonLayerId, setActiveGeojsonLayerId] = useState<string | null>(null);
   const [selectedGeojsonFeatureId, setSelectedGeojsonFeatureId] = useState<string | number | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     // Load from backend
@@ -65,30 +67,51 @@ function App() {
               }
               const prevIndex = mergedLayers.findIndex(l => l.id === savedLayer.id);
               if (prevIndex !== -1) {
-                mergedLayers[prevIndex] = { ...mergedLayers[prevIndex], ...savedLayer, data: mergedLayers[prevIndex].data || savedLayer.data };
+                mergedLayers[prevIndex] = { ...mergedLayers[prevIndex], ...savedLayer, data: mergedLayers[prevIndex].data || savedLayer.data, _isDirty: false };
               } else {
-                mergedLayers.push(savedLayer);
+                mergedLayers.push({ ...savedLayer, _isDirty: false });
               }
             });
             return { ...prev, ...data.settings, layers: mergedLayers };
           });
         }
       })
-      .catch(err => console.error('Error loading data:', err));
+      .catch(err => console.error('Error loading data:', err))
+      .finally(() => setIsLoaded(true));
   }, []);
 
   const handleSave = useCallback(() => {
+    setIsSaving(true);
+
+    const optimizedSettings = {
+      ...settings,
+      layers: settings.layers.map(layer => {
+        if (!layer._isDirty && layer.data) {
+          const { data, ...rest } = layer;
+          return { ...rest, _keepExistingData: true };
+        }
+        return layer;
+      })
+    };
+
     fetch('./api.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ annotations, settings })
+      body: JSON.stringify({ annotations, settings: optimizedSettings })
     })
     .then(res => res.json())
-    .then(() => alert('Annotations & Settings saved successfully!'))
+    .then(() => {
+      alert('Annotations & Settings saved successfully!');
+      setSettings(prev => ({
+        ...prev,
+        layers: prev.layers.map(l => ({ ...l, _isDirty: false }))
+      }));
+    })
     .catch(err => {
       console.error('Error saving data:', err);
       alert('Failed to save data.');
-    });
+    })
+    .finally(() => setIsSaving(false));
   }, [annotations, settings]);
 
   const handleColorSelect = useCallback((color: string) => {
@@ -129,6 +152,15 @@ function App() {
     window.addEventListener('viewCaptured', handleViewCaptured);
     return () => window.removeEventListener('viewCaptured', handleViewCaptured);
   }, []);
+
+  if (!isLoaded) {
+    return (
+      <div className="w-dvw h-dvh bg-black flex flex-col items-center justify-center text-white/50">
+        <Loader2 className="animate-spin mb-4 text-white" size={32} />
+        <span className="text-sm font-semibold tracking-wider">LOADING MAP DATA...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="w-dvw h-dvh relative bg-black">
@@ -181,6 +213,7 @@ function App() {
           hasSelection={!!selectedAnnotationId}
           settings={settings}
           setSettings={setSettings}
+          isSaving={isSaving}
         />
       </div>
 

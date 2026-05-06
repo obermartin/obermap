@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Tag, Highlighter, Paintbrush, Hexagon, Circle as CircleIcon, Ruler, Save, Trash2, X, Settings, MapPin } from 'lucide-react';
+import { Tag, Highlighter, Paintbrush, Hexagon, Circle as CircleIcon, Ruler, Save, Trash2, X, Settings, MapPin, Loader2 } from 'lucide-react';
 import type { ToolType, AppSettings } from '../types';
 import clsx from 'clsx';
 
@@ -14,6 +14,7 @@ interface ToolbarProps {
   hasSelection: boolean;
   settings: AppSettings;
   setSettings: React.Dispatch<React.SetStateAction<AppSettings>>;
+  isSaving?: boolean;
 }
 
 const TOOLS = [
@@ -46,7 +47,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onDelete,
   hasSelection,
   settings,
-  setSettings
+  setSettings,
+  isSaving
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -402,10 +404,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 </button>
                 <button
                   onClick={onSave}
-                  className="w-12 flex justify-center items-center text-white/60 hover:text-white hover:bg-white/20 transition-colors"
-                  title="Save Annotations & Settings"
+                  disabled={isSaving}
+                  className={`w-12 flex justify-center items-center transition-colors ${isSaving ? 'text-white cursor-wait' : 'text-white/60 hover:text-white hover:bg-white/20'}`}
+                  title={isSaving ? "Saving..." : "Save Annotations & Settings"}
                 >
-                  <Save size={20} strokeWidth={1.5} />
+                  {isSaving ? <Loader2 className="animate-spin" size={20} strokeWidth={1.5} /> : <Save size={20} strokeWidth={1.5} />}
                 </button>
               </div>
 

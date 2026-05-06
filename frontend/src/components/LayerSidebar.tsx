@@ -69,7 +69,8 @@ export function LayerSidebar({
         name: file.name,
         type: 'geojson',
         visible: true,
-        data: geojson
+        data: geojson,
+        _isDirty: true
       };
       setSettings(prev => ({ ...prev, layers: [newLayer, ...prev.layers] }));
     } catch (err) {
@@ -85,7 +86,8 @@ export function LayerSidebar({
       name: 'Custom WMTS/ZYX',
       type: 'raster',
       visible: true,
-      url: urlInput.trim()
+      url: urlInput.trim(),
+      _isDirty: true
     };
     setSettings(prev => ({ ...prev, layers: [newLayer, ...prev.layers] }));
     setUrlInput('');
@@ -165,14 +167,14 @@ export function LayerSidebar({
                             return f;
                           })
                         };
-                        return { ...l, data: newData };
+                        return { ...l, data: newData, _isDirty: true };
                       })
                     }));
                   }}
                   updateLayerOpacity={(layerId, opacity) => {
                     setSettings(prev => ({
                       ...prev,
-                      layers: prev.layers.map(l => l.id === layerId ? { ...l, opacity } : l)
+                      layers: prev.layers.map(l => l.id === layerId ? { ...l, opacity, _isDirty: true } : l)
                     }));
                   }}
                 />

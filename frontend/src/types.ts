@@ -24,6 +24,8 @@ export interface MapLayer {
   data?: any; // For GeoJSON
   url?: string; // For XYZ/WMTS
   opacity?: number;
+  _isDirty?: boolean;
+  _keepExistingData?: boolean;
 }
 
 export interface AppSettings {
