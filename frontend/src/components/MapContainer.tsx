@@ -742,11 +742,32 @@ export const MapContainer: React.FC<MapContainerProps> = ({
       const layerId = `dynamic-layer-${layer.id}`;
       const lineId = `dynamic-line-${layer.id}`;
 
+      // Re-initialize raster sources if they are dirty (e.g. date changed)
+      if (map.getSource(sourceId) && layer.type === 'raster' && layer._isDirty) {
+        if (map.getLayer(layerId)) map.removeLayer(layerId);
+        if (map.getLayer(lineId)) map.removeLayer(lineId);
+        map.removeSource(sourceId);
+      }
+
       if (!map.getSource(sourceId)) {
         if (layer.type === 'geojson' && layer.data) {
           map.addSource(sourceId, { type: 'geojson', data: layer.data });
         } else if (layer.type === 'raster' && layer.url) {
-          map.addSource(sourceId, { type: 'raster', tiles: [layer.url], tileSize: 256 });
+          let processedUrl = layer.url;
+          
+          const today = new Date();
+          const todayStr = today.toISOString().split('T')[0];
+          const past7d = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+          const past7dStr = past7d.toISOString().split('T')[0];
+          
+          const startVal = layer.startDate || past7dStr;
+          const endVal = layer.endDate || todayStr;
+          
+          processedUrl = processedUrl.replace(/%7Bdate-today%7D/g, '{date-end}').replace(/%7Bdate-7d%7D/g, '{date-start}');
+          processedUrl = processedUrl.replace(/{date-today}/g, '{date-end}').replace(/{date-7d}/g, '{date-start}');
+          processedUrl = processedUrl.replace(/{date-start}/g, startVal).replace(/{date-end}/g, endVal);
+          
+          map.addSource(sourceId, { type: 'raster', tiles: [processedUrl], tileSize: 256 });
         } else if (layer.type === 'satellite') {
           map.addSource(sourceId, { type: 'raster', url: 'mapbox://mapbox.satellite', tileSize: 256 });
         }

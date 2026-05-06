@@ -22,6 +22,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   labelDensity: 50,
   layers: [
     { id: 'deepstate', name: 'DeepStateMap Overlay', type: 'geojson', visible: false },
+    { id: 'copernicus', name: 'Wildfires (EFFIS)', type: 'raster', visible: false, url: 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}' },
     { id: 'satellite', name: 'Satellite Map Overlay (Mapbox)', type: 'satellite', visible: false }
   ]
 };
@@ -65,6 +66,11 @@ function App() {
                   if (!f.properties.id) f.properties.id = `feature-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
                 });
               }
+              // Enforce new name for copernicus layer if they have the old one saved
+              if (savedLayer.id === 'copernicus' && savedLayer.name !== 'Wildfires (EFFIS)') {
+                savedLayer.name = 'Wildfires (EFFIS)';
+              }
+
               const prevIndex = mergedLayers.findIndex(l => l.id === savedLayer.id);
               if (prevIndex !== -1) {
                 mergedLayers[prevIndex] = { ...mergedLayers[prevIndex], ...savedLayer, data: mergedLayers[prevIndex].data || savedLayer.data, _isDirty: false };
@@ -72,6 +78,21 @@ function App() {
                 mergedLayers.push({ ...savedLayer, _isDirty: false });
               }
             });
+            
+            // Inject Copernicus layer if missing (e.g. for existing saves before it was hardcoded)
+            if (!mergedLayers.some(l => l.id === 'copernicus')) {
+              const defaultCopernicus = DEFAULT_SETTINGS.layers.find(l => l.id === 'copernicus');
+              if (defaultCopernicus) {
+                // Insert it right after deepstate, or at the top if deepstate isn't there
+                const deepstateIndex = mergedLayers.findIndex(l => l.id === 'deepstate');
+                if (deepstateIndex !== -1) {
+                  mergedLayers.splice(deepstateIndex + 1, 0, defaultCopernicus);
+                } else {
+                  mergedLayers.unshift(defaultCopernicus);
+                }
+              }
+            }
+
             return { ...prev, ...data.settings, layers: mergedLayers };
           });
         }

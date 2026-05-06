@@ -80,13 +80,54 @@ export function LayerSidebar({
   };
 
   const handleAddUrl = () => {
-    if (!urlInput.trim()) return;
+    let inputUrl = urlInput.trim();
+    if (!inputUrl) return;
+
+    if (!inputUrl.startsWith('http')) {
+      inputUrl = 'https://' + inputUrl;
+    }
+
+    try {
+      if (inputUrl.toLowerCase().includes('wms')) {
+        const urlObj = new URL(inputUrl);
+        urlObj.searchParams.set('bbox', '{bbox-epsg-3857}');
+        if (!urlObj.searchParams.has('width')) urlObj.searchParams.set('width', '256');
+        if (!urlObj.searchParams.has('height')) urlObj.searchParams.set('height', '256');
+        if (!urlObj.searchParams.has('srs') && !urlObj.searchParams.has('crs')) {
+          urlObj.searchParams.set('srs', 'EPSG:3857');
+          urlObj.searchParams.set('crs', 'EPSG:3857');
+        }
+        if (!urlObj.searchParams.has('transparent')) urlObj.searchParams.set('transparent', 'true');
+        if (!urlObj.searchParams.has('format')) urlObj.searchParams.set('format', 'image/png');
+        if (!urlObj.searchParams.has('styles')) urlObj.searchParams.set('styles', '');
+        
+        // Ensure mandatory WMS parameters are present
+        if (!urlObj.searchParams.has('version') && !urlObj.searchParams.has('VERSION')) {
+          urlObj.searchParams.set('version', '1.1.1');
+        }
+        if (!urlObj.searchParams.has('request') && !urlObj.searchParams.has('REQUEST')) {
+          urlObj.searchParams.set('request', 'GetMap');
+        }
+        if (!urlObj.searchParams.has('service') && !urlObj.searchParams.has('SERVICE')) {
+          urlObj.searchParams.set('service', 'WMS');
+        }
+        
+        if (inputUrl.toLowerCase().includes('copernicus.eu')) {
+          urlObj.searchParams.set('time', '{date-start}/{date-end}');
+        }
+        
+        inputUrl = urlObj.toString().replace(/%7B/g, '{').replace(/%7D/g, '}');
+      }
+    } catch (e) {
+      // Ignore parsing errors and proceed
+    }
+
     const newLayer: MapLayer = {
       id: `url-${Date.now()}`,
-      name: 'Custom WMTS/ZYX',
+      name: inputUrl.toLowerCase().includes('wms') ? 'Custom WMS' : 'Custom WMTS/XYZ',
       type: 'raster',
       visible: true,
-      url: urlInput.trim(),
+      url: inputUrl,
       _isDirty: true
     };
     setSettings(prev => ({ ...prev, layers: [newLayer, ...prev.layers] }));
@@ -177,6 +218,12 @@ export function LayerSidebar({
                       layers: prev.layers.map(l => l.id === layerId ? { ...l, opacity, _isDirty: true } : l)
                     }));
                   }}
+                  updateLayerDates={(layerId, startDate, endDate) => {
+                    setSettings(prev => ({
+                      ...prev,
+                      layers: prev.layers.map(l => l.id === layerId ? { ...l, startDate, endDate, _isDirty: true } : l)
+                    }));
+                  }}
                 />
               ))}
             </Reorder.Group>
@@ -195,7 +242,7 @@ export function LayerSidebar({
               <div className="flex flex-col gap-2">
                 <input
                   type="text"
-                  placeholder="WMTS URL..."
+                  placeholder="WMTS/WMS URL..."
                   value={urlInput}
                   onChange={e => setUrlInput(e.target.value)}
                   className="w-full bg-black/50 border border-white/10 px-3 py-2 text-sm outline-none focus:border-white/30"
@@ -210,7 +257,7 @@ export function LayerSidebar({
                 onClick={() => setShowUrlInput(true)}
                 className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors"
               >
-                <Link size={16} /> Add WMTS URL
+                <Link size={16} /> Add WMTS/WMS URL
               </button>
             )}
           </div>
@@ -249,7 +296,7 @@ export function LayerSidebar({
   );
 }
 
-function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer, colorPalette, isActiveEdit, setActiveEdit, selectedFeatureId, updateLayerStyle, updateLayerOpacity }: {
+function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer, colorPalette, isActiveEdit, setActiveEdit, selectedFeatureId, updateLayerStyle, updateLayerOpacity, updateLayerDates }: {
   layer: MapLayer;
   toggleVisibility: (id: string) => void;
   removeLayer: (id: string) => void;
@@ -260,16 +307,26 @@ function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer, colorPal
   selectedFeatureId: string | number | null;
   updateLayerStyle: (layerId: string, featureId: string | number | null, styleChanges: any) => void;
   updateLayerOpacity: (layerId: string, opacity: number) => void;
+  updateLayerDates?: (layerId: string, startDate?: string, endDate?: string) => void;
 }) {
   const controls = useDragControls();
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(layer.name);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  let defaultStartDate = '';
+  let defaultEndDate = '';
+  if (layer.id === 'copernicus') {
+    const today = new Date();
+    defaultEndDate = today.toISOString().split('T')[0];
+    const past7d = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    defaultStartDate = past7d.toISOString().split('T')[0];
+  }
+
   const [editTarget, setEditTarget] = useState<'fill' | 'outline'>('fill');
 
   const handleDoubleClick = () => {
-    if (['deepstate', 'satellite'].includes(layer.id)) return;
+    if (['deepstate', 'satellite', 'copernicus'].includes(layer.id)) return;
     setIsEditing(true);
     setEditName(layer.name);
     setTimeout(() => inputRef.current?.focus(), 50);
@@ -368,7 +425,7 @@ function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer, colorPal
         value={layer}
         dragListener={false}
         dragControls={controls}
-        className={`p-3 flex items-center gap-3 select-none group transition-opacity duration-200 ${isActiveEdit ? 'bg-white/10 border border-white/30 border-b-transparent z-10' : 'bg-black/40 border border-white/10'} ${!layer.visible ? 'opacity-40' : 'opacity-100'}`}
+        className={`p-3 flex items-center gap-3 select-none group transition-opacity duration-200 ${isActiveEdit ? 'bg-white/10 z-10' : (layer.visible ? 'bg-black' : 'bg-transparent')} ${!layer.visible ? 'opacity-40' : 'opacity-100'}`}
       >
         <div
           className="cursor-grab active:cursor-grabbing text-white/30 hover:text-white/70"
@@ -401,7 +458,7 @@ function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer, colorPal
           <div className="text-[10px] text-white/40 uppercase tracking-wider">{layer.type}</div>
         </div>
 
-        {(layer.type === 'geojson' || layer.type === 'raster') && layer.id !== 'deepstate' && (
+        {(layer.type === 'geojson' || layer.type === 'raster') && layer.id !== 'deepstate' && layer.id !== 'satellite' && (
           <button
             onClick={() => {
               if (!layer.visible) toggleVisibility(layer.id);
@@ -414,7 +471,7 @@ function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer, colorPal
           </button>
         )}
 
-        {!['deepstate', 'satellite'].includes(layer.id) && (
+        {!['deepstate', 'satellite', 'copernicus'].includes(layer.id) && (
           <button onClick={() => removeLayer(layer.id)} className="text-white/50 hover:text-white transition-colors ml-1">
             <Trash2 size={16} />
           </button>
@@ -422,19 +479,46 @@ function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer, colorPal
       </Reorder.Item>
 
       {isActiveEdit && (
-        <div className={`bg-white/10 border border-white/30 border-t-transparent p-3 pt-2 flex flex-col gap-4 text-sm animate-in slide-in-from-top-2 relative z-0 transition-opacity duration-200 ${!layer.visible ? 'opacity-40' : 'opacity-100'}`}>
+        <div className={`bg-white/10 p-3 pt-2 flex flex-col gap-4 text-sm animate-in slide-in-from-top-2 relative z-0 transition-opacity duration-200 ${!layer.visible ? 'opacity-40' : 'opacity-100'}`}>
           {layer.type === 'raster' ? (
-            <div className="flex flex-col gap-1 pb-2">
-              <div className="flex justify-between items-end">
-                <label className="text-[10px] text-white/50 font-semibold tracking-wider">OPACITY</label>
-                <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.opacity ?? 1.0) * 100)}%</span>
+            <div className="flex flex-col gap-3 pb-2">
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between items-end">
+                  <label className="text-[10px] text-white/50 font-semibold tracking-wider">OPACITY</label>
+                  <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.opacity ?? 1.0) * 100)}%</span>
+                </div>
+                <input
+                  type="range" min="0" max="100"
+                  value={(layer.opacity ?? 1.0) * 100}
+                  onChange={e => updateLayerOpacity(layer.id, Number(e.target.value) / 100)}
+                  className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
+                />
               </div>
-              <input
-                type="range" min="0" max="100"
-                value={(layer.opacity ?? 1.0) * 100}
-                onChange={e => updateLayerOpacity(layer.id, Number(e.target.value) / 100)}
-                className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
-              />
+              
+              {layer.id === 'copernicus' && updateLayerDates && (
+                <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-white/10">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] text-white/50 font-semibold tracking-wider">START DATE</label>
+                    <input 
+                      type="date" 
+                      value={layer.startDate || defaultStartDate} 
+                      onChange={e => updateLayerDates(layer.id, e.target.value, layer.endDate || defaultEndDate)}
+                      className="bg-black border border-white/20 px-2 py-1 text-xs text-white outline-none focus:border-white/50"
+                      style={{ colorScheme: 'dark' }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] text-white/50 font-semibold tracking-wider">END DATE</label>
+                    <input 
+                      type="date" 
+                      value={layer.endDate || defaultEndDate} 
+                      onChange={e => updateLayerDates(layer.id, layer.startDate || defaultStartDate, e.target.value)}
+                      className="bg-black border border-white/20 px-2 py-1 text-xs text-white outline-none focus:border-white/50"
+                      style={{ colorScheme: 'dark' }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <>
