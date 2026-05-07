@@ -695,7 +695,12 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       if (!layers.find(l => l.id === id)) {
         if (map.getLayer(`dynamic-layer-${id}`)) map.removeLayer(`dynamic-layer-${id}`);
         if (map.getLayer(`dynamic-line-${id}`)) map.removeLayer(`dynamic-line-${id}`);
-        if (map.getSource(`dynamic-source-${id}`)) map.removeSource(`dynamic-source-${id}`);
+        if (map.getSource(`dynamic-source-${id}`)) {
+          map.removeSource(`dynamic-source-${id}`);
+          if (deepstateDatesRef.current[id]) {
+            delete deepstateDatesRef.current[id];
+          }
+        }
       }
     });
 
@@ -811,42 +816,48 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         const todayDateStr = new Date().toISOString().split('T')[0];
         const targetDate = layer.startDate || todayDateStr;
         
-        if (deepstateDatesRef.current[layer.id] !== targetDate) {
-          deepstateDatesRef.current[layer.id] = targetDate;
+        const cacheKey = `${targetDate}-${!!layer.isLive}`;
+        if (deepstateDatesRef.current[layer.id] !== cacheKey) {
+          deepstateDatesRef.current[layer.id] = cacheKey;
           
           (async () => {
             try {
-              let history = globalDeepstateHistory;
-              if (!history) {
-                if (!globalDeepstateHistoryPromise) {
-                  globalDeepstateHistoryPromise = fetch('https://deepstatemap.live/api/history/public')
-                    .then(res => res.json())
-                    .then(data => { globalDeepstateHistory = data; })
-                    .catch(err => {
-                      console.error('Failed to fetch deepstate history:', err);
-                      globalDeepstateHistoryPromise = null;
-                    });
-                }
-                await globalDeepstateHistoryPromise;
-                history = globalDeepstateHistory;
-              }
-              
-              if (!history) throw new Error('No history available');
-
-              const entriesForDate = history.filter(entry => entry.createdAt.startsWith(targetDate));
-              let targetId: number;
-              if (entriesForDate.length > 0) {
-                targetId = entriesForDate[entriesForDate.length - 1].id;
+              let url = '';
+              if (layer.isLive) {
+                url = 'https://deepstatemap.live/api/history/last';
               } else {
-                const pastEntries = history.filter(entry => entry.createdAt < targetDate);
-                if (pastEntries.length > 0) {
-                  targetId = pastEntries[pastEntries.length - 1].id;
-                } else {
-                  throw new Error('No data found for this date');
+                let history = globalDeepstateHistory;
+                if (!history) {
+                  if (!globalDeepstateHistoryPromise) {
+                    globalDeepstateHistoryPromise = fetch('https://deepstatemap.live/api/history/public')
+                      .then(res => res.json())
+                      .then(data => { globalDeepstateHistory = data; })
+                      .catch(err => {
+                        console.error('Failed to fetch deepstate history:', err);
+                        globalDeepstateHistoryPromise = null;
+                      });
+                  }
+                  await globalDeepstateHistoryPromise;
+                  history = globalDeepstateHistory;
                 }
-              }
+                
+                if (!history) throw new Error('No history available');
 
-              const url = `https://deepstatemap.live/api/history/${targetId}/geojson`;
+                const entriesForDate = history.filter(entry => entry.createdAt.startsWith(targetDate));
+                let targetId: number;
+                if (entriesForDate.length > 0) {
+                  targetId = entriesForDate[entriesForDate.length - 1].id;
+                } else {
+                  const pastEntries = history.filter(entry => entry.createdAt < targetDate);
+                  if (pastEntries.length > 0) {
+                    targetId = pastEntries[pastEntries.length - 1].id;
+                  } else {
+                    throw new Error('No data found for this date');
+                  }
+                }
+
+                url = `https://deepstatemap.live/api/history/${targetId}/geojson`;
+              }
               const res = await fetch(url);
               if (!res.ok) throw new Error(`Failed to fetch deepstate data: ${res.statusText}`);
               const data = await res.json();
@@ -1398,7 +1409,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  const splitLayer = props.settings.layers.find(l => l.type === 'split');
+  const splitLayer = props.settings.layers.find(l => l.type === 'split' && l.visible);
   const [splitPos, setSplitPos] = useState(splitLayer?.splitPosition ? splitLayer.splitPosition * 100 : 50);
   const [splitVertical, setSplitVertical] = useState(splitLayer?.splitDirection !== 'horizontal');
 
@@ -1468,21 +1479,39 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
   let layer1Name = '';
   let layer2Name = '';
 
-  if (splitLayer && splitLayer.splitLayers) {
+  let isSplitActive = false;
+
+  if (splitLayer && splitLayer.splitLayers && splitLayer.splitLayers.length > 0) {
     const l1 = splitLayer.splitLayers[0];
-    const l2 = splitLayer.splitLayers[1];
     
     settings1 = {
       ...props.settings,
       layers: props.settings.layers.flatMap(l => l.id === splitLayer.id ? [l1] : [l])
     };
-    settings2 = {
+    
+    if (splitLayer.splitLayers.length > 1) {
+      const l2 = splitLayer.splitLayers[1];
+      settings2 = {
+        ...props.settings,
+        layers: props.settings.layers.flatMap(l => l.id === splitLayer.id ? [l2] : [l])
+      };
+      layer1Name = l1.name;
+      layer2Name = l2.name;
+      isSplitActive = true;
+    } else {
+      settings2 = {
+        ...props.settings,
+        layers: props.settings.layers.filter(l => l.id !== splitLayer.id)
+      };
+      layer1Name = l1.name;
+      layer2Name = 'Empty';
+      isSplitActive = true;
+    }
+  } else if (splitLayer) {
+    settings1 = {
       ...props.settings,
-      layers: props.settings.layers.flatMap(l => l.id === splitLayer.id ? [l2] : [l])
+      layers: props.settings.layers.filter(l => l.id !== splitLayer.id)
     };
-      
-    layer1Name = l1.name;
-    layer2Name = l2.name;
   }
 
   const clipPath = splitVertical ? `inset(0 0 0 ${splitPos}%)` : `inset(${splitPos}% 0 0 0)`;
@@ -1490,7 +1519,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
   return (
     <div className="w-full h-full relative overflow-hidden z-0" ref={containerRef}>
       <MapboxMap {...props} settings={settings1} onMapInit={setMap1} />
-      {splitLayer && (
+      {isSplitActive && (
         <>
           <MapboxMap {...props} settings={settings2} onMapInit={setMap2} isSecondary clipPath={clipPath} />
           <div 

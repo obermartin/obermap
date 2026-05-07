@@ -21,7 +21,8 @@ const DEFAULT_SETTINGS: AppSettings = {
   ],
   labelDensity: 50,
   layers: [
-    { id: 'deepstate', name: `UKRAINE ${new Date().toISOString().split('T')[0].split('-').reverse().join('.')}`, type: 'deepstate', visible: false },
+    { id: 'split-container', name: 'Split View Container', type: 'split', visible: false, splitPosition: 0.5, splitDirection: 'vertical', splitLayers: [] },
+    { id: 'deepstate', name: 'UKRAINE CURRENT', type: 'deepstate', visible: false, isLive: true },
     { id: 'copernicus', name: 'Wildfires (EFFIS)', type: 'raster', visible: false, url: 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}' },
     { id: 'satellite', name: 'Satellite Map Overlay (Mapbox)', type: 'satellite', visible: false }
   ]
@@ -56,58 +57,86 @@ function App() {
         if (data.settings) {
           setSettings(prev => {
             const savedLayers = data.settings.layers || [];
-            // Merge saved layers into prev.layers to preserve any dynamic data like geojson
-            const mergedLayers = [...prev.layers];
-            const processSavedLayer = (savedLayer: MapLayer) => {
-              if (savedLayer.type === 'split' && savedLayer.splitLayers) {
-                savedLayer.splitLayers.forEach(processSavedLayer);
+            
+            const processSavedLayer = (savedLayer: MapLayer): MapLayer => {
+              let merged = { ...savedLayer, _isDirty: false };
+              
+              // Backwards compatibility migration for deepstate
+              if (merged.id === 'deepstate' && merged.type === 'geojson') {
+                merged.type = 'deepstate';
               }
+              if (merged.type === 'deepstate' && (merged.name === 'DeepStateMap Overlay' || merged.name === 'DeepStateMap')) {
+                const dateStr = merged.startDate || new Date().toISOString().split('T')[0];
+                merged.name = `UKRAINE ${dateStr.split('-').reverse().join('.')}`;
+              }
+              
+              if (merged.id === 'copernicus' && merged.name !== 'Wildfires (EFFIS)') {
+                merged.name = 'Wildfires (EFFIS)';
+              }
+
+              // Merge default properties if it's a default layer
+              const defaultMatch = prev.layers.find(l => l.id === merged.id);
+              if (defaultMatch) {
+                merged = { ...defaultMatch, ...merged, data: defaultMatch.data || merged.data };
+              }
+
+              if (merged.type === 'split' && merged.splitLayers) {
+                merged.splitLayers = [
+                  processSavedLayer(merged.splitLayers[0]),
+                  processSavedLayer(merged.splitLayers[1])
+                ];
+              }
+
               // Ensure features have IDs
-              if (savedLayer.type === 'geojson' && savedLayer.data && savedLayer.data.features) {
-                savedLayer.data.features.forEach((f: any) => {
+              if (merged.type === 'geojson' && merged.data && merged.data.features) {
+                merged.data.features.forEach((f: any) => {
                   if (!f.properties) f.properties = {};
                   if (!f.properties.id) f.properties.id = `feature-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
                 });
               }
+              
+              return merged;
             };
-            savedLayers.forEach((savedLayer: MapLayer) => {
-              // Backwards compatibility migration for deepstate
-              if (savedLayer.id === 'deepstate' && savedLayer.type === 'geojson') {
-                savedLayer.type = 'deepstate';
-              }
-              if (savedLayer.type === 'deepstate' && (savedLayer.name === 'DeepStateMap Overlay' || savedLayer.name === 'DeepStateMap')) {
-                const dateStr = savedLayer.startDate || new Date().toISOString().split('T')[0];
-                savedLayer.name = `UKRAINE ${dateStr.split('-').reverse().join('.')}`;
-              }
-              
-              processSavedLayer(savedLayer);
-              
-              // Enforce new name for copernicus layer if they have the old one saved
-              // Enforce new name for copernicus layer if they have the old one saved
-              if (savedLayer.id === 'copernicus' && savedLayer.name !== 'Wildfires (EFFIS)') {
-                savedLayer.name = 'Wildfires (EFFIS)';
-              }
 
-              const prevIndex = mergedLayers.findIndex(l => l.id === savedLayer.id);
-              if (prevIndex !== -1) {
-                mergedLayers[prevIndex] = { ...mergedLayers[prevIndex], ...savedLayer, data: mergedLayers[prevIndex].data || savedLayer.data, _isDirty: false };
-              } else {
-                mergedLayers.push({ ...savedLayer, _isDirty: false });
+            const mergedLayers = savedLayers.map(processSavedLayer);
+
+            // Helper to recursively check if a layer exists anywhere in the tree
+            const layerExists = (layers: MapLayer[], id: string): boolean => {
+              for (const l of layers) {
+                if (l.id === id) return true;
+                if (l.type === 'split' && l.splitLayers) {
+                  if (layerExists(l.splitLayers, id)) return true;
+                }
               }
-            });
-            
-            // Inject Copernicus layer if missing (e.g. for existing saves before it was hardcoded)
-            if (!mergedLayers.some(l => l.id === 'copernicus')) {
+              return false;
+            };
+
+            // Inject mandatory layers if missing completely from the tree
+            if (!layerExists(mergedLayers, 'split-container')) {
+              mergedLayers.unshift(DEFAULT_SETTINGS.layers.find(l => l.id === 'split-container')!);
+            }
+            if (!layerExists(mergedLayers, 'deepstate')) {
+              const defaultDeepstate = DEFAULT_SETTINGS.layers.find(l => l.id === 'deepstate')!;
+              const splitIndex = mergedLayers.findIndex((l: MapLayer) => l.id === 'split-container');
+              if (splitIndex !== -1) {
+                mergedLayers.splice(splitIndex + 1, 0, defaultDeepstate);
+              } else {
+                mergedLayers.unshift(defaultDeepstate);
+              }
+            }
+            if (!layerExists(mergedLayers, 'copernicus')) {
               const defaultCopernicus = DEFAULT_SETTINGS.layers.find(l => l.id === 'copernicus');
               if (defaultCopernicus) {
-                // Insert it right after deepstate, or at the top if deepstate isn't there
-                const deepstateIndex = mergedLayers.findIndex(l => l.id === 'deepstate');
+                const deepstateIndex = mergedLayers.findIndex((l: MapLayer) => l.id === 'deepstate');
                 if (deepstateIndex !== -1) {
                   mergedLayers.splice(deepstateIndex + 1, 0, defaultCopernicus);
                 } else {
                   mergedLayers.unshift(defaultCopernicus);
                 }
               }
+            }
+            if (!layerExists(mergedLayers, 'satellite')) {
+              mergedLayers.push(DEFAULT_SETTINGS.layers.find(l => l.id === 'satellite')!);
             }
 
             return { ...prev, ...data.settings, layers: mergedLayers };
@@ -122,6 +151,7 @@ function App() {
     setIsSaving(true);
 
     const optimizeLayer = (layer: MapLayer): MapLayer => {
+      if (!layer) return layer;
       let optimized = layer;
       if (!layer._isDirty && layer.data) {
         const { data, ...rest } = layer;
@@ -130,35 +160,41 @@ function App() {
       if (optimized.type === 'split' && optimized.splitLayers) {
         optimized = {
           ...optimized,
-          splitLayers: [optimizeLayer(optimized.splitLayers[0]), optimizeLayer(optimized.splitLayers[1])]
+          splitLayers: optimized.splitLayers.filter(Boolean).map(optimizeLayer)
         };
       }
       return optimized;
     };
 
-    const optimizedSettings = {
-      ...settings,
-      layers: settings.layers.map(optimizeLayer)
-    };
+    try {
+      const optimizedSettings = {
+        ...settings,
+        layers: settings.layers.map(optimizeLayer)
+      };
 
-    fetch('./api.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ annotations, settings: optimizedSettings })
-    })
-    .then(res => res.json())
-    .then(() => {
-      alert('Annotations & Settings saved successfully!');
-      setSettings(prev => ({
-        ...prev,
-        layers: prev.layers.map(l => ({ ...l, _isDirty: false }))
-      }));
-    })
-    .catch(err => {
-      console.error('Error saving data:', err);
-      alert('Failed to save data.');
-    })
-    .finally(() => setIsSaving(false));
+      fetch('./api.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ annotations, settings: optimizedSettings })
+      })
+      .then(res => res.json())
+      .then(() => {
+        alert('Annotations & Settings saved successfully!');
+        setSettings(prev => ({
+          ...prev,
+          layers: prev.layers.map(l => ({ ...l, _isDirty: false }))
+        }));
+      })
+      .catch(err => {
+        console.error('Error saving data:', err);
+        alert('Failed to save data.');
+      })
+      .finally(() => setIsSaving(false));
+    } catch (err) {
+      console.error('Error during layer optimization:', err);
+      alert('Failed to save data due to an internal error.');
+      setIsSaving(false);
+    }
   }, [annotations, settings]);
 
   const handleColorSelect = useCallback((color: string) => {

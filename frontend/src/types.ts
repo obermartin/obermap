@@ -26,11 +26,12 @@ export interface MapLayer {
   opacity?: number;
   startDate?: string;
   endDate?: string;
+  isLive?: boolean;
   _isDirty?: boolean;
   _keepExistingData?: boolean;
   
   // For split containers
-  splitLayers?: [MapLayer, MapLayer];
+  splitLayers?: MapLayer[];
   splitDirection?: 'vertical' | 'horizontal';
   splitPosition?: number;
 }
