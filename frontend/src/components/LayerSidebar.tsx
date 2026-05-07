@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Reorder, useDragControls } from 'framer-motion';
+import { Reorder, useDragControls, motion } from 'framer-motion';
 import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2, Edit2, Square, RefreshCcw, RotateCcw, Copy, Radio } from 'lucide-react';
 import type { AppSettings, MapLayer } from '../types';
 import { parseMapFileWithIds } from '../utils/fileUtils';
@@ -142,39 +142,10 @@ export function LayerSidebar({
   };
 
   const flatLayers = React.useMemo(() => {
-    const flat: MapLayer[] = [];
-    settings.layers.forEach(l => {
-      if (l.type === 'split') {
-        flat.push(l);
-        if (l.splitLayers) {
-          flat.push(...l.splitLayers.map(sl => ({ ...sl, _parentId: l.id })));
-        }
-      } else {
-        flat.push(l);
-      }
-    });
-    return flat;
+    return settings.layers;
   }, [settings.layers]);
 
-  const handleReorder = (newFlatLayers: MapLayer[]) => {
-    const newLayers: MapLayer[] = [];
-    let splitContainer: MapLayer | null = null;
-    
-    const splitLayer = newFlatLayers.find(l => l.type === 'split');
-    if (splitLayer) {
-      splitContainer = { ...splitLayer, splitLayers: [] };
-    }
-
-    newFlatLayers.forEach(l => {
-      if (l.type === 'split') {
-        newLayers.push(splitContainer!);
-      } else if ((l as any)._parentId && (l as any)._parentId === splitContainer?.id) {
-        splitContainer!.splitLayers!.push(l);
-      } else {
-        newLayers.push(l);
-      }
-    });
-
+  const handleReorder = (newLayers: MapLayer[]) => {
     setSettings(prev => ({ ...prev, layers: newLayers }));
   };
 
@@ -370,13 +341,11 @@ export function LayerSidebar({
             <label className="text-xs text-white/50 mb-1 block font-semibold tracking-wider">LAYER STACK</label>
             <Reorder.Group axis="y" values={flatLayers} onReorder={handleReorder} className="flex flex-col gap-2">
               {flatLayers.map((layer) => {
-                const isNested = settings.layers.some(l => l.type === 'split' && l.splitLayers?.some(sl => sl.id === layer.id));
-
                 return (
                   <LayerItem
                     key={layer.id}
                     layer={layer}
-                    isNested={isNested}
+                    isNestedChild={false}
                     isDraggingLayer={isDraggingLayer}
                     setIsDraggingLayer={setIsDraggingLayer}
                     handleDragEnd={handleDragEnd}
@@ -507,9 +476,9 @@ export function LayerSidebar({
   );
 }
 
-function LayerItem({ layer, isNested, toggleVisibility, removeLayer, renameLayer, colorPalette, activeGeojsonLayerId, setActiveGeojsonLayerId, selectedFeatureId, updateLayerStyle, updateLayerOpacity, updateLayerDates, duplicateLayer, toggleLive, handleDragEnd, isDraggingLayer, setIsDraggingLayer }: {
+function LayerItem(props: {
   layer: MapLayer;
-  isNested?: boolean;
+  isNestedChild?: boolean;
   toggleVisibility: (id: string) => void;
   removeLayer: (id: string) => void;
   renameLayer: (id: string, newName: string) => void;
@@ -526,6 +495,7 @@ function LayerItem({ layer, isNested, toggleVisibility, removeLayer, renameLayer
   isDraggingLayer?: boolean;
   setIsDraggingLayer?: (isDragging: boolean) => void;
 }) {
+  const { layer, isNestedChild = false, toggleVisibility, removeLayer, renameLayer, colorPalette, activeGeojsonLayerId, setActiveGeojsonLayerId, selectedFeatureId, updateLayerStyle, updateLayerOpacity, updateLayerDates, duplicateLayer, toggleLive, handleDragEnd, isDraggingLayer, setIsDraggingLayer } = props;
   const isActiveEdit = activeGeojsonLayerId === layer.id;
   const setActiveEdit = () => {
     if (isActiveEdit) setActiveGeojsonLayerId(null);
@@ -641,11 +611,30 @@ function LayerItem({ layer, isNested, toggleVisibility, removeLayer, renameLayer
     );
   };
 
-  const Wrapper: any = Reorder.Item;
-  const wrapperProps = {
+  const Wrapper: any = isNestedChild ? motion.div : Reorder.Item;
+  const wrapperProps: any = isNestedChild ? {
+    drag: true,
+    dragControls: controls,
+    dragListener: false,
+    dragSnapToOrigin: true,
+    style: { zIndex: 50 },
+    onDragStart: () => setIsDraggingLayer?.(true),
+    onDragEnd: (e: any) => {
+      setIsDraggingLayer?.(false);
+      // Wait to allow drop zone detection
+      setTimeout(() => {
+        if (handleDragEnd) handleDragEnd(e, layer.id);
+      }, 0);
+    }
+  } : {
     value: layer,
     dragListener: false,
-    dragControls: controls
+    dragControls: controls,
+    onDragStart: () => setIsDraggingLayer?.(true),
+    onDragEnd: (e: any) => {
+      setIsDraggingLayer?.(false);
+      if (handleDragEnd) handleDragEnd(e, layer.id);
+    }
   };
 
   const iconColor = layer.visible ? 'text-white' : 'text-white/50 hover:text-white';
@@ -655,20 +644,16 @@ function LayerItem({ layer, isNested, toggleVisibility, removeLayer, renameLayer
     <div className={`flex flex-col ${isActiveEdit ? 'gap-0' : 'gap-[2px]'}`}>
       <Wrapper
         {...wrapperProps}
-        onDragStart={() => setIsDraggingLayer?.(true)}
-        onDragEnd={(e: any) => {
-          setIsDraggingLayer?.(false);
-          if (handleDragEnd) handleDragEnd(e, layer.id);
-        }}
-        data-drop-zone={layer.type === 'split' || isNested ? 'split-container' : 'root'}
+        data-drop-zone={layer.type === 'split' || isNestedChild ? 'split-container' : 'root'}
         data-layer-id={layer.id}
         className="w-full relative"
       >
-        <div className={`relative flex flex-col transition-all duration-300 ${isNested ? 'ml-6 border-l-2 border-white/20' : 'w-full'} ${isDraggingLayer && layer.type === 'split' ? 'min-h-[120px] bg-white/5 border-2 border-dashed border-white' : ''}`}>
-          <div className={`relative p-3 flex ${layer.type === 'split' ? 'items-start' : 'items-center'} gap-3 select-none group transition-opacity duration-200 ${isActiveEdit ? 'bg-black z-10' : (layer.visible ? 'bg-black' : 'bg-transparent')} ${!layer.visible ? 'opacity-40' : 'opacity-100'}`}>
+        <div className={`relative flex flex-col transition-all duration-300 w-full ${isDraggingLayer && layer.type === 'split' ? 'bg-white/5' : ''}`}>
+          <div className={`relative p-3 flex items-center gap-3 select-none group transition-opacity duration-200 ${isActiveEdit ? 'bg-black z-10' : (layer.visible ? 'bg-black' : 'bg-transparent')} ${!layer.visible ? 'opacity-40' : 'opacity-100'} ${isNestedChild ? 'ml-6' : ''}`}>
             <div
-              className={`cursor-grab active:cursor-grabbing ${iconColorFaded} ${layer.type === 'split' ? 'mt-1' : ''}`}
+              className={`cursor-grab active:cursor-grabbing ${iconColorFaded}`}
               onPointerDown={(e) => controls.start(e)}
+              style={{ touchAction: 'none' }}
             >
               <GripVertical size={16} />
             </div>
@@ -676,7 +661,7 @@ function LayerItem({ layer, isNested, toggleVisibility, removeLayer, renameLayer
 
             <button
               onClick={() => toggleVisibility(layer.id)}
-              className={`transition-colors flex-shrink-0 ${iconColor} ${layer.type === 'split' ? 'mt-[2px]' : ''}`}
+              className={`transition-colors flex-shrink-0 ${iconColor}`}
             >
               {layer.visible ? <Eye size={18} /> : <EyeOff size={18} />}
             </button>
@@ -729,7 +714,7 @@ function LayerItem({ layer, isNested, toggleVisibility, removeLayer, renameLayer
               </button>
             )}
 
-            {layer.type !== 'split' && layer.id !== 'satellite' && layer.id !== 'deepstate' && layer.id !== 'copernicus' && !isNested && (
+            {layer.type !== 'split' && layer.id !== 'satellite' && layer.id !== 'deepstate' && layer.id !== 'copernicus' && !isNestedChild && (
               <button onClick={() => removeLayer(layer.id)} className={`transition-colors ml-1 ${iconColor}`}>
                 <Trash2 size={16} />
               </button>
@@ -737,7 +722,7 @@ function LayerItem({ layer, isNested, toggleVisibility, removeLayer, renameLayer
           </div>
 
           {isActiveEdit && (
-            <div className={`bg-black p-3 pt-2 flex flex-col gap-4 text-sm animate-in slide-in-from-top-2 relative z-0 transition-opacity duration-200 ${!layer.visible ? 'opacity-40' : 'opacity-100'}`}>
+            <div className={`bg-black p-3 pt-2 flex flex-col gap-4 text-sm animate-in slide-in-from-top-2 relative z-0 transition-opacity duration-200 ${!layer.visible ? 'opacity-40' : 'opacity-100'} ${isNestedChild ? 'ml-6' : ''}`}>
           {layer.type === 'raster' || layer.type === 'deepstate' ? (
             <div className="flex flex-col gap-3 pb-2">
               {layer.type === 'deepstate' && (
@@ -884,9 +869,24 @@ function LayerItem({ layer, isNested, toggleVisibility, removeLayer, renameLayer
             </>
           )}
         </div>
-      )}
-      </div>
-    </Wrapper>
-  </div>
-);
+          )}
+          
+          {layer.type === 'split' && (
+            <div className="flex flex-col w-full">
+              {layer.splitLayers?.map(child => (
+                <LayerItem key={child.id} {...props} layer={child} isNestedChild={true} />
+              ))}
+              {Array.from({ length: 2 - (layer.splitLayers?.length || 0) }).map((_, i) => (
+                <div key={`empty-${i}`} data-drop-zone="split-container" data-layer-id={layer.id} className={`ml-6 transition-all duration-300 ${isDraggingLayer ? 'h-12 mt-[2px]' : 'h-0 overflow-hidden'}`}>
+                  <div className={`relative h-full flex items-center justify-center select-none transition-colors duration-200 border-2 border-dashed ${isDraggingLayer ? 'border-white bg-white/5' : 'border-transparent bg-transparent'}`}>
+                    <span className="text-xs text-white/40 font-semibold tracking-wider uppercase">DROP LAYER HERE</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Wrapper>
+    </div>
+  );
 }

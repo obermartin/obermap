@@ -81,10 +81,7 @@ function App() {
               }
 
               if (merged.type === 'split' && merged.splitLayers) {
-                merged.splitLayers = [
-                  processSavedLayer(merged.splitLayers[0]),
-                  processSavedLayer(merged.splitLayers[1])
-                ];
+                merged.splitLayers = merged.splitLayers.filter(Boolean).map(processSavedLayer);
               }
 
               // Ensure features have IDs
