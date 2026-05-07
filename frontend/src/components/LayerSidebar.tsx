@@ -37,10 +37,23 @@ export function LayerSidebar({
     setSettings(prev => ({ ...prev, layers: newOrder }));
   };
 
+  const updateLayerRecursively = (layers: MapLayer[], targetId: string, updater: (l: MapLayer) => MapLayer): MapLayer[] => {
+    return layers.map(layer => {
+      if (layer.id === targetId) return updater(layer);
+      if (layer.type === 'split' && layer.splitLayers) {
+        return {
+          ...layer,
+          splitLayers: updateLayerRecursively(layer.splitLayers, targetId, updater) as [MapLayer, MapLayer]
+        };
+      }
+      return layer;
+    });
+  };
+
   const toggleLayerVisibility = (id: string) => {
     setSettings(prev => ({
       ...prev,
-      layers: prev.layers.map(l => l.id === id ? { ...l, visible: !l.visible } : l)
+      layers: updateLayerRecursively(prev.layers, id, l => ({ ...l, visible: !l.visible }))
     }));
   };
 
@@ -54,8 +67,44 @@ export function LayerSidebar({
   const renameLayer = (id: string, newName: string) => {
     setSettings(prev => ({
       ...prev,
-      layers: prev.layers.map(l => l.id === id ? { ...l, name: newName } : l)
+      layers: updateLayerRecursively(prev.layers, id, l => ({ ...l, name: newName }))
     }));
+  };
+
+  const createSplit = (draggedId: string, targetId: string) => {
+    setSettings(prev => {
+      const draggedLayer = prev.layers.find(l => l.id === draggedId);
+      const targetLayer = prev.layers.find(l => l.id === targetId);
+      if (!draggedLayer || !targetLayer || draggedLayer.type === 'split' || targetLayer.type === 'split') return prev;
+
+      const newLayers = prev.layers.filter(l => l.id !== draggedId && l.id !== targetId);
+      const splitLayer: MapLayer = {
+        id: `split-${Date.now()}`,
+        name: `Split View`,
+        type: 'split',
+        visible: true,
+        splitLayers: [targetLayer, draggedLayer],
+        splitDirection: 'vertical',
+        splitPosition: 0.5,
+        _isDirty: true
+      };
+      
+      const targetIndex = prev.layers.findIndex(l => l.id === targetId);
+      newLayers.splice(targetIndex >= 0 ? targetIndex : 0, 0, splitLayer);
+      return { ...prev, layers: newLayers };
+    });
+  };
+
+  const removeSplit = (id: string) => {
+    setSettings(prev => {
+      const splitLayer = prev.layers.find(l => l.id === id);
+      if (!splitLayer || splitLayer.type !== 'split' || !splitLayer.splitLayers) return prev;
+      
+      const newLayers = prev.layers.filter(l => l.id !== id);
+      const targetIndex = prev.layers.findIndex(l => l.id === id);
+      newLayers.splice(targetIndex >= 0 ? targetIndex : 0, 0, ...splitLayer.splitLayers);
+      return { ...prev, layers: newLayers };
+    });
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -185,21 +234,20 @@ export function LayerSidebar({
                 <LayerItem
                   key={layer.id}
                   layer={layer}
+                  createSplit={createSplit}
+                  removeSplit={removeSplit}
                   toggleVisibility={toggleLayerVisibility}
                   removeLayer={removeLayer}
                   renameLayer={renameLayer}
                   colorPalette={settings.colorPalette}
-                  isActiveEdit={activeGeojsonLayerId === layer.id}
-                  setActiveEdit={() => {
-                    if (activeGeojsonLayerId === layer.id) setActiveGeojsonLayerId(null);
-                    else setActiveGeojsonLayerId(layer.id);
-                  }}
+                  activeGeojsonLayerId={activeGeojsonLayerId}
+                  setActiveGeojsonLayerId={setActiveGeojsonLayerId}
                   selectedFeatureId={selectedGeojsonFeatureId}
                   updateLayerStyle={(layerId, featureId, styleChanges) => {
                     setSettings(prev => ({
                       ...prev,
-                      layers: prev.layers.map(l => {
-                        if (l.id !== layerId || !l.data || !l.data.features) return l;
+                      layers: updateLayerRecursively(prev.layers, layerId, l => {
+                        if (!l.data || !l.data.features) return l;
                         const newData = {
                           ...l.data, features: l.data.features.map((f: any) => {
                             if (featureId === null || f.properties?.id === featureId) {
@@ -215,13 +263,13 @@ export function LayerSidebar({
                   updateLayerOpacity={(layerId, opacity) => {
                     setSettings(prev => ({
                       ...prev,
-                      layers: prev.layers.map(l => l.id === layerId ? { ...l, opacity, _isDirty: true } : l)
+                      layers: updateLayerRecursively(prev.layers, layerId, l => ({ ...l, opacity, _isDirty: true }))
                     }));
                   }}
                   updateLayerDates={(layerId, startDate, endDate) => {
                     setSettings(prev => ({
                       ...prev,
-                      layers: prev.layers.map(l => l.id === layerId ? { ...l, startDate, endDate, _isDirty: true } : l)
+                      layers: updateLayerRecursively(prev.layers, layerId, l => ({ ...l, startDate, endDate, _isDirty: true }))
                     }));
                   }}
                 />
@@ -296,19 +344,27 @@ export function LayerSidebar({
   );
 }
 
-function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer, colorPalette, isActiveEdit, setActiveEdit, selectedFeatureId, updateLayerStyle, updateLayerOpacity, updateLayerDates }: {
+function LayerItem({ layer, isNested, createSplit, removeSplit, toggleVisibility, removeLayer, renameLayer, colorPalette, activeGeojsonLayerId, setActiveGeojsonLayerId, selectedFeatureId, updateLayerStyle, updateLayerOpacity, updateLayerDates }: {
   layer: MapLayer;
+  isNested?: boolean;
+  createSplit?: (draggedId: string, targetId: string) => void;
+  removeSplit?: (id: string) => void;
   toggleVisibility: (id: string) => void;
   removeLayer: (id: string) => void;
   renameLayer: (id: string, newName: string) => void;
   colorPalette: string[];
-  isActiveEdit: boolean;
-  setActiveEdit: () => void;
+  activeGeojsonLayerId: string | null;
+  setActiveGeojsonLayerId: (id: string | null) => void;
   selectedFeatureId: string | number | null;
   updateLayerStyle: (layerId: string, featureId: string | number | null, styleChanges: any) => void;
   updateLayerOpacity: (layerId: string, opacity: number) => void;
   updateLayerDates?: (layerId: string, startDate?: string, endDate?: string) => void;
 }) {
+  const isActiveEdit = activeGeojsonLayerId === layer.id;
+  const setActiveEdit = () => {
+    if (isActiveEdit) setActiveGeojsonLayerId(null);
+    else setActiveGeojsonLayerId(layer.id);
+  };
   const controls = useDragControls();
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(layer.name);
@@ -419,46 +475,116 @@ function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer, colorPal
     );
   };
 
+  const Wrapper: any = isNested ? 'div' : Reorder.Item;
+  const wrapperProps = isNested ? {} : {
+    value: layer,
+    dragListener: false,
+    dragControls: controls,
+    onDragOver: (e: any) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'link';
+    },
+    onDrop: (e: any) => {
+      e.preventDefault();
+      const draggedId = e.dataTransfer.getData('text/plain');
+      if (draggedId && draggedId !== layer.id && createSplit) {
+        createSplit(draggedId, layer.id);
+      }
+    }
+  };
+
   return (
     <div className={`flex flex-col ${isActiveEdit ? 'gap-0' : 'gap-[2px]'}`}>
-      <Reorder.Item
-        value={layer}
-        dragListener={false}
-        dragControls={controls}
-        className={`p-3 flex items-center gap-3 select-none group transition-opacity duration-200 ${isActiveEdit ? 'bg-white/10 z-10' : (layer.visible ? 'bg-black' : 'bg-transparent')} ${!layer.visible ? 'opacity-40' : 'opacity-100'}`}
+      <Wrapper
+        {...wrapperProps}
+        className={`relative p-3 flex ${layer.type === 'split' ? 'items-start' : 'items-center'} gap-3 select-none group transition-opacity duration-200 ${isActiveEdit ? 'bg-white/10 z-10' : (layer.visible ? 'bg-black' : 'bg-transparent')} ${!layer.visible ? 'opacity-40' : 'opacity-100'}`}
       >
-        <div
-          className="cursor-grab active:cursor-grabbing text-white/30 hover:text-white/70"
-          onPointerDown={(e) => controls.start(e)}
-        >
-          <GripVertical size={16} />
-        </div>
+        {!isNested && (
+          <div
+            className={`cursor-grab active:cursor-grabbing text-white/30 hover:text-white/70 ${layer.type === 'split' ? 'mt-1' : ''}`}
+            onPointerDown={(e) => controls.start(e)}
+          >
+            <GripVertical size={16} />
+          </div>
+        )}
+        <div data-layer-id={layer.id} className="absolute inset-0 pointer-events-none" />
 
         <button
           onClick={() => toggleVisibility(layer.id)}
-          className="text-white/50 hover:text-white transition-colors flex-shrink-0"
+          className={`text-white/50 hover:text-white transition-colors flex-shrink-0 ${layer.type === 'split' ? 'mt-[2px]' : ''}`}
         >
           {layer.visible ? <Eye size={18} /> : <EyeOff size={18} />}
         </button>
 
-        <div className="flex-1 overflow-hidden" onDoubleClick={handleDoubleClick}>
-          {isEditing ? (
-            <input
-              ref={inputRef}
-              type="text"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              onBlur={handleRenameSubmit}
-              onKeyDown={handleKeyDown}
-              className="w-full bg-black border border-white/20 text-sm font-medium px-1 outline-none text-white focus:border-white/50"
-            />
+        <div 
+          className="flex-1 min-w-0" 
+          onDoubleClick={handleDoubleClick}
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData('text/plain', layer.id);
+            e.dataTransfer.effectAllowed = 'link';
+          }}
+          title="Drag name onto another layer to split view"
+        >
+          {layer.type === 'split' ? (
+            <div className="flex flex-col gap-2 w-full">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-semibold truncate text-white">Split View Container</div>
+                  <div className="text-[10px] text-white/40 uppercase tracking-wider">{layer.splitLayers?.[0]?.name} | {layer.splitLayers?.[1]?.name}</div>
+                </div>
+                {removeSplit && !isNested && (
+                  <button onClick={() => removeSplit(layer.id)} className="text-white/50 hover:text-white transition-colors" title="Remove Split View Container">
+                    <Trash2 size={16} className="text-white" />
+                  </button>
+                )}
+              </div>
+              
+              {layer.splitLayers && (
+                <div className="flex flex-col gap-[2px] mt-3 border-t border-white/10 pt-3 -ml-6 -mr-3">
+                  {layer.splitLayers.map(nestedLayer => (
+                    <LayerItem
+                      key={nestedLayer.id}
+                      layer={nestedLayer}
+                      isNested={true}
+                      createSplit={createSplit}
+                      removeSplit={removeSplit}
+                      toggleVisibility={toggleVisibility}
+                      removeLayer={removeLayer}
+                      renameLayer={renameLayer}
+                      colorPalette={colorPalette}
+                      activeGeojsonLayerId={activeGeojsonLayerId}
+                      setActiveGeojsonLayerId={setActiveGeojsonLayerId}
+                      selectedFeatureId={selectedFeatureId}
+                      updateLayerStyle={updateLayerStyle}
+                      updateLayerOpacity={updateLayerOpacity}
+                      updateLayerDates={updateLayerDates}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           ) : (
-            <div className="text-sm font-medium truncate cursor-text" title={layer.name}>{layer.name}</div>
+            <>
+              {isEditing ? (
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  onBlur={handleRenameSubmit}
+                  onKeyDown={handleKeyDown}
+                  className="w-full bg-black border border-white/20 text-sm font-medium px-1 outline-none text-white focus:border-white/50"
+                />
+              ) : (
+                <div className="text-sm font-medium truncate cursor-text" title={layer.name}>{layer.name}</div>
+              )}
+              <div className="text-[10px] text-white/40 uppercase tracking-wider">{layer.type}</div>
+            </>
           )}
-          <div className="text-[10px] text-white/40 uppercase tracking-wider">{layer.type}</div>
         </div>
 
-        {(layer.type === 'geojson' || layer.type === 'raster') && layer.id !== 'deepstate' && layer.id !== 'satellite' && (
+        {layer.type !== 'split' && (layer.type === 'geojson' || layer.type === 'raster') && layer.id !== 'deepstate' && layer.id !== 'satellite' && (
           <button
             onClick={() => {
               if (!layer.visible) toggleVisibility(layer.id);
@@ -471,12 +597,12 @@ function LayerItem({ layer, toggleVisibility, removeLayer, renameLayer, colorPal
           </button>
         )}
 
-        {!['deepstate', 'satellite', 'copernicus'].includes(layer.id) && (
+        {layer.type !== 'split' && !['deepstate', 'satellite', 'copernicus'].includes(layer.id) && !isNested && (
           <button onClick={() => removeLayer(layer.id)} className="text-white/50 hover:text-white transition-colors ml-1">
             <Trash2 size={16} />
           </button>
         )}
-      </Reorder.Item>
+      </Wrapper>
 
       {isActiveEdit && (
         <div className={`bg-white/10 p-3 pt-2 flex flex-col gap-4 text-sm animate-in slide-in-from-top-2 relative z-0 transition-opacity duration-200 ${!layer.visible ? 'opacity-40' : 'opacity-100'}`}>

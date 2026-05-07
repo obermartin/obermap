@@ -19,7 +19,7 @@ export interface Annotation {
 export interface MapLayer {
   id: string;
   name: string;
-  type: 'geojson' | 'raster' | 'satellite';
+  type: 'geojson' | 'raster' | 'satellite' | 'split';
   visible: boolean;
   data?: any; // For GeoJSON
   url?: string; // For XYZ/WMTS
@@ -28,6 +28,11 @@ export interface MapLayer {
   endDate?: string;
   _isDirty?: boolean;
   _keepExistingData?: boolean;
+  
+  // For split containers
+  splitLayers?: [MapLayer, MapLayer];
+  splitDirection?: 'vertical' | 'horizontal';
+  splitPosition?: number;
 }
 
 export interface AppSettings {

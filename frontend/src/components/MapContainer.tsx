@@ -34,7 +34,7 @@ function getContrastYIQ(hexcolor: string) {
   return yiq >= 128 ? '#000000' : '#ffffff';
 }
 
-export const MapContainer: React.FC<MapContainerProps> = ({
+export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, clipPath?: string, onMapInit?: (map: mapboxgl.Map) => void }> = ({
   activeTool,
   currentColor,
   annotations,
@@ -49,6 +49,9 @@ export const MapContainer: React.FC<MapContainerProps> = ({
   setActiveGeojsonLayerId,
   selectedGeojsonFeatureId,
   setSelectedGeojsonFeatureId,
+  isSecondary,
+  clipPath,
+  onMapInit
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -86,6 +89,7 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     });
     
     mapRef.current = map;
+    onMapInit?.(map);
 
     // Add Orbital controls (NavigationControl)
     map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true, showZoom: false }), 'top-right');
@@ -321,8 +325,8 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     return () => window.removeEventListener('requestViewCapture', handleRequestViewCapture);
   }, []);
 
-  // Handle save label properly
   useEffect(() => {
+    if (isSecondary) return;
     const handleSaveLabel = ((e: CustomEvent<string>) => {
       const text = e.detail;
       const map = mapRef.current;
@@ -348,8 +352,8 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     return () => window.removeEventListener('saveLabel', handleSaveLabel);
   }, [labelPrompt, currentColor, setAnnotations, setLabelPrompt]);
 
-  // Handle drop icon event from Toolbar drag and drop
   useEffect(() => {
+    if (isSecondary) return;
     const handleDropIcon = ((e: CustomEvent<{ clientX: number, clientY: number, iconId: string, color: string }>) => {
       if (!mapRef.current) return;
       const lngLat = mapRef.current.unproject([e.detail.clientX, e.detail.clientY]);
@@ -735,6 +739,13 @@ export const MapContainer: React.FC<MapContainerProps> = ({
         if (map.getSource(`dynamic-source-${id}`)) map.removeSource(`dynamic-source-${id}`);
       }
     });
+
+    // Hide deepstate if it was removed or is not in this map's layer stack
+    if (!layers.find(l => l.id === 'deepstate')) {
+      if (map.getLayer('deepstate-polygons')) {
+        map.setLayoutProperty('deepstate-polygons', 'visibility', 'none');
+      }
+    }
 
     // Add / Update layers
     layers.forEach((layer) => {
@@ -1341,5 +1352,115 @@ export const MapContainer: React.FC<MapContainerProps> = ({
     };
   }, [activeTool, currentColor, setAnnotations, activeGeojsonLayerId, setActiveGeojsonLayerId, setSelectedGeojsonFeatureId]);
 
-  return <div ref={mapContainer} className="w-full h-full" />;
+  return (
+    <div className={`absolute inset-0 w-full h-full ${isSecondary ? 'pointer-events-none' : ''}`} style={{ clipPath, WebkitClipPath: clipPath, zIndex: isSecondary ? 10 : 0 }}>
+      <div ref={mapContainer} className="w-full h-full" />
+    </div>
+  );
+};
+
+export const MapContainer: React.FC<MapContainerProps> = (props) => {
+  const [map1, setMap1] = useState<mapboxgl.Map | null>(null);
+  const [map2, setMap2] = useState<mapboxgl.Map | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  const splitLayer = props.settings.layers.find(l => l.type === 'split');
+  const [splitPos, setSplitPos] = useState(splitLayer?.splitPosition ? splitLayer.splitPosition * 100 : 50);
+  const [splitVertical, setSplitVertical] = useState(splitLayer?.splitDirection !== 'horizontal');
+
+  useEffect(() => {
+    if (!map1 || !map2) return;
+    let isSyncing = false;
+    const sync1to2 = () => {
+      if (isSyncing) return;
+      isSyncing = true;
+      map2.jumpTo({ center: map1.getCenter(), zoom: map1.getZoom(), pitch: map1.getPitch(), bearing: map1.getBearing() });
+      isSyncing = false;
+    };
+    const sync2to1 = () => {
+      if (isSyncing) return;
+      isSyncing = true;
+      map1.jumpTo({ center: map2.getCenter(), zoom: map2.getZoom(), pitch: map2.getPitch(), bearing: map2.getBearing() });
+      isSyncing = false;
+    };
+    map1.on('move', sync1to2);
+    map2.on('move', sync2to1);
+    return () => {
+      map1.off('move', sync1to2);
+      map2.off('move', sync2to1);
+    };
+  }, [map1, map2]);
+
+  const handleDrag = (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent) => {
+    if (!isDragging || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    let clientX, clientY;
+    if ('touches' in e) {
+      clientX = (e as TouchEvent).touches[0].clientX;
+      clientY = (e as TouchEvent).touches[0].clientY;
+    } else {
+      clientX = (e as MouseEvent).clientX;
+      clientY = (e as MouseEvent).clientY;
+    }
+    
+    if (splitVertical) {
+      const pos = ((clientX - rect.left) / rect.width) * 100;
+      setSplitPos(Math.max(0, Math.min(100, pos)));
+    } else {
+      const pos = ((clientY - rect.top) / rect.height) * 100;
+      setSplitPos(Math.max(0, Math.min(100, pos)));
+    }
+  };
+
+  useEffect(() => {
+    if (isDragging) {
+      const onMove = (e: MouseEvent | TouchEvent) => handleDrag(e);
+      const onUp = () => setIsDragging(false);
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+      window.addEventListener('touchmove', onMove, { passive: false });
+      window.addEventListener('touchend', onUp);
+      return () => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+        window.removeEventListener('touchmove', onMove);
+        window.removeEventListener('touchend', onUp);
+      };
+    }
+  }, [isDragging, splitVertical]);
+
+  let settings1 = props.settings;
+  let settings2 = props.settings;
+
+  if (splitLayer && splitLayer.splitLayers) {
+    settings1 = {
+      ...props.settings,
+      layers: props.settings.layers.flatMap(l => l.id === splitLayer.id ? [splitLayer.splitLayers![0]] : [l])
+    };
+    settings2 = {
+      ...props.settings,
+      layers: props.settings.layers.flatMap(l => l.id === splitLayer.id ? [splitLayer.splitLayers![1]] : [l])
+    };
+  }
+
+  const clipPath = splitVertical ? `inset(0 0 0 ${splitPos}%)` : `inset(${splitPos}% 0 0 0)`;
+
+  return (
+    <div className="w-full h-full relative overflow-hidden z-0" ref={containerRef}>
+      <MapboxMap {...props} settings={settings1} onMapInit={setMap1} />
+      {splitLayer && (
+        <>
+          <MapboxMap {...props} settings={settings2} onMapInit={setMap2} isSecondary clipPath={clipPath} />
+          <div 
+             onDoubleClick={() => setSplitVertical(!splitVertical)}
+             onMouseDown={(e) => { e.preventDefault(); setIsDragging(true); }}
+             onTouchStart={() => { setIsDragging(true); }}
+             className={`absolute bg-white shadow-[0_0_10px_rgba(0,0,0,0.5)] z-20 transition-colors hover:bg-white ${splitVertical ? 'w-1 h-full cursor-col-resize -ml-[2px]' : 'h-1 w-full cursor-row-resize -mt-[2px]'}`}
+             style={splitVertical ? { left: `${splitPos}%`, top: 0 } : { top: `${splitPos}%`, left: 0 }}
+          />
+        </>
+      )}
+    </div>
+  );
 };

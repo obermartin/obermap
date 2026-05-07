@@ -58,7 +58,10 @@ function App() {
             const savedLayers = data.settings.layers || [];
             // Merge saved layers into prev.layers to preserve any dynamic data like geojson
             const mergedLayers = [...prev.layers];
-            savedLayers.forEach((savedLayer: MapLayer) => {
+            const processSavedLayer = (savedLayer: MapLayer) => {
+              if (savedLayer.type === 'split' && savedLayer.splitLayers) {
+                savedLayer.splitLayers.forEach(processSavedLayer);
+              }
               // Ensure features have IDs
               if (savedLayer.type === 'geojson' && savedLayer.data && savedLayer.data.features) {
                 savedLayer.data.features.forEach((f: any) => {
@@ -66,6 +69,11 @@ function App() {
                   if (!f.properties.id) f.properties.id = `feature-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
                 });
               }
+            };
+            savedLayers.forEach((savedLayer: MapLayer) => {
+              processSavedLayer(savedLayer);
+              
+              // Enforce new name for copernicus layer if they have the old one saved
               // Enforce new name for copernicus layer if they have the old one saved
               if (savedLayer.id === 'copernicus' && savedLayer.name !== 'Wildfires (EFFIS)') {
                 savedLayer.name = 'Wildfires (EFFIS)';
@@ -104,15 +112,24 @@ function App() {
   const handleSave = useCallback(() => {
     setIsSaving(true);
 
+    const optimizeLayer = (layer: MapLayer): MapLayer => {
+      let optimized = layer;
+      if (!layer._isDirty && layer.data) {
+        const { data, ...rest } = layer;
+        optimized = { ...rest, _keepExistingData: true } as MapLayer;
+      }
+      if (optimized.type === 'split' && optimized.splitLayers) {
+        optimized = {
+          ...optimized,
+          splitLayers: [optimizeLayer(optimized.splitLayers[0]), optimizeLayer(optimized.splitLayers[1])]
+        };
+      }
+      return optimized;
+    };
+
     const optimizedSettings = {
       ...settings,
-      layers: settings.layers.map(layer => {
-        if (!layer._isDirty && layer.data) {
-          const { data, ...rest } = layer;
-          return { ...rest, _keepExistingData: true };
-        }
-        return layer;
-      })
+      layers: settings.layers.map(optimizeLayer)
     };
 
     fetch('./api.php', {
