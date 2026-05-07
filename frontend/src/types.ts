@@ -19,7 +19,7 @@ export interface Annotation {
 export interface MapLayer {
   id: string;
   name: string;
-  type: 'geojson' | 'raster' | 'satellite' | 'split';
+  type: 'geojson' | 'raster' | 'satellite' | 'split' | 'deepstate';
   visible: boolean;
   data?: any; // For GeoJSON
   url?: string; // For XYZ/WMTS

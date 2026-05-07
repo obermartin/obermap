@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Reorder, useDragControls } from 'framer-motion';
-import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2, Edit2, Square, RefreshCcw, RotateCcw } from 'lucide-react';
+import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2, Edit2, Square, RefreshCcw, RotateCcw, Copy } from 'lucide-react';
 import type { AppSettings, MapLayer } from '../types';
 import { parseMapFileWithIds } from '../utils/fileUtils';
 
@@ -69,6 +69,32 @@ export function LayerSidebar({
       ...prev,
       layers: updateLayerRecursively(prev.layers, id, l => ({ ...l, name: newName }))
     }));
+  };
+
+  const duplicateLayer = (id: string) => {
+    setSettings(prev => {
+      let layerToDuplicate: MapLayer | undefined;
+      // Simple find logic (we can assume the user clicks duplicate on the visible UI layer)
+      const findLayer = (layers: MapLayer[]) => {
+        for (const l of layers) {
+          if (l.id === id) layerToDuplicate = l;
+          else if (l.splitLayers) findLayer(l.splitLayers);
+        }
+      };
+      findLayer(prev.layers);
+
+      if (!layerToDuplicate) return prev;
+
+      const newLayer: MapLayer = {
+        ...layerToDuplicate,
+        id: `${layerToDuplicate.type}-${Date.now()}`,
+        name: `${layerToDuplicate.name} (Copy)`,
+        _isDirty: true
+      };
+
+      // Add to top of stack
+      return { ...prev, layers: [newLayer, ...prev.layers] };
+    });
   };
 
   const createSplit = (draggedId: string, targetId: string) => {
@@ -269,9 +295,15 @@ export function LayerSidebar({
                   updateLayerDates={(layerId, startDate, endDate) => {
                     setSettings(prev => ({
                       ...prev,
-                      layers: updateLayerRecursively(prev.layers, layerId, l => ({ ...l, startDate, endDate, _isDirty: true }))
+                      layers: updateLayerRecursively(prev.layers, layerId, l => {
+                        const newName = l.type === 'deepstate' && (l.name === 'DeepStateMap Overlay' || l.name === 'DeepStateMap' || l.name.startsWith('DSM ') || l.name.startsWith('UKRAINE '))
+                           ? `UKRAINE ${(startDate || new Date().toISOString().split('T')[0]).split('-').reverse().join('.')}`
+                           : l.name;
+                        return { ...l, startDate, endDate, name: newName, _isDirty: true };
+                      })
                     }));
                   }}
+                  duplicateLayer={duplicateLayer}
                 />
               ))}
             </Reorder.Group>
@@ -344,7 +376,7 @@ export function LayerSidebar({
   );
 }
 
-function LayerItem({ layer, isNested, createSplit, removeSplit, toggleVisibility, removeLayer, renameLayer, colorPalette, activeGeojsonLayerId, setActiveGeojsonLayerId, selectedFeatureId, updateLayerStyle, updateLayerOpacity, updateLayerDates }: {
+function LayerItem({ layer, isNested, createSplit, removeSplit, toggleVisibility, removeLayer, renameLayer, colorPalette, activeGeojsonLayerId, setActiveGeojsonLayerId, selectedFeatureId, updateLayerStyle, updateLayerOpacity, updateLayerDates, duplicateLayer }: {
   layer: MapLayer;
   isNested?: boolean;
   createSplit?: (draggedId: string, targetId: string) => void;
@@ -359,6 +391,7 @@ function LayerItem({ layer, isNested, createSplit, removeSplit, toggleVisibility
   updateLayerStyle: (layerId: string, featureId: string | number | null, styleChanges: any) => void;
   updateLayerOpacity: (layerId: string, opacity: number) => void;
   updateLayerDates?: (layerId: string, startDate?: string, endDate?: string) => void;
+  duplicateLayer?: (id: string) => void;
 }) {
   const isActiveEdit = activeGeojsonLayerId === layer.id;
   const setActiveEdit = () => {
@@ -559,6 +592,7 @@ function LayerItem({ layer, isNested, createSplit, removeSplit, toggleVisibility
                       updateLayerStyle={updateLayerStyle}
                       updateLayerOpacity={updateLayerOpacity}
                       updateLayerDates={updateLayerDates}
+                      duplicateLayer={duplicateLayer}
                     />
                   ))}
                 </div>
@@ -577,14 +611,16 @@ function LayerItem({ layer, isNested, createSplit, removeSplit, toggleVisibility
                   className="w-full bg-black border border-white/20 text-sm font-medium px-1 outline-none text-white focus:border-white/50"
                 />
               ) : (
-                <div className="text-sm font-medium truncate cursor-text" title={layer.name}>{layer.name}</div>
+                <div className="text-sm font-medium truncate cursor-text" title={layer.name}>
+                  {layer.name}
+                </div>
               )}
               <div className="text-[10px] text-white/40 uppercase tracking-wider">{layer.type}</div>
             </>
           )}
         </div>
 
-        {layer.type !== 'split' && (layer.type === 'geojson' || layer.type === 'raster') && layer.id !== 'deepstate' && layer.id !== 'satellite' && (
+        {layer.type !== 'split' && (layer.type === 'geojson' || layer.type === 'raster' || layer.type === 'deepstate') && layer.id !== 'satellite' && (
           <button
             onClick={() => {
               if (!layer.visible) toggleVisibility(layer.id);
@@ -597,7 +633,7 @@ function LayerItem({ layer, isNested, createSplit, removeSplit, toggleVisibility
           </button>
         )}
 
-        {layer.type !== 'split' && !['deepstate', 'satellite', 'copernicus'].includes(layer.id) && !isNested && (
+        {layer.type !== 'split' && layer.id !== 'satellite' && layer.id !== 'deepstate' && layer.id !== 'copernicus' && !isNested && (
           <button onClick={() => removeLayer(layer.id)} className="text-white/50 hover:text-white transition-colors ml-1">
             <Trash2 size={16} />
           </button>
@@ -606,23 +642,34 @@ function LayerItem({ layer, isNested, createSplit, removeSplit, toggleVisibility
 
       {isActiveEdit && (
         <div className={`bg-white/10 p-3 pt-2 flex flex-col gap-4 text-sm animate-in slide-in-from-top-2 relative z-0 transition-opacity duration-200 ${!layer.visible ? 'opacity-40' : 'opacity-100'}`}>
-          {layer.type === 'raster' ? (
+          {layer.type === 'raster' || layer.type === 'deepstate' ? (
             <div className="flex flex-col gap-3 pb-2">
-              <div className="flex flex-col gap-1">
-                <div className="flex justify-between items-end">
-                  <label className="text-[10px] text-white/50 font-semibold tracking-wider">OPACITY</label>
-                  <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.opacity ?? 1.0) * 100)}%</span>
+              {layer.type === 'deepstate' && (
+                <div className="flex items-center justify-between gap-3">
+                  {duplicateLayer && (
+                    <button onClick={() => duplicateLayer(layer.id)} className="text-white/50 hover:text-white transition-colors flex items-center shrink-0" title="Duplicate Layer">
+                      <Copy size={16} />
+                    </button>
+                  )}
+                  {updateLayerDates && (
+                    <div className="flex-1 flex justify-end">
+                      <input 
+                        type="date" 
+                        min="2024-07-08"
+                        max={new Date().toISOString().split('T')[0]}
+                        value={layer.startDate || new Date().toISOString().split('T')[0]} 
+                        onChange={e => updateLayerDates(layer.id, e.target.value)}
+                        className="bg-black border border-white/20 px-2 py-1 text-xs text-white outline-none focus:border-white/50 w-full max-w-[140px]"
+                        style={{ colorScheme: 'dark' }}
+                        title="Fetch historical data from Github"
+                      />
+                    </div>
+                  )}
                 </div>
-                <input
-                  type="range" min="0" max="100"
-                  value={(layer.opacity ?? 1.0) * 100}
-                  onChange={e => updateLayerOpacity(layer.id, Number(e.target.value) / 100)}
-                  className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
-                />
-              </div>
+              )}
               
               {layer.id === 'copernicus' && updateLayerDates && (
-                <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-white/10">
+                <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
                   <div className="flex items-center justify-between">
                     <label className="text-[10px] text-white/50 font-semibold tracking-wider">START DATE</label>
                     <input 
@@ -645,6 +692,19 @@ function LayerItem({ layer, isNested, createSplit, removeSplit, toggleVisibility
                   </div>
                 </div>
               )}
+
+              <div className={`flex flex-col gap-1 mt-1 ${layer.type === 'deepstate' ? '' : 'pt-2 border-t border-white/10'}`}>
+                <div className="flex justify-between items-end">
+                  <label className="text-[10px] text-white/50 font-semibold tracking-wider">OPACITY</label>
+                  <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.opacity ?? (layer.type === 'deepstate' ? 0.5 : 1.0)) * 100)}%</span>
+                </div>
+                <input
+                  type="range" min="0" max="100"
+                  value={(layer.opacity ?? (layer.type === 'deepstate' ? 0.5 : 1.0)) * 100}
+                  onChange={e => updateLayerOpacity(layer.id, Number(e.target.value) / 100)}
+                  className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
+                />
+              </div>
             </div>
           ) : (
             <>

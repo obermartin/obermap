@@ -21,7 +21,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   ],
   labelDensity: 50,
   layers: [
-    { id: 'deepstate', name: 'DeepStateMap Overlay', type: 'geojson', visible: false },
+    { id: 'deepstate', name: `UKRAINE ${new Date().toISOString().split('T')[0].split('-').reverse().join('.')}`, type: 'deepstate', visible: false },
     { id: 'copernicus', name: 'Wildfires (EFFIS)', type: 'raster', visible: false, url: 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}' },
     { id: 'satellite', name: 'Satellite Map Overlay (Mapbox)', type: 'satellite', visible: false }
   ]
@@ -71,6 +71,15 @@ function App() {
               }
             };
             savedLayers.forEach((savedLayer: MapLayer) => {
+              // Backwards compatibility migration for deepstate
+              if (savedLayer.id === 'deepstate' && savedLayer.type === 'geojson') {
+                savedLayer.type = 'deepstate';
+              }
+              if (savedLayer.type === 'deepstate' && (savedLayer.name === 'DeepStateMap Overlay' || savedLayer.name === 'DeepStateMap')) {
+                const dateStr = savedLayer.startDate || new Date().toISOString().split('T')[0];
+                savedLayer.name = `UKRAINE ${dateStr.split('-').reverse().join('.')}`;
+              }
+              
               processSavedLayer(savedLayer);
               
               // Enforce new name for copernicus layer if they have the old one saved

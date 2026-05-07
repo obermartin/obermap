@@ -6,6 +6,9 @@ import * as turf from '@turf/turf';
 import { createCirclePolygon, calculateDistance, simplifyLine, transliterateToGerman } from '../utils/mapUtils';
 import anyAscii from 'any-ascii';
 
+let globalDeepstateHistory: { id: number; createdAt: string }[] | null = null;
+let globalDeepstateHistoryPromise: Promise<void> | null = null;
+
 interface MapContainerProps {
   activeTool: ToolType;
   currentColor: string;
@@ -58,6 +61,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const [mapLoaded, setMapLoaded] = useState(false);
   const originalFiltersRef = useRef<{ [layerId: string]: any }>({});
   const markersRef = useRef<{ [id: string]: mapboxgl.Marker }>({});
+  const deepstateDatesRef = useRef<{ [layerId: string]: string | undefined }>({});
   const activeDrawMarkersRef = useRef<{ [id: string]: mapboxgl.Marker }>({});
 
   const clearActiveDrawMarkers = () => {
@@ -114,51 +118,6 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           }
         }
       }
-      const targetInitId = initFirstAdminId || firstSymbolId;
-
-      // Add DeepState geojson source
-      map.addSource('deepstate', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] }
-      });
-
-      // Fetch the actual data directly to mapbox to avoid React state bloat
-      fetch('https://deepstatemap.live/api/history/last')
-        .then(res => res.json())
-        .then(data => {
-          if (data && data.map && data.map.features) {
-            const polygonsOnly = {
-              ...data.map,
-              features: data.map.features.filter((f: any) => 
-                f.geometry?.type === 'Polygon' || f.geometry?.type === 'MultiPolygon'
-              )
-            };
-            const deepstateSource = map.getSource('deepstate') as mapboxgl.GeoJSONSource;
-            if (deepstateSource) deepstateSource.setData(polygonsOnly);
-          }
-        })
-        .catch(err => console.error('Error fetching deepstate:', err));
-
-      // Add DeepState layer with custom colors
-      map.addLayer({
-        id: 'deepstate-polygons',
-        type: 'fill',
-        source: 'deepstate',
-        layout: { visibility: 'none' }, // Default hidden until synced
-        paint: {
-          'fill-opacity': 0.5,
-          'fill-color': [
-            'case',
-            ['in', 'UNKNOWN', ['upcase', ['coalesce', ['get', 'name'], '']]], '#F15A38',
-            ['in', 'LIBERATED', ['upcase', ['coalesce', ['get', 'name'], '']]], '#317FE0',
-            ['in', 'OCCUPIED', ['upcase', ['coalesce', ['get', 'name'], '']]], '#C91D2C',
-            ['in', 'CADR', ['upcase', ['coalesce', ['get', 'name'], '']]], '#AB1926',
-            ['in', 'CRIMEA', ['upcase', ['coalesce', ['get', 'name'], '']]], '#AB1926',
-            '#888888'
-          ]
-        }
-      }, targetInitId);
-
 
       // Add custom annotations source
       map.addSource('custom-annotations', {
@@ -740,12 +699,6 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       }
     });
 
-    // Hide deepstate if it was removed or is not in this map's layer stack
-    if (!layers.find(l => l.id === 'deepstate')) {
-      if (map.getLayer('deepstate-polygons')) {
-        map.setLayoutProperty('deepstate-polygons', 'visibility', 'none');
-      }
-    }
 
     // Add / Update layers
     layers.forEach((layer) => {
@@ -763,6 +716,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       if (!map.getSource(sourceId)) {
         if (layer.type === 'geojson' && layer.data) {
           map.addSource(sourceId, { type: 'geojson', data: layer.data });
+        } else if (layer.type === 'deepstate') {
+          map.addSource(sourceId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         } else if (layer.type === 'raster' && layer.url) {
           let processedUrl = layer.url;
           
@@ -811,6 +766,25 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               'line-opacity': ['coalesce', ['get', 'outlineOpacity'], 1.0]
             }
           }, firstAdminId);
+        } else if (layer.type === 'deepstate') {
+          map.addLayer({
+            id: layerId,
+            type: 'fill',
+            source: sourceId,
+            layout: { visibility: layer.visible ? 'visible' : 'none' },
+            paint: {
+              'fill-opacity': layer.opacity ?? 0.5,
+              'fill-color': [
+                'case',
+                ['in', 'UNKNOWN', ['upcase', ['coalesce', ['get', 'name'], '']]], '#F15A38',
+                ['in', 'LIBERATED', ['upcase', ['coalesce', ['get', 'name'], '']]], '#317FE0',
+                ['in', 'OCCUPIED', ['upcase', ['coalesce', ['get', 'name'], '']]], '#C91D2C',
+                ['in', 'CADR', ['upcase', ['coalesce', ['get', 'name'], '']]], '#AB1926',
+                ['in', 'CRIMEA', ['upcase', ['coalesce', ['get', 'name'], '']]], '#AB1926',
+                '#888888'
+              ]
+            }
+          }, firstAdminId);
         } else if (layer.type === 'raster' || layer.type === 'satellite') {
           map.addLayer({
             id: layerId,
@@ -824,16 +798,79 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         map.setLayoutProperty(layerId, 'visibility', layer.visible ? 'visible' : 'none');
         if (layer.type === 'raster' || layer.type === 'satellite') {
           map.setPaintProperty(layerId, 'raster-opacity', layer.opacity ?? 1.0);
+        } else if (layer.type === 'deepstate') {
+          map.setPaintProperty(layerId, 'fill-opacity', layer.opacity ?? 0.5);
         }
         if (map.getLayer(lineId)) {
           map.setLayoutProperty(lineId, 'visibility', layer.visible ? 'visible' : 'none');
         }
       }
 
-      // Hardcoded hook for deepstate to avoid react state bloat
-      if (layer.id === 'deepstate' && map.getLayer('deepstate-polygons')) {
-        map.setLayoutProperty('deepstate-polygons', 'visibility', layer.visible ? 'visible' : 'none');
+      // Fetch data for deepstate if needed
+      if (layer.type === 'deepstate') {
+        const todayDateStr = new Date().toISOString().split('T')[0];
+        const targetDate = layer.startDate || todayDateStr;
+        
+        if (deepstateDatesRef.current[layer.id] !== targetDate) {
+          deepstateDatesRef.current[layer.id] = targetDate;
+          
+          (async () => {
+            try {
+              let history = globalDeepstateHistory;
+              if (!history) {
+                if (!globalDeepstateHistoryPromise) {
+                  globalDeepstateHistoryPromise = fetch('https://deepstatemap.live/api/history/public')
+                    .then(res => res.json())
+                    .then(data => { globalDeepstateHistory = data; })
+                    .catch(err => {
+                      console.error('Failed to fetch deepstate history:', err);
+                      globalDeepstateHistoryPromise = null;
+                    });
+                }
+                await globalDeepstateHistoryPromise;
+                history = globalDeepstateHistory;
+              }
+              
+              if (!history) throw new Error('No history available');
+
+              const entriesForDate = history.filter(entry => entry.createdAt.startsWith(targetDate));
+              let targetId: number;
+              if (entriesForDate.length > 0) {
+                targetId = entriesForDate[entriesForDate.length - 1].id;
+              } else {
+                const pastEntries = history.filter(entry => entry.createdAt < targetDate);
+                if (pastEntries.length > 0) {
+                  targetId = pastEntries[pastEntries.length - 1].id;
+                } else {
+                  throw new Error('No data found for this date');
+                }
+              }
+
+              const url = `https://deepstatemap.live/api/history/${targetId}/geojson`;
+              const res = await fetch(url);
+              if (!res.ok) throw new Error(`Failed to fetch deepstate data: ${res.statusText}`);
+              const data = await res.json();
+              
+              const geojsonData = data.map ? data.map : data;
+              if (geojsonData && geojsonData.features) {
+                const polygonsOnly = {
+                  ...geojsonData,
+                  features: geojsonData.features.filter((f: any) => 
+                    f.geometry?.type === 'Polygon' || f.geometry?.type === 'MultiPolygon'
+                  )
+                };
+                const source = map.getSource(sourceId) as mapboxgl.GeoJSONSource;
+                if (source) source.setData(polygonsOnly);
+              }
+            } catch (err) {
+              console.error(`Error fetching deepstate for date ${targetDate}:`, err);
+              const source = map.getSource(sourceId) as mapboxgl.GeoJSONSource;
+              if (source) source.setData({ type: 'FeatureCollection', features: [] });
+            }
+          })();
+        }
       }
+
     });
 
     // Reorder layers dynamically. Iterate backwards to place the bottom-most layer right before firstAdminId.
@@ -841,13 +878,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       const layer = layers[i];
       const idsToMove = [];
       
-      if (layer.id === 'deepstate') {
-        idsToMove.push('deepstate-polygons');
-      } else {
-        idsToMove.push(`dynamic-layer-${layer.id}`);
-        if (map.getLayer(`dynamic-line-${layer.id}`)) {
-          idsToMove.push(`dynamic-line-${layer.id}`);
-        }
+      idsToMove.push(`dynamic-layer-${layer.id}`);
+      if (map.getLayer(`dynamic-line-${layer.id}`)) {
+        idsToMove.push(`dynamic-line-${layer.id}`);
       }
       
       idsToMove.forEach(id => {
@@ -1432,16 +1465,24 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
 
   let settings1 = props.settings;
   let settings2 = props.settings;
+  let layer1Name = '';
+  let layer2Name = '';
 
   if (splitLayer && splitLayer.splitLayers) {
+    const l1 = splitLayer.splitLayers[0];
+    const l2 = splitLayer.splitLayers[1];
+    
     settings1 = {
       ...props.settings,
-      layers: props.settings.layers.flatMap(l => l.id === splitLayer.id ? [splitLayer.splitLayers![0]] : [l])
+      layers: props.settings.layers.flatMap(l => l.id === splitLayer.id ? [l1] : [l])
     };
     settings2 = {
       ...props.settings,
-      layers: props.settings.layers.flatMap(l => l.id === splitLayer.id ? [splitLayer.splitLayers![1]] : [l])
+      layers: props.settings.layers.flatMap(l => l.id === splitLayer.id ? [l2] : [l])
     };
+      
+    layer1Name = l1.name;
+    layer2Name = l2.name;
   }
 
   const clipPath = splitVertical ? `inset(0 0 0 ${splitPos}%)` : `inset(${splitPos}% 0 0 0)`;
@@ -1453,12 +1494,55 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
         <>
           <MapboxMap {...props} settings={settings2} onMapInit={setMap2} isSecondary clipPath={clipPath} />
           <div 
-             onDoubleClick={() => setSplitVertical(!splitVertical)}
+             onDoubleClick={(e) => {
+               const rect = containerRef.current?.getBoundingClientRect();
+               if (rect) {
+                 if (splitVertical) {
+                   const pos = ((e.clientY - rect.top) / rect.height) * 100;
+                   setSplitPos(Math.max(0, Math.min(100, pos)));
+                 } else {
+                   const pos = ((e.clientX - rect.left) / rect.width) * 100;
+                   setSplitPos(Math.max(0, Math.min(100, pos)));
+                 }
+               }
+               setSplitVertical(!splitVertical);
+             }}
              onMouseDown={(e) => { e.preventDefault(); setIsDragging(true); }}
              onTouchStart={() => { setIsDragging(true); }}
              className={`absolute bg-white shadow-[0_0_10px_rgba(0,0,0,0.5)] z-20 transition-colors hover:bg-white ${splitVertical ? 'w-1 h-full cursor-col-resize -ml-[2px]' : 'h-1 w-full cursor-row-resize -mt-[2px]'}`}
              style={splitVertical ? { left: `${splitPos}%`, top: 0 } : { top: `${splitPos}%`, left: 0 }}
           />
+          {splitVertical ? (
+            <>
+              <div 
+                className="absolute top-[24px] whitespace-nowrap bg-white text-black px-2 py-1 text-xs font-bold pointer-events-none z-30"
+                style={{ right: `calc(100% - ${splitPos}% + 6px)` }}
+              >
+                {layer1Name}
+              </div>
+              <div 
+                className="absolute top-[24px] whitespace-nowrap bg-white text-black px-2 py-1 text-xs font-bold pointer-events-none z-30"
+                style={{ left: `calc(${splitPos}% + 6px)` }}
+              >
+                {layer2Name}
+              </div>
+            </>
+          ) : (
+            <>
+              <div 
+                className="absolute right-[24px] whitespace-nowrap bg-white text-black px-2 py-1 text-xs font-bold pointer-events-none z-30"
+                style={{ bottom: `calc(100% - ${splitPos}% + 6px)` }}
+              >
+                {layer1Name}
+              </div>
+              <div 
+                className="absolute right-[24px] whitespace-nowrap bg-white text-black px-2 py-1 text-xs font-bold pointer-events-none z-30"
+                style={{ top: `calc(${splitPos}% + 6px)` }}
+              >
+                {layer2Name}
+              </div>
+            </>
+          )}
         </>
       )}
     </div>
