@@ -823,18 +823,34 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             }
           }, firstAdminId);
         } else if (layer.type === 'raster' || layer.type === 'satellite') {
+          const bMin = layer.brightness !== undefined && layer.brightness > 0 ? layer.brightness : 0;
+          const bMax = layer.brightness !== undefined && layer.brightness < 0 ? 1 + layer.brightness : 1;
           map.addLayer({
             id: layerId,
             type: 'raster',
             source: sourceId,
             layout: { visibility: layer.visible ? 'visible' : 'none' },
-            paint: { 'raster-opacity': layer.opacity ?? 1.0 }
+            paint: { 
+              'raster-opacity': layer.opacity ?? 1.0,
+              'raster-contrast': layer.contrast ?? 0,
+              'raster-saturation': layer.saturation ?? 0,
+              'raster-hue-rotate': layer.hue ?? 0,
+              'raster-brightness-min': bMin,
+              'raster-brightness-max': bMax
+            }
           }, firstAdminId);
         }
       } else if (map.getLayer(layerId)) {
         map.setLayoutProperty(layerId, 'visibility', layer.visible ? 'visible' : 'none');
         if (layer.type === 'raster' || layer.type === 'satellite') {
+          const bMin = layer.brightness !== undefined && layer.brightness > 0 ? layer.brightness : 0;
+          const bMax = layer.brightness !== undefined && layer.brightness < 0 ? 1 + layer.brightness : 1;
           map.setPaintProperty(layerId, 'raster-opacity', layer.opacity ?? 1.0);
+          map.setPaintProperty(layerId, 'raster-contrast', layer.contrast ?? 0);
+          map.setPaintProperty(layerId, 'raster-saturation', layer.saturation ?? 0);
+          map.setPaintProperty(layerId, 'raster-hue-rotate', layer.hue ?? 0);
+          map.setPaintProperty(layerId, 'raster-brightness-min', bMin);
+          map.setPaintProperty(layerId, 'raster-brightness-max', bMax);
         } else if (layer.type === 'deepstate') {
           map.setPaintProperty(layerId, 'fill-opacity', layer.opacity ?? 0.5);
         }

@@ -496,10 +496,10 @@ export function LayerSidebar({
                       })
                     }));
                   }}
-                  updateLayerOpacity={(layerId, opacity) => {
+                  updateLayerProperty={(layerId, property, value) => {
                     setSettings(prev => ({
                       ...prev,
-                      layers: updateLayerRecursively(prev.layers, layerId, l => ({ ...l, opacity, _isDirty: true }))
+                      layers: updateLayerRecursively(prev.layers, layerId, l => ({ ...l, [property]: value, _isDirty: true }))
                     }));
                   }}
                   updateLayerDates={(layerId, startDate, endDate) => {
@@ -699,7 +699,7 @@ function LayerItem(props: {
   setActiveGeojsonLayerId: (id: string | null) => void;
   selectedFeatureId: string | number | null;
   updateLayerStyle: (layerId: string, featureId: string | number | null, styleChanges: any) => void;
-  updateLayerOpacity: (layerId: string, opacity: number) => void;
+  updateLayerProperty: (layerId: string, property: keyof MapLayer, value: any) => void;
   updateLayerDates?: (layerId: string, startDate?: string, endDate?: string) => void;
   duplicateLayer?: (id: string) => void;
   toggleLive?: (layerId: string) => void;
@@ -707,7 +707,7 @@ function LayerItem(props: {
   isDraggingLayer?: boolean;
   setIsDraggingLayer?: (isDragging: boolean) => void;
 }) {
-  const { layer, isNestedChild = false, toggleVisibility, removeLayer, renameLayer, colorPalette, activeGeojsonLayerId, setActiveGeojsonLayerId, selectedFeatureId, updateLayerStyle, updateLayerOpacity, updateLayerDates, duplicateLayer, toggleLive, handleDragEnd, isDraggingLayer, setIsDraggingLayer } = props;
+  const { layer, isNestedChild = false, toggleVisibility, removeLayer, renameLayer, colorPalette, activeGeojsonLayerId, setActiveGeojsonLayerId, selectedFeatureId, updateLayerStyle, updateLayerProperty, updateLayerDates, duplicateLayer, toggleLive, handleDragEnd, isDraggingLayer, setIsDraggingLayer } = props;
   const isActiveEdit = activeGeojsonLayerId === layer.id;
   const setActiveEdit = () => {
     if (isActiveEdit) setActiveGeojsonLayerId(null);
@@ -913,7 +913,7 @@ function LayerItem(props: {
               )}
             </div>
 
-            {layer.type !== 'split' && (layer.type === 'geojson' || layer.type === 'raster' || layer.type === 'deepstate') && layer.id !== 'satellite' && (
+            {layer.type !== 'split' && (layer.type === 'geojson' || layer.type === 'raster' || layer.type === 'satellite' || layer.type === 'deepstate') && (
               <button
                 onClick={() => {
                   if (!layer.visible) toggleVisibility(layer.id);
@@ -935,7 +935,7 @@ function LayerItem(props: {
 
           {isActiveEdit && (
             <div className={`bg-black p-3 pt-2 flex flex-col gap-4 text-sm animate-in slide-in-from-top-2 relative z-0 transition-opacity duration-200 ${!layer.visible ? 'opacity-40' : 'opacity-100'} ${isNestedChild ? 'ml-6' : ''}`}>
-          {layer.type === 'raster' || layer.type === 'deepstate' ? (
+          {layer.type === 'raster' || layer.type === 'satellite' || layer.type === 'deepstate' ? (
             <div className="flex flex-col gap-3 pb-2">
               {layer.type === 'deepstate' && (
                 <div className="flex items-center justify-between gap-3">
@@ -1003,10 +1003,77 @@ function LayerItem(props: {
                 <input
                   type="range" min="0" max="100"
                   value={(layer.opacity ?? (layer.type === 'deepstate' ? 0.5 : 1.0)) * 100}
-                  onChange={e => updateLayerOpacity(layer.id, Number(e.target.value) / 100)}
+                  onChange={e => updateLayerProperty(layer.id, 'opacity', Number(e.target.value) / 100)}
                   className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
                 />
               </div>
+
+              {(layer.type === 'raster' || layer.type === 'satellite') && (
+                <details className="mt-3 group">
+                  <summary className="text-[10px] text-white/50 font-semibold tracking-wider cursor-pointer select-none hover:text-white transition-colors flex items-center justify-between">
+                    ADJUSTMENTS
+                    <span className="group-open:rotate-180 transition-transform text-xs">▼</span>
+                  </summary>
+                  <div className="pt-3 pb-1 flex flex-col gap-3">
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between items-end">
+                        <label className="text-[10px] text-white/50 font-semibold tracking-wider">BRIGHTNESS</label>
+                        <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.brightness ?? 0) * 100)}%</span>
+                      </div>
+                      <input
+                        type="range" min="-100" max="100"
+                        value={(layer.brightness ?? 0) * 100}
+                        onChange={e => updateLayerProperty(layer.id, 'brightness', Number(e.target.value) / 100)}
+                        onDoubleClick={() => updateLayerProperty(layer.id, 'brightness', 0)}
+                        className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
+                        title="Double-click to reset"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between items-end">
+                        <label className="text-[10px] text-white/50 font-semibold tracking-wider">CONTRAST</label>
+                        <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.contrast ?? 0) * 100)}%</span>
+                      </div>
+                      <input
+                        type="range" min="-100" max="100"
+                        value={(layer.contrast ?? 0) * 100}
+                        onChange={e => updateLayerProperty(layer.id, 'contrast', Number(e.target.value) / 100)}
+                        onDoubleClick={() => updateLayerProperty(layer.id, 'contrast', 0)}
+                        className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
+                        title="Double-click to reset"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between items-end">
+                        <label className="text-[10px] text-white/50 font-semibold tracking-wider">SATURATION</label>
+                        <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.saturation ?? 0) * 100)}%</span>
+                      </div>
+                      <input
+                        type="range" min="-100" max="100"
+                        value={(layer.saturation ?? 0) * 100}
+                        onChange={e => updateLayerProperty(layer.id, 'saturation', Number(e.target.value) / 100)}
+                        onDoubleClick={() => updateLayerProperty(layer.id, 'saturation', 0)}
+                        className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
+                        title="Double-click to reset"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between items-end">
+                        <label className="text-[10px] text-white/50 font-semibold tracking-wider">HUE ROTATE</label>
+                        <span className="text-[10px] text-white/70 font-mono">{layer.hue ?? 0}°</span>
+                      </div>
+                      <input
+                        type="range" min="0" max="360"
+                        value={layer.hue ?? 0}
+                        onChange={e => updateLayerProperty(layer.id, 'hue', Number(e.target.value))}
+                        onDoubleClick={() => updateLayerProperty(layer.id, 'hue', 0)}
+                        className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
+                        title="Double-click to reset"
+                      />
+                    </div>
+                  </div>
+                </details>
+              )}
             </div>
           ) : (
             <>

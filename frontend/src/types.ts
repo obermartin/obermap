@@ -34,6 +34,12 @@ export interface MapLayer {
   splitLayers?: MapLayer[];
   splitDirection?: 'vertical' | 'horizontal';
   splitPosition?: number;
+  
+  // Post-processing
+  contrast?: number;
+  saturation?: number;
+  hue?: number;
+  brightness?: number;
 }
 
 export interface AppSettings {
