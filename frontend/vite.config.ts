@@ -3,12 +3,127 @@ import react from '@vitejs/plugin-react'
 import fs from 'node:fs'
 import path from 'node:path'
 
+import https from 'node:https';
+
 function mockPhpBackend() {
   return {
     name: 'mock-php-backend',
     configureServer(server: any) {
       server.middlewares.use((req: any, res: any, next: any) => {
-        if (req.url === '/api.php' || req.url === '/api.php/') {
+        const urlObj = new URL(req.url, 'http://localhost');
+        if (urlObj.pathname === '/api.php') {
+          const action = urlObj.searchParams.get('action');
+          
+          if (action === 'opensky') {
+            const lamin = urlObj.searchParams.get('lamin') || '';
+            const lomin = urlObj.searchParams.get('lomin') || '';
+            const lamax = urlObj.searchParams.get('lamax') || '';
+            const lomax = urlObj.searchParams.get('lomax') || '';
+            const token = urlObj.searchParams.get('token') || '';
+            
+            const targetUrl = `https://opensky-network.org/api/states/all?lamin=${lamin}&lomin=${lomin}&lamax=${lamax}&lomax=${lomax}&extended=1`;
+            const options: any = { method: 'GET', headers: {} };
+            if (token) options.headers['Authorization'] = `Bearer ${token}`;
+            
+            const proxyReq = https.request(targetUrl, options, (proxyRes) => {
+              res.writeHead(proxyRes.statusCode || 200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              proxyRes.pipe(res);
+            });
+            proxyReq.on('error', (e) => {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: e.message }));
+            });
+            proxyReq.end();
+            return;
+          }
+
+          if (action === 'opensky_track') {
+            const icao24 = urlObj.searchParams.get('icao24') || '';
+            const time = urlObj.searchParams.get('time') || '0';
+            const token = urlObj.searchParams.get('token') || '';
+            
+            const targetUrl = `https://opensky-network.org/api/tracks/all?icao24=${icao24}&time=${time}`;
+            const options: any = { method: 'GET', headers: {} };
+            if (token) options.headers['Authorization'] = `Bearer ${token}`;
+            
+            const proxyReq = https.request(targetUrl, options, (proxyRes) => {
+              res.writeHead(proxyRes.statusCode || 200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              proxyRes.pipe(res);
+            });
+            proxyReq.on('error', (e) => {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: e.message }));
+            });
+            proxyReq.end();
+            return;
+          }
+          
+          if (action === 'opensky_metadata') {
+            const icao24 = urlObj.searchParams.get('icao24') || '';
+            const token = urlObj.searchParams.get('token') || '';
+            
+            const targetUrl = `https://opensky-network.org/api/metadata/aircraft/icao/${icao24}`;
+            const options: any = { method: 'GET', headers: {} };
+            if (token) options.headers['Authorization'] = `Bearer ${token}`;
+            
+            const proxyReq = https.request(targetUrl, options, (proxyRes) => {
+              res.writeHead(proxyRes.statusCode || 200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              proxyRes.pipe(res);
+            });
+            proxyReq.on('error', (e) => {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: e.message }));
+            });
+            proxyReq.end();
+            return;
+          }
+
+          if (action === 'opensky_route') {
+            const callsign = urlObj.searchParams.get('callsign') || '';
+            const token = urlObj.searchParams.get('token') || '';
+            
+            const targetUrl = `https://opensky-network.org/api/routes?callsign=${callsign}`;
+            const options: any = { method: 'GET', headers: {} };
+            if (token) options.headers['Authorization'] = `Bearer ${token}`;
+            
+            const proxyReq = https.request(targetUrl, options, (proxyRes) => {
+              res.writeHead(proxyRes.statusCode || 200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              proxyRes.pipe(res);
+            });
+            proxyReq.on('error', (e) => {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: e.message }));
+            });
+            proxyReq.end();
+            return;
+          }
+          
+          if (action === 'opensky_token' && req.method === 'POST') {
+            let body = '';
+            req.on('data', (chunk: any) => body += chunk.toString());
+            req.on('end', () => {
+              const targetUrl = 'https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token';
+              const options = {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                  'Content-Length': Buffer.byteLength(body)
+                }
+              };
+              const proxyReq = https.request(targetUrl, options, (proxyRes) => {
+                res.writeHead(proxyRes.statusCode || 200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                proxyRes.pipe(res);
+              });
+              proxyReq.on('error', (e) => {
+                res.statusCode = 500;
+                res.end(JSON.stringify({ error: e.message }));
+              });
+              proxyReq.write(body);
+              proxyReq.end();
+            });
+            return;
+          }
+
           const dbPath = path.resolve(__dirname, 'public/db.json');
           
           if (req.method === 'OPTIONS') {

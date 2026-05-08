@@ -19,7 +19,7 @@ export interface Annotation {
 export interface MapLayer {
   id: string;
   name: string;
-  type: 'geojson' | 'raster' | 'satellite' | 'split' | 'deepstate' | 'empty-slot';
+  type: 'geojson' | 'raster' | 'satellite' | 'split' | 'deepstate' | 'empty-slot' | 'flights';
   visible: boolean;
   data?: any; // For GeoJSON
   url?: string; // For XYZ/WMTS
@@ -40,6 +40,12 @@ export interface MapLayer {
   saturation?: number;
   hue?: number;
   brightness?: number;
+  
+  // Flight layer specific
+  showCallsigns?: boolean;
+  flightpathOpacity?: number;
+  globalAircraftColor?: string;
+  aircraftColors?: Record<string, string>;
 }
 
 export interface AppSettings {
@@ -55,6 +61,7 @@ export interface AppSettings {
   icons: { id: string; svg: string }[];
   labelDensity?: number;
   layers: MapLayer[];
+  openSkyCredentials?: { clientId: string; clientSecret: string };
 }
 
 export interface AppState {

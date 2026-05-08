@@ -1,8 +1,16 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Reorder, useDragControls, motion } from 'framer-motion';
 import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2, Edit2, Square, RefreshCcw, RotateCcw, Copy, Radio, Settings, Save, Loader2 } from 'lucide-react';
 import type { AppSettings, MapLayer } from '../types';
 import { parseMapFileWithIds } from '../utils/fileUtils';
+
+const DEFAULT_LAYERS: MapLayer[] = [
+  { id: 'split-container', name: 'Split View Container', type: 'split', visible: false, splitPosition: 0.5, splitDirection: 'vertical', splitLayers: [] },
+  { id: 'deepstate', name: 'UKRAINE CURRENT', type: 'deepstate', visible: false, isLive: true },
+  { id: 'copernicus', name: 'Wildfires (EFFIS)', type: 'raster', visible: false, url: 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}' },
+  { id: 'satellite', name: 'Satellite Map Overlay (Mapbox)', type: 'satellite', visible: false },
+  { id: 'flights', name: 'Air Traffic (OpenSky)', type: 'flights', visible: false }
+];
 
 interface LayerSidebarProps {
   settings: AppSettings;
@@ -32,6 +40,22 @@ export function LayerSidebar({
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [activeTab, setActiveTab] = useState<'layers' | 'basemap'>('layers');
   const [isDraggingLayer, setIsDraggingLayer] = useState(false);
+  const [selectedAircraftId, setSelectedAircraftId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handler = (e: CustomEvent<string | null>) => setSelectedAircraftId(e.detail);
+    window.addEventListener('aircraftSelected', handler as EventListener);
+    return () => window.removeEventListener('aircraftSelected', handler as EventListener);
+  }, []);
+
+  const toggleDefaultLayer = (defaultLayer: MapLayer) => {
+    const exists = settings.layers.some(l => l.id === defaultLayer.id);
+    if (exists) {
+      setSettings(prev => ({ ...prev, layers: prev.layers.filter(l => l.id !== defaultLayer.id), _isDirty: true }));
+    } else {
+      setSettings(prev => ({ ...prev, layers: [...prev.layers, { ...defaultLayer, visible: true }], _isDirty: true }));
+    }
+  };
 
   const handleCaptureView = () => {
     const event = new CustomEvent('requestViewCapture');
@@ -472,6 +496,7 @@ export function LayerSidebar({
                     isDraggingLayer={isDraggingLayer}
                     setIsDraggingLayer={setIsDraggingLayer}
                     handleDragEnd={handleDragEnd}
+                    selectedAircraftId={selectedAircraftId}
                   toggleVisibility={toggleLayerVisibility}
                   removeLayer={removeLayer}
                   renameLayer={renameLayer}
@@ -567,6 +592,9 @@ export function LayerSidebar({
         </>
       ) : (
         <div className="p-4 flex flex-col gap-6 flex-1 overflow-y-auto custom-scrollbar">
+          <div className="text-xs font-semibold tracking-wider text-white border-b border-white/20 pb-2">APP CONFIGURATION</div>
+
+          {/* 1. COLOR PALETTE */}
           <div>
             <label className="text-xs text-white/50 mb-2 block font-semibold tracking-wider">COLOR PALETTE</label>
             <div className="flex flex-wrap gap-2 items-center">
@@ -623,6 +651,7 @@ export function LayerSidebar({
             </div>
           </div>
           
+          {/* 2. ICONS */}
           <div>
             <label className="text-xs text-white/50 mb-2 block font-semibold tracking-wider">ICONS</label>
             <div className="flex flex-wrap gap-2 items-center">
@@ -654,26 +683,30 @@ export function LayerSidebar({
             </div>
           </div>
 
-          <div className="text-xs font-semibold tracking-wider text-white border-b border-white/20 pb-2 mb-2">BASE MAP SETTINGS</div>
+          {/* 3. DEFAULT MAP LAYERS */}
+          <div>
+            <label className="text-xs text-white/50 mb-3 block font-semibold tracking-wider">DEFAULT MAP LAYERS</label>
+            <div className="flex flex-col gap-2">
+              {DEFAULT_LAYERS.map(layer => {
+                const isEnabled = settings.layers.some(l => l.id === layer.id);
+                return (
+                  <div key={layer.id} className="flex items-center justify-between px-2 py-2">
+                    <span className="text-sm font-medium">{layer.name}</span>
+                    <button
+                      onClick={() => toggleDefaultLayer(layer)}
+                      className={`w-9 h-5 rounded-full relative transition-colors ${isEnabled ? 'bg-white' : 'bg-white/20'}`}
+                    >
+                      <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${isEnabled ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
+          {/* 4. DEFAULT VIEW */}
           <div>
-            <label className="text-xs text-white/50 mb-2 block font-semibold tracking-wider">MAPBOX TOKEN</label>
-            <input
-              className="w-full bg-black/40 px-3 py-2 outline-none font-mono text-sm border border-white/10 focus:border-white/50 transition-colors"
-              value={settings.mapboxToken}
-              onChange={e => setSettings(prev => ({ ...prev, mapboxToken: e.target.value }))}
-            />
-          </div>
-          <div>
-            <label className="text-xs text-white/50 mb-2 block font-semibold tracking-wider">MAPBOX STYLE</label>
-            <input
-              className="w-full bg-black/40 px-3 py-2 outline-none font-mono text-sm border border-white/10 focus:border-white/50 transition-colors"
-              value={settings.mapboxStyle}
-              onChange={e => setSettings(prev => ({ ...prev, mapboxStyle: e.target.value }))}
-            />
-          </div>
-          <div>
-            <label className="text-xs text-white/50 mb-2 block font-semibold tracking-wider">DEFAULT VIEW</label>
+            <label className="text-xs text-white/50 mb-2 block font-semibold tracking-wider mt-2">DEFAULT VIEW</label>
             <p className="text-xs text-white/40 mb-3">Save the current map position and zoom level as the default view when loading the application.</p>
             <button
               onClick={handleCaptureView}
@@ -682,6 +715,61 @@ export function LayerSidebar({
               CAPTURE CURRENT VIEW
             </button>
           </div>
+
+          {/* 5. BASE MAP */}
+          <details className="group border border-white/10 bg-white/5 p-3">
+            <summary className="text-xs text-white/80 block font-semibold tracking-wider cursor-pointer list-none outline-none flex justify-between items-center [&::-webkit-details-marker]:hidden">
+              <span>BASE MAP</span>
+              <span className="text-white/40 group-open:rotate-180 transition-transform">▼</span>
+            </summary>
+            <div className="pt-4 flex flex-col gap-4 border-t border-white/10 mt-3">
+              <div>
+                <label className="text-[10px] text-white/50 mb-1 block font-semibold tracking-wider">MAPBOX TOKEN</label>
+                <input
+                  className="w-full bg-black/60 px-3 py-2 outline-none font-mono text-xs border border-white/10 focus:border-white/50 transition-colors"
+                  value={settings.mapboxToken}
+                  onChange={e => setSettings(prev => ({ ...prev, mapboxToken: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="text-[10px] text-white/50 mb-1 block font-semibold tracking-wider">MAPBOX STYLE</label>
+                <input
+                  className="w-full bg-black/60 px-3 py-2 outline-none font-mono text-xs border border-white/10 focus:border-white/50 transition-colors"
+                  value={settings.mapboxStyle}
+                  onChange={e => setSettings(prev => ({ ...prev, mapboxStyle: e.target.value }))}
+                />
+              </div>
+            </div>
+          </details>
+
+          {/* 6. API SETTINGS */}
+          <details className="group border border-white/10 bg-white/5 p-3 mb-6">
+            <summary className="text-xs text-white/80 block font-semibold tracking-wider cursor-pointer list-none outline-none flex justify-between items-center [&::-webkit-details-marker]:hidden">
+              <span>API SETTINGS</span>
+              <span className="text-white/40 group-open:rotate-180 transition-transform">▼</span>
+            </summary>
+            <div className="pt-4 flex flex-col gap-4 border-t border-white/10 mt-3">
+              <div>
+                <label className="text-[10px] text-white/50 mb-1 block font-semibold tracking-wider">OPENSKY CREDENTIALS</label>
+                <p className="text-[10px] text-white/40 mb-2 leading-tight">Optional. Leave blank for anonymous access (rate-limited).</p>
+                <div className="flex gap-2">
+                  <input
+                    placeholder="Client ID"
+                    className="w-1/2 bg-black/60 px-3 py-2 outline-none font-mono text-xs border border-white/10 focus:border-white/50 transition-colors"
+                    value={settings.openSkyCredentials?.clientId || ''}
+                    onChange={e => setSettings(prev => ({ ...prev, openSkyCredentials: { ...prev.openSkyCredentials, clientId: e.target.value, clientSecret: prev.openSkyCredentials?.clientSecret || '' } }))}
+                  />
+                  <input
+                    type="password"
+                    placeholder="Client Secret"
+                    className="w-1/2 bg-black/60 px-3 py-2 outline-none font-mono text-xs border border-white/10 focus:border-white/50 transition-colors"
+                    value={settings.openSkyCredentials?.clientSecret || ''}
+                    onChange={e => setSettings(prev => ({ ...prev, openSkyCredentials: { ...prev.openSkyCredentials, clientId: prev.openSkyCredentials?.clientId || '', clientSecret: e.target.value } }))}
+                  />
+                </div>
+              </div>
+            </div>
+          </details>
         </div>
       )}
     </div>
@@ -706,8 +794,9 @@ function LayerItem(props: {
   handleDragEnd?: (e: MouseEvent | TouchEvent | PointerEvent, layerId: string) => void;
   isDraggingLayer?: boolean;
   setIsDraggingLayer?: (isDragging: boolean) => void;
+  selectedAircraftId?: string | null;
 }) {
-  const { layer, isNestedChild = false, toggleVisibility, removeLayer, renameLayer, colorPalette, activeGeojsonLayerId, setActiveGeojsonLayerId, selectedFeatureId, updateLayerStyle, updateLayerProperty, updateLayerDates, duplicateLayer, toggleLive, handleDragEnd, isDraggingLayer, setIsDraggingLayer } = props;
+  const { layer, isNestedChild = false, toggleVisibility, removeLayer, renameLayer, colorPalette, activeGeojsonLayerId, setActiveGeojsonLayerId, selectedFeatureId, updateLayerStyle, updateLayerProperty, updateLayerDates, duplicateLayer, toggleLive, handleDragEnd, isDraggingLayer, setIsDraggingLayer, selectedAircraftId } = props;
   const isActiveEdit = activeGeojsonLayerId === layer.id;
   const setActiveEdit = () => {
     if (isActiveEdit) setActiveGeojsonLayerId(null);
@@ -913,20 +1002,20 @@ function LayerItem(props: {
               )}
             </div>
 
-            {layer.type !== 'split' && (layer.type === 'geojson' || layer.type === 'raster' || layer.type === 'satellite' || layer.type === 'deepstate') && (
+            {layer.type !== 'split' && (layer.type === 'geojson' || layer.type === 'raster' || layer.type === 'satellite' || layer.type === 'deepstate' || layer.type === 'flights') && (
               <button
                 onClick={() => {
                   if (!layer.visible) toggleVisibility(layer.id);
                   setActiveEdit();
                 }}
                 className={`transition-colors ${isActiveEdit ? 'text-white' : iconColorFaded}`}
-                title={`Toggle ${layer.type === 'geojson' ? 'GeoJSON' : 'Layer'} Edit Mode`}
+                title={`Toggle ${layer.type === 'geojson' ? 'GeoJSON' : layer.type === 'flights' ? 'Air Traffic' : 'Layer'} Edit Mode`}
               >
                 <Edit2 size={16} />
               </button>
             )}
 
-            {layer.type !== 'split' && layer.id !== 'satellite' && layer.id !== 'deepstate' && layer.id !== 'copernicus' && !isNestedChild && (
+            {layer.type !== 'split' && layer.id !== 'satellite' && layer.id !== 'deepstate' && layer.id !== 'copernicus' && layer.id !== 'flights' && !isNestedChild && (
               <button onClick={() => removeLayer(layer.id)} className={`transition-colors ml-1 ${iconColor}`}>
                 <Trash2 size={16} />
               </button>
@@ -1074,6 +1163,99 @@ function LayerItem(props: {
                   </div>
                 </details>
               )}
+            </div>
+          ) : layer.type === 'flights' ? (
+            <div className="flex flex-col gap-4 pb-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-white/50 font-semibold tracking-wider">TAIL LABELS</span>
+                <button
+                  onClick={() => updateLayerProperty(layer.id, 'showCallsigns', !layer.showCallsigns)}
+                  className={`transition-colors ${layer.showCallsigns ? 'text-white' : 'text-white/50 hover:text-white'}`}
+                  title={layer.showCallsigns ? "Hide Callsigns" : "Show Callsigns"}
+                >
+                  {layer.showCallsigns ? <Eye size={18} /> : <EyeOff size={18} />}
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] text-white/50 font-semibold tracking-wider">SEARCH CALLSIGN / REGISTRATION</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Enter callsign..."
+                    className="w-full bg-black/50 border border-white/10 px-3 py-1.5 text-sm outline-none focus:border-white/30"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const val = e.currentTarget.value.trim().toUpperCase();
+                        if (val) {
+                          const event = new CustomEvent('searchAircraft', { detail: val });
+                          window.dispatchEvent(event);
+                        }
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] text-white/50 font-semibold tracking-wider uppercase">
+                  {selectedAircraftId ? `COLOR (AIRCRAFT ${selectedAircraftId})` : 'GLOBAL AIRCRAFT COLOR'}
+                </label>
+                <div className="flex flex-wrap gap-1">
+                  {colorPalette.map(color => (
+                    <button
+                      key={color}
+                      onClick={() => {
+                        if (selectedAircraftId) {
+                          const existingColors = layer.aircraftColors || {};
+                          updateLayerProperty(layer.id, 'aircraftColors', { ...existingColors, [String(selectedAircraftId)]: color });
+                        } else {
+                          updateLayerProperty(layer.id, 'globalAircraftColor', color);
+                        }
+                      }}
+                      className="w-6 h-6 flex-shrink-0 transition-colors relative"
+                      style={{ backgroundColor: color }}
+                      title={color}
+                    >
+                      {((selectedAircraftId && layer.aircraftColors?.[String(selectedAircraftId)] === color) || 
+                        (!selectedAircraftId && layer.globalAircraftColor === color)) && (
+                        <div className="absolute inset-0 flex items-center justify-center mix-blend-difference text-white text-xs">✓</div>
+                      )}
+                    </button>
+                  ))}
+                  <button
+                    key="transparent"
+                    onClick={() => {
+                      if (selectedAircraftId) {
+                        const existingColors = { ...layer.aircraftColors };
+                        delete existingColors[String(selectedAircraftId)];
+                        updateLayerProperty(layer.id, 'aircraftColors', existingColors);
+                      } else {
+                        updateLayerProperty(layer.id, 'globalAircraftColor', undefined);
+                      }
+                    }}
+                    className="w-6 h-6 relative overflow-hidden flex-shrink-0 transition-colors"
+                    title="Reset to Default White"
+                  >
+                    <div className="absolute inset-0 bg-white/10 flex items-center justify-center">
+                      <div className="w-full h-0 border-t border-red-500 transform rotate-45"></div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1 mt-2 border-t border-white/10 pt-3">
+                <div className="flex justify-between items-end">
+                  <label className="text-[10px] text-white/50 font-semibold tracking-wider">FLIGHTPATH OPACITY</label>
+                  <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.flightpathOpacity ?? 0.8) * 100)}%</span>
+                </div>
+                <input
+                  type="range" min="0" max="100"
+                  value={(layer.flightpathOpacity ?? 0.8) * 100}
+                  onChange={e => updateLayerProperty(layer.id, 'flightpathOpacity', Number(e.target.value) / 100)}
+                  className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
+                />
+              </div>
             </div>
           ) : (
             <>

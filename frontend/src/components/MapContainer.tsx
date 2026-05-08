@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { Annotation, ToolType, AppSettings } from '../types';
@@ -59,10 +59,46 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [selectedAircraftId, setSelectedAircraftIdState] = useState<string | null>(null);
+  
+  const setSelectedAircraftId = useCallback((id: string | null) => {
+    setSelectedAircraftIdState(id);
+    window.dispatchEvent(new CustomEvent('aircraftSelected', { detail: id }));
+  }, []);
+
+  const selectedAircraftIdRef = useRef<string | null>(null);
+  const selectedFlightTrackRef = useRef<number[][]>([]);
+
+  useEffect(() => {
+    selectedAircraftIdRef.current = selectedAircraftId;
+  }, [selectedAircraftId]);
+
   const originalFiltersRef = useRef<{ [layerId: string]: any }>({});
   const markersRef = useRef<{ [id: string]: mapboxgl.Marker }>({});
   const deepstateDatesRef = useRef<{ [layerId: string]: string | undefined }>({});
   const activeDrawMarkersRef = useRef<{ [id: string]: mapboxgl.Marker }>({});
+  const openSkyTokenRef = useRef<{ token: string, expires: number } | null>(null);
+  const aircraftPopupRef = useRef<mapboxgl.Popup | null>(null);
+  const selectedAircraftMetaRef = useRef<any>(null);
+
+  const getFlagHtml = (countryName: string) => {
+    if (!countryName) return '';
+    const mappings: Record<string, string> = {
+      'United States': 'US', 'Germany': 'DE', 'United Kingdom': 'GB', 'France': 'FR',
+      'Italy': 'IT', 'Spain': 'ES', 'Canada': 'CA', 'Australia': 'AU', 'Japan': 'JP',
+      'China': 'CN', 'Russia': 'RU', 'Ukraine': 'UA', 'Poland': 'PL', 'Turkey': 'TR',
+      'Netherlands': 'NL', 'Switzerland': 'CH', 'Sweden': 'SE', 'Norway': 'NO',
+      'Denmark': 'DK', 'Finland': 'FI', 'Austria': 'AT', 'Belgium': 'BE', 'Brazil': 'BR',
+      'Mexico': 'MX', 'India': 'IN', 'South Africa': 'ZA', 'Ireland': 'IE', 'Greece': 'GR',
+      'Portugal': 'PT', 'New Zealand': 'NZ', 'Singapore': 'SG', 'United Arab Emirates': 'AE',
+      'Saudi Arabia': 'SA', 'Israel': 'IL', 'South Korea': 'KR', 'Taiwan': 'TW',
+      'Hong Kong': 'HK', 'Thailand': 'TH', 'Malaysia': 'MY', 'Indonesia': 'ID',
+      'Vietnam': 'VN', 'Philippines': 'PH', 'Egypt': 'EG', 'Morocco': 'MA'
+    };
+    const code = mappings[countryName];
+    if (!code) return '';
+    return `<img src="https://flagcdn.com/w20/${code.toLowerCase()}.png" width="16" alt="${code}" style="vertical-align: middle; border-radius: 1px;" />`;
+  };
 
   const clearActiveDrawMarkers = () => {
     Object.values(activeDrawMarkersRef.current).forEach(m => m.remove());
@@ -141,6 +177,47 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         }
       }, firstSymbolId);
 
+
+
+      // Add Icons for Flights Layer
+      const loadIcon = (name: string, svg: string) => {
+        const img = new Image();
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        img.onload = () => {
+          if (!map.hasImage(name)) map.addImage(name, img, { sdf: true });
+        };
+      };
+
+      loadIcon('airplane', `
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#ffffff" stroke="none">
+          <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+        </svg>
+      `);
+
+      loadIcon('helicopter', `
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+          <ellipse cx="12" cy="14" rx="2.5" ry="5" fill="#ffffff" />
+          <rect x="11.5" y="18" width="1" height="5" fill="#ffffff" />
+          <rect x="9" y="21" width="6" height="1.5" fill="#ffffff" />
+          <circle cx="12" cy="14" r="8" fill="none" stroke="#ffffff" stroke-width="0.5" />
+          <path d="M4 14 L20 14 M12 6 L12 22" stroke="#ffffff" stroke-width="1.2" />
+        </svg>
+      `);
+
+      loadIcon('small_aircraft', `
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+          <ellipse cx="12" cy="12" rx="2" ry="8" fill="#ffffff" />
+          <rect x="3" y="8" width="18" height="2.5" fill="#ffffff" rx="1" />
+          <rect x="8" y="18" width="8" height="2" fill="#ffffff" rx="0.5" />
+        </svg>
+      `);
+
+      loadIcon('military', `
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+          <path d="M12 2 L14 12 L22 16 L22 18 L13 16 L12 21 L11 16 L2 18 L2 16 L10 12 Z" fill="#ffffff" />
+        </svg>
+      `);
+
       // Add clip layer for hiding mapbox symbols under highlights
       map.addSource('highlight-clip-source', {
         type: 'geojson',
@@ -153,6 +230,27 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         source: 'highlight-clip-source',
         layout: {
           'clip-layer-types': ['symbol']
+        }
+      });
+
+      // Add Flight Track source and layer
+      map.addSource('selected-flight-track', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+      });
+      
+      map.addLayer({
+        id: 'selected-flight-track-layer',
+        type: 'line',
+        source: 'selected-flight-track',
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round'
+        },
+        paint: {
+          'line-color': '#ffffff',
+          'line-width': 4,
+          'line-opacity': 0.5
         }
       });
 
@@ -773,6 +871,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           map.addSource(sourceId, { type: 'raster', tiles: [processedUrl], tileSize: 256 });
         } else if (layer.type === 'satellite') {
           map.addSource(sourceId, { type: 'raster', url: 'mapbox://mapbox.satellite', tileSize: 256 });
+        } else if (layer.type === 'flights') {
+          map.addSource(sourceId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         }
       } else {
         if (layer.type === 'geojson' && layer.data) {
@@ -839,6 +939,66 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               'raster-brightness-max': bMax
             }
           }, firstAdminId);
+        } else if (layer.type === 'flights') {
+          map.addLayer({
+            id: layerId,
+            type: 'symbol',
+            source: sourceId,
+            layout: { 
+              visibility: layer.visible ? 'visible' : 'none',
+              'icon-image': [
+                'match',
+                ['get', 'category'],
+                8, 'helicopter',
+                7, 'military',
+                2, 'small_aircraft',
+                3, 'small_aircraft',
+                9, 'small_aircraft',
+                12, 'small_aircraft',
+                'airplane' // default
+              ],
+              'icon-size': 1.6,
+              'icon-rotate': ['get', 'true_track'],
+              'icon-rotation-alignment': 'map',
+              'icon-allow-overlap': true,
+              'icon-ignore-placement': true
+            },
+            paint: {
+              'icon-opacity': selectedAircraftId 
+                ? ['case', ['==', ['to-string', ['get', 'icao24']], selectedAircraftId], 1.0, 0.5]
+                : 1.0,
+              'icon-color': layer.aircraftColors && Object.keys(layer.aircraftColors).length > 0 
+                ? [
+                    'match', 
+                    ['to-string', ['get', 'icao24']], 
+                    ...Object.entries(layer.aircraftColors).flat(),
+                    layer.globalAircraftColor || '#ffffff'
+                  ] 
+                : (layer.globalAircraftColor || '#ffffff')
+            }
+          }, firstSymbolId);
+          
+          map.addLayer({
+            id: `${layerId}-labels`,
+            type: 'symbol',
+            source: sourceId,
+            layout: {
+              visibility: layer.visible && layer.showCallsigns ? 'visible' : 'none',
+              'text-field': ['case', ['==', ['get', 'callsign'], ''], ['get', 'icao24'], ['get', 'callsign']],
+              'text-font': ['Gotham Bold', 'Arial Unicode MS Regular'],
+              'text-size': 10,
+              'text-offset': [0, 1.5],
+              'text-anchor': 'top',
+              'text-ignore-placement': true,
+              'text-allow-overlap': true
+            },
+            paint: {
+              'text-color': '#ffffff',
+              'text-opacity': selectedAircraftId 
+                ? ['case', ['==', ['to-string', ['get', 'icao24']], selectedAircraftId], 1.0, 0.5]
+                : 1.0
+            }
+          }, firstSymbolId);
         }
       } else if (map.getLayer(layerId)) {
         map.setLayoutProperty(layerId, 'visibility', layer.visible ? 'visible' : 'none');
@@ -851,10 +1011,70 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           map.setPaintProperty(layerId, 'raster-hue-rotate', layer.hue ?? 0);
           map.setPaintProperty(layerId, 'raster-brightness-min', bMin);
           map.setPaintProperty(layerId, 'raster-brightness-max', bMax);
+        } else if (layer.type === 'flights') {
+          const colorExp = layer.aircraftColors && Object.keys(layer.aircraftColors).length > 0 
+            ? [
+                'match', 
+                ['to-string', ['get', 'icao24']], 
+                ...Object.entries(layer.aircraftColors).flat(),
+                layer.globalAircraftColor || '#ffffff'
+              ] 
+            : (layer.globalAircraftColor || '#ffffff');
+            
+          map.setPaintProperty(layerId, 'icon-opacity', selectedAircraftId 
+            ? ['case', ['==', ['to-string', ['get', 'icao24']], selectedAircraftId], 1.0, 0.5]
+            : 1.0);
+          map.setPaintProperty(layerId, 'icon-color', colorExp);
+          
+          if (map.getLayer(`${layerId}-labels`)) {
+            map.setLayoutProperty(`${layerId}-labels`, 'visibility', layer.visible && layer.showCallsigns ? 'visible' : 'none');
+            map.setPaintProperty(`${layerId}-labels`, 'text-opacity', selectedAircraftId 
+              ? ['case', ['==', ['to-string', ['get', 'icao24']], selectedAircraftId], 1.0, 0.5]
+              : 1.0);
+          } else if (layer.showCallsigns) {
+            const firstSymbolId = map.getStyle().layers?.find(l => l.type === 'symbol')?.id;
+            map.addLayer({
+              id: `${layerId}-labels`,
+              type: 'symbol',
+              source: `dynamic-source-${layer.id}`,
+              layout: {
+                visibility: layer.visible ? 'visible' : 'none',
+                'text-field': ['case', ['==', ['get', 'callsign'], ''], ['get', 'icao24'], ['get', 'callsign']],
+                'text-font': ['Gotham Bold', 'Arial Unicode MS Regular'],
+                'text-size': 10,
+                'text-offset': [0, 1.5],
+                'text-anchor': 'top',
+                'text-ignore-placement': true,
+                'text-allow-overlap': true
+              },
+              paint: {
+                'text-color': '#ffffff',
+                'text-opacity': selectedAircraftId 
+                  ? ['case', ['==', ['to-string', ['get', 'icao24']], selectedAircraftId], 1.0, 0.5]
+                  : 1.0
+              }
+            }, firstSymbolId);
+          }
         } else if (layer.type === 'deepstate') {
           map.setPaintProperty(layerId, 'fill-opacity', layer.opacity ?? 0.5);
         }
-        if (map.getLayer(lineId)) {
+        
+        if (layer.type === 'flights') {
+          if (map.getLayer('selected-flight-track-layer')) {
+            const opacity = layer.flightpathOpacity ?? 0.8;
+            const colorExp = layer.aircraftColors && Object.keys(layer.aircraftColors).length > 0 
+              ? [
+                  'match', 
+                  selectedAircraftId || '', 
+                  ...Object.entries(layer.aircraftColors).flat(),
+                  layer.globalAircraftColor || '#ffffff'
+                ] 
+              : (layer.globalAircraftColor || '#ffffff');
+              
+            map.setPaintProperty('selected-flight-track-layer', 'line-opacity', opacity);
+            map.setPaintProperty('selected-flight-track-layer', 'line-color', colorExp);
+          }
+        } else if (map.getLayer(lineId)) {
           map.setLayoutProperty(lineId, 'visibility', layer.visible ? 'visible' : 'none');
         }
       }
@@ -974,7 +1194,259 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       });
     }
 
+    return () => {
+      // Cleanup dynamically created raster layers that were removed from settings
+      // We don't remove copernicus or deepstate sources to avoid reload flashes
+    };
+  }, [settings.layers, mapLoaded, selectedAircraftId]);
+
+  // Polling for flights
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    const flightsLayer = settings.layers.find(l => l.type === 'flights');
+    if (!flightsLayer || !flightsLayer.visible) return;
+
+    const fetchFlights = async () => {
+      try {
+        const bounds = map.getBounds();
+        if (!bounds) return;
+        const lamin = bounds.getSouth();
+        const lamax = bounds.getNorth();
+        const lomin = bounds.getWest();
+        const lomax = bounds.getEast();
+        
+        let token = '';
+        if (settings.openSkyCredentials?.clientId && settings.openSkyCredentials?.clientSecret) {
+          if (!openSkyTokenRef.current || Date.now() > openSkyTokenRef.current.expires) {
+            const tokenRes = await fetch('./api.php?action=opensky_token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: `grant_type=client_credentials&client_id=${encodeURIComponent(settings.openSkyCredentials.clientId)}&client_secret=${encodeURIComponent(settings.openSkyCredentials.clientSecret)}`
+            });
+            if (tokenRes.ok) {
+              const tokenData = await tokenRes.json();
+              if (tokenData.access_token) {
+                openSkyTokenRef.current = {
+                  token: tokenData.access_token,
+                  expires: Date.now() + (tokenData.expires_in - 30) * 1000
+                };
+              }
+            }
+          }
+          if (openSkyTokenRef.current) {
+            token = openSkyTokenRef.current.token;
+          }
+        }
+        
+        const url = `./api.php?action=opensky&lamin=${lamin}&lomin=${lomin}&lamax=${lamax}&lomax=${lomax}${token ? '&token=' + encodeURIComponent(token) : ''}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`OpenSky API error: ${res.statusText}`);
+        
+        const data = await res.json();
+        if (data.states && data.states.length > 0) {
+          console.log("First state vector length:", data.states[0].length, "Category index 17:", data.states[0][17]);
+        }
+        
+        const features = (data.states || []).map((state: any) => {
+          const lon = state[5];
+          const lat = state[6];
+          const true_track = state[10];
+          if (lon === null || lat === null) return null;
+          
+          let category = Number(state[17]) || 0;
+
+          if (state[0] === selectedAircraftIdRef.current) {
+            const lastPt = selectedFlightTrackRef.current[selectedFlightTrackRef.current.length - 1];
+            if (!lastPt || lastPt[0] !== lon || lastPt[1] !== lat) {
+              selectedFlightTrackRef.current = [...selectedFlightTrackRef.current, [lon, lat]];
+              const trackSource = map.getSource('selected-flight-track') as mapboxgl.GeoJSONSource;
+              if (trackSource) {
+                trackSource.setData({
+                  type: 'FeatureCollection',
+                  features: [{
+                    type: 'Feature',
+                    geometry: { type: 'LineString', coordinates: selectedFlightTrackRef.current },
+                    properties: {}
+                  }]
+                });
+              }
+            }
+            
+            // Update Popup and Route
+            const callsign = state[1] ? state[1].trim() : '';
+            if (callsign && (!selectedAircraftMetaRef.current || selectedAircraftMetaRef.current.callsign !== callsign)) {
+              selectedAircraftMetaRef.current = { ...selectedAircraftMetaRef.current, callsign, icao24: state[0] };
+              // Fetch route now that we have callsign
+              fetch(`./api.php?action=opensky_route&callsign=${callsign}${token ? '&token=' + encodeURIComponent(token) : ''}`)
+                .then(res => res.ok ? res.json() : null)
+                .then(routeData => {
+                  if (routeData && routeData.route) {
+                    selectedAircraftMetaRef.current.route = routeData.route.join(' → ');
+                  } else {
+                    selectedAircraftMetaRef.current.route = 'Unknown Route';
+                  }
+                })
+                .catch(() => {});
+            }
+
+            if (!aircraftPopupRef.current) {
+              aircraftPopupRef.current = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, className: 'flight-popup' })
+                .setLngLat([lon, lat])
+                .addTo(map);
+            } else {
+              aircraftPopupRef.current.setLngLat([lon, lat]);
+            }
+            
+            const meta = selectedAircraftMetaRef.current?.icao24 === state[0] ? selectedAircraftMetaRef.current : {};
+            const flag = getFlagHtml(state[2]);
+            const alt = state[7] !== null ? Math.round(state[7]) + 'm' : 'N/A';
+            const spd = state[9] !== null ? Math.round(state[9] * 3.6) + 'km/h' : 'N/A';
+            
+            const popupHtml = `
+              <div style="background-color: #09090b; padding: 12px; border-radius: 0; color: white; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11px; min-width: 180px; text-transform: uppercase;">
+                <div style="font-size: 14px; font-weight: 700; margin-bottom: 8px; color: #ffffff; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;">
+                  <span>${callsign || 'UNKNOWN'}</span>
+                  <span style="font-size: 16px;">${flag}</span>
+                </div>
+                <div style="display: grid; grid-template-columns: 40px 1fr; gap: 6px; font-weight: 500;">
+                  <span style="color: rgba(255,255,255,0.5);">REG:</span> <span style="text-align: right; font-family: monospace;">${meta.registration || 'Loading...'}</span>
+                  <span style="color: rgba(255,255,255,0.5);">TYPE:</span> <span style="text-align: right; font-family: monospace;">${meta.type || 'Loading...'}</span>
+                  <span style="color: rgba(255,255,255,0.5);">RTE:</span> <span style="text-align: right; font-family: monospace;">${meta.route || 'Loading...'}</span>
+                  <span style="color: rgba(255,255,255,0.5);">ALT:</span> <span style="text-align: right; font-family: monospace;">${alt}</span>
+                  <span style="color: rgba(255,255,255,0.5);">SPD:</span> <span style="text-align: right; font-family: monospace;">${spd}</span>
+                </div>
+              </div>
+            `;
+            // Add custom style block to override Mapbox default popup padding and background
+            const style = document.createElement('style');
+            style.innerHTML = '.flight-popup .mapboxgl-popup-content { padding: 0; background: transparent; box-shadow: none; } .flight-popup .mapboxgl-popup-tip { border-top-color: #09090b; }';
+            document.head.appendChild(style);
+            
+            aircraftPopupRef.current.setHTML(popupHtml);
+          }
+
+          return {
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [lon, lat] },
+            properties: {
+              icao24: state[0],
+              callsign: state[1] ? state[1].trim() : '',
+              country: state[2],
+              altitude: state[7],
+              velocity: state[9],
+              true_track: true_track || 0,
+              category: category
+            }
+          };
+        }).filter(Boolean);
+
+        const geojson = { type: 'FeatureCollection', features };
+        const sourceId = `dynamic-source-${flightsLayer.id}`;
+        const source = map.getSource(sourceId) as mapboxgl.GeoJSONSource;
+        if (source) source.setData(geojson as GeoJSON.FeatureCollection);
+      } catch(err) {
+        console.error('Error fetching flights:', err);
+      }
+    };
+
+    fetchFlights();
+    const interval = setInterval(fetchFlights, 10000);
+    return () => clearInterval(interval);
   }, [settings.layers, mapLoaded]);
+
+  // Fetch track when selectedAircraftId changes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+    
+    const source = map.getSource('selected-flight-track') as mapboxgl.GeoJSONSource;
+    if (!source) return;
+
+    if (!selectedAircraftId) {
+      source.setData({ type: 'FeatureCollection', features: [] });
+      if (aircraftPopupRef.current) {
+        aircraftPopupRef.current.remove();
+        aircraftPopupRef.current = null;
+      }
+      return;
+    }
+
+    const flightsLayer = settings.layers.find(l => l.type === 'flights');
+    if (!flightsLayer || !flightsLayer.visible) return;
+
+    const fetchTrack = async () => {
+      try {
+        let token = '';
+        if (settings.openSkyCredentials?.clientId && settings.openSkyCredentials?.clientSecret) {
+          if (!openSkyTokenRef.current || Date.now() > openSkyTokenRef.current.expires) {
+            const tokenRes = await fetch('./api.php?action=opensky_token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: `grant_type=client_credentials&client_id=${encodeURIComponent(settings.openSkyCredentials.clientId)}&client_secret=${encodeURIComponent(settings.openSkyCredentials.clientSecret)}`
+            });
+            if (tokenRes.ok) {
+              const tokenData = await tokenRes.json();
+              if (tokenData.access_token) {
+                openSkyTokenRef.current = {
+                  token: tokenData.access_token,
+                  expires: Date.now() + (tokenData.expires_in - 30) * 1000
+                };
+              }
+            }
+          }
+          if (openSkyTokenRef.current) token = openSkyTokenRef.current.token;
+        }
+
+        const url = `./api.php?action=opensky_track&icao24=${selectedAircraftId}&time=0${token ? '&token=' + encodeURIComponent(token) : ''}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Failed to fetch track');
+        
+        const data = await res.json();
+        if (data && data.path && data.path.length > 0) {
+          const coordinates = data.path.map((pt: any) => [pt[2], pt[1]]); // longitude, latitude
+          selectedFlightTrackRef.current = coordinates;
+          source.setData({
+            type: 'FeatureCollection',
+            features: [{
+              type: 'Feature',
+              geometry: { type: 'LineString', coordinates },
+              properties: {}
+            }]
+          });
+        } else {
+          selectedFlightTrackRef.current = [];
+          source.setData({ type: 'FeatureCollection', features: [] });
+        }
+      } catch (err) {
+        console.error('Error fetching track:', err);
+        selectedFlightTrackRef.current = [];
+        source.setData({ type: 'FeatureCollection', features: [] });
+      }
+
+      // Fetch Metadata
+      try {
+        let token = '';
+        if (openSkyTokenRef.current) token = openSkyTokenRef.current.token;
+
+        const metaRes = await fetch(`./api.php?action=opensky_metadata&icao24=${selectedAircraftId}${token ? '&token=' + encodeURIComponent(token) : ''}`);
+        let metaData: any = null;
+        if (metaRes.ok) metaData = await metaRes.json();
+        
+        selectedAircraftMetaRef.current = {
+          ...selectedAircraftMetaRef.current,
+          icao24: selectedAircraftId,
+          registration: metaData?.registration || 'Unknown',
+          type: metaData?.model || metaData?.manufacturerName || 'Unknown Type'
+        };
+      } catch (e) {
+        console.error('Error fetching metadata:', e);
+      }
+    };
+
+    fetchTrack();
+  }, [selectedAircraftId, mapLoaded, settings.openSkyCredentials]);
 
   // Dynamically update clip polygons to match screen-space of highlight DOM labels
   useEffect(() => {
@@ -1060,6 +1532,36 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     return () => window.removeEventListener('flyToLabel', handleFlyToLabel);
   }, [activeTool, annotations]);
 
+  // Handle searchAircraft
+  useEffect(() => {
+    const handleSearchAircraft = ((e: CustomEvent<string>) => {
+      const map = mapRef.current;
+      if (!map) return;
+      const searchTerm = e.detail.toUpperCase();
+      
+      const flightsLayer = settings.layers.find(l => l.type === 'flights');
+      if (!flightsLayer) return;
+      const sourceId = `dynamic-source-${flightsLayer.id}`;
+      
+      // Try to find it in the current map source data first
+      const features = map.querySourceFeatures(sourceId);
+      const found = features.find(f => 
+        (f.properties?.callsign && f.properties.callsign.toUpperCase().includes(searchTerm)) || 
+        (f.properties?.icao24 && f.properties.icao24.toUpperCase() === searchTerm)
+      );
+
+      if (found && found.geometry.type === 'Point') {
+        const coords = found.geometry.coordinates as [number, number];
+        map.flyTo({ center: coords, zoom: 8 });
+        setSelectedAircraftId(found.properties?.icao24 || null);
+      } else {
+        alert('Aircraft not found in currently visible airspace.');
+      }
+    }) as EventListener;
+    window.addEventListener('searchAircraft', handleSearchAircraft);
+    return () => window.removeEventListener('searchAircraft', handleSearchAircraft);
+  }, [settings.layers]);
+
   // Render DOM markers for labels and highlights
   useEffect(() => {
     if (!mapRef.current || !mapLoaded) return;
@@ -1077,13 +1579,64 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     if (source) source.setData(geojson);
   };
 
+  // Immediate popup rendering for selected aircraft
+  useEffect(() => {
+    if (!mapRef.current || !selectedAircraftId) return;
+    const flightsLayer = settings.layers.find(l => l.type === 'flights');
+    if (!flightsLayer || !flightsLayer.visible) return;
+    
+    const sourceId = `dynamic-source-${flightsLayer.id}`;
+    const features = mapRef.current.querySourceFeatures(sourceId);
+    const found = features.find(f => f.properties?.icao24 === selectedAircraftId);
+    if (!found || found.geometry.type !== 'Point') return;
+    
+    const [lon, lat] = found.geometry.coordinates as [number, number];
+    const callsign = found.properties?.callsign || '';
+    
+    if (!aircraftPopupRef.current) {
+      aircraftPopupRef.current = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, className: 'flight-popup' })
+        .setLngLat([lon, lat])
+        .addTo(mapRef.current);
+    } else {
+      aircraftPopupRef.current.setLngLat([lon, lat]);
+    }
+    
+    const meta = selectedAircraftMetaRef.current?.icao24 === selectedAircraftId ? selectedAircraftMetaRef.current : {};
+    const flag = getFlagHtml(found.properties?.country);
+    const alt = found.properties?.altitude !== undefined ? Math.round(found.properties.altitude) + 'm' : 'N/A';
+    const spd = found.properties?.velocity !== undefined ? Math.round(found.properties.velocity * 3.6) + 'km/h' : 'N/A';
+    
+    const popupHtml = `
+      <div style="background-color: #09090b; padding: 12px; border-radius: 0; color: white; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11px; min-width: 180px; text-transform: uppercase;">
+        <div style="font-size: 14px; font-weight: 700; margin-bottom: 8px; color: #ffffff; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;">
+          <span>${callsign || 'UNKNOWN'}</span>
+          <span style="font-size: 16px;">${flag}</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 40px 1fr; gap: 6px; font-weight: 500;">
+          <span style="color: rgba(255,255,255,0.5);">REG:</span> <span style="text-align: right; font-family: monospace;">${meta.registration || 'Loading...'}</span>
+          <span style="color: rgba(255,255,255,0.5);">TYPE:</span> <span style="text-align: right; font-family: monospace;">${meta.type || 'Loading...'}</span>
+          <span style="color: rgba(255,255,255,0.5);">RTE:</span> <span style="text-align: right; font-family: monospace;">${meta.route || 'Loading...'}</span>
+          <span style="color: rgba(255,255,255,0.5);">ALT:</span> <span style="text-align: right; font-family: monospace;">${alt}</span>
+          <span style="color: rgba(255,255,255,0.5);">SPD:</span> <span style="text-align: right; font-family: monospace;">${spd}</span>
+        </div>
+      </div>
+    `;
+    const style = document.getElementById('flight-popup-style') || document.createElement('style');
+    style.id = 'flight-popup-style';
+    style.innerHTML = '.flight-popup .mapboxgl-popup-content { padding: 0; background: transparent; box-shadow: none; } .flight-popup .mapboxgl-popup-tip { border-top-color: #09090b; }';
+    if (!document.getElementById('flight-popup-style')) document.head.appendChild(style);
+    
+    aircraftPopupRef.current.setHTML(popupHtml);
+  }, [selectedAircraftId, settings.layers]);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
     const onClick = (e: mapboxgl.MapMouseEvent) => {
       // Handle GeoJSON Edit Mode first
-      if (activeGeojsonLayerId) {
+      const activeLayer = settings.layers.find(l => l.id === activeGeojsonLayerId);
+      if (activeGeojsonLayerId && activeLayer?.type === 'geojson') {
         const geojsonLayerId = `dynamic-layer-${activeGeojsonLayerId}`;
         const geojsonLineLayerId = `dynamic-line-${activeGeojsonLayerId}`;
         let clickedGeojsonFeatureId: string | number | null = null;
@@ -1104,6 +1657,34 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           setSelectedGeojsonFeatureId(null);
         }
         return; // Prevent other interactions
+      }
+
+      // Handle flight aircraft selection
+      let clickedFlightId: string | null = null;
+      try {
+        const flightLayers = settings.layers.filter(l => l.type === 'flights').map(l => `dynamic-layer-${l.id}`);
+        if (flightLayers.length > 0) {
+          const flightFeatures = map.queryRenderedFeatures(e.point, { layers: flightLayers });
+          console.log("Flight click test:", { e_point: e.point, flightLayers, flightFeatures_length: flightFeatures.length, first_prop: flightFeatures[0]?.properties });
+          if (flightFeatures.length > 0) {
+            clickedFlightId = flightFeatures[0].properties?.icao24 || null;
+          }
+        }
+      } catch (err) {
+        // layer might not be rendered
+      }
+
+      if (clickedFlightId) {
+        if (selectedAircraftId === clickedFlightId) {
+          setSelectedAircraftId(null);
+        } else {
+          setSelectedAircraftId(clickedFlightId);
+        }
+        return; // Prevent drawing or selecting other stuff
+      } else {
+        if (selectedAircraftId) {
+          setSelectedAircraftId(null);
+        }
       }
 
       // Handle selection first
@@ -1533,7 +2114,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       map.off('touchmove', onTouchMove);
       map.off('touchend', onTouchEnd);
     };
-  }, [activeTool, currentColor, setAnnotations, activeGeojsonLayerId, setActiveGeojsonLayerId, setSelectedGeojsonFeatureId]);
+  }, [activeTool, currentColor, setAnnotations, activeGeojsonLayerId, setActiveGeojsonLayerId, setSelectedGeojsonFeatureId, selectedAircraftId, settings.layers]);
 
   return (
     <div className={`absolute inset-0 w-full h-full ${isSecondary ? 'pointer-events-none' : ''}`} style={{ clipPath, WebkitClipPath: clipPath, zIndex: isSecondary ? 10 : 0 }}>
@@ -1612,6 +2193,8 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
       };
     }
   }, [isDragging, splitVertical]);
+
+
 
   let settings1 = props.settings;
   let settings2 = props.settings;

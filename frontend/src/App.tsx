@@ -24,7 +24,8 @@ const DEFAULT_SETTINGS: AppSettings = {
     { id: 'split-container', name: 'Split View Container', type: 'split', visible: false, splitPosition: 0.5, splitDirection: 'vertical', splitLayers: [] },
     { id: 'deepstate', name: 'UKRAINE CURRENT', type: 'deepstate', visible: false, isLive: true },
     { id: 'copernicus', name: 'Wildfires (EFFIS)', type: 'raster', visible: false, url: 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}' },
-    { id: 'satellite', name: 'Satellite Map Overlay (Mapbox)', type: 'satellite', visible: false }
+    { id: 'satellite', name: 'Satellite Map Overlay (Mapbox)', type: 'satellite', visible: false },
+    { id: 'flights', name: 'Air Traffic (OpenSky)', type: 'flights', visible: false }
   ]
 };
 
@@ -98,45 +99,8 @@ function App() {
 
             const mergedLayers = savedLayers.map(processSavedLayer);
 
-            // Helper to recursively check if a layer exists anywhere in the tree
-            const layerExists = (layers: MapLayer[], id: string): boolean => {
-              for (const l of layers) {
-                if (l.id === id) return true;
-                if (l.type === 'split' && l.splitLayers) {
-                  if (layerExists(l.splitLayers, id)) return true;
-                }
-              }
-              return false;
-            };
-
-            // Inject mandatory layers if missing completely from the tree
-            if (!layerExists(mergedLayers, 'split-container')) {
-              mergedLayers.unshift(DEFAULT_SETTINGS.layers.find(l => l.id === 'split-container')!);
-            }
-            if (!layerExists(mergedLayers, 'deepstate')) {
-              const defaultDeepstate = DEFAULT_SETTINGS.layers.find(l => l.id === 'deepstate')!;
-              const splitIndex = mergedLayers.findIndex((l: MapLayer) => l.id === 'split-container');
-              if (splitIndex !== -1) {
-                mergedLayers.splice(splitIndex + 1, 0, defaultDeepstate);
-              } else {
-                mergedLayers.unshift(defaultDeepstate);
-              }
-            }
-            if (!layerExists(mergedLayers, 'copernicus')) {
-              const defaultCopernicus = DEFAULT_SETTINGS.layers.find(l => l.id === 'copernicus');
-              if (defaultCopernicus) {
-                const deepstateIndex = mergedLayers.findIndex((l: MapLayer) => l.id === 'deepstate');
-                if (deepstateIndex !== -1) {
-                  mergedLayers.splice(deepstateIndex + 1, 0, defaultCopernicus);
-                } else {
-                  mergedLayers.unshift(defaultCopernicus);
-                }
-              }
-            }
-            if (!layerExists(mergedLayers, 'satellite')) {
-              mergedLayers.push(DEFAULT_SETTINGS.layers.find(l => l.id === 'satellite')!);
-            }
-
+            // We no longer forcefully inject mandatory layers here. 
+            // Users can now toggle them manually via the App Config menu.
             return { ...prev, ...data.settings, layers: mergedLayers };
           });
         }

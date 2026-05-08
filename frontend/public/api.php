@@ -19,6 +19,131 @@ if (!file_exists($db_file)) {
     file_put_contents($db_file, $initial_data);
 }
 
+// Handle OpenSky proxy request
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'opensky') {
+    $url = 'https://opensky-network.org/api/states/all?' . http_build_query([
+        'lamin' => $_GET['lamin'] ?? '',
+        'lomin' => $_GET['lomin'] ?? '',
+        'lamax' => $_GET['lamax'] ?? '',
+        'lomax' => $_GET['lomax'] ?? '',
+        'extended' => '1'
+    ]);
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    
+    // Auth
+    if (!empty($_GET['token'])) {
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: Bearer ' . $_GET['token']
+        ]);
+    }
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    http_response_code($httpCode);
+    echo $response;
+    exit;
+}
+
+// Handle OpenSky track proxy request
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'opensky_track') {
+    $url = 'https://opensky-network.org/api/tracks/all?' . http_build_query([
+        'icao24' => $_GET['icao24'] ?? '',
+        'time' => $_GET['time'] ?? '0'
+    ]);
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    
+    // Auth
+    if (!empty($_GET['token'])) {
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: Bearer ' . $_GET['token']
+        ]);
+    }
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    http_response_code($httpCode);
+    echo $response;
+    exit;
+}
+
+// Handle OpenSky token proxy request
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['action'] === 'opensky_token') {
+    $url = 'https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token';
+    
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+        'grant_type' => 'client_credentials',
+        'client_id' => $_POST['client_id'] ?? '',
+        'client_secret' => $_POST['client_secret'] ?? ''
+    ]));
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    http_response_code($httpCode);
+    echo $response;
+    exit;
+}
+
+// Handle OpenSky metadata proxy request
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'opensky_metadata') {
+    $icao24 = $_GET['icao24'] ?? '';
+    $url = 'https://opensky-network.org/api/metadata/aircraft/icao/' . urlencode($icao24);
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    
+    // Auth
+    if (!empty($_GET['token'])) {
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: Bearer ' . $_GET['token']
+        ]);
+    }
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    http_response_code($httpCode);
+    echo $response;
+    exit;
+}
+
+// Handle OpenSky route proxy request
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'opensky_route') {
+    $callsign = $_GET['callsign'] ?? '';
+    $url = 'https://opensky-network.org/api/routes?callsign=' . urlencode($callsign);
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    
+    // Auth
+    if (!empty($_GET['token'])) {
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: Bearer ' . $_GET['token']
+        ]);
+    }
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    http_response_code($httpCode);
+    echo $response;
+    exit;
+}
+
 // Handle GET request
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $data = file_get_contents($db_file);
