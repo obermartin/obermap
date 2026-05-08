@@ -3,7 +3,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { Annotation, ToolType, AppSettings } from '../types';
 import * as turf from '@turf/turf';
-import { createCirclePolygon, calculateDistance, simplifyLine, transliterateToGerman } from '../utils/mapUtils';
+import { createCirclePolygon, calculateDistance, simplifyLine, transliterateToGerman, createArrowFeatures } from '../utils/mapUtils';
 import anyAscii from 'any-ascii';
 
 let globalDeepstateHistory: { id: number; createdAt: string }[] | null = null;
@@ -74,6 +74,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const currentShapeCoords = useRef<[number, number][]>([]);
 
   const circleCenter = useRef<[number, number] | null>(null);
+  const arrowStart = useRef<[number, number] | null>(null);
 
   useEffect(() => {
     if (!mapContainer.current) return;
@@ -97,6 +98,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
     // Add Orbital controls (NavigationControl)
     map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true, showZoom: false }), 'top-right');
+    
+    // Add Scale control
+    map.addControl(new mapboxgl.ScaleControl({ maxWidth: 150, unit: 'metric' }), 'top-right');
 
     map.on('load', () => {
       if (mapRef.current !== map) return;
@@ -132,7 +136,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         source: 'custom-annotations',
         filter: ['==', '$type', 'Polygon'],
         paint: {
-          'fill-opacity': 0.5,
+          'fill-opacity': ['coalesce', ['get', 'fillOpacity'], 0.5],
           'fill-color': ['coalesce', ['get', 'color'], '#ffffff']
         }
       }, firstSymbolId);
@@ -152,11 +156,15 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         }
       });
 
-      // Lines (Paint & Measure & Outlines)
+      // Lines (Paint & Measure & Outlines & Arrows)
       map.addLayer({
         id: 'custom-lines',
         type: 'line',
         source: 'custom-annotations',
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round'
+        },
         paint: {
           'line-width': 6,
           'line-color': ['coalesce', ['get', 'color'], '#ffffff']
@@ -280,8 +288,27 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       const event = new CustomEvent('viewCaptured', { detail: view });
       window.dispatchEvent(event);
     };
+    
+    const handleRequestViewCaptureForPosition = () => {
+      if (!mapRef.current) return;
+      const map = mapRef.current;
+      const center = map.getCenter();
+      const view = {
+        center: [center.lng, center.lat] as [number, number],
+        zoom: map.getZoom(),
+        pitch: map.getPitch(),
+        bearing: map.getBearing()
+      };
+      const event = new CustomEvent('viewCapturedForPosition', { detail: view });
+      window.dispatchEvent(event);
+    };
+    
     window.addEventListener('requestViewCapture', handleRequestViewCapture);
-    return () => window.removeEventListener('requestViewCapture', handleRequestViewCapture);
+    window.addEventListener('requestViewCaptureForPosition', handleRequestViewCaptureForPosition);
+    return () => {
+      window.removeEventListener('requestViewCapture', handleRequestViewCapture);
+      window.removeEventListener('requestViewCaptureForPosition', handleRequestViewCaptureForPosition);
+    };
   }, []);
 
   useEffect(() => {
@@ -334,38 +361,40 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     const source = mapRef.current.getSource('custom-annotations') as mapboxgl.GeoJSONSource;
     if (!source) return;
 
-    const features: GeoJSON.Feature[] = annotations.map(ann => {
+    const features: GeoJSON.Feature[] = annotations.reduce((acc: GeoJSON.Feature[], ann) => {
       if (ann.type === 'paint') {
-        return {
+        acc.push({
           type: 'Feature',
           geometry: { type: 'LineString', coordinates: ann.coordinates },
           properties: { color: ann.color, id: ann.id, type: ann.type }
-        };
-      }
-      if (ann.type === 'measure') {
+        });
+      } else if (ann.type === 'measure') {
         const dist = calculateDistance(ann.coordinates);
-        return {
+        acc.push({
           type: 'Feature',
           geometry: { type: 'LineString', coordinates: ann.coordinates },
           properties: { color: ann.color, id: ann.id, type: ann.type, textLabel: `${dist.toFixed(2)} km` }
-        };
-      }
-      if (ann.type === 'circle') {
-        return {
+        });
+      } else if (ann.type === 'circle') {
+        acc.push({
           type: 'Feature',
           geometry: { type: 'Polygon', coordinates: ann.coordinates },
           properties: { color: ann.color, id: ann.id, type: ann.type, textLabel: `${ann.radius?.toFixed(2)} km` }
-        };
-      }
-      if (ann.type === 'polygon') {
-        return {
+        });
+      } else if (ann.type === 'polygon') {
+        acc.push({
           type: 'Feature',
           geometry: { type: 'Polygon', coordinates: ann.coordinates },
           properties: { color: ann.color, id: ann.id, type: ann.type }
-        };
+        });
+      } else if (ann.type === 'arrow' && ann.coordinates && ann.coordinates.length === 2) {
+        const arrowFeats = createArrowFeatures(ann.coordinates[0], ann.coordinates[1], ann.color || '#ffffff', ann.id);
+        if (arrowFeats) {
+          acc.push(arrowFeats.shaft, arrowFeats.head);
+        }
       }
-      return null;
-    }).filter(Boolean) as GeoJSON.Feature[];
+      return acc;
+    }, []);
 
     source.setData({ type: 'FeatureCollection', features });
 
@@ -373,7 +402,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     const expectedMarkers = new Map<string, { lngLat: [number, number], el: HTMLElement }>();
 
     annotations.forEach(ann => {
-      if (ann.type === 'label') {
+      if (ann.type === 'label' && ann.coordinates) {
         const el = document.createElement('div');
         el.className = 'custom-marker';
         const contrastColor = getContrastYIQ(ann.color || '#ffffff');
@@ -864,11 +893,34 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               
               const geojsonData = data.map ? data.map : data;
               if (geojsonData && geojsonData.features) {
+                const ignoredTerms = [
+                  'geoJSON.territories.estonia',
+                  'geoJSON.territories.pechorsky-district',
+                  'geoJSON.territories.latvia',
+                  'geoJSON.territories.karelia',
+                  'geoJSON.territories.prussia',
+                  'geoJSON.territories.salla',
+                  'geoJSON.territories.petsamo',
+                  'geoJSON.territories.abkhazia',
+                  'geoJSON.territories.tskhinvali-district',
+                  'geoJSON.territories.ichkeria',
+                  'geoJSON.territories.kuril'
+                ];
+
+                const filteredFeatures = geojsonData.features.filter((f: any) => {
+                  const isPolygon = f.geometry?.type === 'Polygon' || f.geometry?.type === 'MultiPolygon';
+                  if (!isPolygon) return false;
+                  
+                  const name = f.properties?.name || '';
+                  if (typeof name === 'string' && ignoredTerms.some(term => name.includes(term))) {
+                    return false;
+                  }
+                  return true;
+                });
+
                 const polygonsOnly = {
                   ...geojsonData,
-                  features: geojsonData.features.filter((f: any) => 
-                    f.geometry?.type === 'Polygon' || f.geometry?.type === 'MultiPolygon'
-                  )
+                  features: filteredFeatures
                 };
                 const source = map.getSource(sourceId) as mapboxgl.GeoJSONSource;
                 if (source) source.setData(polygonsOnly);
@@ -994,6 +1046,10 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     if (!mapRef.current || !mapLoaded) return;
     mapRef.current.getCanvas().style.cursor = activeTool !== 'none' ? 'crosshair' : 'grab';
     clearActiveDrawMarkers();
+    isDrawing.current = false;
+    mapRef.current.dragPan.enable();
+    const source = mapRef.current.getSource('active-drawing') as mapboxgl.GeoJSONSource;
+    if (source) source.setData({ type: 'FeatureCollection', features: [] });
   }, [activeTool, mapLoaded]);
 
   const updateActiveDrawing = (geojson: any) => {
@@ -1111,6 +1167,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         }
       }
 
+
       if (activeTool === 'measure') {
         if (!isDrawing.current) {
           isDrawing.current = true;
@@ -1142,6 +1199,24 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     const onMouseDown = (e: mapboxgl.MapMouseEvent) => {
       if (activeTool === 'none') return;
 
+      // Check if we clicked on an existing annotation feature FIRST
+      let features: mapboxgl.MapboxGeoJSONFeature[] = [];
+      try {
+        features = map.queryRenderedFeatures(e.point, { layers: ['custom-polygons', 'custom-lines'] });
+      } catch (e) {
+        // layer might not be ready
+      }
+      
+      if (features.length > 0) {
+        const clickedId = features[0].properties?.id;
+        if (clickedId) {
+          setSelectedAnnotationId(clickedId);
+          return; // Prevent drawing if we selected an element
+        }
+      } else {
+        setSelectedAnnotationId(null);
+      }
+
       if (activeTool === 'paint') {
         isDrawing.current = true;
         currentShapeCoords.current = [[e.lngLat.lng, e.lngLat.lat]];
@@ -1161,6 +1236,14 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         activeDrawMarkersRef.current['circle-center'] = new mapboxgl.Marker({ element: centerEl })
           .setLngLat(circleCenter.current)
           .addTo(map);
+      }
+
+      if (activeTool === 'arrow') {
+        if (!isDrawing.current) {
+          isDrawing.current = true;
+          arrowStart.current = [e.lngLat.lng, e.lngLat.lat];
+          map.dragPan.disable();
+        }
       }
     };
 
@@ -1209,6 +1292,17 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               activeDrawMarkersRef.current['circle-radius'].getElement().innerHTML = `${radius.toFixed(2)} km`;
             }
           }
+        }
+      }
+
+      if (activeTool === 'arrow' && arrowStart.current) {
+        const currentPos: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+        const feats = createArrowFeatures(arrowStart.current, currentPos, currentColor);
+        if (feats) {
+          updateActiveDrawing({
+            type: 'FeatureCollection',
+            features: [feats.shaft, feats.head]
+          });
         }
       }
 
@@ -1284,6 +1378,29 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         setActiveDistance(null);
         circleCenter.current = null;
       }
+
+      if (activeTool === 'arrow' && arrowStart.current) {
+        const p1 = map.project(arrowStart.current);
+        const p2 = e.point || map.project(e.lngLat);
+        const distPx = Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+        
+        // Finalize if dragged more than 5 pixels, OR if this is the second click (which would be far from the first click's position)
+        if (distPx > 5) {
+          isDrawing.current = false;
+          map.dragPan.enable();
+          const currentPos: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+          const startPos: [number, number] = [arrowStart.current[0], arrowStart.current[1]];
+          
+          setAnnotations(prev => [...prev, {
+            id: `arrow-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            type: 'arrow',
+            color: currentColor,
+            coordinates: [startPos, currentPos]
+          }]);
+          updateActiveDrawing({ type: 'FeatureCollection', features: [] });
+          arrowStart.current = null;
+        }
+      }
     };
 
     const onDblClick = (e: mapboxgl.MapMouseEvent) => {
@@ -1345,7 +1462,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
     const onTouchStart = (e: mapboxgl.MapTouchEvent) => {
       if (e.points.length > 1) return;
-      if (activeTool === 'paint' || activeTool === 'circle') {
+      if (activeTool === 'paint' || activeTool === 'circle' || activeTool === 'arrow') {
         e.preventDefault();
         onMouseDown(e as unknown as mapboxgl.MapMouseEvent);
       }
@@ -1353,14 +1470,14 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
     const onTouchMove = (e: mapboxgl.MapTouchEvent) => {
       if (e.points.length > 1) return;
-      if (isDrawing.current && (activeTool === 'paint' || activeTool === 'circle')) {
+      if (isDrawing.current && (activeTool === 'paint' || activeTool === 'circle' || activeTool === 'arrow')) {
         e.preventDefault();
         onMouseMove(e as unknown as mapboxgl.MapMouseEvent);
       }
     };
 
     const onTouchEnd = (e: mapboxgl.MapTouchEvent) => {
-      if (isDrawing.current && (activeTool === 'paint' || activeTool === 'circle')) {
+      if (isDrawing.current && (activeTool === 'paint' || activeTool === 'circle' || activeTool === 'arrow')) {
         // In some cases touchend might lack a reliable lngLat, but Mapbox usually provides it based on changedTouches.
         // We ensure it falls back if needed.
         const fakeEvent = e as unknown as mapboxgl.MapMouseEvent;
@@ -1370,6 +1487,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         } else if (!fakeEvent.lngLat && activeTool === 'circle' && circleCenter.current) {
            // fallback for circle
            fakeEvent.lngLat = new mapboxgl.LngLat(circleCenter.current[0], circleCenter.current[1]);
+        } else if (!fakeEvent.lngLat && activeTool === 'arrow' && arrowStart.current) {
+           // fallback for arrow (draws a dot basically)
+           fakeEvent.lngLat = new mapboxgl.LngLat(arrowStart.current[0], arrowStart.current[1]);
         }
         onMouseUp(fakeEvent);
       }

@@ -98,3 +98,43 @@ export const transliterateToGerman = (text: string, isRussian: boolean = false):
   
   return result;
 };
+
+export const createArrowFeatures = (start: [number, number], end: [number, number], color: string, id: string = '') => {
+  const distance = turf.distance(start, end, { units: 'kilometers' });
+  if (distance === 0) return null;
+
+  const startCoord: [number, number] = [start[0], start[1]];
+  const endCoord: [number, number] = [end[0], end[1]];
+
+  const shaft: GeoJSON.Feature<GeoJSON.LineString> = {
+    type: 'Feature',
+    geometry: { type: 'LineString', coordinates: [startCoord, endCoord] },
+    properties: { color, $type: 'LineString', id }
+  };
+
+  const bearing = turf.bearing(startCoord, endCoord);
+  
+  // Dynamic head length based on distance, capped for sanity
+  let headLength = distance * 0.2;
+  if (headLength > 50) headLength = 50;
+  if (headLength < 0.05) headLength = 0.05;
+
+  // Draw two lines back from the tip at 45 degree angles (bearing +/- 135)
+  const leftPt = turf.destination(endCoord, headLength, bearing - 135, { units: 'kilometers' });
+  const rightPt = turf.destination(endCoord, headLength, bearing + 135, { units: 'kilometers' });
+
+  const head: GeoJSON.Feature<GeoJSON.LineString> = {
+    type: 'Feature',
+    geometry: {
+      type: 'LineString',
+      coordinates: [
+        [leftPt.geometry.coordinates[0], leftPt.geometry.coordinates[1]],
+        endCoord,
+        [rightPt.geometry.coordinates[0], rightPt.geometry.coordinates[1]]
+      ]
+    },
+    properties: { color, $type: 'LineString', id }
+  };
+
+  return { shaft, head };
+};

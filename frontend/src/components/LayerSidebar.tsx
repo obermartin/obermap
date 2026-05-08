@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Reorder, useDragControls, motion } from 'framer-motion';
-import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2, Edit2, Square, RefreshCcw, RotateCcw, Copy, Radio } from 'lucide-react';
+import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2, Edit2, Square, RefreshCcw, RotateCcw, Copy, Radio, Settings, Save, Loader2 } from 'lucide-react';
 import type { AppSettings, MapLayer } from '../types';
 import { parseMapFileWithIds } from '../utils/fileUtils';
 
@@ -12,6 +12,8 @@ interface LayerSidebarProps {
   activeGeojsonLayerId: string | null;
   setActiveGeojsonLayerId: React.Dispatch<React.SetStateAction<string | null>>;
   selectedGeojsonFeatureId: string | number | null;
+  onSave?: () => void;
+  isSaving?: boolean;
 }
 
 export function LayerSidebar({
@@ -21,7 +23,9 @@ export function LayerSidebar({
   setIsOpen,
   activeGeojsonLayerId,
   setActiveGeojsonLayerId,
-  selectedGeojsonFeatureId
+  selectedGeojsonFeatureId,
+  onSave,
+  isSaving
 }: LayerSidebarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [urlInput, setUrlInput] = useState('');
@@ -35,7 +39,106 @@ export function LayerSidebar({
   };
 
 
+  const [addingColor, setAddingColor] = useState(false);
+  const [newColorHex, setNewColorHex] = useState('#000000');
 
+  const dragItem = useRef<number | null>(null);
+  const dragOverItem = useRef<number | null>(null);
+  
+  const iconDragItem = useRef<number | null>(null);
+  const iconDragOverItem = useRef<number | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    dragItem.current = index;
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragEnter = (index: number) => {
+    dragOverItem.current = index;
+  };
+
+  const handleColorDragEnd = () => {
+    const fromIndex = dragItem.current;
+    const toIndex = dragOverItem.current;
+
+    if (fromIndex !== null && toIndex !== null && fromIndex !== toIndex) {
+      setSettings(prev => {
+        const newColors = [...prev.colorPalette];
+        const draggedColor = newColors[fromIndex];
+        newColors.splice(fromIndex, 1);
+        newColors.splice(toIndex, 0, draggedColor);
+        return { ...prev, colorPalette: newColors };
+      });
+    }
+    dragItem.current = null;
+    dragOverItem.current = null;
+  };
+
+  const confirmAddColor = () => {
+    if (/^#[0-9A-F]{6}$/i.test(newColorHex)) {
+      setSettings(prev => ({ ...prev, colorPalette: [...prev.colorPalette, newColorHex.toUpperCase()] }));
+      setAddingColor(false);
+    } else {
+      alert('Invalid hex color format. Use #RRGGBB');
+    }
+  };
+
+  const removeColor = (color: string) => {
+    setSettings(prev => ({ ...prev, colorPalette: prev.colorPalette.filter(c => c !== color) }));
+  };
+
+  const handleIconDragStart = (e: React.DragEvent, index: number) => {
+    iconDragItem.current = index;
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleIconDragEnter = (index: number) => {
+    iconDragOverItem.current = index;
+  };
+
+  const handleIconDragEnd = () => {
+    const fromIndex = iconDragItem.current;
+    const toIndex = iconDragOverItem.current;
+
+    if (fromIndex !== null && toIndex !== null && fromIndex !== toIndex) {
+      setSettings(prev => {
+        const newIcons = [...(prev.icons || [])];
+        const [movedItem] = newIcons.splice(fromIndex, 1);
+        newIcons.splice(toIndex, 0, movedItem);
+        return { ...prev, icons: newIcons };
+      });
+    }
+    iconDragItem.current = null;
+    iconDragOverItem.current = null;
+  };
+
+  const removeIcon = (iconId: string) => {
+    setSettings(prev => ({ ...prev, icons: (prev.icons || []).filter(i => i.id !== iconId) }));
+  };
+
+  const handleIconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (text.includes('<svg')) {
+        const newIcon = {
+          id: `icon-${Date.now()}`,
+          svg: text
+        };
+        setSettings(prev => ({
+          ...prev,
+          icons: [...(prev.icons || []), newIcon]
+        }));
+      } else {
+        alert('Invalid SVG file.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
   const updateLayerRecursively = (layers: MapLayer[], targetId: string, updater: (l: MapLayer) => MapLayer): MapLayer[] => {
     return layers.map(layer => {
       if (layer.id === targetId) return updater(layer);
@@ -314,26 +417,46 @@ export function LayerSidebar({
         </button>
         <button
           onClick={() => setActiveTab('basemap')}
-          className={`flex-1 py-3 text-center transition-colors ${activeTab === 'basemap' ? 'bg-white text-black' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}
+          className={`flex-1 py-3 flex items-center justify-center transition-colors ${activeTab === 'basemap' ? 'bg-white text-black' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}
+          title="Base Map & Settings"
         >
-          BASE MAP
+          <Settings size={18} />
         </button>
+        {onSave && (
+          <button
+            onClick={onSave}
+            disabled={isSaving}
+            className={`w-14 flex items-center justify-center border-l border-white/10 transition-colors ${isSaving ? 'text-white cursor-wait bg-white/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
+            title="Save Map & Settings"
+          >
+            {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+          </button>
+        )}
       </div>
 
       {activeTab === 'layers' ? (
         <>
           <div className="p-4 border-b border-white/10">
-            <label className="text-xs text-white/50 mb-2 block font-semibold tracking-wider">LABEL DENSITY</label>
+            <label className="text-xs text-white/50 mb-2 block font-semibold tracking-wider">
+              LABEL DENSITY ({settings.labelDensity ?? 50}%)
+            </label>
             <div className="flex items-center gap-3">
-              <span className="text-xs">0%</span>
-              <input
-                type="range"
-                min="0" max="100"
-                value={settings.labelDensity ?? 50}
-                onChange={e => setSettings(prev => ({ ...prev, labelDensity: Number(e.target.value) }))}
-                className="flex-1 accent-white h-1 bg-white/20 appearance-none cursor-pointer"
-              />
-              <span className="text-xs">100%</span>
+              <span className="text-xs text-white/50 w-8 text-right">0%</span>
+              <div className="relative flex-1 flex flex-col justify-center h-8">
+                <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 flex justify-between px-2 pointer-events-none">
+                  {[...Array(11)].map((_, i) => (
+                    <div key={i} className="w-[1px] h-2.5 bg-white/30" />
+                  ))}
+                </div>
+                <input
+                  type="range"
+                  min="0" max="100"
+                  value={settings.labelDensity ?? 50}
+                  onChange={e => setSettings(prev => ({ ...prev, labelDensity: Number(e.target.value) }))}
+                  className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer relative z-10"
+                />
+              </div>
+              <span className="text-xs text-white/50 w-8">100%</span>
             </div>
           </div>
 
@@ -444,6 +567,95 @@ export function LayerSidebar({
         </>
       ) : (
         <div className="p-4 flex flex-col gap-6 flex-1 overflow-y-auto custom-scrollbar">
+          <div>
+            <label className="text-xs text-white/50 mb-2 block font-semibold tracking-wider">COLOR PALETTE</label>
+            <div className="flex flex-wrap gap-2 items-center">
+              {settings.colorPalette.map((c, index) => (
+                <div 
+                  key={c} 
+                  className="w-8 h-8 border border-white/20 relative group cursor-grab active:cursor-grabbing"
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragEnter={() => handleDragEnter(index)}
+                  onDragEnd={handleColorDragEnd}
+                  onDragOver={(e) => e.preventDefault()}
+                >
+                  <div className="w-full h-full" style={{ backgroundColor: c }} />
+                  <button 
+                    onClick={() => removeColor(c)}
+                    className="absolute inset-0 bg-black/60 text-white hidden group-hover:flex items-center justify-center text-xs font-bold transition-opacity"
+                    title="Remove color"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {!addingColor ? (
+                <button 
+                  onClick={() => setAddingColor(true)}
+                  className="w-8 h-8 border border-white/20 flex items-center justify-center hover:bg-white hover:text-black transition-colors shrink-0"
+                  title="Add color"
+                >
+                  +
+                </button>
+              ) : (
+                <div className="flex gap-1 items-center shrink-0 bg-white/5 border border-white/20 p-1">
+                  <input 
+                    type="color"
+                    className="w-8 h-8 p-0 border-0 cursor-pointer bg-transparent"
+                    value={newColorHex}
+                    onChange={e => setNewColorHex(e.target.value.toUpperCase())}
+                    title="Choose a color"
+                  />
+                  <input 
+                    autoFocus
+                    className="w-24 bg-transparent px-1 outline-none font-mono text-xs border border-transparent focus:border-white/50 transition-colors h-8 uppercase"
+                    value={newColorHex}
+                    onChange={e => setNewColorHex(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') confirmAddColor();
+                      if (e.key === 'Escape') setAddingColor(false);
+                    }}
+                  />
+                  <button onClick={confirmAddColor} className="text-white hover:bg-white hover:text-black px-3 font-semibold border border-white/20 text-xs h-8">OK</button>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <div>
+            <label className="text-xs text-white/50 mb-2 block font-semibold tracking-wider">ICONS</label>
+            <div className="flex flex-wrap gap-2 items-center">
+              {settings.icons?.map((iconObj, index) => (
+                <div 
+                  key={iconObj.id} 
+                  className="w-10 h-10 border border-white/20 relative group cursor-grab active:cursor-grabbing flex items-center justify-center bg-white/10"
+                  draggable
+                  onDragStart={(e) => handleIconDragStart(e, index)}
+                  onDragEnter={() => handleIconDragEnter(index)}
+                  onDragEnd={handleIconDragEnd}
+                  onDragOver={(e) => e.preventDefault()}
+                >
+                  <div className="w-full h-full p-2 icon-svg-wrapper" style={{ color: 'white' }} dangerouslySetInnerHTML={{ __html: iconObj.svg }} />
+                  <button 
+                    onClick={() => removeIcon(iconObj.id)}
+                    className="absolute inset-0 bg-black/80 text-white hidden group-hover:flex items-center justify-center text-xs font-bold transition-opacity"
+                    title="Remove icon"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              
+              <label className="w-10 h-10 border border-white/20 flex items-center justify-center hover:bg-white hover:text-black transition-colors shrink-0 cursor-pointer" title="Upload SVG Icon">
+                +
+                <input type="file" accept=".svg" className="hidden" onChange={handleIconUpload} />
+              </label>
+            </div>
+          </div>
+
+          <div className="text-xs font-semibold tracking-wider text-white border-b border-white/20 pb-2 mb-2">BASE MAP SETTINGS</div>
+
           <div>
             <label className="text-xs text-white/50 mb-2 block font-semibold tracking-wider">MAPBOX TOKEN</label>
             <input

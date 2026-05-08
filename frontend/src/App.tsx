@@ -6,7 +6,7 @@ import type { Annotation, ToolType, AppSettings, MapLayer } from './types';
 
 const DEFAULT_SETTINGS: AppSettings = {
   mapboxToken: 'pk.eyJ1Ijoib2Jlcm1hcnRpbiIsImEiOiJja25ybGlpYTgyNDRhMnVwcmo5eml4ZGdzIn0.W_ZjSsvTOlZs-Xd7m72DIQ',
-  mapboxStyle: 'mapbox://styles/mapbox/dark-v11',
+  mapboxStyle: 'mapbox://styles/obermartin/cmor4oid5000n01qphyjgg4u7',
   defaultView: {
     center: [35.0, 48.5],
     zoom: 5,
@@ -43,6 +43,7 @@ function App() {
   const [isLayerSidebarOpen, setIsLayerSidebarOpen] = useState(false);
   const [activeGeojsonLayerId, setActiveGeojsonLayerId] = useState<string | null>(null);
   const [selectedGeojsonFeatureId, setSelectedGeojsonFeatureId] = useState<string | number | null>(null);
+  const [isToolbarOpen, setIsToolbarOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -230,8 +231,26 @@ function App() {
       alert('Default map view captured!');
     }) as EventListener;
     window.addEventListener('viewCaptured', handleViewCaptured);
-    return () => window.removeEventListener('viewCaptured', handleViewCaptured);
-  }, []);
+
+    const handleViewCapturedForPosition = ((e: CustomEvent<AppSettings['defaultView']>) => {
+      setAnnotations(prev => {
+        const positionCount = prev.filter(a => a.type === 'label' && a.text?.startsWith('POSITION ')).length + 1;
+        return [...prev, {
+          id: `position-${Date.now()}`,
+          type: 'label',
+          color: currentColor,
+          text: `POSITION ${positionCount}`,
+          view: e.detail
+        }];
+      });
+    }) as EventListener;
+    window.addEventListener('viewCapturedForPosition', handleViewCapturedForPosition);
+
+    return () => {
+      window.removeEventListener('viewCaptured', handleViewCaptured);
+      window.removeEventListener('viewCapturedForPosition', handleViewCapturedForPosition);
+    };
+  }, [currentColor]);
 
   if (!isLoaded) {
     return (
@@ -265,6 +284,7 @@ function App() {
         onFlyTo={handleFlyTo}
         defaultView={settings.defaultView}
         isSidebarOpen={isLayerSidebarOpen}
+        isToolbarOpen={isToolbarOpen}
       />
       {/* Floating active distance readout for Measure and Circle tools */}
       {(activeTool === 'measure' || activeTool === 'circle') && activeDistance !== null && (
@@ -274,7 +294,7 @@ function App() {
       )}
 
       {/* Bottom Left UI Controls */}
-      <div className={`absolute bottom-6 left-6 z-10 flex gap-2 transition-transform duration-300 ease-in-out ${isLayerSidebarOpen ? 'translate-x-[20rem]' : 'translate-x-0'}`}>
+      <div className={`absolute bottom-6 left-6 z-10 flex items-end gap-2 transition-transform duration-300 ease-in-out ${isLayerSidebarOpen ? 'translate-x-[20rem]' : 'translate-x-0'}`}>
         <button 
           onClick={() => setIsLayerSidebarOpen(!isLayerSidebarOpen)}
           className="bg-black w-12 h-12 flex flex-shrink-0 items-center justify-center hover:bg-white hover:text-black transition-colors text-white shadow-lg"
@@ -292,8 +312,9 @@ function App() {
           onDelete={handleDelete}
           hasSelection={!!selectedAnnotationId}
           settings={settings}
-          setSettings={setSettings}
           isSaving={isSaving}
+          isOpen={isToolbarOpen}
+          setIsOpen={setIsToolbarOpen}
         />
       </div>
 
@@ -305,6 +326,8 @@ function App() {
         activeGeojsonLayerId={activeGeojsonLayerId}
         setActiveGeojsonLayerId={setActiveGeojsonLayerId}
         selectedGeojsonFeatureId={selectedGeojsonFeatureId}
+        onSave={handleSave}
+        isSaving={isSaving}
       />
 
       {labelPrompt && (

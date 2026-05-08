@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Tag, Highlighter, Paintbrush, Hexagon, Circle as CircleIcon, Ruler, Save, Trash2, X, Settings, MapPin, Loader2 } from 'lucide-react';
+import { Tag, Highlighter, Paintbrush, Hexagon, Circle as CircleIcon, Ruler, Save, Trash2, X, MapPin, Loader2, ArrowUpRight } from 'lucide-react';
 import type { ToolType, AppSettings } from '../types';
 import clsx from 'clsx';
 
@@ -13,8 +13,9 @@ interface ToolbarProps {
   onDelete: () => void;
   hasSelection: boolean;
   settings: AppSettings;
-  setSettings: React.Dispatch<React.SetStateAction<AppSettings>>;
   isSaving?: boolean;
+  isOpen: boolean;
+  setIsOpen: (open: boolean) => void;
 }
 
 const TOOLS = [
@@ -23,6 +24,7 @@ const TOOLS = [
   { id: 'paint', icon: Paintbrush, label: 'Paint (Freehand)' },
   { id: 'polygon', icon: Hexagon, label: 'Polygon' },
   { id: 'circle', icon: CircleIcon, label: 'Circle' },
+  { id: 'arrow', icon: ArrowUpRight, label: 'Arrow' },
   { id: 'measure', icon: Ruler, label: 'Measure' },
   { id: 'icon', icon: MapPin, label: 'Add Icon' },
 ] as const;
@@ -47,20 +49,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onDelete,
   hasSelection,
   settings,
-  setSettings,
-  isSaving
+  isSaving,
+  isOpen,
+  setIsOpen
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [addingColor, setAddingColor] = useState(false);
-  const [newColorHex, setNewColorHex] = useState('#000000');
-
-  const dragItem = useRef<number | null>(null);
-  const dragOverItem = useRef<number | null>(null);
-  
-  const iconDragItem = useRef<number | null>(null);
-  const iconDragOverItem = useRef<number | null>(null);
-
   const startIconDrag = (e: React.PointerEvent, iconId: string) => {
     if (activeTool !== 'icon') return;
     e.preventDefault();
@@ -102,104 +94,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     window.addEventListener('pointerup', onPointerUp);
   };
 
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    dragItem.current = index;
-    e.dataTransfer.effectAllowed = "move";
-  };
-
-  const handleDragEnter = (index: number) => {
-    dragOverItem.current = index;
-  };
-
-  const handleDragEnd = () => {
-    const fromIndex = dragItem.current;
-    const toIndex = dragOverItem.current;
-
-    if (fromIndex !== null && toIndex !== null && fromIndex !== toIndex) {
-      setSettings(prev => {
-        const newColors = [...prev.colorPalette];
-        const draggedColor = newColors[fromIndex];
-        newColors.splice(fromIndex, 1);
-        newColors.splice(toIndex, 0, draggedColor);
-        return { ...prev, colorPalette: newColors };
-      });
-    }
-    dragItem.current = null;
-    dragOverItem.current = null;
-  };
-
-
-
-  const confirmAddColor = () => {
-    if (/^#[0-9A-F]{6}$/i.test(newColorHex)) {
-      setSettings(prev => ({ ...prev, colorPalette: [...prev.colorPalette, newColorHex.toUpperCase()] }));
-      setAddingColor(false);
-    } else {
-      alert('Invalid hex color format. Use #RRGGBB');
-    }
-  };
-
-  const removeColor = (color: string) => {
-    setSettings(prev => ({ ...prev, colorPalette: prev.colorPalette.filter(c => c !== color) }));
-  };
-
-  const handleIconDragStart = (e: React.DragEvent, index: number) => {
-    iconDragItem.current = index;
-    e.dataTransfer.effectAllowed = "move";
-  };
-
-  const handleIconDragEnter = (index: number) => {
-    iconDragOverItem.current = index;
-  };
-
-  const handleIconDragEnd = () => {
-    const fromIndex = iconDragItem.current;
-    const toIndex = iconDragOverItem.current;
-
-    if (fromIndex !== null && toIndex !== null && fromIndex !== toIndex) {
-      setSettings(prev => {
-        const newIcons = [...(prev.icons || [])];
-        const [movedItem] = newIcons.splice(fromIndex, 1);
-        newIcons.splice(toIndex, 0, movedItem);
-        return { ...prev, icons: newIcons };
-      });
-    }
-    iconDragItem.current = null;
-    iconDragOverItem.current = null;
-  };
-
-  const removeIcon = (iconId: string) => {
-    setSettings(prev => ({ ...prev, icons: (prev.icons || []).filter(i => i.id !== iconId) }));
-  };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      if (text.includes('<svg')) {
-        const newIcon = {
-          id: `icon-${Date.now()}`,
-          svg: text
-        };
-        setSettings(prev => ({
-          ...prev,
-          icons: [...(prev.icons || []), newIcon]
-        }));
-      } else {
-        alert('Invalid SVG file.');
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
-
   return (
     <div className="relative flex flex-col items-start max-w-[calc(100vw-3rem)] sm:max-w-none">
       <AnimatePresence>
-        {isOpen && !isSettingsOpen && activeTool === 'icon' && (
+        {isOpen && activeTool === 'icon' && (
           <motion.div
             initial={{ y: 10, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -220,7 +118,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           </motion.div>
         )}
 
-        {isOpen && !isSettingsOpen && (
+        {isOpen && (
           <motion.div
             initial={{ y: 10, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -244,103 +142,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           </motion.div>
         )}
 
-        {isOpen && isSettingsOpen && (
-          <motion.div
-            initial={{ y: 10, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 10, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="bg-black border border-white/20 p-4 mb-1 w-80 max-w-full text-white flex flex-col gap-4 shadow-xl shrink-0 overflow-y-auto max-h-[60vh] no-scrollbar"
-          >
-
-            <div>
-              <label className="text-xs text-white/50 mb-1 block font-semibold tracking-wider">COLOR PALETTE</label>
-              <div className="flex flex-wrap gap-2 items-center">
-                {settings.colorPalette.map((c, index) => (
-                  <div 
-                    key={c} 
-                    className="w-6 h-6 border border-white/20 relative group cursor-grab active:cursor-grabbing"
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, index)}
-                    onDragEnter={() => handleDragEnter(index)}
-                    onDragEnd={handleDragEnd}
-                    onDragOver={(e) => e.preventDefault()}
-                  >
-                    <div className="w-full h-full" style={{ backgroundColor: c }} />
-                    <button 
-                      onClick={() => removeColor(c)}
-                      className="absolute inset-0 bg-black/60 text-white hidden group-hover:flex items-center justify-center text-xs font-bold transition-opacity"
-                      title="Remove color"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-                {!addingColor ? (
-                  <button 
-                    onClick={() => setAddingColor(true)}
-                    className="w-6 h-6 border border-white/20 flex items-center justify-center hover:bg-white hover:text-black transition-colors shrink-0"
-                    title="Add color"
-                  >
-                    +
-                  </button>
-                ) : (
-                  <div className="flex gap-1 items-center shrink-0 bg-white/5 border border-white/20 p-1">
-                    <input 
-                      type="color"
-                      className="w-6 h-6 p-0 border-0 cursor-pointer bg-transparent"
-                      value={newColorHex}
-                      onChange={e => setNewColorHex(e.target.value.toUpperCase())}
-                      title="Choose a color"
-                    />
-                    <input 
-                      autoFocus
-                      className="w-20 bg-transparent px-1 outline-none font-mono text-xs border border-transparent focus:border-white/50 transition-colors h-6 uppercase"
-                      value={newColorHex}
-                      onChange={e => setNewColorHex(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') confirmAddColor();
-                        if (e.key === 'Escape') setAddingColor(false);
-                      }}
-                    />
-                    <button onClick={confirmAddColor} className="text-white hover:bg-white hover:text-black px-2 font-semibold border border-white/20 text-xs h-6">OK</button>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            <div>
-              <label className="text-xs text-white/50 mb-1 block font-semibold tracking-wider">ICONS</label>
-              <div className="flex flex-wrap gap-2 items-center">
-                {settings.icons?.map((iconObj, index) => (
-                  <div 
-                    key={iconObj.id} 
-                    className="w-8 h-8 border border-white/20 relative group cursor-grab active:cursor-grabbing flex items-center justify-center bg-white/10"
-                    draggable
-                    onDragStart={(e) => handleIconDragStart(e, index)}
-                    onDragEnter={() => handleIconDragEnter(index)}
-                    onDragEnd={handleIconDragEnd}
-                    onDragOver={(e) => e.preventDefault()}
-                  >
-                    <div className="w-full h-full p-1 icon-svg-wrapper" style={{ color: 'white' }} dangerouslySetInnerHTML={{ __html: iconObj.svg }} />
-                    <button 
-                      onClick={() => removeIcon(iconObj.id)}
-                      className="absolute inset-0 bg-black/80 text-white hidden group-hover:flex items-center justify-center text-xs font-bold transition-opacity"
-                      title="Remove icon"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-                
-                <label className="w-8 h-8 border border-white/20 flex items-center justify-center hover:bg-white hover:text-black transition-colors shrink-0 cursor-pointer" title="Upload SVG Icon">
-                  +
-                  <input type="file" accept=".svg" className="hidden" onChange={handleFileUpload} />
-                </label>
-              </div>
-            </div>
-          </motion.div>
-        )}
       </AnimatePresence>
 
       <div className="flex bg-black items-stretch h-12 text-white max-w-full shrink-0 shadow-lg">
@@ -356,12 +157,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               <div className="flex items-stretch shrink-0">
                 {TOOLS.map((tool) => {
                   const Icon = tool.icon;
-                  const isActive = activeTool === tool.id && !isSettingsOpen;
+                  const isActive = activeTool === tool.id;
                   return (
                     <button
                       key={tool.id}
                       onClick={() => {
-                        setIsSettingsOpen(false);
                         setActiveTool(isActive ? 'none' : tool.id);
                       }}
                       className={clsx(
@@ -393,16 +193,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                   <Trash2 size={20} strokeWidth={1.5} />
                 </button>
                 <button
-                  onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                  className={clsx(
-                    "w-12 flex justify-center items-center transition-colors",
-                    isSettingsOpen ? "bg-white text-black" : "text-white/60 hover:text-white hover:bg-white/20"
-                  )}
-                  title="Settings"
-                >
-                  <Settings size={20} strokeWidth={isSettingsOpen ? 2.5 : 1.5} />
-                </button>
-                <button
                   onClick={onSave}
                   disabled={isSaving}
                   className={`w-12 flex justify-center items-center transition-colors ${isSaving ? 'text-white cursor-wait' : 'text-white/60 hover:text-white hover:bg-white/20'}`}
@@ -423,7 +213,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             setIsOpen(next);
             if (next) {
               setActiveTool('highlight');
-              setIsSettingsOpen(false);
             } else {
               setActiveTool('none');
             }
