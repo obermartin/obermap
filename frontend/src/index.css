@@ -55,8 +55,18 @@ html, body, #root {
 }
 
 .custom-highlight-marker {
-  background-color: #000;
-  color: white;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  position: relative;
+  pointer-events: auto;
+}
+
+.custom-highlight-text {
+  position: absolute;
+  left: 22px;
+  top: 50%;
+  transform: translateY(-50%);
   padding: 4px 8px;
   font-size: 14px;
   font-weight: 700;

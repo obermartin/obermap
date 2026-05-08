@@ -434,8 +434,11 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         el.className = 'custom-highlight-marker';
         const contrastColor = getContrastYIQ(ann.color || '#000000');
         el.style.backgroundColor = ann.color;
-        el.style.color = contrastColor;
-        el.innerHTML = ann.text || '';
+        el.innerHTML = `
+          <div class="custom-highlight-text" style="background-color: ${ann.color}; color: ${contrastColor}">
+            ${ann.text || ''}
+          </div>
+        `;
         el.style.cursor = 'pointer';
         el.addEventListener('click', (e) => {
           e.stopPropagation();
