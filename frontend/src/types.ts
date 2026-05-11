@@ -1,5 +1,6 @@
-export type ToolType = 'none' | 'label' | 'highlight' | 'paint' | 'polygon' | 'circle' | 'measure' | 'icon' | 'arrow';
+export type ToolType = 'none' | 'label' | 'highlight' | 'paint' | 'polygon' | 'circle' | 'measure' | 'icon' | 'arrow' | 'route';
 export type StrokeType = 'solid' | 'dashed' | 'dotted';
+export type RouteMode = 'driving' | 'walking' | 'train';
 
 export interface Annotation {
   id: string;
@@ -12,6 +13,9 @@ export interface Annotation {
   text?: string;
   radius?: number;
   iconId?: string;
+  routeGeometry?: any;
+  routeMode?: RouteMode;
+  routeLegs?: { distance: number; duration: number }[];
   view?: {
     center: [number, number];
     zoom: number;
@@ -78,6 +82,7 @@ export interface AppSettings {
   layers: MapLayer[];
   openSkyCredentials?: { clientId: string; clientSecret: string };
   aisstreamCredentials?: { apiKey: string };
+  googleMapsToken?: string;
 }
 
 export interface AppState {

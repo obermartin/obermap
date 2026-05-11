@@ -202,6 +202,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
     exit;
 }
 
+// Handle Google Directions proxy request
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'google_directions') {
+    $url = 'https://maps.googleapis.com/maps/api/directions/json?' . http_build_query([
+        'origin' => $_GET['origin'] ?? '',
+        'destination' => $_GET['destination'] ?? '',
+        'mode' => 'transit',
+        'transit_mode' => 'train',
+        'key' => $_GET['key'] ?? ''
+    ]);
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    http_response_code($httpCode);
+    echo $response;
+    exit;
+}
+
 // Handle GET request
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $data = file_get_contents($db_file);

@@ -124,6 +124,26 @@ function mockPhpBackend() {
             return;
           }
 
+          if (action === 'google_directions') {
+            const origin = urlObj.searchParams.get('origin') || '';
+            const destination = urlObj.searchParams.get('destination') || '';
+            const key = urlObj.searchParams.get('key') || '';
+            
+            const targetUrl = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin}&destination=${destination}&mode=transit&transit_mode=train&key=${key}`;
+            const options: any = { method: 'GET', headers: {} };
+            
+            const proxyReq = https.request(targetUrl, options, (proxyRes) => {
+              res.writeHead(proxyRes.statusCode || 200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              proxyRes.pipe(res);
+            });
+            proxyReq.on('error', (e) => {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: e.message }));
+            });
+            proxyReq.end();
+            return;
+          }
+
           const show_id = urlObj.searchParams.get('show') || 'default';
           const safe_show_id = show_id.replace(/[^a-zA-Z0-9_-]/g, '') || 'default';
           const showsDir = path.resolve(__dirname, 'public/shows');

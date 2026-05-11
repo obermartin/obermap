@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Tag, MousePointer2, Paintbrush, Hexagon, Circle as CircleIcon, Ruler, Save, Trash2, X, MapPin, Loader2, ArrowUpRight, ChevronLeft, ChevronRight } from 'lucide-react';
-import type { ToolType, AppSettings, StrokeType } from '../types';
+import { Tag, MousePointer2, Paintbrush, Hexagon, Circle as CircleIcon, Ruler, Save, Trash2, X, MapPin, Loader2, ArrowUpRight, ChevronLeft, ChevronRight, Route, Car, Footprints, TrainFront } from 'lucide-react';
+import type { ToolType, AppSettings, StrokeType, RouteMode } from '../types';
 import clsx from 'clsx';
 
 interface ToolbarProps {
@@ -13,6 +13,8 @@ interface ToolbarProps {
   setCurrentStrokeType?: (type: StrokeType) => void;
   currentFillOpacity?: number;
   setCurrentFillOpacity?: (opacity: number) => void;
+  routeMode?: RouteMode;
+  setRouteMode?: (mode: RouteMode) => void;
   onSave: () => void;
   onDelete: () => void;
   hasSelection: boolean;
@@ -32,6 +34,7 @@ const TOOLS = [
   { id: 'circle', icon: CircleIcon, label: 'Circle' },
   { id: 'arrow', icon: ArrowUpRight, label: 'Arrow' },
   { id: 'measure', icon: Ruler, label: 'Measure' },
+  { id: 'route', icon: Route, label: 'Route Planner' },
   { id: 'icon', icon: MapPin, label: 'Add Icon' },
 ] as const;
 
@@ -55,6 +58,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   setCurrentStrokeType,
   currentFillOpacity,
   setCurrentFillOpacity,
+  routeMode,
+  setRouteMode,
   onSave,
   onDelete,
   hasSelection,
@@ -210,6 +215,34 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             >
               <div className={clsx("w-6 border-t-2 border-dotted", currentStrokeType === 'dotted' ? "border-black" : "border-white group-hover:border-black")} />
             </button>
+          </motion.div>
+        )}
+
+        {isOpen && activeTool === 'route' && (
+          <motion.div
+            initial={{ y: 10, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 10, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="flex relative max-w-full overflow-x-auto overflow-y-hidden no-scrollbar shrink-0 border-b border-white/10 bg-black/50"
+          >
+            {[
+              { id: 'driving', icon: Car, label: 'Car' },
+              { id: 'walking', icon: Footprints, label: 'Walk' },
+              { id: 'train', icon: TrainFront, label: 'Train' }
+            ].map(mode => (
+              <button
+                key={mode.id}
+                onClick={() => setRouteMode?.(mode.id as RouteMode)}
+                className={clsx(
+                  "group w-12 h-12 flex justify-center items-center transition-colors border-r border-white/20 shrink-0",
+                  routeMode === mode.id ? "bg-white text-black" : "bg-black hover:bg-white text-white hover:text-black"
+                )}
+                title={mode.label}
+              >
+                <mode.icon size={20} />
+              </button>
+            ))}
           </motion.div>
         )}
 

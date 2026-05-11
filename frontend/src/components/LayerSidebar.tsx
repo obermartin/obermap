@@ -964,6 +964,17 @@ export function LayerSidebar({
                   onChange={e => setSettings(prev => ({ ...prev, aisstreamCredentials: { apiKey: e.target.value } }))}
                 />
               </div>
+              <div className="mt-2">
+                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">GOOGLE MAPS API KEY</label>
+                <p className="text-[10px] text-white/40 mb-2 leading-tight">Optional. Enables train mode routing via Google Maps Directions API.</p>
+                <input
+                  type="password"
+                  placeholder="API Key"
+                  className="w-full bg-black/60 px-3 py-2 outline-none font-mono text-xs border border-white/10 focus:border-white/50 transition-colors"
+                  value={settings.googleMapsToken || ''}
+                  onChange={e => setSettings(prev => ({ ...prev, googleMapsToken: e.target.value }))}
+                />
+              </div>
             </div>
           </details>
         </div>

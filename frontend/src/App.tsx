@@ -4,7 +4,7 @@ import { Toolbar } from './components/Toolbar';
 import { SavedViews } from './components/SavedViews';
 import { OverviewScreen } from './components/OverviewScreen';
 import { customAlert } from './utils/dialogService';
-import type { Annotation, ToolType, StrokeType, AppSettings, MapLayer } from './types';
+import type { Annotation, ToolType, StrokeType, AppSettings, MapLayer, RouteMode } from './types';
 
 import { DEFAULT_ICON_CATEGORIES } from './defaultIcons';
 
@@ -32,11 +32,12 @@ const DEFAULT_SETTINGS: AppSettings = {
 import { LayerSidebar } from './components/LayerSidebar';
 import { Layers, Loader2 } from 'lucide-react';
 
-function App() {
+export function App() {
   const [activeTool, setActiveTool] = useState<ToolType>('none');
-  const [currentColor, setCurrentColor] = useState<string>('#DD0000');
+  const [currentColor, setCurrentColor] = useState(DEFAULT_SETTINGS.colorPalette[0]);
   const [currentStrokeType, setCurrentStrokeType] = useState<StrokeType>('solid');
-  const [currentFillOpacity, setCurrentFillOpacity] = useState<number>(0.5);
+  const [currentFillOpacity, setCurrentFillOpacity] = useState<number>(0.2);
+  const [routeMode, setRouteMode] = useState<RouteMode>('driving');
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [labelPrompt, setLabelPrompt] = useState<{ lngLat: [number, number] } | null>(null);
@@ -317,6 +318,7 @@ function App() {
         selectedGeojsonFeatureId={selectedGeojsonFeatureId}
         setSelectedGeojsonFeatureId={setSelectedGeojsonFeatureId}
         selectedIconId={selectedIconId}
+        routeMode={routeMode}
       />
       <SavedViews 
         annotations={annotations}
@@ -351,6 +353,8 @@ function App() {
           setCurrentStrokeType={handleStrokeTypeSelect}
           currentFillOpacity={currentFillOpacity}
           setCurrentFillOpacity={handleFillOpacitySelect}
+          routeMode={routeMode}
+          setRouteMode={setRouteMode}
           onSave={handleSave}
           onDelete={handleDelete}
           hasSelection={!!selectedAnnotationId}

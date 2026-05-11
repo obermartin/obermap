@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import type { Annotation, ToolType, AppSettings, StrokeType } from '../types';
+import type { Annotation, ToolType, AppSettings, StrokeType, RouteMode } from '../types';
 import * as turf from '@turf/turf';
-import { createCirclePolygon, calculateDistance, simplifyLine, transliterateToGerman, createArrowFeatures } from '../utils/mapUtils';
+import { createCirclePolygon, calculateDistance, simplifyLine, transliterateToGerman, createArrowFeatures, decodePolyline } from '../utils/mapUtils';
 import anyAscii from 'any-ascii';
 import { customAlert } from '../utils/dialogService';
 
@@ -15,6 +15,7 @@ interface MapContainerProps {
   currentColor: string;
   currentStrokeType?: StrokeType;
   currentFillOpacity?: number;
+  routeMode?: RouteMode;
   annotations: Annotation[];
   setAnnotations: React.Dispatch<React.SetStateAction<Annotation[]>>;
   labelPrompt: { lngLat: [number, number] } | null;
@@ -46,6 +47,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   currentColor,
   currentStrokeType,
   currentFillOpacity,
+  routeMode,
   annotations,
   setAnnotations,
   labelPrompt,
@@ -155,6 +157,12 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
   const circleCenter = useRef<[number, number] | null>(null);
   const arrowStart = useRef<[number, number] | null>(null);
+  const routeGeometryRef = useRef<any>(null);
+  const routeLegsRef = useRef<{ distance: number; duration: number }[]>([]);
+  const routeSegmentsRef = useRef<{ [idx: number]: [number, number][] }>({});
+  const routeLegsSegmentsRef = useRef<{ [idx: number]: { distance: number, duration: number } }>({});
+  const currentDrawSessionRef = useRef<number>(0);
+  const pendingFetchesRef = useRef<number>(0);
 
   const terrestrialCountriesRef = useRef<any>(null);
 
@@ -617,6 +625,12 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             properties: { color: ann.color, id: ann.id, type: 'polygon', strokeType: ann.strokeType || 'solid', fillOpacity: ann.fillOpacity ?? 0.5 }
           });
         }
+      } else if (ann.type === 'route' && ann.routeGeometry) {
+        acc.push({
+          type: 'Feature',
+          geometry: ann.routeGeometry,
+          properties: { color: ann.color, id: ann.id, type: ann.type, strokeType: ann.strokeType || 'solid' }
+        });
       }
       return acc;
     }, []);
@@ -719,6 +733,49 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             el.style.outlineOffset = '2px';
           }
           expectedMarkers.set(`${ann.id}-measure-${i}`, { lngLat: coord, el });
+        });
+      } else if (ann.type === 'route' && ann.coordinates && ann.routeLegs) {
+        const contrastColor = getContrastYIQ(ann.color || '#ffffff');
+        let accumulatedDistance = 0;
+        let accumulatedDuration = 0;
+        
+        ann.coordinates.forEach((coord: [number, number], i: number) => {
+          const el = document.createElement('div');
+          
+          if (i === 0) {
+            el.className = 'custom-marker-flat text-xs font-bold uppercase tracking-wider';
+            el.innerHTML = 'START';
+          } else {
+            const leg = ann.routeLegs![i - 1];
+            if (leg) {
+              accumulatedDistance += leg.distance / 1000;
+              accumulatedDuration += leg.duration;
+            }
+            const hrs = Math.floor(accumulatedDuration / 3600);
+            const mins = Math.round((accumulatedDuration % 3600) / 60);
+            const timeStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+            
+            el.className = 'custom-marker-flat text-center leading-tight';
+            el.innerHTML = `${accumulatedDistance.toFixed(1)} km<br/><span style="font-size:0.75em;opacity:0.9">${timeStr}</span>`;
+          }
+          
+          el.style.backgroundColor = ann.color;
+          el.style.color = contrastColor;
+          el.style.cursor = 'pointer';
+          el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (activeTool !== 'none') {
+              setSelectedAnnotationId(ann.id);
+            }
+          });
+          el.addEventListener('mousedown', (e) => e.stopPropagation());
+          if (ann.id === selectedAnnotationId) {
+            el.style.filter = 'drop-shadow(0 0 6px rgba(255,255,255,1)) drop-shadow(0 0 12px rgba(255,255,255,0.8))';
+            el.style.zIndex = '1000';
+            el.style.outline = '2px dashed #ffffff';
+            el.style.outlineOffset = '2px';
+          }
+          expectedMarkers.set(`${ann.id}-route-${i}`, { lngLat: coord, el });
         });
       } else if (ann.type === 'circle' && ann.coordinates?.[0]?.length > 0) {
         try {
@@ -2544,6 +2601,186 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           .setLngLat([e.lngLat.lng, e.lngLat.lat])
           .addTo(map);
       }
+
+      if (activeTool === 'route') {
+        const point = [e.lngLat.lng, e.lngLat.lat] as [number, number];
+        
+        const addRouteMarker = (lngLat: [number, number], legs: { distance: number; duration: number }[], idx: number) => {
+          const totalDist = legs.reduce((acc, leg) => acc + leg.distance, 0) / 1000;
+          const totalDur = legs.reduce((acc, leg) => acc + leg.duration, 0);
+          const hrs = Math.floor(totalDur / 3600);
+          const mins = Math.round((totalDur % 3600) / 60);
+          const timeStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+          
+          const labelEl = document.createElement('div');
+          labelEl.className = 'custom-marker-flat text-center leading-tight';
+          labelEl.style.backgroundColor = currentColor;
+          labelEl.style.color = getContrastYIQ(currentColor);
+          labelEl.style.pointerEvents = 'none';
+          labelEl.innerHTML = `${totalDist.toFixed(1)} km<br/><span style="font-size:0.75em;opacity:0.9">${timeStr}</span>`;
+          
+          const markerId = `route-${idx}`;
+          activeDrawMarkersRef.current[markerId] = new mapboxgl.Marker({ element: labelEl })
+            .setLngLat(lngLat)
+            .addTo(map);
+        };
+
+        if (!isDrawing.current) {
+          isDrawing.current = true;
+          currentDrawSessionRef.current += 1;
+          pendingFetchesRef.current = 0;
+          currentShapeCoords.current = [point];
+          routeGeometryRef.current = { type: 'LineString', coordinates: [point] };
+          routeLegsRef.current = [];
+          routeSegmentsRef.current = {};
+          routeLegsSegmentsRef.current = {};
+          
+          const labelEl = document.createElement('div');
+          labelEl.className = 'custom-marker-flat text-xs font-bold uppercase tracking-wider';
+          labelEl.style.backgroundColor = currentColor;
+          labelEl.style.color = getContrastYIQ(currentColor);
+          labelEl.style.pointerEvents = 'none';
+          labelEl.innerHTML = 'START';
+          activeDrawMarkersRef.current[`route-0`] = new mapboxgl.Marker({ element: labelEl })
+            .setLngLat(point)
+            .addTo(map);
+        } else {
+          const lastPoint = currentShapeCoords.current[currentShapeCoords.current.length - 1];
+          const p1 = map.project(lastPoint);
+          const p2 = e.point || map.project(point);
+          const distPx = Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+          if (distPx < 10) return;
+
+          const currentIdx = currentShapeCoords.current.length;
+          currentShapeCoords.current.push(point);
+          
+          if (routeMode === 'train') {
+            const fallbackTrain = (p1: [number, number], p2: [number, number], idx: number) => {
+              const distKm = turf.distance(turf.point(p1), turf.point(p2), { units: 'kilometers' });
+              const speedKmph = 100;
+              const durationSec = (distKm / speedKmph) * 3600;
+              
+              routeSegmentsRef.current[idx] = [p2];
+              routeLegsSegmentsRef.current[idx] = { distance: distKm * 1000, duration: durationSec };
+              
+              const fullCoords = [currentShapeCoords.current[0]];
+              const fullLegs = [];
+              for (let i = 1; i <= currentShapeCoords.current.length; i++) {
+                if (routeSegmentsRef.current[i]) {
+                  fullCoords.push(...routeSegmentsRef.current[i]);
+                  fullLegs.push(routeLegsSegmentsRef.current[i]);
+                }
+              }
+              routeGeometryRef.current.coordinates = fullCoords;
+              routeLegsRef.current = fullLegs;
+              
+              updateActiveDrawing({
+                type: 'Feature',
+                geometry: routeGeometryRef.current,
+                properties: { color: currentColor }
+              });
+              addRouteMarker(p2, fullLegs, idx);
+            };
+
+            if (settings.googleMapsToken) {
+              const sessionId = currentDrawSessionRef.current;
+              pendingFetchesRef.current += 1;
+              fetch(`./api.php?action=google_directions&origin=${lastPoint[1]},${lastPoint[0]}&destination=${point[1]},${point[0]}&key=${settings.googleMapsToken}`)
+                .then(res => res.json())
+                .then(data => {
+                  pendingFetchesRef.current -= 1;
+                  if (sessionId !== currentDrawSessionRef.current) return;
+                  if (data.routes && data.routes[0]) {
+                    const route = data.routes[0];
+                    const leg = route.legs[0];
+                    let points: [number, number][] = [];
+                    if (leg.steps && leg.steps.length > 0) {
+                      const transitSteps = leg.steps.filter((s: any) => s.travel_mode === 'TRANSIT');
+                      if (transitSteps.length > 0) {
+                        transitSteps.forEach((step: any) => {
+                          points.push(...decodePolyline(step.polyline.points));
+                        });
+                      } else {
+                        points = decodePolyline(route.overview_polyline.points);
+                      }
+                    } else {
+                      points = decodePolyline(route.overview_polyline.points);
+                    }
+                    
+                    routeSegmentsRef.current[currentIdx] = points;
+                    routeLegsSegmentsRef.current[currentIdx] = { distance: leg.distance.value, duration: leg.duration.value };
+                    
+                    const fullCoords = [currentShapeCoords.current[0]];
+                    const fullLegs = [];
+                    for (let i = 1; i <= currentShapeCoords.current.length; i++) {
+                      if (routeSegmentsRef.current[i]) {
+                        fullCoords.push(...routeSegmentsRef.current[i]);
+                        fullLegs.push(routeLegsSegmentsRef.current[i]);
+                      }
+                    }
+                    routeGeometryRef.current.coordinates = fullCoords;
+                    routeLegsRef.current = fullLegs;
+                    
+                    updateActiveDrawing({
+                      type: 'Feature',
+                      geometry: routeGeometryRef.current,
+                      properties: { color: currentColor }
+                    });
+                    addRouteMarker(point, fullLegs, currentIdx);
+                  } else {
+                    fallbackTrain(lastPoint, point, currentIdx);
+                  }
+                })
+                .catch(err => {
+                  pendingFetchesRef.current -= 1;
+                  if (sessionId !== currentDrawSessionRef.current) return;
+                  console.error('Google Transit API error:', err);
+                  fallbackTrain(lastPoint, point, currentIdx);
+                });
+            } else {
+              fallbackTrain(lastPoint, point, currentIdx);
+            }
+          } else {
+            const profile = routeMode === 'walking' ? 'walking' : 'driving';
+            const sessionId = currentDrawSessionRef.current;
+            pendingFetchesRef.current += 1;
+            fetch(`https://api.mapbox.com/directions/v5/mapbox/${profile}/${lastPoint[0]},${lastPoint[1]};${point[0]},${point[1]}?geometries=geojson&access_token=${settings.mapboxToken}`)
+              .then(res => res.json())
+              .then(data => {
+                pendingFetchesRef.current -= 1;
+                if (sessionId !== currentDrawSessionRef.current) return;
+                if (data.routes && data.routes[0]) {
+                  const route = data.routes[0];
+                  const newCoords = route.geometry.coordinates.slice(1);
+                  
+                  routeSegmentsRef.current[currentIdx] = newCoords;
+                  routeLegsSegmentsRef.current[currentIdx] = { distance: route.distance, duration: route.duration };
+                  
+                  const fullCoords = [currentShapeCoords.current[0]];
+                  const fullLegs = [];
+                  for (let i = 1; i <= currentShapeCoords.current.length; i++) {
+                    if (routeSegmentsRef.current[i]) {
+                      fullCoords.push(...routeSegmentsRef.current[i]);
+                      fullLegs.push(routeLegsSegmentsRef.current[i]);
+                    }
+                  }
+                  routeGeometryRef.current.coordinates = fullCoords;
+                  routeLegsRef.current = fullLegs;
+                  
+                  updateActiveDrawing({
+                    type: 'Feature',
+                    geometry: routeGeometryRef.current,
+                    properties: { color: currentColor }
+                  });
+                  addRouteMarker(point, fullLegs, currentIdx);
+                }
+              }).catch(err => {
+                pendingFetchesRef.current -= 1;
+                console.error('Routing error:', err);
+              });
+          }
+        }
+      }
     };
 
     const onMouseDown = (e: mapboxgl.MapMouseEvent) => {
@@ -2656,19 +2893,32 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         }
       }
 
-      if (activeTool === 'polygon' || activeTool === 'measure') {
+      if (activeTool === 'polygon' || activeTool === 'measure' || activeTool === 'route') {
         // Draw temporary line to cursor
-        const tempCoords = [...currentShapeCoords.current, [e.lngLat.lng, e.lngLat.lat]];
+        let tempLineCoords = [];
+        if (activeTool === 'route') {
+          tempLineCoords = [...(routeGeometryRef.current?.coordinates || []), [e.lngLat.lng, e.lngLat.lat]];
+        } else {
+          tempLineCoords = [...currentShapeCoords.current, [e.lngLat.lng, e.lngLat.lat]];
+        }
+        
         updateActiveDrawing({
           type: 'Feature',
-          geometry: { type: 'LineString', coordinates: tempCoords },
+          geometry: { type: 'LineString', coordinates: tempLineCoords },
           properties: { color: currentColor }
         });
         
-        if (activeTool === 'measure') {
+        if (activeTool === 'measure' || activeTool === 'route') {
           // Update floating cursor marker
-          let dist = calculateDistance(currentShapeCoords.current);
-          dist += turf.distance(currentShapeCoords.current[currentShapeCoords.current.length - 1], [e.lngLat.lng, e.lngLat.lat], { units: 'kilometers' });
+          let dist = 0;
+          if (activeTool === 'route') {
+            const legsDist = routeLegsRef.current.reduce((acc, leg) => acc + leg.distance, 0) / 1000;
+            const lastPt = routeGeometryRef.current?.coordinates[routeGeometryRef.current.coordinates.length - 1];
+            dist = legsDist + (lastPt ? turf.distance(turf.point(lastPt), turf.point([e.lngLat.lng, e.lngLat.lat]), { units: 'kilometers' }) : 0);
+          } else {
+            dist = calculateDistance(currentShapeCoords.current);
+            dist += turf.distance(currentShapeCoords.current[currentShapeCoords.current.length - 1], [e.lngLat.lng, e.lngLat.lat], { units: 'kilometers' });
+          }
           
           if (!activeDrawMarkersRef.current['measure-floating']) {
             const labelEl = document.createElement('div');
@@ -2808,10 +3058,44 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         clearActiveDrawMarkers();
         setActiveDistance(null);
       }
+
+      if (activeTool === 'route' && isDrawing.current) {
+        e.preventDefault();
+        
+        const finishRoute = () => {
+          isDrawing.current = false;
+          if (currentShapeCoords.current.length >= 2) {
+            setAnnotations(prev => [...prev, {
+              id: Date.now().toString(),
+              type: 'route',
+              color: currentColor,
+              strokeType: currentStrokeType,
+              coordinates: [...currentShapeCoords.current],
+              routeGeometry: { ...routeGeometryRef.current, coordinates: [...routeGeometryRef.current.coordinates] },
+              routeMode: routeMode,
+              routeLegs: [...routeLegsRef.current]
+            }]);
+          }
+          updateActiveDrawing({ type: 'FeatureCollection', features: [] });
+          clearActiveDrawMarkers();
+          currentDrawSessionRef.current += 1;
+        };
+
+        if (pendingFetchesRef.current > 0) {
+          const checkInterval = setInterval(() => {
+            if (pendingFetchesRef.current === 0) {
+              clearInterval(checkInterval);
+              finishRoute();
+            }
+          }, 50);
+        } else {
+          finishRoute();
+        }
+      }
     };
 
-    // Disable double click zoom when using polygon or measure tool to prevent interference
-    if (activeTool === 'polygon' || activeTool === 'measure') {
+    // Disable double click zoom when using polygon or measure or route tool to prevent interference
+    if (activeTool === 'polygon' || activeTool === 'measure' || activeTool === 'route') {
       map.doubleClickZoom.disable();
     } else {
       map.doubleClickZoom.enable();
@@ -2871,7 +3155,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       map.off('touchmove', onTouchMove);
       map.off('touchend', onTouchEnd);
     };
-  }, [activeTool, currentColor, currentStrokeType, currentFillOpacity, annotations, setAnnotations, activeGeojsonLayerId, setActiveGeojsonLayerId, setSelectedGeojsonFeatureId, selectedAircraftId, settings.layers, selectedIconId]);
+  }, [activeTool, currentColor, currentStrokeType, currentFillOpacity, annotations, setAnnotations, activeGeojsonLayerId, setActiveGeojsonLayerId, setSelectedGeojsonFeatureId, selectedAircraftId, settings.layers, selectedIconId, routeMode, settings.googleMapsToken, settings.mapboxToken]);
 
   return (
     <div className={`absolute inset-0 w-full h-full ${isSecondary ? 'pointer-events-none' : ''}`} style={{ clipPath, WebkitClipPath: clipPath, zIndex: isSecondary ? 10 : 0 }}>
