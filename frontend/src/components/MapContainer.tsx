@@ -23,17 +23,22 @@ const buildWindPoints = (): WindPoint[] => {
     points.push({ id, lat, lon });
   };
 
-  for (let lat = -60; lat <= 70; lat += 10) {
-    for (let lon = -180; lon < 180; lon += 15) {
-      addPoint(`global-${lat}-${lon}`, lat, lon);
+  const addGrid = (prefix: string, latStart: number, latEnd: number, latStep: number, lonStart: number, lonEnd: number, lonStep: number) => {
+    for (let lat = latStart; lat <= latEnd; lat += latStep) {
+      for (let lon = lonStart; lon <= lonEnd; lon += lonStep) {
+        addPoint(`${prefix}-${lat}-${lon}`, lat, lon);
+      }
     }
-  }
+  };
 
-  for (let lat = 36; lat <= 60; lat += 4) {
-    for (let lon = -10; lon <= 30; lon += 5) {
-      addPoint(`europe-${lat}-${lon}`, lat, lon);
-    }
-  }
+  addGrid('global', -60, 70, 10, -180, 170, 10);
+  addGrid('southern-ocean', -60, -35, 5, -180, 175, 5);
+  addGrid('north-atlantic', 35, 70, 5, -80, 30, 5);
+  addGrid('north-pacific-west', 30, 65, 5, 120, 180, 5);
+  addGrid('north-pacific-east', 30, 65, 5, -180, -120, 5);
+  addGrid('west-pacific-typhoon', 0, 35, 5, 100, 180, 5);
+  addGrid('atlantic-hurricane', 5, 35, 5, -100, -10, 5);
+  addGrid('europe', 34, 62, 2, -12, 32, 2);
 
   for (let lat = 47; lat <= 55; lat += 1) {
     for (let lon = 6; lon <= 15; lon += 1) {
@@ -45,8 +50,10 @@ const buildWindPoints = (): WindPoint[] => {
 };
 
 const WIND_POINTS = buildWindPoints();
-const WIND_BATCH_SIZE = 50;
-const WIND_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
+const WIND_BATCH_SIZE = 100;
+const WIND_BATCH_DELAY_MS = 15000;
+const WIND_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
+const WIND_MIN_OPEN_REFRESH_DELAY_MS = 30 * 60 * 1000;
 
 interface MapContainerProps {
   activeTool: ToolType;
@@ -136,6 +143,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const activeVesselMmsiRef = useRef<string | null>(null);
   const windLastFetchRef = useRef<number>(0);
   const windFetchInFlightRef = useRef(false);
+  const windTimelineScrollRef = useRef<HTMLDivElement>(null);
 
   const refreshWindSnapshots = useCallback(async () => {
     try {
@@ -1487,7 +1495,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     if (!windLayer || !windLayer.visible) return;
 
     let isActive = true;
-    let refreshTimer: ReturnType<typeof setInterval> | null = null;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const openedAt = Date.now();
 
     const getNearestHourlyIndex = (hourly: any) => {
       const times = hourly?.time;
@@ -1517,6 +1526,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       }
       return null;
     };
+
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
     const writeWindCache = async (geojson: GeoJSON.FeatureCollection<GeoJSON.Point>) => {
       try {
@@ -1550,6 +1561,11 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         const features: GeoJSON.Feature<GeoJSON.Point>[] = [];
 
         for (let i = 0; i < WIND_POINTS.length; i += WIND_BATCH_SIZE) {
+          if (i > 0) {
+            await delay(WIND_BATCH_DELAY_MS);
+          }
+          if (!isActive) return;
+
           const batch = WIND_POINTS.slice(i, i + WIND_BATCH_SIZE);
           const latitude = batch.map(point => point.lat).join(',');
           const longitude = batch.map(point => point.lon).join(',');
@@ -1606,20 +1622,48 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       }
     };
 
-    const handleManualRefresh = () => fetchWind(true);
+    const getNextHourlyRefreshTime = () => {
+      const now = Date.now();
+      const nextHour = new Date(now);
+      nextHour.setMinutes(0, 0, 0);
+      nextHour.setHours(nextHour.getHours() + 1);
+
+      const nextHourTime = nextHour.getTime();
+      const alignedRefreshTime = nextHourTime - now < WIND_MIN_OPEN_REFRESH_DELAY_MS
+        ? nextHourTime + WIND_REFRESH_INTERVAL_MS
+        : nextHourTime;
+      const cacheEligibleTime = windLastFetchRef.current + WIND_REFRESH_INTERVAL_MS;
+
+      return Math.max(alignedRefreshTime, cacheEligibleTime, openedAt + WIND_MIN_OPEN_REFRESH_DELAY_MS);
+    };
+
+    const scheduleHourlyRefresh = () => {
+      if (!isActive) return;
+      if (refreshTimer) clearTimeout(refreshTimer);
+
+      const delayMs = Math.max(0, getNextHourlyRefreshTime() - Date.now());
+      refreshTimer = setTimeout(async () => {
+        await fetchWind(false);
+        scheduleHourlyRefresh();
+      }, delayMs);
+    };
+
+    const handleManualRefresh = () => fetchWind(false);
     window.addEventListener('refreshWindLayer', handleManualRefresh);
     refreshWindSnapshots();
     loadWindCache().then(hasCache => {
       if (!isActive) return;
-      if (!hasCache) fetchWind(true);
-      else fetchWind(false);
+      if (!hasCache) {
+        fetchWind(true).finally(scheduleHourlyRefresh);
+      } else {
+        scheduleHourlyRefresh();
+      }
     });
-    refreshTimer = setInterval(() => fetchWind(false), WIND_REFRESH_INTERVAL_MS);
 
     return () => {
       isActive = false;
       window.removeEventListener('refreshWindLayer', handleManualRefresh);
-      if (refreshTimer) clearInterval(refreshTimer);
+      if (refreshTimer) clearTimeout(refreshTimer);
     };
   }, [settings.layers, mapLoaded, applyWindGeojson, loadWindCache, refreshWindSnapshots]);
 
@@ -3075,11 +3119,40 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     };
   }, [activeTool, currentColor, setAnnotations, activeGeojsonLayerId, setActiveGeojsonLayerId, setSelectedGeojsonFeatureId, selectedAircraftId, settings.layers]);
 
-  const windLayerVisible = settings.layers.some(l => l.type === 'wind' && l.visible);
+  const activeWindLayer = settings.layers.find(l => l.type === 'wind' && l.visible);
+  const windLayerVisible = Boolean(activeWindLayer);
+  const showWindLegend = Boolean(activeWindLayer && activeWindLayer.windParticleColorBySpeed === true && activeWindLayer.showWindLegend !== false);
+  const windLegendStops = [
+    { label: '0-8', color: '#334155' },
+    { label: '8-18', color: '#2563eb' },
+    { label: '18-30', color: '#22d3ee' },
+    { label: '30-45', color: '#4ade80' },
+    { label: '45-60', color: '#facc15' },
+    { label: '60-80', color: '#f97316' },
+    { label: '80-105', color: '#ef4444' },
+    { label: '105-130', color: '#a855f7' },
+    { label: '130+', color: '#ffffff' }
+  ];
   const formatWindSnapshotTime = (createdAt: string) => {
     const date = new Date(createdAt);
     if (Number.isNaN(date.getTime())) return createdAt;
     return date.toLocaleString([], { weekday: 'short', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  };
+  const selectAdjacentWindSnapshot = (direction: -1 | 1) => {
+    if (windSnapshots.length === 0) return;
+
+    const currentIndex = selectedWindCacheId
+      ? windSnapshots.findIndex(snapshot => snapshot.cacheId === selectedWindCacheId)
+      : -1;
+    const fallbackIndex = direction > 0 ? -1 : windSnapshots.length;
+    const nextIndex = Math.max(0, Math.min(windSnapshots.length - 1, (currentIndex >= 0 ? currentIndex : fallbackIndex) + direction));
+    const nextSnapshot = windSnapshots[nextIndex];
+    if (nextSnapshot) loadWindCache(nextSnapshot.cacheId);
+  };
+  const scrollWindTimeline = (direction: -1 | 1) => {
+    const scroller = windTimelineScrollRef.current;
+    if (!scroller) return;
+    scroller.scrollBy({ left: direction * Math.max(160, scroller.clientWidth * 0.8), behavior: 'smooth' });
   };
 
   return (
@@ -3089,22 +3162,62 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         <>
           <canvas ref={windCanvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-[2]" />
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 max-w-[calc(100vw-2rem)] bg-black/90 border border-white/10 text-white shadow-2xl">
-            <div className="flex items-center gap-2 px-3 py-2 overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-2 px-3 py-2">
               <span className="text-[10px] text-white/50 font-semibold tracking-wider uppercase shrink-0">Wind Timeline</span>
-              {windSnapshots.length === 0 ? (
-                <span className="text-xs text-white/50 whitespace-nowrap">No cached snapshots yet</span>
-              ) : (
-                windSnapshots.map(snapshot => (
-                  <button
-                    key={snapshot.cacheId}
-                    onClick={() => loadWindCache(snapshot.cacheId)}
-                    className={`px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors ${selectedWindCacheId === snapshot.cacheId ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'}`}
-                    title={snapshot.cacheId}
-                  >
-                    {formatWindSnapshotTime(snapshot.createdAt)}
-                  </button>
-                ))
+              {showWindLegend && (
+                <div className="flex items-center gap-1.5 shrink-0 border-l border-white/10 pl-3 mr-1">
+                  <span className="text-[10px] text-white/50 font-semibold tracking-wider uppercase">km/h</span>
+                  {windLegendStops.map(stop => (
+                    <div key={stop.label} className="flex items-center gap-1">
+                      <span
+                        className="w-3 h-3 border border-white/20"
+                        style={{ backgroundColor: stop.color }}
+                      />
+                      <span className="text-[10px] text-white/70 font-mono">{stop.label}</span>
+                    </div>
+                  ))}
+                </div>
               )}
+              <button
+                onClick={() => {
+                  scrollWindTimeline(-1);
+                  selectAdjacentWindSnapshot(-1);
+                }}
+                disabled={windSnapshots.length === 0}
+                className="shrink-0 w-7 h-7 flex items-center justify-center bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-white/10 text-white transition-colors"
+                title="Previous wind snapshot"
+              >
+                ‹
+              </button>
+              <div ref={windTimelineScrollRef} className="min-w-0 max-w-[36vw] overflow-x-auto no-scrollbar">
+                <div className="flex items-center gap-2">
+                  {windSnapshots.length === 0 ? (
+                    <span className="text-xs text-white/50 whitespace-nowrap">No cached snapshots yet</span>
+                  ) : (
+                    windSnapshots.map(snapshot => (
+                      <button
+                        key={snapshot.cacheId}
+                        onClick={() => loadWindCache(snapshot.cacheId)}
+                        className={`px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors ${selectedWindCacheId === snapshot.cacheId ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'}`}
+                        title={snapshot.cacheId}
+                      >
+                        {formatWindSnapshotTime(snapshot.createdAt)}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  scrollWindTimeline(1);
+                  selectAdjacentWindSnapshot(1);
+                }}
+                disabled={windSnapshots.length === 0}
+                className="shrink-0 w-7 h-7 flex items-center justify-center bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-white/10 text-white transition-colors"
+                title="Next wind snapshot"
+              >
+                ›
+              </button>
             </div>
           </div>
         </>

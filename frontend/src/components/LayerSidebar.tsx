@@ -11,7 +11,7 @@ const DEFAULT_LAYERS: MapLayer[] = [
   { id: 'satellite', name: 'Satellite Map Overlay (Mapbox)', type: 'satellite', visible: false },
   { id: 'flights', name: 'Air Traffic (OpenSky)', type: 'flights', visible: false },
   { id: 'vessels', name: 'Maritime Traffic (AIS)', type: 'vessels', visible: false },
-  { id: 'wind', name: 'Wind (Open-Meteo)', type: 'wind', visible: true, windOpacity: 1, windParticleSize: 1.5, windParticleTrail: 94, showWindParticles: true, showWindArrows: false, windParticleSizeBySpeed: true, windParticleSpeedBySpeed: true, windParticleTrailBySpeed: true, windParticleColorBySpeed: true }
+  { id: 'wind', name: 'Wind (Open-Meteo)', type: 'wind', visible: true, windOpacity: 1, windParticleSize: 1.5, windParticleTrail: 94, showWindParticles: true, showWindArrows: false, showWindLegend: true, windParticleSizeBySpeed: true, windParticleSpeedBySpeed: true, windParticleTrailBySpeed: false, windParticleColorBySpeed: true }
 ];
 
 interface LayerSidebarProps {
@@ -1356,6 +1356,15 @@ function LayerItem(props: {
                     className="accent-white"
                   />
                   Arrows
+                </label>
+                <label className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 cursor-pointer text-xs font-semibold tracking-wider uppercase">
+                  <input
+                    type="checkbox"
+                    checked={layer.showWindLegend !== false}
+                    onChange={e => updateLayerProperty(layer.id, 'showWindLegend', e.target.checked)}
+                    className="accent-white"
+                  />
+                  Legend
                 </label>
               </div>
 

@@ -26,7 +26,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     { id: 'copernicus', name: 'Wildfires (EFFIS)', type: 'raster', visible: false, url: 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}' },
     { id: 'satellite', name: 'Satellite Map Overlay (Mapbox)', type: 'satellite', visible: false },
     { id: 'flights', name: 'Air Traffic (OpenSky)', type: 'flights', visible: false },
-    { id: 'wind', name: 'Wind (Open-Meteo)', type: 'wind', visible: true, windOpacity: 1, windParticleSize: 1.5, windParticleTrail: 94, showWindParticles: true, showWindArrows: false, windParticleSizeBySpeed: true, windParticleSpeedBySpeed: true, windParticleTrailBySpeed: true, windParticleColorBySpeed: true }
+    { id: 'wind', name: 'Wind (Open-Meteo)', type: 'wind', visible: true, windOpacity: 1, windParticleSize: 1.5, windParticleTrail: 94, showWindParticles: true, showWindArrows: false, showWindLegend: true, windParticleSizeBySpeed: true, windParticleSpeedBySpeed: true, windParticleTrailBySpeed: false, windParticleColorBySpeed: true }
   ]
 };
 
@@ -85,6 +85,8 @@ function App() {
 
               if (merged.id === 'wind') {
                 merged.visible = true;
+                merged.showWindLegend = merged.showWindLegend !== false;
+                merged.windParticleTrailBySpeed = merged.windParticleTrailBySpeed === true;
               }
 
               if (merged.type === 'split' && merged.splitLayers) {
