@@ -14,16 +14,30 @@ type WindSnapshot = { cacheId: string; createdAt: string; path: string };
 
 const buildWindPoints = (): WindPoint[] => {
   const points: WindPoint[] = [];
+  const seen = new Set<string>();
+
+  const addPoint = (id: string, lat: number, lon: number) => {
+    const key = `${lat},${lon}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    points.push({ id, lat, lon });
+  };
+
+  for (let lat = -60; lat <= 70; lat += 10) {
+    for (let lon = -180; lon < 180; lon += 15) {
+      addPoint(`global-${lat}-${lon}`, lat, lon);
+    }
+  }
 
   for (let lat = 36; lat <= 60; lat += 4) {
     for (let lon = -10; lon <= 30; lon += 5) {
-      points.push({ id: `europe-${lat}-${lon}`, lat, lon });
+      addPoint(`europe-${lat}-${lon}`, lat, lon);
     }
   }
 
   for (let lat = 47; lat <= 55; lat += 1) {
     for (let lon = 6; lon <= 15; lon += 1) {
-      points.push({ id: `germany-${lat}-${lon}`, lat, lon });
+      addPoint(`germany-${lat}-${lon}`, lat, lon);
     }
   }
 
@@ -1475,7 +1489,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     let isActive = true;
     let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
-    const getHourlyIndex = (hourly: any) => {
+    const getNearestHourlyIndex = (hourly: any) => {
       const times = hourly?.time;
       if (!Array.isArray(times) || times.length === 0) return 0;
       const now = Date.now();
@@ -1491,10 +1505,14 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       return bestIndex;
     };
 
-    const getHourlyValue = (hourly: any, key: string) => {
+    const getWeatherValue = (response: any, key: string) => {
+      if (response?.current?.[key] !== undefined && response?.current?.[key] !== null) {
+        return response.current[key];
+      }
+      const hourly = response?.hourly;
       const value = hourly?.[key];
       if (Array.isArray(value)) {
-        const first = value[getHourlyIndex(hourly)];
+        const first = value[getNearestHourlyIndex(hourly)];
         return Array.isArray(first) ? first[0] : first;
       }
       return null;
@@ -1538,8 +1556,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           const params = new URLSearchParams({
             latitude,
             longitude,
-            hourly: 'wind_speed_10m,wind_direction_10m',
+            current: 'wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl,surface_pressure',
             forecast_days: '1',
+            timezone: 'UTC',
             wind_speed_unit: 'kmh'
           });
           const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`);
@@ -1549,9 +1568,12 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           if (!isActive) return;
           const responses = Array.isArray(data) ? data : batch.map(() => data);
           batch.forEach((point, index) => {
-            const hourly = responses[index]?.hourly;
-            const windSpeed = Number(getHourlyValue(hourly, 'wind_speed_10m') ?? 0);
-            const windDirection = Number(getHourlyValue(hourly, 'wind_direction_10m') ?? 0);
+            const response = responses[index];
+            const windSpeed = Number(getWeatherValue(response, 'wind_speed_10m') ?? 0);
+            const windDirection = Number(getWeatherValue(response, 'wind_direction_10m') ?? 0);
+            const windGust = Number(getWeatherValue(response, 'wind_gusts_10m') ?? windSpeed);
+            const seaLevelPressure = Number(getWeatherValue(response, 'pressure_msl') ?? 0);
+            const surfacePressure = Number(getWeatherValue(response, 'surface_pressure') ?? 0);
             features.push({
               type: 'Feature',
               geometry: {
@@ -1562,6 +1584,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                 id: point.id,
                 windSpeed,
                 windDirection,
+                windGust,
+                seaLevelPressure,
+                surfacePressure,
                 arrowRotation: (windDirection + 180) % 360
               }
             });
@@ -1612,14 +1637,18 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       .map(feature => {
         const [lon, lat] = feature.geometry.coordinates;
         const speed = Number(feature.properties?.windSpeed || 0);
+        const gust = Number(feature.properties?.windGust || speed);
+        const intensity = Math.max(speed, gust * 0.78);
         const rotation = Number(feature.properties?.arrowRotation || 0);
         const radians = rotation * Math.PI / 180;
         return {
           lon,
           lat,
           speed,
-          u: Math.sin(radians) * speed,
-          v: Math.cos(radians) * speed
+          gust,
+          intensity,
+          u: Math.sin(radians) * intensity,
+          v: Math.cos(radians) * intensity
         };
       })
       .filter(vector => Number.isFinite(vector.lon) && Number.isFinite(vector.lat));
@@ -1630,10 +1659,23 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     let width = 0;
     let height = 0;
     let particles: Array<{ lon: number; lat: number; age: number; maxAge: number }> = [];
-    const particleCount = 1800;
-    const particleSize = windLayer.windParticleSize ?? 1.2;
+    const particleCount = 3400;
+    const particleSize = windLayer.windParticleSize ?? 1.5;
     const trailLength = windLayer.windParticleTrail ?? 90;
-    const trailAlpha = 0.76 + (Math.max(0, Math.min(100, trailLength)) / 100) * 0.22;
+    const baseTrailAlpha = 0.68 + (Math.max(0, Math.min(100, trailLength)) / 100) * 0.27;
+    const maxWindSpeed = Math.max(1, ...vectors.map(vector => vector.intensity));
+
+    const getWindColor = (speed: number) => {
+      if (speed < 8) return '#334155';
+      if (speed < 18) return '#2563eb';
+      if (speed < 30) return '#22d3ee';
+      if (speed < 45) return '#4ade80';
+      if (speed < 60) return '#facc15';
+      if (speed < 80) return '#f97316';
+      if (speed < 105) return '#ef4444';
+      if (speed < 130) return '#a855f7';
+      return '#ffffff';
+    };
 
     const resize = () => {
       const rect = map.getCanvas().getBoundingClientRect();
@@ -1681,9 +1723,14 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       }
 
       if (totalWeight <= 0) return nearest;
+      const u = weightedU / totalWeight;
+      const v = weightedV / totalWeight;
       return {
-        u: weightedU / totalWeight,
-        v: weightedV / totalWeight
+        u,
+        v,
+        speed: Math.hypot(u, v),
+        gust: Math.hypot(u, v),
+        intensity: Math.hypot(u, v)
       };
     };
 
@@ -1692,12 +1739,10 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
     const draw = () => {
       ctx.globalCompositeOperation = 'destination-in';
-      ctx.fillStyle = `rgba(0, 0, 0, ${trailAlpha})`;
+      ctx.fillStyle = `rgba(0, 0, 0, ${baseTrailAlpha})`;
       ctx.fillRect(0, 0, width, height);
       ctx.globalCompositeOperation = 'source-over';
-      ctx.strokeStyle = windLayer.windColor || 'rgba(255, 255, 255, 0.75)';
       ctx.globalAlpha = windLayer.windOpacity ?? 1;
-      ctx.lineWidth = particleSize;
       ctx.lineCap = 'round';
 
       particles = particles.map(particle => {
@@ -1707,15 +1752,31 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         }
 
         const vector = interpolatedVector(particle.lon, particle.lat);
+        const speedRatio = Math.max(0, Math.min(1, vector.intensity / maxWindSpeed));
         const latScale = Math.max(0.25, Math.cos(particle.lat * Math.PI / 180));
-        const scale = 0.000075;
-        const nextLon = particle.lon + (vector.u * scale / latScale);
-        const nextLat = particle.lat + (vector.v * scale);
+        const speedFloor = windLayer.windParticleSpeedBySpeed === false ? 1 : 4.5;
+        const visualSpeed = Math.max(vector.intensity, speedFloor);
+        const visualScale = vector.intensity > 0 ? visualSpeed / vector.intensity : 1;
+        const visualU = vector.u * visualScale;
+        const visualV = vector.v * visualScale;
+        const motionScale = windLayer.windParticleSpeedBySpeed === false ? 0.0001 : 0.000075 + speedRatio * 0.00014;
+        const nextLon = particle.lon + (visualU * motionScale / latScale);
+        const nextLat = particle.lat + (visualV * motionScale);
         const nextPoint = map.project([nextLon, nextLat]);
+        const tailPoint = {
+          x: point.x + (nextPoint.x - point.x) * 1.8,
+          y: point.y + (nextPoint.y - point.y) * 1.8
+        };
+
+        ctx.strokeStyle = windLayer.windParticleColorBySpeed === true ? getWindColor(vector.intensity) : (windLayer.windColor || 'rgba(255, 255, 255, 0.75)');
+        ctx.lineWidth = windLayer.windParticleSizeBySpeed === true ? particleSize * (0.8 + speedRatio * 2.1) : particleSize;
+        ctx.globalAlpha = windLayer.windParticleTrailBySpeed === true
+          ? (windLayer.windOpacity ?? 1) * (0.48 + speedRatio * 0.52)
+          : (windLayer.windOpacity ?? 1);
 
         ctx.beginPath();
         ctx.moveTo(point.x, point.y);
-        ctx.lineTo(nextPoint.x, nextPoint.y);
+        ctx.lineTo(tailPoint.x, tailPoint.y);
         ctx.stroke();
 
         return { ...particle, lon: nextLon, lat: nextLat };

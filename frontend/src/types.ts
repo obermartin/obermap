@@ -58,6 +58,10 @@ export interface MapLayer {
   windParticleTrail?: number;
   showWindParticles?: boolean;
   showWindArrows?: boolean;
+  windParticleSizeBySpeed?: boolean;
+  windParticleSpeedBySpeed?: boolean;
+  windParticleTrailBySpeed?: boolean;
+  windParticleColorBySpeed?: boolean;
 }
 
 export interface AppSettings {

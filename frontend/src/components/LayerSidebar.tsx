@@ -11,7 +11,7 @@ const DEFAULT_LAYERS: MapLayer[] = [
   { id: 'satellite', name: 'Satellite Map Overlay (Mapbox)', type: 'satellite', visible: false },
   { id: 'flights', name: 'Air Traffic (OpenSky)', type: 'flights', visible: false },
   { id: 'vessels', name: 'Maritime Traffic (AIS)', type: 'vessels', visible: false },
-  { id: 'wind', name: 'Wind (Open-Meteo)', type: 'wind', visible: false, windOpacity: 1, windParticleTrail: 90, showWindParticles: true, showWindArrows: false }
+  { id: 'wind', name: 'Wind (Open-Meteo)', type: 'wind', visible: true, windOpacity: 1, windParticleSize: 1.5, windParticleTrail: 94, showWindParticles: true, showWindArrows: false, windParticleSizeBySpeed: true, windParticleSpeedBySpeed: true, windParticleTrailBySpeed: true, windParticleColorBySpeed: true }
 ];
 
 interface LayerSidebarProps {
@@ -1356,6 +1356,45 @@ function LayerItem(props: {
                     className="accent-white"
                   />
                   Arrows
+                </label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <label className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 cursor-pointer text-[10px] font-semibold tracking-wider uppercase">
+                  <input
+                    type="checkbox"
+                    checked={layer.windParticleSizeBySpeed === true}
+                    onChange={e => updateLayerProperty(layer.id, 'windParticleSizeBySpeed', e.target.checked)}
+                    className="accent-white"
+                  />
+                  Size by speed
+                </label>
+                <label className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 cursor-pointer text-[10px] font-semibold tracking-wider uppercase">
+                  <input
+                    type="checkbox"
+                    checked={layer.windParticleSpeedBySpeed !== false}
+                    onChange={e => updateLayerProperty(layer.id, 'windParticleSpeedBySpeed', e.target.checked)}
+                    className="accent-white"
+                  />
+                  Motion by speed
+                </label>
+                <label className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 cursor-pointer text-[10px] font-semibold tracking-wider uppercase">
+                  <input
+                    type="checkbox"
+                    checked={layer.windParticleTrailBySpeed === true}
+                    onChange={e => updateLayerProperty(layer.id, 'windParticleTrailBySpeed', e.target.checked)}
+                    className="accent-white"
+                  />
+                  Trail by speed
+                </label>
+                <label className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 cursor-pointer text-[10px] font-semibold tracking-wider uppercase">
+                  <input
+                    type="checkbox"
+                    checked={layer.windParticleColorBySpeed === true}
+                    onChange={e => updateLayerProperty(layer.id, 'windParticleColorBySpeed', e.target.checked)}
+                    className="accent-white"
+                  />
+                  Color by speed
                 </label>
               </div>
 
