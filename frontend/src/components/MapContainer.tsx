@@ -9,6 +9,31 @@ import anyAscii from 'any-ascii';
 let globalDeepstateHistory: { id: number; createdAt: string }[] | null = null;
 let globalDeepstateHistoryPromise: Promise<void> | null = null;
 
+type WindPoint = { id: string; lat: number; lon: number };
+type WindSnapshot = { cacheId: string; createdAt: string; path: string };
+
+const buildWindPoints = (): WindPoint[] => {
+  const points: WindPoint[] = [];
+
+  for (let lat = 36; lat <= 60; lat += 4) {
+    for (let lon = -10; lon <= 30; lon += 5) {
+      points.push({ id: `europe-${lat}-${lon}`, lat, lon });
+    }
+  }
+
+  for (let lat = 47; lat <= 55; lat += 1) {
+    for (let lon = 6; lon <= 15; lon += 1) {
+      points.push({ id: `germany-${lat}-${lon}`, lat, lon });
+    }
+  }
+
+  return points;
+};
+
+const WIND_POINTS = buildWindPoints();
+const WIND_BATCH_SIZE = 50;
+const WIND_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
+
 interface MapContainerProps {
   activeTool: ToolType;
   currentColor: string;
@@ -57,10 +82,14 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   onMapInit
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
+  const windCanvasRef = useRef<HTMLCanvasElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [selectedAircraftId, setSelectedAircraftIdState] = useState<string | null>(null);
   const [selectedVesselMmsi, setSelectedVesselMmsi] = useState<string | null>(null);
+  const [windGeojson, setWindGeojsonState] = useState<GeoJSON.FeatureCollection<GeoJSON.Point> | null>(null);
+  const [windSnapshots, setWindSnapshots] = useState<WindSnapshot[]>([]);
+  const [selectedWindCacheId, setSelectedWindCacheId] = useState<string | null>(null);
   
   const setSelectedAircraftId = useCallback((id: string | null) => {
     setSelectedAircraftIdState(id);
@@ -91,6 +120,58 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const wsRef = useRef<WebSocket | null>(null);
   const vesselPopupRef = useRef<mapboxgl.Popup | null>(null);
   const activeVesselMmsiRef = useRef<string | null>(null);
+  const windLastFetchRef = useRef<number>(0);
+  const windFetchInFlightRef = useRef(false);
+
+  const refreshWindSnapshots = useCallback(async () => {
+    try {
+      const res = await fetch('./api.php?action=weather_wind_cache&list=1');
+      if (!res.ok) throw new Error(`Weather cache index failed: ${res.statusText}`);
+      const data = await res.json();
+      setWindSnapshots(Array.isArray(data.snapshots) ? data.snapshots : []);
+    } catch (err) {
+      console.warn('Failed to read weather wind cache index:', err);
+      setWindSnapshots([]);
+    }
+  }, []);
+
+  const applyWindGeojson = useCallback((payload: any, sourceLabel: 'project-cache' | 'api') => {
+    const map = mapRef.current;
+    const geojson = payload?.geojson as GeoJSON.FeatureCollection<GeoJSON.Point> | undefined;
+    if (!map || !geojson) return false;
+
+    const source = map.getSource('weather-wind') as mapboxgl.GeoJSONSource;
+    if (!source) return false;
+
+    source.setData(geojson);
+    windLastFetchRef.current = payload.createdAt ? new Date(payload.createdAt).getTime() : Date.now();
+    setWindGeojsonState(geojson);
+    setSelectedWindCacheId(payload.cacheId || null);
+    (window as any).__windGeojson = geojson;
+    console.table(geojson.features.map(feature => feature.properties));
+    console.log(`Open-Meteo wind ${sourceLabel} read`, {
+      features: geojson.features.length,
+      updatedAt: new Date(windLastFetchRef.current).toISOString(),
+      cacheId: payload.cacheId,
+      geojson
+    });
+    return true;
+  }, []);
+
+  const loadWindCache = useCallback(async (cacheId?: string) => {
+    try {
+      const url = cacheId
+        ? `./api.php?action=weather_wind_cache&cacheId=${encodeURIComponent(cacheId)}`
+        : './api.php?action=weather_wind_cache';
+      const res = await fetch(url);
+      if (res.status === 404) return false;
+      if (!res.ok) throw new Error(`Weather cache read failed: ${res.statusText}`);
+      return applyWindGeojson(await res.json(), 'project-cache');
+    } catch (err) {
+      console.warn('Failed to read project Open-Meteo wind cache:', err);
+      return false;
+    }
+  }, [applyWindGeojson]);
 
   const getFlagHtml = (countryName: string) => {
     if (!countryName) return '';
@@ -269,6 +350,11 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       loadIcon('ship-still', `
         <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
           <path d="M14 1 L25 25 L14 19 L3 25 Z" fill="none" stroke="#ffffff" stroke-width="1.5" />
+        </svg>
+      `);
+      loadIcon('wind-arrow', `
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+          <path d="M14 2 L24 24 L14 18 L4 24 Z" fill="#ffffff" />
         </svg>
       `);
 
@@ -909,11 +995,17 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       }
     });
 
+    if (!layers.find(l => l.type === 'wind')) {
+      if (map.getLayer('weather-wind-arrows')) map.removeLayer('weather-wind-arrows');
+      if (map.getSource('weather-wind')) map.removeSource('weather-wind');
+      windLastFetchRef.current = 0;
+    }
+
 
     // Add / Update layers
     layers.forEach((layer) => {
-      const sourceId = `dynamic-source-${layer.id}`;
-      const layerId = `dynamic-layer-${layer.id}`;
+      const sourceId = layer.type === 'wind' ? 'weather-wind' : `dynamic-source-${layer.id}`;
+      const layerId = layer.type === 'wind' ? 'weather-wind-arrows' : `dynamic-layer-${layer.id}`;
       const lineId = `dynamic-line-${layer.id}`;
 
       // Re-initialize raster sources if they are dirty (e.g. date changed)
@@ -946,7 +1038,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           map.addSource(sourceId, { type: 'raster', tiles: [processedUrl], tileSize: 256 });
         } else if (layer.type === 'satellite') {
           map.addSource(sourceId, { type: 'raster', url: 'mapbox://mapbox.satellite', tileSize: 256 });
-        } else if (layer.type === 'flights' || layer.type === 'vessels') {
+        } else if (layer.type === 'flights' || layer.type === 'vessels' || layer.type === 'wind') {
           map.addSource(sourceId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         }
       } else {
@@ -1115,9 +1207,35 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               'text-opacity': ['interpolate', ['linear'], ['zoom'], 9, 0, 10, 1]
             }
           }, firstSymbolId);
+        } else if (layer.type === 'wind') {
+          map.addLayer({
+            id: layerId,
+            type: 'symbol',
+            source: sourceId,
+            layout: {
+              visibility: layer.visible && layer.showWindArrows === true ? 'visible' : 'none',
+              'icon-image': 'wind-arrow',
+              'icon-size': [
+                'interpolate',
+                ['linear'],
+                ['get', 'windSpeed'],
+                0, 0.3,
+                30, 1.0,
+                80, 1.8
+              ],
+              'icon-rotate': ['get', 'arrowRotation'],
+              'icon-rotation-alignment': 'map',
+              'icon-allow-overlap': true,
+              'icon-ignore-placement': true
+            },
+            paint: {
+              'icon-opacity': layer.windOpacity ?? 1,
+              'icon-color': layer.windColor || '#ffffff'
+            }
+          }, firstSymbolId);
         }
       } else if (map.getLayer(layerId)) {
-        map.setLayoutProperty(layerId, 'visibility', layer.visible ? 'visible' : 'none');
+        map.setLayoutProperty(layerId, 'visibility', layer.type === 'wind' ? (layer.visible && layer.showWindArrows === true ? 'visible' : 'none') : (layer.visible ? 'visible' : 'none'));
         if (layer.type === 'raster' || layer.type === 'satellite') {
           const bMin = layer.brightness !== undefined && layer.brightness > 0 ? layer.brightness : 0;
           const bMax = layer.brightness !== undefined && layer.brightness < 0 ? 1 + layer.brightness : 1;
@@ -1217,6 +1335,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               
             map.setPaintProperty('selected-vessel-track-layer', 'line-color', trackColorExp as any);
           }
+        } else if (layer.type === 'wind') {
+          map.setPaintProperty(layerId, 'icon-opacity', layer.windOpacity ?? 1);
+          map.setPaintProperty(layerId, 'icon-color', layer.windColor || '#ffffff');
         } else if (map.getLayer(lineId)) {
           map.setLayoutProperty(lineId, 'visibility', layer.visible ? 'visible' : 'none');
         }
@@ -1323,7 +1444,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       const layer = layers[i];
       const idsToMove = [];
       
-      idsToMove.push(`dynamic-layer-${layer.id}`);
+      idsToMove.push(layer.type === 'wind' ? 'weather-wind-arrows' : `dynamic-layer-${layer.id}`);
       if (map.getLayer(`dynamic-line-${layer.id}`)) {
         idsToMove.push(`dynamic-line-${layer.id}`);
       }
@@ -1342,6 +1463,306 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       // We don't remove copernicus or deepstate sources to avoid reload flashes
     };
   }, [settings.layers, mapLoaded, selectedAircraftId, selectedVesselMmsi]);
+
+  // Prototype Open-Meteo wind layer. Renders cached GeoJSON first; API refresh is manual or slow.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    const windLayer = settings.layers.find(l => l.type === 'wind');
+    if (!windLayer || !windLayer.visible) return;
+
+    let isActive = true;
+    let refreshTimer: ReturnType<typeof setInterval> | null = null;
+
+    const getHourlyIndex = (hourly: any) => {
+      const times = hourly?.time;
+      if (!Array.isArray(times) || times.length === 0) return 0;
+      const now = Date.now();
+      let bestIndex = 0;
+      let bestDelta = Infinity;
+      times.forEach((time: string, index: number) => {
+        const delta = Math.abs(new Date(time).getTime() - now);
+        if (delta < bestDelta) {
+          bestDelta = delta;
+          bestIndex = index;
+        }
+      });
+      return bestIndex;
+    };
+
+    const getHourlyValue = (hourly: any, key: string) => {
+      const value = hourly?.[key];
+      if (Array.isArray(value)) {
+        const first = value[getHourlyIndex(hourly)];
+        return Array.isArray(first) ? first[0] : first;
+      }
+      return null;
+    };
+
+    const writeWindCache = async (geojson: GeoJSON.FeatureCollection<GeoJSON.Point>) => {
+      try {
+        const res = await fetch('./api.php?action=weather_wind_cache', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            geojson
+          })
+        });
+        if (!res.ok) throw new Error(`Weather cache write failed: ${res.statusText}`);
+        const result = await res.json();
+        console.log('Open-Meteo wind project cache written', result);
+        await refreshWindSnapshots();
+        return result;
+      } catch (err) {
+        console.warn('Failed to write project Open-Meteo wind cache:', err);
+        return null;
+      }
+    };
+
+    const fetchWind = async (force = false) => {
+      if (!force && Date.now() - windLastFetchRef.current < WIND_REFRESH_INTERVAL_MS) return;
+      if (windFetchInFlightRef.current) return;
+
+      const source = map.getSource('weather-wind') as mapboxgl.GeoJSONSource;
+      if (!source) return;
+
+      windFetchInFlightRef.current = true;
+      try {
+        const features: GeoJSON.Feature<GeoJSON.Point>[] = [];
+
+        for (let i = 0; i < WIND_POINTS.length; i += WIND_BATCH_SIZE) {
+          const batch = WIND_POINTS.slice(i, i + WIND_BATCH_SIZE);
+          const latitude = batch.map(point => point.lat).join(',');
+          const longitude = batch.map(point => point.lon).join(',');
+          const params = new URLSearchParams({
+            latitude,
+            longitude,
+            hourly: 'wind_speed_10m,wind_direction_10m',
+            forecast_days: '1',
+            wind_speed_unit: 'kmh'
+          });
+          const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`);
+          if (!res.ok) throw new Error(`Open-Meteo wind request failed: ${res.statusText}`);
+
+          const data = await res.json();
+          if (!isActive) return;
+          const responses = Array.isArray(data) ? data : batch.map(() => data);
+          batch.forEach((point, index) => {
+            const hourly = responses[index]?.hourly;
+            const windSpeed = Number(getHourlyValue(hourly, 'wind_speed_10m') ?? 0);
+            const windDirection = Number(getHourlyValue(hourly, 'wind_direction_10m') ?? 0);
+            features.push({
+              type: 'Feature',
+              geometry: {
+                type: 'Point',
+                coordinates: [point.lon, point.lat]
+              },
+              properties: {
+                id: point.id,
+                windSpeed,
+                windDirection,
+                arrowRotation: (windDirection + 180) % 360
+              }
+            });
+          });
+        }
+
+        const geojson: GeoJSON.FeatureCollection<GeoJSON.Point> = {
+          type: 'FeatureCollection',
+          features
+        };
+        const cacheResult = await writeWindCache(geojson);
+        applyWindGeojson({ cacheId: cacheResult?.cacheId || null, createdAt: new Date().toISOString(), geojson }, 'api');
+      } catch (err) {
+        console.warn('Failed to update Open-Meteo wind layer:', err);
+      } finally {
+        windFetchInFlightRef.current = false;
+      }
+    };
+
+    const handleManualRefresh = () => fetchWind(true);
+    window.addEventListener('refreshWindLayer', handleManualRefresh);
+    refreshWindSnapshots();
+    loadWindCache().then(hasCache => {
+      if (!isActive) return;
+      if (!hasCache) fetchWind(true);
+      else fetchWind(false);
+    });
+    refreshTimer = setInterval(() => fetchWind(false), WIND_REFRESH_INTERVAL_MS);
+
+    return () => {
+      isActive = false;
+      window.removeEventListener('refreshWindLayer', handleManualRefresh);
+      if (refreshTimer) clearInterval(refreshTimer);
+    };
+  }, [settings.layers, mapLoaded, applyWindGeojson, loadWindCache, refreshWindSnapshots]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const canvas = windCanvasRef.current;
+    const windLayer = settings.layers.find(l => l.type === 'wind');
+    if (!map || !canvas || !mapLoaded || !windLayer?.visible || !windGeojson || isSecondary) return;
+    if (windLayer.showWindParticles === false) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const vectors = windGeojson.features
+      .map(feature => {
+        const [lon, lat] = feature.geometry.coordinates;
+        const speed = Number(feature.properties?.windSpeed || 0);
+        const rotation = Number(feature.properties?.arrowRotation || 0);
+        const radians = rotation * Math.PI / 180;
+        return {
+          lon,
+          lat,
+          speed,
+          u: Math.sin(radians) * speed,
+          v: Math.cos(radians) * speed
+        };
+      })
+      .filter(vector => Number.isFinite(vector.lon) && Number.isFinite(vector.lat));
+
+    if (vectors.length === 0) return;
+
+    let frame = 0;
+    let width = 0;
+    let height = 0;
+    let particles: Array<{ lon: number; lat: number; age: number; maxAge: number }> = [];
+    const particleCount = 1800;
+    const particleSize = windLayer.windParticleSize ?? 1.2;
+    const trailLength = windLayer.windParticleTrail ?? 90;
+    const trailAlpha = 0.76 + (Math.max(0, Math.min(100, trailLength)) / 100) * 0.22;
+
+    const resize = () => {
+      const rect = map.getCanvas().getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      width = rect.width;
+      height = rect.height;
+      canvas.width = Math.max(1, Math.floor(width * dpr));
+      canvas.height = Math.max(1, Math.floor(height * dpr));
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+
+    const resetParticle = () => {
+      const lngLat = map.unproject([Math.random() * width, Math.random() * height]);
+      return {
+        lon: lngLat.lng,
+        lat: lngLat.lat,
+        age: Math.floor(Math.random() * 120),
+        maxAge: 140 + Math.floor(Math.random() * 100)
+      };
+    };
+
+    const interpolatedVector = (lon: number, lat: number) => {
+      const latScale = Math.max(0.25, Math.cos(lat * Math.PI / 180));
+      let weightedU = 0;
+      let weightedV = 0;
+      let totalWeight = 0;
+      let nearest = vectors[0];
+      let nearestDistance = Infinity;
+
+      for (const vector of vectors) {
+        const dx = (vector.lon - lon) * latScale;
+        const dy = vector.lat - lat;
+        const distance = dx * dx + dy * dy;
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearest = vector;
+        }
+
+        const weight = 1 / Math.max(distance, 0.12);
+        weightedU += vector.u * weight;
+        weightedV += vector.v * weight;
+        totalWeight += weight;
+      }
+
+      if (totalWeight <= 0) return nearest;
+      return {
+        u: weightedU / totalWeight,
+        v: weightedV / totalWeight
+      };
+    };
+
+    resize();
+    particles = Array.from({ length: particleCount }, resetParticle);
+
+    const draw = () => {
+      ctx.globalCompositeOperation = 'destination-in';
+      ctx.fillStyle = `rgba(0, 0, 0, ${trailAlpha})`;
+      ctx.fillRect(0, 0, width, height);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = windLayer.windColor || 'rgba(255, 255, 255, 0.75)';
+      ctx.globalAlpha = windLayer.windOpacity ?? 1;
+      ctx.lineWidth = particleSize;
+      ctx.lineCap = 'round';
+
+      particles = particles.map(particle => {
+        const point = map.project([particle.lon, particle.lat]);
+        if (particle.age++ > particle.maxAge || point.x < -50 || point.x > width + 50 || point.y < -50 || point.y > height + 50) {
+          return resetParticle();
+        }
+
+        const vector = interpolatedVector(particle.lon, particle.lat);
+        const latScale = Math.max(0.25, Math.cos(particle.lat * Math.PI / 180));
+        const scale = 0.000075;
+        const nextLon = particle.lon + (vector.u * scale / latScale);
+        const nextLat = particle.lat + (vector.v * scale);
+        const nextPoint = map.project([nextLon, nextLat]);
+
+        ctx.beginPath();
+        ctx.moveTo(point.x, point.y);
+        ctx.lineTo(nextPoint.x, nextPoint.y);
+        ctx.stroke();
+
+        return { ...particle, lon: nextLon, lat: nextLat };
+      });
+
+      frame = requestAnimationFrame(draw);
+    };
+
+    const handleResize = () => {
+      resize();
+      particles = Array.from({ length: particleCount }, resetParticle);
+    };
+
+    const clearTrail = () => {
+      ctx.clearRect(0, 0, width, height);
+    };
+
+    const refreshParticles = () => {
+      clearTrail();
+      particles = Array.from({ length: particleCount }, resetParticle);
+    };
+
+    map.on('resize', handleResize);
+    map.on('movestart', clearTrail);
+    map.on('zoomstart', clearTrail);
+    map.on('rotatestart', clearTrail);
+    map.on('pitchstart', clearTrail);
+    map.on('moveend', refreshParticles);
+    map.on('zoomend', refreshParticles);
+    map.on('rotateend', refreshParticles);
+    map.on('pitchend', refreshParticles);
+    draw();
+
+    return () => {
+      cancelAnimationFrame(frame);
+      map.off('resize', handleResize);
+      map.off('movestart', clearTrail);
+      map.off('zoomstart', clearTrail);
+      map.off('rotatestart', clearTrail);
+      map.off('pitchstart', clearTrail);
+      map.off('moveend', refreshParticles);
+      map.off('zoomend', refreshParticles);
+      map.off('rotateend', refreshParticles);
+      map.off('pitchend', refreshParticles);
+      ctx.clearRect(0, 0, width, height);
+    };
+  }, [settings.layers, mapLoaded, windGeojson, isSecondary]);
 
   // Polling for flights
   useEffect(() => {
@@ -2593,9 +3014,40 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     };
   }, [activeTool, currentColor, setAnnotations, activeGeojsonLayerId, setActiveGeojsonLayerId, setSelectedGeojsonFeatureId, selectedAircraftId, settings.layers]);
 
+  const windLayerVisible = settings.layers.some(l => l.type === 'wind' && l.visible);
+  const formatWindSnapshotTime = (createdAt: string) => {
+    const date = new Date(createdAt);
+    if (Number.isNaN(date.getTime())) return createdAt;
+    return date.toLocaleString([], { weekday: 'short', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  };
+
   return (
     <div className={`absolute inset-0 w-full h-full ${isSecondary ? 'pointer-events-none' : ''}`} style={{ clipPath, WebkitClipPath: clipPath, zIndex: isSecondary ? 10 : 0 }}>
       <div ref={mapContainer} className="w-full h-full" />
+      {!isSecondary && windLayerVisible && (
+        <>
+          <canvas ref={windCanvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-[2]" />
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 max-w-[calc(100vw-2rem)] bg-black/90 border border-white/10 text-white shadow-2xl">
+            <div className="flex items-center gap-2 px-3 py-2 overflow-x-auto no-scrollbar">
+              <span className="text-[10px] text-white/50 font-semibold tracking-wider uppercase shrink-0">Wind Timeline</span>
+              {windSnapshots.length === 0 ? (
+                <span className="text-xs text-white/50 whitespace-nowrap">No cached snapshots yet</span>
+              ) : (
+                windSnapshots.map(snapshot => (
+                  <button
+                    key={snapshot.cacheId}
+                    onClick={() => loadWindCache(snapshot.cacheId)}
+                    className={`px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors ${selectedWindCacheId === snapshot.cacheId ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'}`}
+                    title={snapshot.cacheId}
+                  >
+                    {formatWindSnapshotTime(snapshot.createdAt)}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

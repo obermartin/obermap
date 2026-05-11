@@ -10,7 +10,8 @@ const DEFAULT_LAYERS: MapLayer[] = [
   { id: 'copernicus', name: 'Wildfires (EFFIS)', type: 'raster', visible: false, url: 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}' },
   { id: 'satellite', name: 'Satellite Map Overlay (Mapbox)', type: 'satellite', visible: false },
   { id: 'flights', name: 'Air Traffic (OpenSky)', type: 'flights', visible: false },
-  { id: 'vessels', name: 'Maritime Traffic (AIS)', type: 'vessels', visible: false }
+  { id: 'vessels', name: 'Maritime Traffic (AIS)', type: 'vessels', visible: false },
+  { id: 'wind', name: 'Wind (Open-Meteo)', type: 'wind', visible: false, windOpacity: 1, windParticleTrail: 90, showWindParticles: true, showWindArrows: false }
 ];
 
 interface LayerSidebarProps {
@@ -1024,20 +1025,20 @@ function LayerItem(props: {
               )}
             </div>
 
-            {layer.type !== 'split' && (layer.type === 'geojson' || layer.type === 'raster' || layer.type === 'satellite' || layer.type === 'deepstate' || layer.type === 'flights' || layer.type === 'vessels') && (
+            {layer.type !== 'split' && (layer.type === 'geojson' || layer.type === 'raster' || layer.type === 'satellite' || layer.type === 'deepstate' || layer.type === 'flights' || layer.type === 'vessels' || layer.type === 'wind') && (
               <button
                 onClick={() => {
                   if (!layer.visible) toggleVisibility(layer.id);
                   setActiveEdit();
                 }}
                 className={`transition-colors ${isActiveEdit ? 'text-white' : iconColorFaded}`}
-                title={`Toggle ${layer.type === 'geojson' ? 'GeoJSON' : layer.type === 'flights' ? 'Air Traffic' : layer.type === 'vessels' ? 'Maritime Traffic' : 'Layer'} Edit Mode`}
+                title={`Toggle ${layer.type === 'geojson' ? 'GeoJSON' : layer.type === 'flights' ? 'Air Traffic' : layer.type === 'vessels' ? 'Maritime Traffic' : layer.type === 'wind' ? 'Wind' : 'Layer'} Edit Mode`}
               >
                 <Edit2 size={16} />
               </button>
             )}
 
-            {layer.type !== 'split' && layer.id !== 'satellite' && layer.id !== 'deepstate' && layer.id !== 'copernicus' && layer.id !== 'flights' && layer.type !== 'vessels' && !isNestedChild && (
+            {layer.type !== 'split' && layer.id !== 'satellite' && layer.id !== 'deepstate' && layer.id !== 'copernicus' && layer.id !== 'flights' && layer.type !== 'vessels' && layer.type !== 'wind' && !isNestedChild && (
               <button onClick={() => removeLayer(layer.id)} className={`transition-colors ml-1 ${iconColor}`}>
                 <Trash2 size={16} />
               </button>
@@ -1326,6 +1327,104 @@ function LayerItem(props: {
                     </div>
                   </button>
                 </div>
+              </div>
+            </div>
+          ) : layer.type === 'wind' ? (
+            <div className="flex flex-col gap-4 pb-2">
+              <button
+                onClick={() => window.dispatchEvent(new CustomEvent('refreshWindLayer'))}
+                className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors"
+              >
+                <RefreshCcw size={16} /> Refresh Wind
+              </button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <label className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 cursor-pointer text-xs font-semibold tracking-wider uppercase">
+                  <input
+                    type="checkbox"
+                    checked={layer.showWindParticles !== false}
+                    onChange={e => updateLayerProperty(layer.id, 'showWindParticles', e.target.checked)}
+                    className="accent-white"
+                  />
+                  Particles
+                </label>
+                <label className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 cursor-pointer text-xs font-semibold tracking-wider uppercase">
+                  <input
+                    type="checkbox"
+                    checked={layer.showWindArrows === true}
+                    onChange={e => updateLayerProperty(layer.id, 'showWindArrows', e.target.checked)}
+                    className="accent-white"
+                  />
+                  Arrows
+                </label>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] text-white/50 font-semibold tracking-wider uppercase">ARROW COLOR</label>
+                <div className="flex flex-wrap gap-1">
+                  {colorPalette.map(color => (
+                    <button
+                      key={color}
+                      onClick={() => updateLayerProperty(layer.id, 'windColor', color)}
+                      className="w-6 h-6 flex-shrink-0 transition-colors relative"
+                      style={{ backgroundColor: color }}
+                      title={color}
+                    >
+                      {layer.windColor === color && (
+                        <div className="absolute inset-0 flex items-center justify-center mix-blend-difference text-white text-xs">✓</div>
+                      )}
+                    </button>
+                  ))}
+                  <button
+                    key="transparent"
+                    onClick={() => updateLayerProperty(layer.id, 'windColor', undefined)}
+                    className="w-6 h-6 relative overflow-hidden flex-shrink-0 transition-colors"
+                    title="Reset to Default White"
+                  >
+                    <div className="absolute inset-0 bg-white/10 flex items-center justify-center">
+                      <div className="w-full h-0 border-t border-red-500 transform rotate-45"></div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1 mt-2 border-t border-white/10 pt-3">
+                <div className="flex justify-between items-end">
+                  <label className="text-[10px] text-white/50 font-semibold tracking-wider">WIND OPACITY</label>
+                  <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.windOpacity ?? 1) * 100)}%</span>
+                </div>
+                <input
+                  type="range" min="0" max="100"
+                  value={(layer.windOpacity ?? 1) * 100}
+                  onChange={e => updateLayerProperty(layer.id, 'windOpacity', Number(e.target.value) / 100)}
+                  className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between items-end">
+                  <label className="text-[10px] text-white/50 font-semibold tracking-wider">PARTICLE SIZE</label>
+                  <span className="text-[10px] text-white/70 font-mono">{(layer.windParticleSize ?? 1.2).toFixed(1)}px</span>
+                </div>
+                <input
+                  type="range" min="0.5" max="3" step="0.1"
+                  value={layer.windParticleSize ?? 1.2}
+                  onChange={e => updateLayerProperty(layer.id, 'windParticleSize', Number(e.target.value))}
+                  className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between items-end">
+                  <label className="text-[10px] text-white/50 font-semibold tracking-wider">PARTICLE TRAIL</label>
+                  <span className="text-[10px] text-white/70 font-mono">{Math.round(layer.windParticleTrail ?? 90)}%</span>
+                </div>
+                <input
+                  type="range" min="0" max="100" step="1"
+                  value={layer.windParticleTrail ?? 90}
+                  onChange={e => updateLayerProperty(layer.id, 'windParticleTrail', Number(e.target.value))}
+                  className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
+                />
               </div>
             </div>
           ) : (
