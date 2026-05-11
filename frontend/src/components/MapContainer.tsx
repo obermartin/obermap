@@ -60,10 +60,17 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [selectedAircraftId, setSelectedAircraftIdState] = useState<string | null>(null);
+  const [selectedVesselMmsi, setSelectedVesselMmsi] = useState<string | null>(null);
   
   const setSelectedAircraftId = useCallback((id: string | null) => {
     setSelectedAircraftIdState(id);
     window.dispatchEvent(new CustomEvent('aircraftSelected', { detail: id }));
+  }, []);
+
+  useEffect(() => {
+    const vesselHandler = (e: CustomEvent<string | null>) => setSelectedVesselMmsi(e.detail);
+    window.addEventListener('vesselSelected', vesselHandler as EventListener);
+    return () => window.removeEventListener('vesselSelected', vesselHandler as EventListener);
   }, []);
 
   const selectedAircraftIdRef = useRef<string | null>(null);
@@ -80,6 +87,10 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const openSkyTokenRef = useRef<{ token: string, expires: number } | null>(null);
   const aircraftPopupRef = useRef<mapboxgl.Popup | null>(null);
   const selectedAircraftMetaRef = useRef<any>(null);
+  const vesselsRef = useRef<Map<string, any>>(new Map());
+  const wsRef = useRef<WebSocket | null>(null);
+  const vesselPopupRef = useRef<mapboxgl.Popup | null>(null);
+  const activeVesselMmsiRef = useRef<string | null>(null);
 
   const getFlagHtml = (countryName: string) => {
     if (!countryName) return '';
@@ -96,6 +107,32 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       'Vietnam': 'VN', 'Philippines': 'PH', 'Egypt': 'EG', 'Morocco': 'MA'
     };
     const code = mappings[countryName];
+    if (!code) return '';
+    return `<img src="https://flagcdn.com/w20/${code.toLowerCase()}.png" width="16" alt="${code}" style="vertical-align: middle; border-radius: 1px;" />`;
+  };
+
+  const getMmsiFlagHtml = (mmsi: string | number) => {
+    if (!mmsi) return '';
+    const mStr = String(mmsi);
+    if (mStr.length !== 9) return '';
+    const mid = parseInt(mStr.substring(0, 3));
+    const midMap: Record<number, string> = {
+      211: 'DE', 218: 'DE', 232: 'GB', 233: 'GB', 234: 'GB', 235: 'GB',
+      338: 'US', 366: 'US', 367: 'US', 368: 'US', 369: 'US', 226: 'FR', 227: 'FR', 228: 'FR',
+      247: 'IT', 224: 'ES', 225: 'ES', 316: 'CA', 503: 'AU', 431: 'JP', 432: 'JP',
+      412: 'CN', 413: 'CN', 414: 'CN', 273: 'RU', 272: 'UA', 261: 'PL', 271: 'TR',
+      244: 'NL', 245: 'NL', 246: 'NL', 269: 'CH', 265: 'SE', 266: 'SE', 257: 'NO', 258: 'NO', 259: 'NO',
+      219: 'DK', 220: 'DK', 230: 'FI', 203: 'AT', 205: 'BE', 710: 'BR', 345: 'MX', 419: 'IN',
+      601: 'ZA', 250: 'IE', 237: 'GR', 238: 'GR', 239: 'GR', 240: 'GR', 241: 'GR', 263: 'PT',
+      512: 'NZ', 563: 'SG', 564: 'SG', 565: 'SG', 566: 'SG', 470: 'AE', 403: 'SA', 428: 'IL',
+      440: 'KR', 441: 'KR', 416: 'TW', 477: 'HK', 567: 'TH', 533: 'MY', 525: 'ID', 574: 'VN',
+      548: 'PH', 622: 'EG', 242: 'MA',
+      351: 'PA', 352: 'PA', 353: 'PA', 354: 'PA', 355: 'PA', 356: 'PA', 357: 'PA', 370: 'PA', 371: 'PA', 372: 'PA', 373: 'PA', 374: 'PA',
+      636: 'LR', 637: 'LR', 538: 'MH', 215: 'MT', 229: 'MT', 248: 'MT', 249: 'MT', 256: 'MT',
+      308: 'BS', 309: 'BS', 311: 'BS', 209: 'CY', 210: 'CY', 212: 'CY', 304: 'AG', 305: 'AG',
+      375: 'VC', 376: 'VC', 377: 'VC', 576: 'VU', 577: 'VU', 319: 'KY', 310: 'BM', 236: 'GI', 231: 'FO'
+    };
+    const code = midMap[mid];
     if (!code) return '';
     return `<img src="https://flagcdn.com/w20/${code.toLowerCase()}.png" width="16" alt="${code}" style="vertical-align: middle; border-radius: 1px;" />`;
   };
@@ -218,6 +255,23 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         </svg>
       `);
 
+      // Add Icons for Vessels Layer
+      loadIcon('ship-fast', `
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+          <path d="M14 1 L25 25 L14 19 L3 25 Z" fill="#ffffff" />
+        </svg>
+      `);
+      loadIcon('ship-slow', `
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+          <path d="M14 1 L25 25 L14 19 L3 25 Z" fill="#ffffff" />
+        </svg>
+      `);
+      loadIcon('ship-still', `
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+          <path d="M14 1 L25 25 L14 19 L3 25 Z" fill="none" stroke="#ffffff" stroke-width="1.5" />
+        </svg>
+      `);
+
       // Add clip layer for hiding mapbox symbols under highlights
       map.addSource('highlight-clip-source', {
         type: 'geojson',
@@ -251,6 +305,27 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           'line-color': '#ffffff',
           'line-width': 4,
           'line-opacity': 0.5
+        }
+      });
+
+      // Add Vessel Track source and layer
+      map.addSource('selected-vessel-track', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+      });
+      
+      map.addLayer({
+        id: 'selected-vessel-track-layer',
+        type: 'line',
+        source: 'selected-vessel-track',
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round'
+        },
+        paint: {
+          'line-color': '#ffffff',
+          'line-width': 3,
+          'line-opacity': 0.8
         }
       });
 
@@ -871,7 +946,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           map.addSource(sourceId, { type: 'raster', tiles: [processedUrl], tileSize: 256 });
         } else if (layer.type === 'satellite') {
           map.addSource(sourceId, { type: 'raster', url: 'mapbox://mapbox.satellite', tileSize: 256 });
-        } else if (layer.type === 'flights') {
+        } else if (layer.type === 'flights' || layer.type === 'vessels') {
           map.addSource(sourceId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         }
       } else {
@@ -999,6 +1074,47 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                 : 1.0
             }
           }, firstSymbolId);
+        } else if (layer.type === 'vessels') {
+          map.addLayer({
+            id: layerId,
+            type: 'symbol',
+            source: sourceId,
+            layout: {
+              visibility: layer.visible ? 'visible' : 'none',
+              'icon-image': ['coalesce', ['get', 'icon'], 'ship-still'],
+              'icon-size': [
+                'interpolate', ['linear'], ['zoom'],
+                3, 0.55,
+                8, 0.85,
+                13, 1.2
+              ],
+              'icon-rotate': ['get', 'heading'],
+              'icon-rotation-alignment': 'map',
+              'icon-allow-overlap': true,
+              'icon-ignore-placement': true,
+              'text-field': ['step', ['zoom'], '', 9, ['get', 'name']],
+              'text-size': 9,
+              'text-offset': [0, 1.5],
+              'text-anchor': 'top',
+              'text-allow-overlap': false,
+              'text-ignore-placement': false
+            },
+            paint: {
+              'icon-opacity': selectedVesselMmsi 
+                ? ['case', ['==', ['to-string', ['get', 'mmsi']], selectedVesselMmsi], 1.0, 0.5]
+                : 1.0,
+              'icon-color': layer.vesselColors && Object.keys(layer.vesselColors).length > 0 
+                ? [
+                    'match', 
+                    ['to-string', ['get', 'mmsi']], 
+                    ...Object.entries(layer.vesselColors).flat(),
+                    layer.globalVesselColor || '#ffffff'
+                  ] 
+                : (layer.globalVesselColor || '#ffffff') as any,
+              'text-color': '#ffffff',
+              'text-opacity': ['interpolate', ['linear'], ['zoom'], 9, 0, 10, 1]
+            }
+          }, firstSymbolId);
         }
       } else if (map.getLayer(layerId)) {
         map.setLayoutProperty(layerId, 'visibility', layer.visible ? 'visible' : 'none');
@@ -1024,7 +1140,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           map.setPaintProperty(layerId, 'icon-opacity', selectedAircraftId 
             ? ['case', ['==', ['to-string', ['get', 'icao24']], selectedAircraftId], 1.0, 0.5]
             : 1.0);
-          map.setPaintProperty(layerId, 'icon-color', colorExp);
+          map.setPaintProperty(layerId, 'icon-color', colorExp as any);
           
           if (map.getLayer(`${layerId}-labels`)) {
             map.setLayoutProperty(`${layerId}-labels`, 'visibility', layer.visible && layer.showCallsigns ? 'visible' : 'none');
@@ -1072,7 +1188,34 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               : (layer.globalAircraftColor || '#ffffff');
               
             map.setPaintProperty('selected-flight-track-layer', 'line-opacity', opacity);
-            map.setPaintProperty('selected-flight-track-layer', 'line-color', colorExp);
+            map.setPaintProperty('selected-flight-track-layer', 'line-color', colorExp as any);
+          }
+        } else if (layer.type === 'vessels') {
+          const colorExp = layer.vesselColors && Object.keys(layer.vesselColors).length > 0 
+            ? [
+                'match', 
+                ['to-string', ['get', 'mmsi']], 
+                ...Object.entries(layer.vesselColors).flat(),
+                layer.globalVesselColor || '#ffffff'
+              ] 
+            : (layer.globalVesselColor || '#ffffff');
+            
+          map.setPaintProperty(layerId, 'icon-opacity', selectedVesselMmsi 
+            ? ['case', ['==', ['to-string', ['get', 'mmsi']], selectedVesselMmsi], 1.0, 0.5]
+            : 1.0);
+          map.setPaintProperty(layerId, 'icon-color', colorExp as any);
+          
+          if (map.getLayer('selected-vessel-track-layer')) {
+            const trackColorExp = layer.vesselColors && Object.keys(layer.vesselColors).length > 0 
+              ? [
+                  'match', 
+                  selectedVesselMmsi || '', 
+                  ...Object.entries(layer.vesselColors).flat(),
+                  layer.globalVesselColor || '#ffffff'
+                ] 
+              : (layer.globalVesselColor || '#ffffff');
+              
+            map.setPaintProperty('selected-vessel-track-layer', 'line-color', trackColorExp as any);
           }
         } else if (map.getLayer(lineId)) {
           map.setLayoutProperty(lineId, 'visibility', layer.visible ? 'visible' : 'none');
@@ -1198,7 +1341,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       // Cleanup dynamically created raster layers that were removed from settings
       // We don't remove copernicus or deepstate sources to avoid reload flashes
     };
-  }, [settings.layers, mapLoaded, selectedAircraftId]);
+  }, [settings.layers, mapLoaded, selectedAircraftId, selectedVesselMmsi]);
 
   // Polling for flights
   useEffect(() => {
@@ -1208,7 +1351,12 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     const flightsLayer = settings.layers.find(l => l.type === 'flights');
     if (!flightsLayer || !flightsLayer.visible) return;
 
+    let timeoutId: ReturnType<typeof setTimeout>;
+    let isActive = true;
+    let currentInterval = 10000;
+
     const fetchFlights = async () => {
+      if (!isActive) return;
       try {
         const bounds = map.getBounds();
         if (!bounds) return;
@@ -1346,15 +1494,262 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         const sourceId = `dynamic-source-${flightsLayer.id}`;
         const source = map.getSource(sourceId) as mapboxgl.GeoJSONSource;
         if (source) source.setData(geojson as GeoJSON.FeatureCollection);
+        
+        currentInterval = 10000; // Reset backoff on success
       } catch(err) {
         console.error('Error fetching flights:', err);
+        currentInterval = Math.min(currentInterval * 1.5, 300000); // Exponential backoff up to 5 min
+      } finally {
+        if (isActive) {
+          timeoutId = setTimeout(fetchFlights, currentInterval);
+        }
       }
     };
 
     fetchFlights();
-    const interval = setInterval(fetchFlights, 10000);
-    return () => clearInterval(interval);
+    return () => {
+      isActive = false;
+      clearTimeout(timeoutId);
+    };
   }, [settings.layers, mapLoaded]);
+
+  // Polling for vessels
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    const vesselsLayer = settings.layers.find(l => l.type === 'vessels');
+    if (!vesselsLayer || !vesselsLayer.visible) {
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      return;
+    }
+
+    const apiKey = settings.aisstreamCredentials?.apiKey;
+    if (!apiKey) return;
+
+    let resubTimer: ReturnType<typeof setTimeout> | null = null;
+    let flushTimer: ReturnType<typeof setInterval> | null = null;
+    let reconnectDelay = 3000;
+    let isDirty = false;
+
+    const subscribe = () => {
+      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+      const b = map.getBounds();
+      if (!b) return;
+      const BOUNDS_PAD = 2;
+      const s = Math.max(-90, b.getSouth() - BOUNDS_PAD);
+      const n = Math.min(90, b.getNorth() + BOUNDS_PAD);
+      const w = Math.max(-180, b.getWest() - BOUNDS_PAD);
+      const e = Math.min(180, b.getEast() + BOUNDS_PAD);
+      wsRef.current.send(JSON.stringify({
+        APIKey: apiKey,
+        BoundingBoxes: [[[s, w], [n, e]]],
+        FilterMessageTypes: ['PositionReport', 'ShipStaticData']
+      }));
+    };
+
+    const scheduleResub = () => {
+      if (resubTimer) clearTimeout(resubTimer);
+      resubTimer = setTimeout(() => {
+        if (wsRef.current) {
+          wsRef.current.onclose = null; // Prevent the auto-reconnect loop
+          wsRef.current.close();
+          wsRef.current = null;
+        }
+        connect();
+      }, 1000); // Wait 1s after map stops moving to avoid connection spam
+    };
+
+    const updateVesselPopup = (v: any) => {
+      if (!vesselPopupRef.current) return;
+      const spd = v.sog != null ? Math.round(v.sog) + 'kn' : 'N/A';
+      const hdg = v.heading != null ? Math.round(v.heading) + '°' : 'N/A';
+      const flag = getMmsiFlagHtml(v.mmsi);
+      const popupHtml = `
+        <div style="background-color: #09090b; padding: 12px; border-radius: 0; color: white; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11px; min-width: 180px; text-transform: uppercase;">
+          <div style="font-size: 14px; font-weight: 700; margin-bottom: 8px; color: #ffffff; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;">
+            <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${v.name || 'UNKNOWN'}</span>
+            <span style="font-size: 16px; margin-left: 8px;">${flag}</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 40px 1fr; gap: 6px; font-weight: 500;">
+            <span style="color: rgba(255,255,255,0.5);">MMSI:</span> <span style="text-align: right; font-family: monospace;">${v.mmsi}</span>
+            <span style="color: rgba(255,255,255,0.5);">CALL:</span> <span style="text-align: right; font-family: monospace;">${v.callSign || 'N/A'}</span>
+            <span style="color: rgba(255,255,255,0.5);">DEST:</span> <span style="text-align: right; font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${v.destination || 'N/A'}</span>
+            <span style="color: rgba(255,255,255,0.5);">SPD:</span> <span style="text-align: right; font-family: monospace;">${spd}</span>
+            <span style="color: rgba(255,255,255,0.5);">HDG:</span> <span style="text-align: right; font-family: monospace;">${hdg}</span>
+          </div>
+        </div>
+      `;
+      // Ensure popup styles are applied
+      const style = document.getElementById('flight-popup-style') || document.createElement('style');
+      style.id = 'flight-popup-style';
+      style.innerHTML = '.flight-popup .mapboxgl-popup-content { padding: 0; background: transparent; box-shadow: none; } .flight-popup .mapboxgl-popup-tip { border-top-color: #09090b; }';
+      if (!document.getElementById('flight-popup-style')) document.head.appendChild(style);
+      
+      vesselPopupRef.current.setHTML(popupHtml);
+    };
+
+    const startFlush = () => {
+      if (flushTimer) clearInterval(flushTimer);
+      flushTimer = setInterval(() => {
+        if (!isDirty) return;
+        isDirty = false;
+        
+        // Prune old vessels (10 mins)
+        const now = Date.now();
+        for (const [mmsi, v] of vesselsRef.current.entries()) {
+          if (now - v.lastUpdate > 10 * 60 * 1000) {
+            vesselsRef.current.delete(mmsi);
+            isDirty = true;
+          }
+        }
+
+        const features: GeoJSON.Feature[] = [];
+        for (const v of vesselsRef.current.values()) {
+          if (v.lat == null || v.lon == null) continue;
+          features.push({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [v.lon, v.lat] },
+            properties: {
+              mmsi: v.mmsi,
+              name: v.name || v.mmsi,
+              sog: v.sog ?? null,
+              cog: v.cog ?? null,
+              heading: v.heading ?? 0,
+              navStatus: v.navStatus ?? null,
+              callSign: v.callSign || null,
+              destination: v.destination || null,
+              shipType: v.shipType ?? null,
+              icon: v.icon || 'ship-fast'
+            }
+          });
+          
+          if (vesselPopupRef.current && activeVesselMmsiRef.current === v.mmsi) {
+             vesselPopupRef.current.setLngLat([v.lon, v.lat]);
+             updateVesselPopup(v);
+          }
+        }
+        
+        const sourceId = `dynamic-source-${vesselsLayer.id}`;
+        const source = map.getSource(sourceId) as mapboxgl.GeoJSONSource;
+        if (source) source.setData({ type: 'FeatureCollection', features });
+
+        // Update selected vessel track
+        const trackSource = map.getSource('selected-vessel-track') as mapboxgl.GeoJSONSource;
+        if (trackSource) {
+          if (activeVesselMmsiRef.current && vesselsRef.current.has(activeVesselMmsiRef.current)) {
+            const activeVessel = vesselsRef.current.get(activeVesselMmsiRef.current);
+            if (activeVessel && activeVessel.track && activeVessel.track.length > 1) {
+              trackSource.setData({
+                type: 'FeatureCollection',
+                features: [{
+                  type: 'Feature',
+                  geometry: { type: 'LineString', coordinates: activeVessel.track },
+                  properties: {}
+                }]
+              });
+            } else {
+              trackSource.setData({ type: 'FeatureCollection', features: [] });
+            }
+          } else {
+            trackSource.setData({ type: 'FeatureCollection', features: [] });
+          }
+        }
+      }, 1000);
+    };
+
+    const handleMsg = (msg: any) => {
+      const meta = msg.MetaData;
+      if (!meta) return;
+      const mmsi = String(meta.MMSI ?? meta.mmsi ?? '');
+      if (!mmsi) return;
+
+      if (msg.MessageType === 'PositionReport') {
+        const pr = msg.Message?.PositionReport ?? {};
+        const lat = meta.latitude ?? pr.Latitude;
+        const lon = meta.longitude ?? pr.Longitude;
+        if (lat == null || lon == null) return;
+        const sog = pr.Sog ?? 0;
+        const cog = pr.Cog ?? 0;
+        const hdg = (pr.TrueHeading != null && pr.TrueHeading !== 511) ? pr.TrueHeading : cog;
+        const prev = vesselsRef.current.get(mmsi) ?? {};
+        const track = prev.track || [];
+        if (track.length === 0 || track[track.length - 1][0] !== lon || track[track.length - 1][1] !== lat) {
+          track.push([lon, lat]);
+          if (track.length > 500) track.shift(); // Keep max 500 points
+        }
+        vesselsRef.current.set(mmsi, {
+          ...prev, mmsi, lat, lon, sog, cog, heading: hdg, track,
+          navStatus: pr.NavigationalStatus ?? prev.navStatus,
+          name: (meta.ShipName?.trim() || prev.name || mmsi),
+          lastUpdate: Date.now(),
+          icon: sog > 3 ? 'ship-fast' : sog > 0.5 ? 'ship-slow' : 'ship-still'
+        });
+        isDirty = true;
+      } else if (msg.MessageType === 'ShipStaticData') {
+        const sd = msg.Message?.ShipStaticData ?? {};
+        const prev = vesselsRef.current.get(mmsi) ?? { mmsi, lastUpdate: Date.now(), icon: 'ship-still' };
+        vesselsRef.current.set(mmsi, {
+          ...prev,
+          name: ((sd.Name || meta.ShipName || prev.name || mmsi).trim()),
+          callSign: sd.CallSign?.trim() || prev.callSign,
+          imo: sd.ImoNumber ?? prev.imo,
+          shipType: sd.Type ?? prev.shipType,
+          destination: sd.Destination?.trim() || prev.destination,
+          draught: sd.MaximumStaticDraught ?? prev.draught,
+        });
+        isDirty = true;
+      }
+    };
+
+    const connect = () => {
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      try { wsRef.current = new WebSocket('wss://stream.aisstream.io/v0/stream'); }
+      catch { return; }
+
+      wsRef.current.onopen = () => {
+        reconnectDelay = 3000;
+        subscribe();
+        startFlush();
+      };
+
+      wsRef.current.onmessage = async ({ data }) => {
+        try {
+          const text = data instanceof Blob ? await data.text() : data;
+          const msg = JSON.parse(text);
+          handleMsg(msg);
+        } catch (e) {}
+      };
+
+      wsRef.current.onclose = () => {
+        if (flushTimer) clearInterval(flushTimer);
+        setTimeout(connect, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 1.5, 30000);
+      };
+    };
+
+    connect();
+    map.on('moveend', scheduleResub);
+
+    return () => {
+      map.off('moveend', scheduleResub);
+      if (resubTimer) clearTimeout(resubTimer);
+      if (flushTimer) clearInterval(flushTimer);
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, [settings.layers, mapLoaded, settings.aisstreamCredentials]);
 
   // Fetch track when selectedAircraftId changes
   useEffect(() => {
@@ -1687,7 +2082,89 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         }
       }
 
-      // Handle selection first
+      // Handle vessel click
+      let clickedVesselMmsi: string | null = null;
+      try {
+        const vesselLayers = settings.layers.filter(l => l.type === 'vessels').map(l => `dynamic-layer-${l.id}`);
+        if (vesselLayers.length > 0) {
+          const vesselFeatures = map.queryRenderedFeatures(e.point, { layers: vesselLayers });
+          if (vesselFeatures.length > 0) {
+            clickedVesselMmsi = vesselFeatures[0].properties?.mmsi || null;
+          }
+        }
+      } catch (err) {}
+
+      if (clickedVesselMmsi) {
+        if (activeVesselMmsiRef.current === clickedVesselMmsi) {
+          activeVesselMmsiRef.current = null;
+          window.dispatchEvent(new CustomEvent('vesselSelected', { detail: null }));
+          if (vesselPopupRef.current) {
+            vesselPopupRef.current.remove();
+            vesselPopupRef.current = null;
+          }
+          const trackSource = map.getSource('selected-vessel-track') as mapboxgl.GeoJSONSource;
+          if (trackSource) trackSource.setData({ type: 'FeatureCollection', features: [] });
+        } else {
+          activeVesselMmsiRef.current = clickedVesselMmsi;
+          window.dispatchEvent(new CustomEvent('vesselSelected', { detail: clickedVesselMmsi }));
+          const v = vesselsRef.current.get(clickedVesselMmsi);
+          if (v && v.lat != null && v.lon != null) {
+            if (!vesselPopupRef.current) {
+              vesselPopupRef.current = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, className: 'flight-popup' })
+                .setLngLat([v.lon, v.lat])
+                .addTo(map);
+            } else {
+              vesselPopupRef.current.setLngLat([v.lon, v.lat]);
+            }
+            const style = document.getElementById('flight-popup-style') || document.createElement('style');
+            style.id = 'flight-popup-style';
+            style.innerHTML = '.flight-popup .mapboxgl-popup-content { padding: 0; background: transparent; box-shadow: none; } .flight-popup .mapboxgl-popup-tip { border-top-color: #09090b; }';
+            if (!document.getElementById('flight-popup-style')) document.head.appendChild(style);
+            
+            const spd = v.sog != null ? Math.round(v.sog) + 'kn' : 'N/A';
+            const hdg = v.heading != null ? Math.round(v.heading) + '°' : 'N/A';
+            const flag = getMmsiFlagHtml(v.mmsi);
+            const popupHtml = `
+              <div style="background-color: #09090b; padding: 12px; border-radius: 0; color: white; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11px; min-width: 180px; text-transform: uppercase;">
+                <div style="font-size: 14px; font-weight: 700; margin-bottom: 8px; color: #ffffff; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;">
+                  <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${v.name || 'UNKNOWN'}</span>
+                  <span style="font-size: 16px; margin-left: 8px;">${flag}</span>
+                </div>
+                <div style="display: grid; grid-template-columns: 40px 1fr; gap: 6px; font-weight: 500;">
+                  <span style="color: rgba(255,255,255,0.5);">MMSI:</span> <span style="text-align: right; font-family: monospace;">${v.mmsi}</span>
+                  <span style="color: rgba(255,255,255,0.5);">CALL:</span> <span style="text-align: right; font-family: monospace;">${v.callSign || 'N/A'}</span>
+                  <span style="color: rgba(255,255,255,0.5);">DEST:</span> <span style="text-align: right; font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${v.destination || 'N/A'}</span>
+                  <span style="color: rgba(255,255,255,0.5);">SPD:</span> <span style="text-align: right; font-family: monospace;">${spd}</span>
+                  <span style="color: rgba(255,255,255,0.5);">HDG:</span> <span style="text-align: right; font-family: monospace;">${hdg}</span>
+                </div>
+              </div>
+            `;
+            vesselPopupRef.current.setHTML(popupHtml);
+
+            const trackSource = map.getSource('selected-vessel-track') as mapboxgl.GeoJSONSource;
+            if (trackSource && v.track && v.track.length > 1) {
+              trackSource.setData({
+                type: 'FeatureCollection',
+                features: [{ type: 'Feature', geometry: { type: 'LineString', coordinates: v.track }, properties: {} }]
+              });
+            } else if (trackSource) {
+              trackSource.setData({ type: 'FeatureCollection', features: [] });
+            }
+          }
+        }
+        return; // Prevent drawing or selecting other stuff
+      } else {
+        if (activeVesselMmsiRef.current) {
+          activeVesselMmsiRef.current = null;
+          window.dispatchEvent(new CustomEvent('vesselSelected', { detail: null }));
+          if (vesselPopupRef.current) {
+            vesselPopupRef.current.remove();
+            vesselPopupRef.current = null;
+          }
+          const trackSource = map.getSource('selected-vessel-track') as mapboxgl.GeoJSONSource;
+          if (trackSource) trackSource.setData({ type: 'FeatureCollection', features: [] });
+        }
+      }
       const features = map.queryRenderedFeatures(e.point, { layers: ['custom-polygons', 'custom-lines'] });
       if (features.length > 0) {
         const clickedId = features[0].properties?.id;

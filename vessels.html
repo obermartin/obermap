@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OBERMAP – Live Vessels</title>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #090d18; font-family: 'Courier New', monospace; color: #a0c4d8; }
+    #map { position: absolute; inset: 0; }
+
+    /* ── HUD top-left ────────────────────────────────────────────── */
+    .hud {
+      position: absolute; top: 16px; left: 16px; z-index: 10;
+      display: flex; flex-direction: column; gap: 4px;
+      pointer-events: none;
+    }
+    .hud-title { font-size: 11px; letter-spacing: 3.5px; color: #4aa8d8; font-weight: bold; text-transform: uppercase; }
+    .hud-sub   { font-size: 9px;  letter-spacing: 1.5px; color: #3a7a94; text-transform: uppercase; margin-top: 2px; }
+    #hud-area  { font-size: 9px;  letter-spacing: 1px;   color: #2d6070; text-transform: uppercase; margin-top: 6px; }
+
+    /* ── Connection bar top-right ────────────────────────────────── */
+    .conn-bar {
+      position: absolute; top: 16px; right: 16px; z-index: 10;
+      display: flex; align-items: center; gap: 8px;
+      background: rgba(9,13,24,0.85); border: 1px solid rgba(74,168,216,0.2);
+      border-radius: 3px; padding: 6px 12px;
+      font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: #5a9ab0;
+      pointer-events: none; backdrop-filter: blur(4px);
+    }
+    .conn-dot { width: 6px; height: 6px; border-radius: 50%; background: #333; transition: background 0.4s; flex-shrink: 0; }
+    .conn-dot.connecting { background: #e8a94a; animation: blink 1s ease-in-out infinite; }
+    .conn-dot.connected  { background: #6bcb77; box-shadow: 0 0 6px rgba(107,203,119,0.6); }
+    .conn-dot.error      { background: #c91d2c; }
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.2; } }
+
+    /* ── Vessel count bottom-left ────────────────────────────────── */
+    #vessel-count {
+      position: absolute; bottom: 36px; left: 16px; z-index: 10;
+      font-size: 9px; letter-spacing: 2.5px; color: #2d5a6e;
+      text-transform: uppercase; pointer-events: none;
+    }
+
+    /* ── Back button ─────────────────────────────────────────────── */
+    .back-btn {
+      position: absolute; top: 16px; right: 148px; z-index: 10;
+      background: rgba(9,13,24,0.85); border: 1px solid rgba(74,168,216,0.2);
+      border-radius: 3px; padding: 6px 12px;
+      font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: #4aa8d8;
+      text-decoration: none; cursor: pointer; backdrop-filter: blur(4px);
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .back-btn:hover { border-color: rgba(74,168,216,0.55); color: #88ccee; }
+
+    /* ── Legend bottom-right (above attribution) ─────────────────── */
+    .legend {
+      position: absolute; bottom: 60px; right: 16px; z-index: 10;
+      background: rgba(9,13,24,0.85); border: 1px solid rgba(74,168,216,0.15);
+      border-radius: 3px; padding: 10px 14px;
+      font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: #3a7a94;
+      pointer-events: none; backdrop-filter: blur(4px);
+      display: flex; flex-direction: column; gap: 7px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 8px; }
+    .legend-dot  { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+    /* ── Popup styling ───────────────────────────────────────────── */
+    .mapboxgl-popup { max-width: 270px !important; }
+    .mapboxgl-popup-content {
+      background: rgba(9,13,24,0.96) !important;
+      border: 1px solid rgba(74,168,216,0.28) !important;
+      border-radius: 4px !important; padding: 14px 16px !important;
+      color: #a0c4d8 !important; font-family: 'Courier New', monospace !important;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.7) !important;
+    }
+    .mapboxgl-popup-tip { border-top-color: rgba(74,168,216,0.28) !important; }
+    .mapboxgl-popup-close-button { color: #4aa8d8 !important; font-size: 16px !important; right: 8px !important; top: 6px !important; background: none !important; }
+    .pu-header { font-size: 11px; letter-spacing: 2px; color: #4aa8d8; font-weight: bold; text-transform: uppercase; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid rgba(74,168,216,0.18); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pu-row { display: flex; justify-content: space-between; align-items: center; margin: 5px 0; }
+    .pu-label { font-size: 9px; letter-spacing: 1px; color: #3a6a7a; text-transform: uppercase; }
+    .pu-val   { font-size: 10px; letter-spacing: 1px; color: #b8d8e8; font-weight: bold; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pu-mmsi  { font-size: 8px; letter-spacing: 1px; color: #2a4a58; margin-top: 10px; border-top: 1px solid rgba(74,168,216,0.1); padding-top: 8px; }
+
+    /* ── API-key prompt overlay ──────────────────────────────────── */
+    #key-prompt {
+      position: absolute; inset: 0; z-index: 200;
+      background: rgba(9,13,24,0.97);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 16px; padding: 32px;
+    }
+    #key-prompt h1 {
+      font-size: 12px; letter-spacing: 4px; color: #4aa8d8;
+      text-transform: uppercase; margin-bottom: 4px;
+    }
+    #key-prompt p {
+      font-size: 10px; color: #5a9ab0; letter-spacing: 1px;
+      text-align: center; max-width: 420px; line-height: 1.8;
+    }
+    #key-prompt strong { color: #4aa8d8; }
+    #key-input {
+      width: 100%; max-width: 420px;
+      background: rgba(74,168,216,0.05); border: 1px solid rgba(74,168,216,0.28);
+      border-radius: 3px; padding: 10px 14px;
+      color: #c0dce8; font-family: 'Courier New', monospace; font-size: 11px;
+      letter-spacing: 1px; outline: none;
+    }
+    #key-input:focus { border-color: rgba(74,168,216,0.65); }
+    #key-submit {
+      background: rgba(74,168,216,0.1); border: 1px solid rgba(74,168,216,0.38);
+      border-radius: 3px; padding: 10px 30px; color: #4aa8d8;
+      font-family: 'Courier New', monospace; font-size: 10px;
+      letter-spacing: 2.5px; text-transform: uppercase; cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    #key-submit:hover { background: rgba(74,168,216,0.2); border-color: rgba(74,168,216,0.6); }
+    .key-hint { font-size: 9px; color: #2a4a58; letter-spacing: 1px; }
+    .key-hint a { color: #3a7a94; }
+    #key-error { font-size: 9px; letter-spacing: 1px; color: #c91d2c; display: none; }
+  </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<!-- API key prompt -->
+<div id="key-prompt">
+  <h1>Live Vessel Tracking</h1>
+  <p>
+    Requires a free API key from <strong>aisstream.io</strong>.<br>
+    Register, copy your key, and paste it below. Stored locally in your browser.
+  </p>
+  <input id="key-input" type="text" placeholder="Paste your aisstream.io API key…" autocomplete="off" spellcheck="false">
+  <div id="key-error">Invalid or rejected key — check and try again.</div>
+  <button id="key-submit">Connect</button>
+  <span class="key-hint">Get a free key at <a href="https://aisstream.io" target="_blank">aisstream.io</a></span>
+  <span class="key-hint" style="margin-top:8px; color:#1a3040">Key is saved in localStorage · <span id="clear-key" style="cursor:pointer;color:#2a5060;text-decoration:underline">clear saved key</span></span>
+</div>
+
+<!-- HUD -->
+<div class="hud">
+  <div class="hud-title">OBERMAP</div>
+  <div class="hud-sub">Live Vessel Tracking</div>
+  <div id="hud-area"></div>
+</div>
+
+<!-- Connection indicator -->
+<div class="conn-bar">
+  <div class="conn-dot" id="conn-dot"></div>
+  <span id="conn-label">OFFLINE</span>
+</div>
+
+<!-- Back link -->
+<a href="/" class="back-btn">← Map</a>
+
+<!-- Vessel count -->
+<div id="vessel-count">—</div>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#4aa8d8"></div>Underway &gt; 3 kn</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#e8c84a"></div>Slow (0.5 – 3 kn)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#6bcb77"></div>Anchored / Moored</div>
+</div>
+
+<script>
+'use strict';
+
+const MAPBOX_TOKEN  = 'pk.eyJ1Ijoib2Jlcm1hcnRpbiIsImEiOiJja25ybGlpYTgyNDRhMnVwcmo5eml4ZGdzIn0.W_ZjSsvTOlZs-Xd7m72DIQ';
+const STORAGE_KEY   = 'aisstream_api_key';
+const VESSEL_TTL    = 10 * 60 * 1000;  // 10 min expiry
+const FLUSH_RATE    = 1000;             // map update interval ms
+const BOUNDS_PAD    = 2;               // degrees padding on viewport subscription
+
+mapboxgl.accessToken = MAPBOX_TOKEN;
+
+// ── Map ───────────────────────────────────────────────────────────────────────
+const map = new mapboxgl.Map({
+  container: 'map',
+  style: 'mapbox://styles/mapbox/dark-v11',
+  center: [10, 50],
+  zoom: 4,
+  projection: 'mercator',
+  attributionControl: false
+});
+map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-right');
+map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'bottom-right');
+
+// ── State ─────────────────────────────────────────────────────────────────────
+const vessels = new Map();  // MMSI → object
+let ws            = null;
+let flushTimer    = null;
+let resubTimer    = null;
+let isDirty       = false;
+let activePopup   = null;
+let activeMMSI    = null;
+
+// ── Ship icon factory ─────────────────────────────────────────────────────────
+function makeShipIcon(isSolid) {
+  const S = 28, c = document.createElement('canvas');
+  c.width = S; c.height = S;
+  const ctx = c.getContext('2d');
+  
+  ctx.beginPath();
+  ctx.moveTo(S / 2, 1);           // bow (tip)
+  ctx.lineTo(S - 3, S - 3);      // stern starboard corner
+  ctx.lineTo(S / 2, S - 9);      // stern centre notch
+  ctx.lineTo(3, S - 3);          // stern port corner
+  ctx.closePath();
+  
+  if (isSolid) {
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+  } else {
+    ctx.fillStyle = 'rgba(0,0,0,0)';
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+  
+  return ctx.getImageData(0, 0, S, S);
+}
+
+// ── Map load ──────────────────────────────────────────────────────────────────
+map.on('load', () => {
+  map.addImage('ship-fast',     makeShipIcon(true));
+  map.addImage('ship-slow',     makeShipIcon(true));
+  map.addImage('ship-still',    makeShipIcon(false));
+
+  map.addSource('vessels', {
+    type: 'geojson',
+    data: emptyFC()
+  });
+
+  map.addSource('selected-vessel-track', {
+    type: 'geojson',
+    data: emptyFC()
+  });
+
+  map.addLayer({
+    id: 'selected-vessel-track-layer',
+    type: 'line',
+    source: 'selected-vessel-track',
+    layout: {
+      'line-cap': 'round',
+      'line-join': 'round'
+    },
+    paint: {
+      'line-color': '#ffffff',
+      'line-width': 3,
+      'line-opacity': 0.8
+    }
+  });
+
+  // Icon layer
+  map.addLayer({
+    id: 'vessels-icons',
+    type: 'symbol',
+    source: 'vessels',
+    layout: {
+      'icon-image': ['get', 'icon'],
+      'icon-size': [
+        'interpolate', ['linear'], ['zoom'],
+        3, 0.55,
+        8, 0.85,
+        13, 1.2
+      ],
+      'icon-rotate': ['get', 'heading'],
+      'icon-rotation-alignment': 'map',
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+      'text-field': ['step', ['zoom'], '', 9, ['get', 'name']],
+      'text-size': 9,
+      'text-offset': [0, 1.5],
+      'text-anchor': 'top',
+      'text-font': ['DIN Pro Regular', 'Arial Unicode MS Regular'],
+      'text-allow-overlap': false,
+      'text-ignore-placement': false
+    },
+    paint: {
+      'text-color': '#ffffff',
+      'text-opacity': ['interpolate', ['linear'], ['zoom'], 9, 0, 10, 1]
+    }
+  });
+
+  map.on('click', 'vessels-icons', onVesselClick);
+  map.on('mouseenter', 'vessels-icons', () => { map.getCanvas().style.cursor = 'crosshair'; });
+  map.on('mouseleave', 'vessels-icons', () => { map.getCanvas().style.cursor = ''; });
+  map.on('moveend', scheduleResub);
+
+  checkKey();
+  setInterval(pruneVessels, 60_000);
+});
+
+// ── API key ───────────────────────────────────────────────────────────────────
+function checkKey() {
+  const k = localStorage.getItem(STORAGE_KEY);
+  if (k) { hidePrompt(); connect(k); }
+  else    { showPrompt(); }
+}
+
+function showPrompt() { document.getElementById('key-prompt').style.display = 'flex'; }
+function hidePrompt() { document.getElementById('key-prompt').style.display = 'none'; }
+
+document.getElementById('key-submit').addEventListener('click', () => {
+  const k = document.getElementById('key-input').value.trim();
+  if (!k) return;
+  document.getElementById('key-error').style.display = 'none';
+  localStorage.setItem(STORAGE_KEY, k);
+  hidePrompt();
+  connect(k);
+});
+document.getElementById('key-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('key-submit').click();
+});
+document.getElementById('clear-key').addEventListener('click', () => {
+  localStorage.removeItem(STORAGE_KEY);
+  document.getElementById('key-input').value = '';
+  showPrompt();
+  if (ws) { ws.onclose = null; ws.close(); ws = null; }
+  setConn('offline');
+});
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
+let reconnectDelay = 3000;
+
+function connect(apiKey) {
+  if (ws) { ws.onclose = null; ws.close(); ws = null; }
+  setConn('connecting');
+
+  try { ws = new WebSocket('wss://stream.aisstream.io/v0/stream'); }
+  catch { setConn('error'); return; }
+
+  ws.onopen = () => {
+    reconnectDelay = 3000;
+    setConn('connected');
+    console.log('[AIS] WebSocket open');
+    subscribe(apiKey);
+    startFlush();
+  };
+
+  ws.onmessage = async ({ data }) => {
+    try {
+      const text = data instanceof Blob ? await data.text() : data;
+      const msg  = JSON.parse(text);
+      handleMsg(msg);
+    } catch (e) { console.error('[AIS] parse error:', e); }
+  };
+
+  ws.onerror = (e) => { console.error('[AIS] ws error', e); setConn('error'); };
+
+  ws.onclose = (ev) => {
+    setConn('connecting');
+    stopFlush();
+    // If first close indicates a bad key (code 4001 or similar), surface an error
+    if (ev.code === 4001 || ev.code === 4003) {
+      document.getElementById('key-error').style.display = 'block';
+      showPrompt();
+      return;
+    }
+    setTimeout(() => {
+      const k = localStorage.getItem(STORAGE_KEY);
+      if (k) connect(k);
+    }, reconnectDelay);
+    reconnectDelay = Math.min(reconnectDelay * 1.5, 30_000);
+  };
+}
+
+function subscribe(apiKey) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  const b   = map.getBounds();
+  const s   = Math.max(-90,  b.getSouth() - BOUNDS_PAD);
+  const n   = Math.min(90,   b.getNorth() + BOUNDS_PAD);
+  const w   = Math.max(-180, b.getWest()  - BOUNDS_PAD);
+  const e   = Math.min(180,  b.getEast()  + BOUNDS_PAD);
+  ws.send(JSON.stringify({
+    APIKey: apiKey,
+    BoundingBoxes: [[[s, w], [n, e]]],
+    FilterMessageTypes: ['PositionReport', 'ShipStaticData']
+  }));
+  updateHUDArea(s, n, w, e);
+}
+
+function scheduleResub() {
+  clearTimeout(resubTimer);
+  resubTimer = setTimeout(() => {
+    const k = localStorage.getItem(STORAGE_KEY);
+    if (k) {
+      if (ws) {
+        ws.onclose = null; // Prevent auto-reconnect
+        ws.close();
+        ws = null;
+      }
+      connect(k);
+    }
+  }, 1000);
+}
+
+// ── AIS message handling ──────────────────────────────────────────────────────
+function handleMsg(msg) {
+  const meta = msg.MetaData;
+  if (!meta) return;
+  const mmsi = String(meta.MMSI ?? meta.mmsi ?? '');
+  if (!mmsi) return;
+
+  if (msg.MessageType === 'PositionReport') {
+    const pr  = msg.Message?.PositionReport ?? {};
+    const lat = meta.latitude  ?? pr.Latitude;
+    const lon = meta.longitude ?? pr.Longitude;
+    if (lat == null || lon == null) return;
+    const sog = pr.Sog ?? 0;
+    const cog = pr.Cog ?? 0;
+    const hdg = (pr.TrueHeading != null && pr.TrueHeading !== 511) ? pr.TrueHeading : cog;
+    const prev = vessels.get(mmsi) ?? {};
+    const track = prev.track || [];
+    if (track.length === 0 || track[track.length - 1][0] !== lon || track[track.length - 1][1] !== lat) {
+      track.push([lon, lat]);
+      if (track.length > 500) track.shift();
+    }
+    vessels.set(mmsi, {
+      ...prev,
+      mmsi, lat, lon, sog, cog,
+      heading: hdg, track,
+      navStatus: pr.NavigationalStatus ?? prev.navStatus,
+      name: (meta.ShipName?.trim() || prev.name || mmsi),
+      lastUpdate: Date.now(),
+      icon: sog > 3 ? 'ship-fast' : sog > 0.5 ? 'ship-slow' : 'ship-still'
+    });
+    isDirty = true;
+    if (activeMMSI === mmsi) liveUpdatePopup();
+  }
+
+  if (msg.MessageType === 'ShipStaticData') {
+    const sd  = msg.Message?.ShipStaticData ?? {};
+    const prev = vessels.get(mmsi) ?? { mmsi, lastUpdate: Date.now(), icon: 'ship-still' };
+    vessels.set(mmsi, {
+      ...prev,
+      name:        ((sd.Name || meta.ShipName || prev.name || mmsi).trim()),
+      callSign:    sd.CallSign?.trim()        || prev.callSign,
+      imo:         sd.ImoNumber               ?? prev.imo,
+      shipType:    sd.Type                    ?? prev.shipType,
+      destination: sd.Destination?.trim()     || prev.destination,
+      draught:     sd.MaximumStaticDraught    ?? prev.draught,
+    });
+    isDirty = true;
+  }
+}
+
+// ── Flush loop ────────────────────────────────────────────────────────────────
+function startFlush() {
+  stopFlush();
+  flushTimer = setInterval(flush, FLUSH_RATE);
+}
+function stopFlush() {
+  if (flushTimer) { clearInterval(flushTimer); flushTimer = null; }
+}
+
+function flush() {
+  if (!isDirty) return;
+  isDirty = false;
+  const features = [];
+  for (const v of vessels.values()) {
+    if (v.lat == null) continue;
+    features.push({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [v.lon, v.lat] },
+      properties: {
+        mmsi:        v.mmsi,
+        name:        v.name      || v.mmsi,
+        sog:         v.sog       ?? null,
+        cog:         v.cog       ?? null,
+        heading:     v.heading   ?? 0,
+        navStatus:   v.navStatus ?? null,
+        callSign:    v.callSign  || null,
+        destination: v.destination || null,
+        shipType:    v.shipType  ?? null,
+        icon:        v.icon      || 'ship-fast'
+      }
+    });
+  }
+  const src = map.getSource('vessels');
+  if (src) src.setData({ type: 'FeatureCollection', features });
+  
+  const trackSrc = map.getSource('selected-vessel-track');
+  if (trackSrc) {
+    if (activeMMSI && vessels.has(activeMMSI)) {
+      const activeVessel = vessels.get(activeMMSI);
+      if (activeVessel.track && activeVessel.track.length > 1) {
+        trackSrc.setData({
+          type: 'FeatureCollection',
+          features: [{
+            type: 'Feature',
+            geometry: { type: 'LineString', coordinates: activeVessel.track },
+            properties: {}
+          }]
+        });
+      } else {
+        trackSrc.setData(emptyFC());
+      }
+    } else {
+      trackSrc.setData(emptyFC());
+    }
+  }
+
+  const n = vessels.size;
+  document.getElementById('vessel-count').textContent =
+    n === 0 ? '—' : `${n.toLocaleString()} vessel${n === 1 ? '' : 's'} in view`;
+}
+
+// ── Popup ─────────────────────────────────────────────────────────────────────
+function onVesselClick(e) {
+  const props = e.features[0].properties;
+  const coords = e.features[0].geometry.coordinates.slice();
+  // Adjust popup to not cross antimeridian
+  while (Math.abs(e.lngLat.lng - coords[0]) > 180) coords[0] += e.lngLat.lng > coords[0] ? 360 : -360;
+  openPopup(props, coords);
+}
+
+function openPopup(props, coords) {
+  if (activePopup) activePopup.remove();
+  activeMMSI = props.mmsi;
+  activePopup = new mapboxgl.Popup({ closeButton: true, maxWidth: '280px', offset: 10 })
+    .setLngLat(coords)
+    .setHTML(popupHTML(props))
+    .addTo(map);
+  
+  // Force a flush to immediately draw the track for the selected vessel
+  isDirty = true;
+  flush();
+
+  activePopup.on('close', () => { 
+    activeMMSI = null; 
+    activePopup = null; 
+    const trackSrc = map.getSource('selected-vessel-track');
+    if (trackSrc) trackSrc.setData(emptyFC());
+  });
+}
+
+function liveUpdatePopup() {
+  if (!activeMMSI || !activePopup) return;
+  const v = vessels.get(activeMMSI);
+  if (!v || v.lat == null) return;
+  activePopup.setHTML(popupHTML({
+    mmsi: v.mmsi, name: v.name, sog: v.sog, cog: v.cog,
+    callSign: v.callSign, destination: v.destination,
+    shipType: v.shipType, navStatus: v.navStatus
+  }));
+}
+
+function popupHTML(p) {
+  const sog  = p.sog  != null ? `${(+p.sog).toFixed(1)} kn` : '—';
+  const cog  = p.cog  != null ? `${Math.round(+p.cog)}°`    : '—';
+  const type = shipTypeLabel(p.shipType);
+  const flag = getMmsiFlagHtml(p.mmsi);
+  return `
+    <div class="pu-header" style="display: flex; justify-content: space-between; align-items: center;">
+      <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${esc(p.name)}</span>
+      <span style="margin-left: 8px;">${flag}</span>
+    </div>
+    <div class="pu-row"><span class="pu-label">Speed</span><span class="pu-val">${sog}</span></div>
+    <div class="pu-row"><span class="pu-label">Course</span><span class="pu-val">${cog}</span></div>
+    ${type ? `<div class="pu-row"><span class="pu-label">Type</span><span class="pu-val">${esc(type)}</span></div>` : ''}
+    ${p.callSign    ? `<div class="pu-row"><span class="pu-label">Call Sign</span><span class="pu-val">${esc(p.callSign)}</span></div>` : ''}
+    ${p.destination ? `<div class="pu-row"><span class="pu-label">Destination</span><span class="pu-val">${esc(p.destination)}</span></div>` : ''}
+    <div class="pu-mmsi">MMSI ${esc(p.mmsi)}</div>
+  `;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function getMmsiFlagHtml(mmsi) {
+  if (!mmsi) return '';
+  const mStr = String(mmsi);
+  if (mStr.length !== 9) return '';
+  const mid = parseInt(mStr.substring(0, 3));
+  const midMap = {
+    211: 'DE', 218: 'DE', 232: 'GB', 233: 'GB', 234: 'GB', 235: 'GB',
+    338: 'US', 366: 'US', 367: 'US', 368: 'US', 369: 'US', 226: 'FR', 227: 'FR', 228: 'FR',
+    247: 'IT', 224: 'ES', 225: 'ES', 316: 'CA', 503: 'AU', 431: 'JP', 432: 'JP',
+    412: 'CN', 413: 'CN', 414: 'CN', 273: 'RU', 272: 'UA', 261: 'PL', 271: 'TR',
+    244: 'NL', 245: 'NL', 246: 'NL', 269: 'CH', 265: 'SE', 266: 'SE', 257: 'NO', 258: 'NO', 259: 'NO',
+    219: 'DK', 220: 'DK', 230: 'FI', 203: 'AT', 205: 'BE', 710: 'BR', 345: 'MX', 419: 'IN',
+    601: 'ZA', 250: 'IE', 237: 'GR', 238: 'GR', 239: 'GR', 240: 'GR', 241: 'GR', 263: 'PT',
+    512: 'NZ', 563: 'SG', 564: 'SG', 565: 'SG', 566: 'SG', 470: 'AE', 403: 'SA', 428: 'IL',
+    440: 'KR', 441: 'KR', 416: 'TW', 477: 'HK', 567: 'TH', 533: 'MY', 525: 'ID', 574: 'VN',
+    548: 'PH', 622: 'EG', 242: 'MA',
+    351: 'PA', 352: 'PA', 353: 'PA', 354: 'PA', 355: 'PA', 356: 'PA', 357: 'PA', 370: 'PA', 371: 'PA', 372: 'PA', 373: 'PA', 374: 'PA',
+    636: 'LR', 637: 'LR', 538: 'MH', 215: 'MT', 229: 'MT', 248: 'MT', 249: 'MT', 256: 'MT',
+    308: 'BS', 309: 'BS', 311: 'BS', 209: 'CY', 210: 'CY', 212: 'CY', 304: 'AG', 305: 'AG',
+    375: 'VC', 376: 'VC', 377: 'VC', 576: 'VU', 577: 'VU', 319: 'KY', 310: 'BM', 236: 'GI', 231: 'FO'
+  };
+  const code = midMap[mid];
+  if (!code) return '';
+  return `<img src="https://flagcdn.com/w20/${code.toLowerCase()}.png" width="16" alt="${code}" style="vertical-align: middle; border-radius: 1px;" />`;
+}
+
+function setConn(state) {
+  const dot   = document.getElementById('conn-dot');
+  const label = document.getElementById('conn-label');
+  dot.className = `conn-dot${state !== 'offline' ? ' ' + state : ''}`;
+  label.textContent = { connecting: 'CONNECTING…', connected: 'LIVE', error: 'ERROR', offline: 'OFFLINE' }[state] ?? state.toUpperCase();
+}
+
+function updateHUDArea(s, n, w, e) {
+  document.getElementById('hud-area').textContent =
+    `${fmt(s)}–${fmt(n)} N · ${fmt(w)}–${fmt(e)} E`;
+}
+
+function pruneVessels() {
+  const cutoff = Date.now() - VESSEL_TTL;
+  for (const [id, v] of vessels) if (v.lastUpdate < cutoff) vessels.delete(id);
+  isDirty = true;
+}
+
+function emptyFC() { return { type: 'FeatureCollection', features: [] }; }
+function fmt(d) { return d.toFixed(1) + '°'; }
+function esc(s) {
+  if (s == null) return '—';
+  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+function shipTypeLabel(t) {
+  if (t == null) return '';
+  t = +t;
+  if (t >= 70 && t <= 79) return 'Cargo';
+  if (t >= 80 && t <= 89) return 'Tanker';
+  if (t >= 60 && t <= 69) return 'Passenger';
+  if (t >= 30 && t <= 39) return 'Fishing';
+  if (t === 52)            return 'Tug';
+  if (t === 55)            return 'Law Enforcement';
+  if (t >= 40 && t <= 49) return 'High-Speed';
+  if (t >= 20 && t <= 29) return 'Wing in Ground';
+  if (t === 0)             return '';
+  return `Type ${t}`;
+}
+</script>
+</body>
+</html>

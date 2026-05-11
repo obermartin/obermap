@@ -19,7 +19,7 @@ export interface Annotation {
 export interface MapLayer {
   id: string;
   name: string;
-  type: 'geojson' | 'raster' | 'satellite' | 'split' | 'deepstate' | 'empty-slot' | 'flights';
+  type: 'geojson' | 'raster' | 'satellite' | 'split' | 'deepstate' | 'empty-slot' | 'flights' | 'vessels';
   visible: boolean;
   data?: any; // For GeoJSON
   url?: string; // For XYZ/WMTS
@@ -46,6 +46,10 @@ export interface MapLayer {
   flightpathOpacity?: number;
   globalAircraftColor?: string;
   aircraftColors?: Record<string, string>;
+  
+  // Vessel layer specific
+  globalVesselColor?: string;
+  vesselColors?: Record<string, string>;
 }
 
 export interface AppSettings {
@@ -62,6 +66,7 @@ export interface AppSettings {
   labelDensity?: number;
   layers: MapLayer[];
   openSkyCredentials?: { clientId: string; clientSecret: string };
+  aisstreamCredentials?: { apiKey: string };
 }
 
 export interface AppState {

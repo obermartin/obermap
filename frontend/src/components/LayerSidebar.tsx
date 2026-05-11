@@ -9,7 +9,8 @@ const DEFAULT_LAYERS: MapLayer[] = [
   { id: 'deepstate', name: 'UKRAINE CURRENT', type: 'deepstate', visible: false, isLive: true },
   { id: 'copernicus', name: 'Wildfires (EFFIS)', type: 'raster', visible: false, url: 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}' },
   { id: 'satellite', name: 'Satellite Map Overlay (Mapbox)', type: 'satellite', visible: false },
-  { id: 'flights', name: 'Air Traffic (OpenSky)', type: 'flights', visible: false }
+  { id: 'flights', name: 'Air Traffic (OpenSky)', type: 'flights', visible: false },
+  { id: 'vessels', name: 'Maritime Traffic (AIS)', type: 'vessels', visible: false }
 ];
 
 interface LayerSidebarProps {
@@ -41,11 +42,19 @@ export function LayerSidebar({
   const [activeTab, setActiveTab] = useState<'layers' | 'basemap'>('layers');
   const [isDraggingLayer, setIsDraggingLayer] = useState(false);
   const [selectedAircraftId, setSelectedAircraftId] = useState<string | null>(null);
+  const [selectedVesselMmsi, setSelectedVesselMmsi] = useState<string | null>(null);
 
   useEffect(() => {
     const handler = (e: CustomEvent<string | null>) => setSelectedAircraftId(e.detail);
     window.addEventListener('aircraftSelected', handler as EventListener);
-    return () => window.removeEventListener('aircraftSelected', handler as EventListener);
+    
+    const vesselHandler = (e: CustomEvent<string | null>) => setSelectedVesselMmsi(e.detail);
+    window.addEventListener('vesselSelected', vesselHandler as EventListener);
+    
+    return () => {
+      window.removeEventListener('aircraftSelected', handler as EventListener);
+      window.removeEventListener('vesselSelected', vesselHandler as EventListener);
+    };
   }, []);
 
   const toggleDefaultLayer = (defaultLayer: MapLayer) => {
@@ -497,6 +506,7 @@ export function LayerSidebar({
                     setIsDraggingLayer={setIsDraggingLayer}
                     handleDragEnd={handleDragEnd}
                     selectedAircraftId={selectedAircraftId}
+                    selectedVesselMmsi={selectedVesselMmsi}
                   toggleVisibility={toggleLayerVisibility}
                   removeLayer={removeLayer}
                   renameLayer={renameLayer}
@@ -768,6 +778,17 @@ export function LayerSidebar({
                   />
                 </div>
               </div>
+              <div className="mt-2">
+                <label className="text-[10px] text-white/50 mb-1 block font-semibold tracking-wider">AISSTREAM CREDENTIALS</label>
+                <p className="text-[10px] text-white/40 mb-2 leading-tight">Required for Maritime Traffic. Get a free API key at aisstream.io</p>
+                <input
+                  type="password"
+                  placeholder="API Key"
+                  className="w-full bg-black/60 px-3 py-2 outline-none font-mono text-xs border border-white/10 focus:border-white/50 transition-colors"
+                  value={settings.aisstreamCredentials?.apiKey || ''}
+                  onChange={e => setSettings(prev => ({ ...prev, aisstreamCredentials: { apiKey: e.target.value } }))}
+                />
+              </div>
             </div>
           </details>
         </div>
@@ -795,8 +816,9 @@ function LayerItem(props: {
   isDraggingLayer?: boolean;
   setIsDraggingLayer?: (isDragging: boolean) => void;
   selectedAircraftId?: string | null;
+  selectedVesselMmsi?: string | null;
 }) {
-  const { layer, isNestedChild = false, toggleVisibility, removeLayer, renameLayer, colorPalette, activeGeojsonLayerId, setActiveGeojsonLayerId, selectedFeatureId, updateLayerStyle, updateLayerProperty, updateLayerDates, duplicateLayer, toggleLive, handleDragEnd, isDraggingLayer, setIsDraggingLayer, selectedAircraftId } = props;
+  const { layer, isNestedChild = false, toggleVisibility, removeLayer, renameLayer, colorPalette, activeGeojsonLayerId, setActiveGeojsonLayerId, selectedFeatureId, updateLayerStyle, updateLayerProperty, updateLayerDates, duplicateLayer, toggleLive, handleDragEnd, isDraggingLayer, setIsDraggingLayer, selectedAircraftId, selectedVesselMmsi } = props;
   const isActiveEdit = activeGeojsonLayerId === layer.id;
   const setActiveEdit = () => {
     if (isActiveEdit) setActiveGeojsonLayerId(null);
@@ -1002,20 +1024,20 @@ function LayerItem(props: {
               )}
             </div>
 
-            {layer.type !== 'split' && (layer.type === 'geojson' || layer.type === 'raster' || layer.type === 'satellite' || layer.type === 'deepstate' || layer.type === 'flights') && (
+            {layer.type !== 'split' && (layer.type === 'geojson' || layer.type === 'raster' || layer.type === 'satellite' || layer.type === 'deepstate' || layer.type === 'flights' || layer.type === 'vessels') && (
               <button
                 onClick={() => {
                   if (!layer.visible) toggleVisibility(layer.id);
                   setActiveEdit();
                 }}
                 className={`transition-colors ${isActiveEdit ? 'text-white' : iconColorFaded}`}
-                title={`Toggle ${layer.type === 'geojson' ? 'GeoJSON' : layer.type === 'flights' ? 'Air Traffic' : 'Layer'} Edit Mode`}
+                title={`Toggle ${layer.type === 'geojson' ? 'GeoJSON' : layer.type === 'flights' ? 'Air Traffic' : layer.type === 'vessels' ? 'Maritime Traffic' : 'Layer'} Edit Mode`}
               >
                 <Edit2 size={16} />
               </button>
             )}
 
-            {layer.type !== 'split' && layer.id !== 'satellite' && layer.id !== 'deepstate' && layer.id !== 'copernicus' && layer.id !== 'flights' && !isNestedChild && (
+            {layer.type !== 'split' && layer.id !== 'satellite' && layer.id !== 'deepstate' && layer.id !== 'copernicus' && layer.id !== 'flights' && layer.type !== 'vessels' && !isNestedChild && (
               <button onClick={() => removeLayer(layer.id)} className={`transition-colors ml-1 ${iconColor}`}>
                 <Trash2 size={16} />
               </button>
@@ -1255,6 +1277,55 @@ function LayerItem(props: {
                   onChange={e => updateLayerProperty(layer.id, 'flightpathOpacity', Number(e.target.value) / 100)}
                   className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
                 />
+              </div>
+            </div>
+          ) : layer.type === 'vessels' ? (
+            <div className="flex flex-col gap-4 pb-2">
+              <div className="flex flex-col gap-2">
+                <label className="text-[10px] text-white/50 font-semibold tracking-wider uppercase">
+                  {selectedVesselMmsi ? `COLOR (VESSEL MMSI: ${selectedVesselMmsi})` : 'GLOBAL VESSEL COLOR'}
+                </label>
+                <div className="flex flex-wrap gap-1">
+                  {colorPalette.map(color => (
+                    <button
+                      key={color}
+                      onClick={() => {
+                        if (selectedVesselMmsi) {
+                          const existingColors = layer.vesselColors || {};
+                          updateLayerProperty(layer.id, 'vesselColors', { ...existingColors, [String(selectedVesselMmsi)]: color });
+                        } else {
+                          updateLayerProperty(layer.id, 'globalVesselColor', color);
+                        }
+                      }}
+                      className="w-6 h-6 flex-shrink-0 transition-colors relative"
+                      style={{ backgroundColor: color }}
+                      title={color}
+                    >
+                      {((selectedVesselMmsi && layer.vesselColors?.[String(selectedVesselMmsi)] === color) || 
+                        (!selectedVesselMmsi && layer.globalVesselColor === color)) && (
+                        <div className="absolute inset-0 flex items-center justify-center mix-blend-difference text-white text-xs">✓</div>
+                      )}
+                    </button>
+                  ))}
+                  <button
+                    key="transparent"
+                    onClick={() => {
+                      if (selectedVesselMmsi) {
+                        const existingColors = { ...layer.vesselColors };
+                        delete existingColors[String(selectedVesselMmsi)];
+                        updateLayerProperty(layer.id, 'vesselColors', existingColors);
+                      } else {
+                        updateLayerProperty(layer.id, 'globalVesselColor', undefined);
+                      }
+                    }}
+                    className="w-6 h-6 relative overflow-hidden flex-shrink-0 transition-colors"
+                    title="Reset to Default White"
+                  >
+                    <div className="absolute inset-0 bg-white/10 flex items-center justify-center">
+                      <div className="w-full h-0 border-t border-red-500 transform rotate-45"></div>
+                    </div>
+                  </button>
+                </div>
               </div>
             </div>
           ) : (
