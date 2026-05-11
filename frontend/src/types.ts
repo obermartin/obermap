@@ -56,7 +56,14 @@ export interface MapLayer {
   vesselColors?: Record<string, string>;
 }
 
+export interface IconCategory {
+  id: string;
+  name: string;
+  icons: { id: string; svg: string }[];
+}
+
 export interface AppSettings {
+  title?: string;
   mapboxToken: string;
   mapboxStyle: string;
   defaultView: {
@@ -66,7 +73,7 @@ export interface AppSettings {
     bearing: number;
   };
   colorPalette: string[];
-  icons: { id: string; svg: string }[];
+  icons: IconCategory[];
   labelDensity?: number;
   layers: MapLayer[];
   openSkyCredentials?: { clientId: string; clientSecret: string };

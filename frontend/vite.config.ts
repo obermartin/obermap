@@ -132,8 +132,19 @@ function mockPhpBackend() {
           if (action === 'list_shows' && req.method === 'GET') {
             const files = fs.readdirSync(showsDir).filter((f: string) => f.endsWith('.json'));
             const shows = files.map((f: string) => {
+              const showId = f.replace('.json', '');
+              let title = showId;
+              try {
+                const content = fs.readFileSync(path.join(showsDir, f), 'utf-8');
+                const data = JSON.parse(content);
+                if (data?.settings?.title) {
+                  title = data.settings.title;
+                }
+              } catch (e) {
+                // Ignore parse errors
+              }
               const stat = fs.statSync(path.join(showsDir, f));
-              return { id: f.replace('.json', ''), updatedAt: stat.mtime.toISOString() };
+              return { id: showId, title, updatedAt: stat.mtime.toISOString() };
             });
             shows.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
             res.setHeader('Content-Type', 'application/json');

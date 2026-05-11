@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Tag, MousePointer2, Paintbrush, Hexagon, Circle as CircleIcon, Ruler, Save, Trash2, X, MapPin, Loader2, ArrowUpRight, Minus } from 'lucide-react';
+import { Tag, MousePointer2, Paintbrush, Hexagon, Circle as CircleIcon, Ruler, Save, Trash2, X, MapPin, Loader2, ArrowUpRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { ToolType, AppSettings, StrokeType } from '../types';
 import clsx from 'clsx';
 
@@ -65,9 +65,12 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   selectedIconId,
   setSelectedIconId
 }) => {
+
+  const [currentIconCategoryIdx, setCurrentIconCategoryIdx] = React.useState(0);
+
   const startIconDrag = (e: React.PointerEvent, iconId: string) => {
     if (activeTool !== 'icon') return;
-    const iconObj = settings.icons?.find(i => i.id === iconId);
+    const iconObj = settings.icons?.[currentIconCategoryIdx]?.icons?.find(i => i.id === iconId);
     if (!iconObj) return;
 
     // Immediately select the icon so they can click to place later
@@ -134,9 +137,29 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 10, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="flex relative max-w-full overflow-x-auto overflow-y-hidden no-scrollbar shrink-0"
+            className="flex relative max-w-full bg-black overflow-x-auto overflow-y-hidden no-scrollbar shrink-0 border-b border-white/10"
           >
-            {settings.icons?.map((iconObj) => (
+            <div className="flex flex-col justify-center items-center px-2 border-r border-white/20 bg-black min-w-[80px]">
+              <span className="text-[10px] text-white/50 uppercase font-bold tracking-wider mb-1">
+                {settings.icons?.[currentIconCategoryIdx]?.name || 'Icons'}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentIconCategoryIdx(prev => (prev > 0 ? prev - 1 : (settings.icons?.length || 1) - 1))}
+                  className="p-1 hover:bg-white/20 text-white/60 hover:text-white rounded"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <button
+                  onClick={() => setCurrentIconCategoryIdx(prev => (prev < (settings.icons?.length || 1) - 1 ? prev + 1 : 0))}
+                  className="p-1 hover:bg-white/20 text-white/60 hover:text-white rounded"
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+
+            {settings.icons?.[currentIconCategoryIdx]?.icons?.map((iconObj) => (
               <button
                 key={iconObj.id}
                 onPointerDown={(e) => startIconDrag(e, iconObj.id)}

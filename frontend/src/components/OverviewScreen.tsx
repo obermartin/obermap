@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { GlobeCanvas } from './GlobeCanvas';
 import { Play, Link as LinkIcon, Trash2, Plus, Loader2, Layers, Copy, Lock, Unlock } from 'lucide-react';
+import { customAlert, customConfirm, customPrompt } from '../utils/dialogService';
 
 interface Show {
   id: string;
+  title: string;
   updatedAt: string;
 }
 
@@ -32,25 +34,28 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
     fetchShows();
   }, []);
 
-  const handleLink = (showId: string) => {
+  const handleLink = async (showId: string) => {
     const url = `${window.location.origin}${window.location.pathname}?show=${showId}`;
-    navigator.clipboard.writeText(url).then(() => {
-      alert(`Link copied to clipboard:\n${url}`);
+    navigator.clipboard.writeText(url).then(async () => {
+      await customAlert(`Link copied to clipboard:\n${url}`);
     });
   };
 
   const [isDefaultUnlocked, setIsDefaultUnlocked] = useState(false);
   const [showUnlockWarning, setShowUnlockWarning] = useState(false);
 
-  const handleDuplicate = (showId: string) => {
-    const newName = window.prompt("Enter name for duplicate show:", `Copy_of_${showId}`);
+  const handleDuplicate = async (showId: string) => {
+    const targetShow = shows.find(s => s.id === showId);
+    const oldTitle = targetShow?.title || showId;
+    const newName = await customPrompt("Enter name for duplicate show:", `Copy of ${oldTitle}`);
     if (!newName) return;
-    const safeId = newName.trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '');
-    if (!safeId) return;
-
+    const safeId = 'show_' + Date.now();
+    
     fetch(`./api.php?show=${showId}&t=${Date.now()}`)
       .then(res => res.json())
       .then(data => {
+        data.settings = data.settings || {};
+        data.settings.title = newName.trim();
         return fetch(`./api.php?show=${safeId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -61,31 +66,35 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
       .catch(err => console.error('Error duplicating show:', err));
   };
 
-  const handleRename = (showId: string) => {
+  const handleRename = async (showId: string) => {
     if (showId === '_DEFAULT' && !isDefaultUnlocked) return;
     
-    const newName = window.prompt("Enter new name for the show:", showId);
-    if (!newName || newName === showId) return;
-    const safeId = newName.trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '');
-    if (!safeId || safeId === showId) return;
+    const targetShow = shows.find(s => s.id === showId);
+    const oldTitle = targetShow?.title || showId;
+    const newName = await customPrompt("Enter new name for the show:", oldTitle);
+    if (!newName || newName.trim() === oldTitle) return;
 
     fetch(`./api.php?show=${showId}&t=${Date.now()}`)
       .then(res => res.json())
       .then(data => {
-        return fetch(`./api.php?show=${safeId}`, {
+        data.settings = data.settings || {};
+        data.settings.title = newName.trim();
+        return fetch(`./api.php?show=${showId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
         });
       })
-      .then(() => fetch(`./api.php?action=delete_show&show=${showId}`, { method: 'POST' }))
       .then(() => fetchShows())
       .catch(err => console.error('Error renaming show:', err));
   };
 
-  const handleDelete = (showId: string) => {
+  const handleDelete = async (showId: string) => {
     if (showId === '_DEFAULT' && !isDefaultUnlocked) return;
-    if (window.confirm(`Are you sure you want to delete the show "${showId}"? This cannot be undone.`)) {
+    const targetShow = shows.find(s => s.id === showId);
+    const title = targetShow?.title || showId;
+    const confirmed = await customConfirm(`Are you sure you want to delete the show "${title}"? This cannot be undone.`);
+    if (confirmed) {
       fetch(`./api.php?action=delete_show&show=${showId}`, { method: 'POST' })
         .then(res => res.json())
         .then(() => {
@@ -105,12 +114,25 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
 
   const confirmCreateNew = () => {
     if (!newShowName.trim()) return;
-    // Sanitize name for API compatibility (alphanumeric, dash, underscore)
-    const safeId = newShowName.trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '');
-    if (!safeId) return;
+    
+    const title = newShowName.trim();
+    const safeId = 'show_' + Date.now();
     
     setShowPrompt(false);
-    onSelectShow(safeId);
+    
+    fetch(`./api.php?show=_DEFAULT&t=${Date.now()}`)
+      .then(res => res.json())
+      .then(data => {
+        data.settings = data.settings || {};
+        data.settings.title = title;
+        return fetch(`./api.php?show=${safeId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+      })
+      .then(() => onSelectShow(safeId))
+      .catch(err => console.error('Error creating show:', err));
   };
 
   return (
@@ -120,12 +142,12 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-6">
         
         {/* Logo */}
-        <div className="absolute top-12 left-1/2 -translate-x-1/2 pointer-events-auto">
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 pointer-events-auto z-0">
           <img src="/obermapstudio.svg" alt="Obermap Studio" className="h-36 w-auto" />
         </div>
 
         {/* Panel */}
-        <div className="w-full max-w-2xl bg-zinc-900 border border-white/10 shadow-2xl p-6 pointer-events-auto flex flex-col gap-4">
+        <div className="relative z-10 w-full max-w-2xl bg-zinc-900 border border-white/10 shadow-2xl p-6 pointer-events-auto flex flex-col gap-4">
           <div className="text-white text-sm font-semibold flex items-center gap-2 pb-2 mb-2 uppercase tracking-wider">
             <Layers size={18} /> Available Shows
           </div>
@@ -158,8 +180,8 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
                           {isLocked ? <Lock size={16} /> : <Unlock size={16} className="text-white" />}
                         </button>
                       )}
-                      <div className={`font-mono text-sm truncate ${!isLocked ? 'cursor-text' : ''}`} title={show.id}>
-                        {show.id}
+                      <div className={`font-mono text-sm truncate ${!isLocked ? 'cursor-text' : ''}`} title={show.title || show.id}>
+                        {show.title || show.id}
                         <div className="text-[10px] text-white/40 mt-1 uppercase tracking-wider">
                           {new Date(show.updatedAt).toLocaleString()}
                         </div>
@@ -218,7 +240,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
       {/* New Show Prompt Modal */}
       {showPrompt && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto">
-          <div className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 min-w-[350px] shadow-2xl">
+          <div className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 min-w-[350px] max-w-md shadow-2xl">
             <h3 className="text-white font-semibold flex items-center gap-2 text-sm uppercase tracking-wider border-b border-white/10 pb-2">New Show Name</h3>
             <input
               autoFocus
@@ -232,8 +254,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
               placeholder="e.g. My_Awesome_Show"
               className="w-full bg-black/60 border border-white/10 px-3 py-2 outline-none font-mono text-sm text-white focus:border-white/50 transition-colors"
             />
-            <div className="text-[10px] text-white/40 leading-tight uppercase font-semibold tracking-wider">Special characters will be removed.</div>
-            <div className="flex justify-end gap-2 mt-2">
+            <div className="flex justify-end gap-2 mt-2 pt-4 border-t border-white/10">
               <button 
                 onClick={() => setShowPrompt(false)}
                 className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors uppercase font-semibold"

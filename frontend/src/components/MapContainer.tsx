@@ -5,6 +5,7 @@ import type { Annotation, ToolType, AppSettings, StrokeType } from '../types';
 import * as turf from '@turf/turf';
 import { createCirclePolygon, calculateDistance, simplifyLine, transliterateToGerman, createArrowFeatures } from '../utils/mapUtils';
 import anyAscii from 'any-ascii';
+import { customAlert } from '../utils/dialogService';
 
 let globalDeepstateHistory: { id: number; createdAt: string }[] | null = null;
 let globalDeepstateHistoryPromise: Promise<void> | null = null;
@@ -767,10 +768,11 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           console.error('Error generating circle markers', e);
         }
       } else if (ann.type === 'icon' && ann.coordinates) {
-        const iconObj = settings.icons?.find(i => i.id === ann.iconId);
+        const allIcons = settings.icons?.flatMap(cat => cat.icons) || [];
+        const iconObj = allIcons.find(i => i.id === ann.iconId);
         if (iconObj) {
           const el = document.createElement('div');
-          el.className = 'w-8 h-8 flex items-center justify-center p-1 icon-svg-wrapper';
+          el.className = 'w-16 h-16 flex items-center justify-center p-2 icon-svg-wrapper';
           el.style.backgroundColor = ann.color || '#ffffff';
           el.style.color = getContrastYIQ(ann.color || '#ffffff');
           el.innerHTML = iconObj.svg;
@@ -878,7 +880,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                 maxRank = 11 + Math.floor(((density - 21) / 79) * 9);
               }
 
-              const rankCondition = ['<=', ['coalesce', ['get', 'symbolrank'], 1], maxRank];
+              const rankCondition = ['<=', ['coalesce', ['get', 'symbolrank'], ['get', 'scalerank'], 99], maxRank];
               
               let capCondition: any[] = ['==', '1', '2'];
               if (density === 0) {
@@ -1991,10 +1993,11 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
   // Handle searchAircraft
   useEffect(() => {
-    const handleSearchAircraft = ((e: CustomEvent<string>) => {
+    const handleSearchAircraft = (async (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
       const map = mapRef.current;
       if (!map) return;
-      const searchTerm = e.detail.toUpperCase();
+      const searchTerm = customEvent.detail.toUpperCase();
       
       const flightsLayer = settings.layers.find(l => l.type === 'flights');
       if (!flightsLayer) return;
@@ -2012,7 +2015,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         map.flyTo({ center: coords, zoom: 8 });
         setSelectedAircraftId(found.properties?.icao24 || null);
       } else {
-        alert('Aircraft not found in currently visible airspace.');
+        await customAlert('Aircraft not found in currently visible airspace.');
       }
     }) as EventListener;
     window.addEventListener('searchAircraft', handleSearchAircraft);
@@ -2272,8 +2275,124 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       }
 
       if (activeTool === 'highlight') {
+        const evaluateExpression = (expr: any, zoom: number, feature: mapboxgl.MapboxGeoJSONFeature): any => {
+          if (typeof expr !== 'object' || expr === null) return expr;
+          if (!Array.isArray(expr)) return expr;
+          const type = expr[0];
+          
+          if (type === 'get') {
+            return feature.properties?.[expr[1]];
+          }
+          if (type === 'has') {
+            return feature.properties?.[expr[1]] !== undefined;
+          }
+          if (type === '==') {
+            return evaluateExpression(expr[1], zoom, feature) === evaluateExpression(expr[2], zoom, feature);
+          }
+          if (type === '!=') {
+            return evaluateExpression(expr[1], zoom, feature) !== evaluateExpression(expr[2], zoom, feature);
+          }
+          if (type === 'step') {
+            const input = evaluateExpression(expr[1], zoom, feature);
+            let val = evaluateExpression(expr[2], zoom, feature);
+            for (let i = 3; i < expr.length; i += 2) {
+              if (input >= expr[i]) val = evaluateExpression(expr[i + 1], zoom, feature);
+              else break;
+            }
+            return val;
+          }
+          if (type === 'interpolate') {
+            const input = evaluateExpression(expr[2], zoom, feature);
+            for (let i = 3; i < expr.length; i += 2) {
+              if (input === expr[i]) return evaluateExpression(expr[i + 1], zoom, feature);
+              if (input < expr[i]) {
+                if (i === 3) return evaluateExpression(expr[i + 1], zoom, feature);
+                const z0 = expr[i - 2], v0 = evaluateExpression(expr[i - 1], zoom, feature);
+                const z1 = expr[i], v1 = evaluateExpression(expr[i + 1], zoom, feature);
+                const t = (input - z0) / (z1 - z0);
+                return v0 + t * (v1 - v0);
+              }
+            }
+            return evaluateExpression(expr[expr.length - 1], zoom, feature);
+          }
+          if (type === 'match') {
+            const input = evaluateExpression(expr[1], zoom, feature);
+            for (let i = 2; i < expr.length - 1; i += 2) {
+              const cases = Array.isArray(expr[i]) ? expr[i] : [expr[i]];
+              if (cases.includes(input)) return evaluateExpression(expr[i + 1], zoom, feature);
+            }
+            return evaluateExpression(expr[expr.length - 1], zoom, feature);
+          }
+          if (type === 'case') {
+            for (let i = 1; i < expr.length - 1; i += 2) {
+              if (evaluateExpression(expr[i], zoom, feature)) return evaluateExpression(expr[i + 1], zoom, feature);
+            }
+            return evaluateExpression(expr[expr.length - 1], zoom, feature);
+          }
+          if (type === 'zoom') {
+            return zoom;
+          }
+          if (type === 'all') {
+            for (let i = 1; i < expr.length; i++) {
+              if (!evaluateExpression(expr[i], zoom, feature)) return false;
+            }
+            return true;
+          }
+          if (type === 'any') {
+            for (let i = 1; i < expr.length; i++) {
+              if (evaluateExpression(expr[i], zoom, feature)) return true;
+            }
+            return false;
+          }
+          
+          return null; // unsupported expression
+        };
+
         const features = map.queryRenderedFeatures(e.point);
-        const symbolFeature = features.find(f => f.layer?.type === 'symbol' && (f.properties?.name || f.properties?.name_en || f.properties?.name_de));
+        const currentZoom = map.getZoom();
+        
+        const symbolFeature = features.find(f => {
+          if (f.layer?.type !== 'symbol') return false;
+          if (!f.properties?.name && !f.properties?.name_en && !f.properties?.name_de) return false;
+          
+          try {
+            const layerId = f.layer.id;
+            const minZoom = map.getLayer(layerId)?.minzoom || 0;
+            const maxZoom = map.getLayer(layerId)?.maxzoom || 24;
+            if (currentZoom < minZoom || currentZoom > maxZoom) return false;
+
+            const textOpacity = map.getPaintProperty(layerId, 'text-opacity');
+            if (textOpacity !== undefined) {
+              if (typeof textOpacity === 'number' && textOpacity === 0) return false;
+              if (Array.isArray(textOpacity)) {
+                const val = evaluateExpression(textOpacity, currentZoom, f);
+                if (val === 0) return false;
+              }
+            }
+            
+            const textSize = map.getLayoutProperty(layerId, 'text-size');
+            if (textSize !== undefined) {
+              if (typeof textSize === 'number' && textSize === 0) return false;
+              if (Array.isArray(textSize)) {
+                const val = evaluateExpression(textSize, currentZoom, f);
+                if (val === 0) return false;
+              }
+            }
+
+            const textField = map.getLayoutProperty(layerId, 'text-field');
+            if (textField !== undefined) {
+              if (Array.isArray(textField)) {
+                const val = evaluateExpression(textField, currentZoom, f);
+                if (!val || val === '') return false;
+              }
+            }
+
+            return true;
+          } catch (e) {
+            return true; // default to true if we can't determine visibility
+          }
+        });
+        
         if (symbolFeature) {
           const props = symbolFeature.properties || {};
           // Prioritize the native name (usually Cyrillic for Ukraine/Russia)

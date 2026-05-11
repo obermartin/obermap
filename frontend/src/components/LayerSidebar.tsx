@@ -1,8 +1,9 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Reorder, useDragControls, motion } from 'framer-motion';
-import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2, Edit2, Square, RefreshCcw, RotateCcw, Copy, Radio, Settings, Save, Loader2, LogOut } from 'lucide-react';
+import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2, Edit2, Square, RefreshCcw, RotateCcw, Copy, Radio, Settings, Save, Loader2, LogOut, Image as ImageIcon, ChevronDown, ChevronRight, Camera } from 'lucide-react';
 import type { AppSettings, MapLayer } from '../types';
 import { parseMapFileWithIds } from '../utils/fileUtils';
+import { customAlert, customConfirm, customPrompt } from '../utils/dialogService';
 
 const DEFAULT_LAYERS: MapLayer[] = [
   { id: 'split-container', name: 'Split View Container', type: 'split', visible: false, splitPosition: 0.5, splitDirection: 'vertical', splitLayers: [] },
@@ -12,6 +13,152 @@ const DEFAULT_LAYERS: MapLayer[] = [
   { id: 'flights', name: 'Air Traffic (OpenSky)', type: 'flights', visible: false },
   { id: 'vessels', name: 'Maritime Traffic (AIS)', type: 'vessels', visible: false }
 ];
+
+const CategoryItem = ({ category, catIndex, expandedCategories, setExpandedCategories, setSettings }: any) => {
+  const controls = useDragControls();
+  const isExpanded = expandedCategories[category.id] ?? false;
+
+  return (
+    <Reorder.Item 
+      key={category.id} 
+      value={category} 
+      dragListener={false} 
+      dragControls={controls} 
+      className="flex flex-col gap-[2px] w-full"
+    >
+      <div className="relative p-3 flex items-center justify-between gap-3 bg-black">
+        <div className="flex items-center gap-2 flex-1">
+          <div onPointerDown={(e) => controls.start(e)} className="cursor-grab active:cursor-grabbing shrink-0 flex items-center p-1">
+            <GripVertical size={14} className="text-white/30" />
+          </div>
+          <button 
+            onClick={() => setExpandedCategories((prev: any) => ({ ...prev, [category.id]: !isExpanded }))}
+            className="p-1 transition-colors text-white/50 hover:text-white shrink-0"
+          >
+            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          </button>
+          <input
+            type="text"
+            value={category.name}
+            onChange={(e) => {
+              const newName = e.target.value;
+              setSettings((prev: any) => {
+                const newIcons = [...(prev.icons || [])];
+                newIcons[catIndex] = { ...category, name: newName };
+                return { ...prev, icons: newIcons };
+              });
+            }}
+            className="bg-transparent text-sm font-semibold tracking-wide text-white focus:outline-none w-full"
+          />
+        </div>
+        <button 
+          onClick={async () => {
+            const confirmed = await customConfirm(`Delete category "${category.name}" and all its icons?`);
+            if (confirmed) {
+              setSettings((prev: any) => {
+                const newIcons = [...(prev.icons || [])];
+                newIcons.splice(catIndex, 1);
+                return { ...prev, icons: newIcons };
+              });
+            }
+          }}
+          className="text-white/30 hover:text-white transition-colors p-1 shrink-0"
+          title="Delete Category"
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
+
+      {isExpanded && (
+        <div className="flex flex-wrap gap-2 items-center p-3 bg-black" onPointerDown={(e) => e.stopPropagation()}>
+          <div className="flex flex-wrap gap-2 items-center">
+            {category.icons?.map((iconObj: any, index: number) => (
+              <div
+                key={iconObj.id}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.dataTransfer.setData('text/plain', index.toString());
+                  e.currentTarget.style.opacity = '0.5';
+                }}
+                onDragEnd={(e) => {
+                  e.currentTarget.style.opacity = '1';
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault(); // Necessary to allow dropping
+                  e.dataTransfer.dropEffect = 'move';
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                  const toIndex = index;
+                  if (fromIndex === toIndex || isNaN(fromIndex)) return;
+                  
+                  setSettings((prev: any) => {
+                    const newCategories = [...(prev.icons || [])];
+                    const newIcons = [...(category.icons || [])];
+                    const [movedItem] = newIcons.splice(fromIndex, 1);
+                    newIcons.splice(toIndex, 0, movedItem);
+                    newCategories[catIndex] = { ...category, icons: newIcons };
+                    return { ...prev, icons: newCategories };
+                  });
+                }}
+                className="w-10 h-10 relative group cursor-grab active:cursor-grabbing flex items-center justify-center bg-black text-white shrink-0"
+              >
+                <div className="w-full h-full p-2 icon-svg-wrapper pointer-events-none" dangerouslySetInnerHTML={{ __html: iconObj.svg }} />
+                <button 
+                  onClick={() => {
+                    setSettings((prev: any) => {
+                      const newCategories = [...(prev.icons || [])];
+                      newCategories[catIndex] = { 
+                        ...category, 
+                        icons: category.icons.filter((i: any) => i.id !== iconObj.id) 
+                      };
+                      return { ...prev, icons: newCategories };
+                    });
+                  }}
+                  className="absolute inset-0 bg-white text-black hidden group-hover:flex items-center justify-center text-xs font-bold transition-opacity"
+                  title="Remove icon"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            
+            <label className="w-10 h-10 border border-white flex items-center justify-center bg-black text-white hover:bg-white hover:text-black transition-colors shrink-0 cursor-pointer" title="Upload SVG Icon to this Category">
+              +
+              <input 
+                type="file" 
+                accept=".svg" 
+                className="hidden" 
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = (event) => {
+                    const text = event.target?.result as string;
+                    if (text.includes('<svg')) {
+                      const newIcon = { id: `icon-${Date.now()}`, svg: text };
+                      setSettings((prev: any) => {
+                        const newCategories = [...(prev.icons || [])];
+                        newCategories[catIndex] = { 
+                          ...category,
+                          icons: [...(category.icons || []), newIcon]
+                        };
+                        return { ...prev, icons: newCategories };
+                      });
+                    }
+                  };
+                  reader.readAsText(file);
+                }}
+              />
+            </label>
+          </div>
+        </div>
+      )}
+    </Reorder.Item>
+  );
+};
 
 interface LayerSidebarProps {
   settings: AppSettings;
@@ -41,10 +188,11 @@ export function LayerSidebar({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [urlInput, setUrlInput] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(false);
-  const [activeTab, setActiveTab] = useState<'layers' | 'basemap'>('layers');
+  const [activeTab, setActiveTab] = useState<'layers' | 'icons' | 'basemap'>('layers');
   const [isDraggingLayer, setIsDraggingLayer] = useState(false);
   const [selectedAircraftId, setSelectedAircraftId] = useState<string | null>(null);
   const [selectedVesselMmsi, setSelectedVesselMmsi] = useState<string | null>(null);
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const handler = (e: CustomEvent<string | null>) => setSelectedAircraftId(e.detail);
@@ -80,8 +228,7 @@ export function LayerSidebar({
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
   
-  const iconDragItem = useRef<number | null>(null);
-  const iconDragOverItem = useRef<number | null>(null);
+
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     dragItem.current = index;
@@ -109,12 +256,12 @@ export function LayerSidebar({
     dragOverItem.current = null;
   };
 
-  const confirmAddColor = () => {
+  const confirmAddColor = async () => {
     if (/^#[0-9A-F]{6}$/i.test(newColorHex)) {
       setSettings(prev => ({ ...prev, colorPalette: [...prev.colorPalette, newColorHex.toUpperCase()] }));
       setAddingColor(false);
     } else {
-      alert('Invalid hex color format. Use #RRGGBB');
+      await customAlert('Invalid hex color format. Use #RRGGBB');
     }
   };
 
@@ -122,58 +269,6 @@ export function LayerSidebar({
     setSettings(prev => ({ ...prev, colorPalette: prev.colorPalette.filter(c => c !== color) }));
   };
 
-  const handleIconDragStart = (e: React.DragEvent, index: number) => {
-    iconDragItem.current = index;
-    e.dataTransfer.effectAllowed = "move";
-  };
-
-  const handleIconDragEnter = (index: number) => {
-    iconDragOverItem.current = index;
-  };
-
-  const handleIconDragEnd = () => {
-    const fromIndex = iconDragItem.current;
-    const toIndex = iconDragOverItem.current;
-
-    if (fromIndex !== null && toIndex !== null && fromIndex !== toIndex) {
-      setSettings(prev => {
-        const newIcons = [...(prev.icons || [])];
-        const [movedItem] = newIcons.splice(fromIndex, 1);
-        newIcons.splice(toIndex, 0, movedItem);
-        return { ...prev, icons: newIcons };
-      });
-    }
-    iconDragItem.current = null;
-    iconDragOverItem.current = null;
-  };
-
-  const removeIcon = (iconId: string) => {
-    setSettings(prev => ({ ...prev, icons: (prev.icons || []).filter(i => i.id !== iconId) }));
-  };
-
-  const handleIconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      if (text.includes('<svg')) {
-        const newIcon = {
-          id: `icon-${Date.now()}`,
-          svg: text
-        };
-        setSettings(prev => ({
-          ...prev,
-          icons: [...(prev.icons || []), newIcon]
-        }));
-      } else {
-        alert('Invalid SVG file.');
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
   const updateLayerRecursively = (layers: MapLayer[], targetId: string, updater: (l: MapLayer) => MapLayer): MapLayer[] => {
     return layers.map(layer => {
       if (layer.id === targetId) return updater(layer);
@@ -371,7 +466,7 @@ export function LayerSidebar({
       };
       setSettings(prev => ({ ...prev, layers: [newLayer, ...prev.layers] }));
     } catch (err) {
-      alert('Error parsing file: ' + (err as Error).message);
+      await customAlert('Error parsing file: ' + (err as Error).message);
     }
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -447,8 +542,16 @@ export function LayerSidebar({
         <button
           onClick={() => setActiveTab('layers')}
           className={`flex-1 py-3 text-center transition-colors ${activeTab === 'layers' ? 'bg-white text-black' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}
+          title="Layers"
         >
-          LAYERS
+          <Layers size={18} className="mx-auto" />
+        </button>
+        <button
+          onClick={() => setActiveTab('icons')}
+          className={`flex-1 py-3 flex items-center justify-center transition-colors ${activeTab === 'icons' ? 'bg-white text-black' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}
+          title="Icon Library"
+        >
+          <ImageIcon size={18} />
         </button>
         <button
           onClick={() => setActiveTab('basemap')}
@@ -484,7 +587,7 @@ export function LayerSidebar({
       {activeTab === 'layers' ? (
         <>
           <div className="p-4 border-b border-white/10">
-            <label className="text-xs text-white/50 mb-2 block font-semibold tracking-wider">
+            <label className="text-xs text-white mb-2 block font-semibold tracking-wider">
               LABEL DENSITY ({settings.labelDensity ?? 50}%)
             </label>
             <div className="flex items-center gap-3">
@@ -508,7 +611,7 @@ export function LayerSidebar({
           </div>
 
           <div data-drop-zone="root" className="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col gap-2">
-            <label className="text-xs text-white/50 mb-1 block font-semibold tracking-wider">LAYER STACK</label>
+            <label className="text-xs text-white mb-1 block font-semibold tracking-wider">LAYER STACK</label>
             <Reorder.Group axis="y" values={flatLayers} onReorder={handleReorder} className="flex flex-col gap-2">
               {flatLayers.map((layer) => {
                 return (
@@ -614,13 +717,95 @@ export function LayerSidebar({
             )}
           </div>
         </>
+      ) : activeTab === 'icons' ? (
+        <>
+          <div className="p-4 pb-2 border-b border-white/20">
+            <div className="text-xs font-semibold tracking-wider text-white">ICON SETS</div>
+          </div>
+          
+          <div className="p-4 flex flex-col flex-1 overflow-y-auto custom-scrollbar">
+            <Reorder.Group axis="y" values={settings.icons || []} onReorder={(newCategories) => setSettings(prev => ({ ...prev, icons: newCategories }))} className="flex flex-col gap-4">
+              {settings.icons?.map((category, catIndex) => (
+                <CategoryItem
+                  key={category.id}
+                  category={category}
+                  catIndex={catIndex}
+                  expandedCategories={expandedCategories}
+                  setExpandedCategories={setExpandedCategories}
+                  setSettings={setSettings}
+                />
+              ))}
+            </Reorder.Group>
+          </div>
+
+          <div className="p-4 border-t border-white/10 flex flex-col gap-3">
+            <button 
+              onClick={() => {
+                setSettings(prev => ({
+                  ...prev,
+                  icons: [
+                    ...(prev.icons || []),
+                    { id: `cat-${Date.now()}`, name: 'New Icon Set', icons: [] }
+                  ]
+                }));
+              }}
+              className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors"
+            >
+              + New Icon Set
+            </button>
+
+            <label className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors cursor-pointer">
+              <Upload size={16} /> Upload Icon Set
+            <input 
+              type="file" 
+              accept=".svg" 
+              multiple 
+              className="hidden" 
+              onChange={async (e) => {
+                const files = e.target.files;
+                if (!files || files.length === 0) return;
+                
+                const catName = await customPrompt(`Enter a name for the new category containing ${files.length} icons:`, 'New Category');
+                if (!catName) {
+                  e.target.value = '';
+                  return;
+                }
+
+                const newIcons: { id: string; svg: string }[] = [];
+                for (let i = 0; i < files.length; i++) {
+                  const file = files[i];
+                  const text = await new Promise<string>((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (event) => resolve(event.target?.result as string);
+                    reader.readAsText(file);
+                  });
+                  if (text.includes('<svg')) {
+                    newIcons.push({ id: `icon-${Date.now()}-${i}`, svg: text });
+                  }
+                }
+
+                if (newIcons.length > 0) {
+                  setSettings(prev => ({
+                    ...prev,
+                    icons: [
+                      ...(prev.icons || []),
+                      { id: `cat-${Date.now()}`, name: catName, icons: newIcons }
+                    ]
+                  }));
+                }
+                e.target.value = '';
+              }}
+            />
+          </label>
+          </div>
+        </>
       ) : (
         <div className="p-4 flex flex-col gap-6 flex-1 overflow-y-auto custom-scrollbar">
-          <div className="text-xs font-semibold tracking-wider text-white border-b border-white/20 pb-2">APP CONFIGURATION</div>
+          <div className="text-xs font-semibold tracking-wider text-white border-b border-white/20 pb-2 -mx-4 px-4">APP CONFIGURATION</div>
 
           {/* 1. COLOR PALETTE */}
           <div>
-            <label className="text-xs text-white/50 mb-2 block font-semibold tracking-wider">COLOR PALETTE</label>
+            <label className="text-xs text-white mb-2 block font-semibold tracking-wider">COLOR PALETTE</label>
             <div className="flex flex-wrap gap-2 items-center">
               {settings.colorPalette.map((c, index) => (
                 <div 
@@ -675,41 +860,11 @@ export function LayerSidebar({
             </div>
           </div>
           
-          {/* 2. ICONS */}
-          <div>
-            <label className="text-xs text-white/50 mb-2 block font-semibold tracking-wider">ICONS</label>
-            <div className="flex flex-wrap gap-2 items-center">
-              {settings.icons?.map((iconObj, index) => (
-                <div 
-                  key={iconObj.id} 
-                  className="w-10 h-10 border border-white/20 relative group cursor-grab active:cursor-grabbing flex items-center justify-center bg-white/10"
-                  draggable
-                  onDragStart={(e) => handleIconDragStart(e, index)}
-                  onDragEnter={() => handleIconDragEnter(index)}
-                  onDragEnd={handleIconDragEnd}
-                  onDragOver={(e) => e.preventDefault()}
-                >
-                  <div className="w-full h-full p-2 icon-svg-wrapper" style={{ color: 'white' }} dangerouslySetInnerHTML={{ __html: iconObj.svg }} />
-                  <button 
-                    onClick={() => removeIcon(iconObj.id)}
-                    className="absolute inset-0 bg-black/80 text-white hidden group-hover:flex items-center justify-center text-xs font-bold transition-opacity"
-                    title="Remove icon"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-              
-              <label className="w-10 h-10 border border-white/20 flex items-center justify-center hover:bg-white hover:text-black transition-colors shrink-0 cursor-pointer" title="Upload SVG Icon">
-                +
-                <input type="file" accept=".svg" className="hidden" onChange={handleIconUpload} />
-              </label>
-            </div>
-          </div>
+          <div className="border-b border-white/20 -mx-4" />
 
           {/* 3. DEFAULT MAP LAYERS */}
           <div>
-            <label className="text-xs text-white/50 mb-3 block font-semibold tracking-wider">DEFAULT MAP LAYERS</label>
+            <label className="text-xs text-white mb-3 block font-semibold tracking-wider">DEFAULT MAP LAYERS</label>
             <div className="flex flex-col gap-2">
               {DEFAULT_LAYERS.map(layer => {
                 const isEnabled = settings.layers.some(l => l.id === layer.id);
@@ -728,27 +883,32 @@ export function LayerSidebar({
             </div>
           </div>
 
+          <div className="border-b border-white/20 -mx-4" />
+
           {/* 4. DEFAULT VIEW */}
           <div>
-            <label className="text-xs text-white/50 mb-2 block font-semibold tracking-wider mt-2">DEFAULT VIEW</label>
+            <label className="text-xs text-white mb-2 block font-semibold tracking-wider mt-2">DEFAULT VIEW</label>
             <p className="text-xs text-white/40 mb-3">Save the current map position and zoom level as the default view when loading the application.</p>
             <button
               onClick={handleCaptureView}
-              className="w-full py-2 bg-white/10 hover:bg-white hover:text-black flex items-center justify-center gap-2 text-sm transition-colors font-semibold tracking-wider"
+              className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors"
             >
-              CAPTURE CURRENT VIEW
+              <Camera size={16} /> Capture Current View
             </button>
           </div>
 
+          <div className="border-b border-white/20 -mx-4" />
+
           {/* 5. BASE MAP */}
-          <details className="group border border-white/10 bg-white/5 p-3">
-            <summary className="text-xs text-white/80 block font-semibold tracking-wider cursor-pointer list-none outline-none flex justify-between items-center [&::-webkit-details-marker]:hidden">
+          <details className="group flex flex-col gap-[2px] w-full">
+            <summary className="relative p-3 flex items-center gap-2 bg-black text-xs text-white font-semibold tracking-wider cursor-pointer list-none outline-none [&::-webkit-details-marker]:hidden">
+              <ChevronRight size={14} className="text-white/50 group-hover:text-white transition-colors group-open:hidden shrink-0" />
+              <ChevronDown size={14} className="text-white/50 group-hover:text-white transition-colors hidden group-open:block shrink-0" />
               <span>BASE MAP</span>
-              <span className="text-white/40 group-open:rotate-180 transition-transform">▼</span>
             </summary>
-            <div className="pt-4 flex flex-col gap-4 border-t border-white/10 mt-3">
+            <div className="p-3 flex flex-col gap-4 bg-black mt-[2px]">
               <div>
-                <label className="text-[10px] text-white/50 mb-1 block font-semibold tracking-wider">MAPBOX TOKEN</label>
+                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">MAPBOX TOKEN</label>
                 <input
                   className="w-full bg-black/60 px-3 py-2 outline-none font-mono text-xs border border-white/10 focus:border-white/50 transition-colors"
                   value={settings.mapboxToken}
@@ -756,7 +916,7 @@ export function LayerSidebar({
                 />
               </div>
               <div>
-                <label className="text-[10px] text-white/50 mb-1 block font-semibold tracking-wider">MAPBOX STYLE</label>
+                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">MAPBOX STYLE</label>
                 <input
                   className="w-full bg-black/60 px-3 py-2 outline-none font-mono text-xs border border-white/10 focus:border-white/50 transition-colors"
                   value={settings.mapboxStyle}
@@ -767,14 +927,15 @@ export function LayerSidebar({
           </details>
 
           {/* 6. API SETTINGS */}
-          <details className="group border border-white/10 bg-white/5 p-3 mb-6">
-            <summary className="text-xs text-white/80 block font-semibold tracking-wider cursor-pointer list-none outline-none flex justify-between items-center [&::-webkit-details-marker]:hidden">
+          <details className="group flex flex-col gap-[2px] w-full mb-6">
+            <summary className="relative p-3 flex items-center gap-2 bg-black text-xs text-white font-semibold tracking-wider cursor-pointer list-none outline-none [&::-webkit-details-marker]:hidden">
+              <ChevronRight size={14} className="text-white/50 group-hover:text-white transition-colors group-open:hidden shrink-0" />
+              <ChevronDown size={14} className="text-white/50 group-hover:text-white transition-colors hidden group-open:block shrink-0" />
               <span>API SETTINGS</span>
-              <span className="text-white/40 group-open:rotate-180 transition-transform">▼</span>
             </summary>
-            <div className="pt-4 flex flex-col gap-4 border-t border-white/10 mt-3">
+            <div className="p-3 flex flex-col gap-4 bg-black mt-[2px]">
               <div>
-                <label className="text-[10px] text-white/50 mb-1 block font-semibold tracking-wider">OPENSKY CREDENTIALS</label>
+                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">OPENSKY CREDENTIALS</label>
                 <p className="text-[10px] text-white/40 mb-2 leading-tight">Optional. Leave blank for anonymous access (rate-limited).</p>
                 <div className="flex gap-2">
                   <input
@@ -793,7 +954,7 @@ export function LayerSidebar({
                 </div>
               </div>
               <div className="mt-2">
-                <label className="text-[10px] text-white/50 mb-1 block font-semibold tracking-wider">AISSTREAM CREDENTIALS</label>
+                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">AISSTREAM CREDENTIALS</label>
                 <p className="text-[10px] text-white/40 mb-2 leading-tight">Required for Maritime Traffic. Get a free API key at aisstream.io</p>
                 <input
                   type="password"
@@ -1098,7 +1259,7 @@ function LayerItem(props: {
               {layer.id === 'copernicus' && updateLayerDates && (
                 <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
                   <div className="flex items-center justify-between">
-                    <label className="text-[10px] text-white/50 font-semibold tracking-wider">START DATE</label>
+                    <label className="text-[10px] text-white font-semibold tracking-wider">START DATE</label>
                     <input 
                       type="date" 
                       value={layer.startDate || defaultStartDate} 
@@ -1108,7 +1269,7 @@ function LayerItem(props: {
                     />
                   </div>
                   <div className="flex items-center justify-between">
-                    <label className="text-[10px] text-white/50 font-semibold tracking-wider">END DATE</label>
+                    <label className="text-[10px] text-white font-semibold tracking-wider">END DATE</label>
                     <input 
                       type="date" 
                       value={layer.endDate || defaultEndDate} 
@@ -1122,7 +1283,7 @@ function LayerItem(props: {
 
               <div className={`flex flex-col gap-1 mt-1 ${layer.type === 'deepstate' ? '' : 'pt-2 border-t border-white/10'}`}>
                 <div className="flex justify-between items-end">
-                  <label className="text-[10px] text-white/50 font-semibold tracking-wider">OPACITY</label>
+                  <label className="text-[10px] text-white font-semibold tracking-wider">OPACITY</label>
                   <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.opacity ?? (layer.type === 'deepstate' ? 0.5 : 1.0)) * 100)}%</span>
                 </div>
                 <input
@@ -1135,14 +1296,14 @@ function LayerItem(props: {
 
               {(layer.type === 'raster' || layer.type === 'satellite') && (
                 <details className="mt-3 group">
-                  <summary className="text-[10px] text-white/50 font-semibold tracking-wider cursor-pointer select-none hover:text-white transition-colors flex items-center justify-between">
+                  <summary className="text-[10px] text-white font-semibold tracking-wider cursor-pointer select-none hover:text-white transition-colors flex items-center justify-between">
                     ADJUSTMENTS
                     <span className="group-open:rotate-180 transition-transform text-xs">▼</span>
                   </summary>
                   <div className="pt-3 pb-1 flex flex-col gap-3">
                     <div className="flex flex-col gap-1">
                       <div className="flex justify-between items-end">
-                        <label className="text-[10px] text-white/50 font-semibold tracking-wider">BRIGHTNESS</label>
+                        <label className="text-[10px] text-white font-semibold tracking-wider">BRIGHTNESS</label>
                         <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.brightness ?? 0) * 100)}%</span>
                       </div>
                       <input
@@ -1156,7 +1317,7 @@ function LayerItem(props: {
                     </div>
                     <div className="flex flex-col gap-1">
                       <div className="flex justify-between items-end">
-                        <label className="text-[10px] text-white/50 font-semibold tracking-wider">CONTRAST</label>
+                        <label className="text-[10px] text-white font-semibold tracking-wider">CONTRAST</label>
                         <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.contrast ?? 0) * 100)}%</span>
                       </div>
                       <input
@@ -1170,7 +1331,7 @@ function LayerItem(props: {
                     </div>
                     <div className="flex flex-col gap-1">
                       <div className="flex justify-between items-end">
-                        <label className="text-[10px] text-white/50 font-semibold tracking-wider">SATURATION</label>
+                        <label className="text-[10px] text-white font-semibold tracking-wider">SATURATION</label>
                         <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.saturation ?? 0) * 100)}%</span>
                       </div>
                       <input
@@ -1184,7 +1345,7 @@ function LayerItem(props: {
                     </div>
                     <div className="flex flex-col gap-1">
                       <div className="flex justify-between items-end">
-                        <label className="text-[10px] text-white/50 font-semibold tracking-wider">HUE ROTATE</label>
+                        <label className="text-[10px] text-white font-semibold tracking-wider">HUE ROTATE</label>
                         <span className="text-[10px] text-white/70 font-mono">{layer.hue ?? 0}°</span>
                       </div>
                       <input
@@ -1203,7 +1364,7 @@ function LayerItem(props: {
           ) : layer.type === 'flights' ? (
             <div className="flex flex-col gap-4 pb-2">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] text-white/50 font-semibold tracking-wider">TAIL LABELS</span>
+                <span className="text-[10px] text-white font-semibold tracking-wider">TAIL LABELS</span>
                 <button
                   onClick={() => updateLayerProperty(layer.id, 'showCallsigns', !layer.showCallsigns)}
                   className={`transition-colors ${layer.showCallsigns ? 'text-white' : 'text-white/50 hover:text-white'}`}
@@ -1214,7 +1375,7 @@ function LayerItem(props: {
               </div>
 
               <div className="flex flex-col gap-2">
-                <label className="text-[10px] text-white/50 font-semibold tracking-wider">SEARCH CALLSIGN / REGISTRATION</label>
+                <label className="text-[10px] text-white font-semibold tracking-wider">SEARCH CALLSIGN / REGISTRATION</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -1234,7 +1395,7 @@ function LayerItem(props: {
               </div>
 
               <div className="flex flex-col gap-2">
-                <label className="text-[10px] text-white/50 font-semibold tracking-wider uppercase">
+                <label className="text-[10px] text-white font-semibold tracking-wider uppercase">
                   {selectedAircraftId ? `COLOR (AIRCRAFT ${selectedAircraftId})` : 'GLOBAL AIRCRAFT COLOR'}
                 </label>
                 <div className="flex flex-wrap gap-1">
@@ -1282,7 +1443,7 @@ function LayerItem(props: {
 
               <div className="flex flex-col gap-1 mt-2 border-t border-white/10 pt-3">
                 <div className="flex justify-between items-end">
-                  <label className="text-[10px] text-white/50 font-semibold tracking-wider">FLIGHTPATH OPACITY</label>
+                  <label className="text-[10px] text-white font-semibold tracking-wider">FLIGHTPATH OPACITY</label>
                   <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.flightpathOpacity ?? 0.8) * 100)}%</span>
                 </div>
                 <input
@@ -1296,7 +1457,7 @@ function LayerItem(props: {
           ) : layer.type === 'vessels' ? (
             <div className="flex flex-col gap-4 pb-2">
               <div className="flex flex-col gap-2">
-                <label className="text-[10px] text-white/50 font-semibold tracking-wider uppercase">
+                <label className="text-[10px] text-white font-semibold tracking-wider uppercase">
                   {selectedVesselMmsi ? `COLOR (VESSEL MMSI: ${selectedVesselMmsi})` : 'GLOBAL VESSEL COLOR'}
                 </label>
                 <div className="flex flex-wrap gap-1">
@@ -1388,7 +1549,7 @@ function LayerItem(props: {
               {/* Opacity slider */}
               <div className="flex flex-col gap-1">
                 <div className="flex justify-between items-end">
-                  <label className="text-[10px] text-white/50 font-semibold tracking-wider">OPACITY</label>
+                  <label className="text-[10px] text-white font-semibold tracking-wider">OPACITY</label>
                   <span className="text-[10px] text-white/70 font-mono">{Math.round((editTarget === 'fill' ? currentFillOpacity : currentOutlineOpacity) * 100)}%</span>
                 </div>
                 <input
@@ -1402,7 +1563,7 @@ function LayerItem(props: {
               {/* Outline width slider */}
               <div className="flex flex-col gap-1 pb-2">
                 <div className="flex justify-between items-end">
-                  <label className="text-[10px] text-white/50 font-semibold tracking-wider">STROKE WIDTH</label>
+                  <label className="text-[10px] text-white font-semibold tracking-wider">STROKE WIDTH</label>
                   <span className="text-[10px] text-white/70 font-mono">{currentOutlineWidth}px</span>
                 </div>
                 <input

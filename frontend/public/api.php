@@ -23,8 +23,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
     foreach ($files as $file) {
         $show_id = basename($file, '.json');
         $mtime = filemtime($file);
+        $title = $show_id;
+        $content = file_get_contents($file);
+        if ($content !== false) {
+            $data = json_decode($content, true);
+            if (isset($data['settings']['title']) && !empty($data['settings']['title'])) {
+                $title = $data['settings']['title'];
+            }
+        }
         $shows[] = [
             'id' => $show_id,
+            'title' => $title,
             'updatedAt' => date('c', $mtime)
         ];
     }

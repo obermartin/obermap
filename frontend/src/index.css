@@ -161,10 +161,10 @@ html, body, #root {
   filter: none !important;
 }
 
-/* Force SVG icons to be white line drawings */
+/* Force SVG icons to be solid filled shapes */
 .icon-svg-wrapper svg * {
-  stroke: currentColor !important;
-  fill: none !important;
+  stroke: none !important;
+  fill: currentColor !important;
 }
 .icon-svg-wrapper svg {
   width: 100%;
