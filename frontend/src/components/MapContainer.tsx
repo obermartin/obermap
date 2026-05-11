@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import type { Annotation, ToolType, AppSettings } from '../types';
+import type { Annotation, ToolType, AppSettings, StrokeType } from '../types';
 import * as turf from '@turf/turf';
 import { createCirclePolygon, calculateDistance, simplifyLine, transliterateToGerman, createArrowFeatures } from '../utils/mapUtils';
 import anyAscii from 'any-ascii';
@@ -12,6 +12,8 @@ let globalDeepstateHistoryPromise: Promise<void> | null = null;
 interface MapContainerProps {
   activeTool: ToolType;
   currentColor: string;
+  currentStrokeType?: StrokeType;
+  currentFillOpacity?: number;
   annotations: Annotation[];
   setAnnotations: React.Dispatch<React.SetStateAction<Annotation[]>>;
   labelPrompt: { lngLat: [number, number] } | null;
@@ -24,6 +26,7 @@ interface MapContainerProps {
   setActiveGeojsonLayerId: React.Dispatch<React.SetStateAction<string | null>>;
   selectedGeojsonFeatureId: string | number | null;
   setSelectedGeojsonFeatureId: React.Dispatch<React.SetStateAction<string | number | null>>;
+  selectedIconId?: string | null;
 }
 
 function getContrastYIQ(hexcolor: string) {
@@ -40,6 +43,8 @@ function getContrastYIQ(hexcolor: string) {
 export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, clipPath?: string, onMapInit?: (map: mapboxgl.Map) => void }> = ({
   activeTool,
   currentColor,
+  currentStrokeType,
+  currentFillOpacity,
   annotations,
   setAnnotations,
   labelPrompt,
@@ -52,6 +57,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   setActiveGeojsonLayerId,
   selectedGeojsonFeatureId,
   setSelectedGeojsonFeatureId,
+  selectedIconId,
   isSecondary,
   clipPath,
   onMapInit
@@ -148,6 +154,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
   const circleCenter = useRef<[number, number] | null>(null);
   const arrowStart = useRef<[number, number] | null>(null);
+
+  const terrestrialCountriesRef = useRef<any>(null);
 
   useEffect(() => {
     if (!mapContainer.current) return;
@@ -334,6 +342,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         id: 'custom-lines',
         type: 'line',
         source: 'custom-annotations',
+        filter: ['any', ['!', ['has', 'strokeType']], ['==', ['get', 'strokeType'], 'solid']],
         layout: {
           'line-cap': 'round',
           'line-join': 'round'
@@ -341,6 +350,38 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         paint: {
           'line-width': 6,
           'line-color': ['coalesce', ['get', 'color'], '#ffffff']
+        }
+      }, firstSymbolId);
+
+      map.addLayer({
+        id: 'custom-lines-dashed',
+        type: 'line',
+        source: 'custom-annotations',
+        filter: ['==', ['get', 'strokeType'], 'dashed'],
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round'
+        },
+        paint: {
+          'line-width': 6,
+          'line-color': ['coalesce', ['get', 'color'], '#ffffff'],
+          'line-dasharray': [2, 2]
+        }
+      }, firstSymbolId);
+
+      map.addLayer({
+        id: 'custom-lines-dotted',
+        type: 'line',
+        source: 'custom-annotations',
+        filter: ['==', ['get', 'strokeType'], 'dotted'],
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round'
+        },
+        paint: {
+          'line-width': 6,
+          'line-color': ['coalesce', ['get', 'color'], '#ffffff'],
+          'line-dasharray': [0.01, 2.5]
         }
       }, firstSymbolId);
 
@@ -539,31 +580,41 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         acc.push({
           type: 'Feature',
           geometry: { type: 'LineString', coordinates: ann.coordinates },
-          properties: { color: ann.color, id: ann.id, type: ann.type }
+          properties: { color: ann.color, id: ann.id, type: ann.type, strokeType: ann.strokeType || 'solid' }
         });
       } else if (ann.type === 'measure') {
         const dist = calculateDistance(ann.coordinates);
         acc.push({
           type: 'Feature',
           geometry: { type: 'LineString', coordinates: ann.coordinates },
-          properties: { color: ann.color, id: ann.id, type: ann.type, textLabel: `${dist.toFixed(2)} km` }
+          properties: { color: ann.color, id: ann.id, type: ann.type, textLabel: `${dist.toFixed(2)} km`, strokeType: ann.strokeType || 'solid' }
         });
       } else if (ann.type === 'circle') {
         acc.push({
           type: 'Feature',
           geometry: { type: 'Polygon', coordinates: ann.coordinates },
-          properties: { color: ann.color, id: ann.id, type: ann.type, textLabel: `${ann.radius?.toFixed(2)} km` }
+          properties: { color: ann.color, id: ann.id, type: ann.type, textLabel: `${ann.radius?.toFixed(2)} km`, strokeType: ann.strokeType || 'solid', fillOpacity: ann.fillOpacity ?? 0.5 }
         });
       } else if (ann.type === 'polygon') {
         acc.push({
           type: 'Feature',
           geometry: { type: 'Polygon', coordinates: ann.coordinates },
-          properties: { color: ann.color, id: ann.id, type: ann.type }
+          properties: { color: ann.color, id: ann.id, type: ann.type, strokeType: ann.strokeType || 'solid', fillOpacity: ann.fillOpacity ?? 0.5 }
         });
       } else if (ann.type === 'arrow' && ann.coordinates && ann.coordinates.length === 2) {
         const arrowFeats = createArrowFeatures(ann.coordinates[0], ann.coordinates[1], ann.color || '#ffffff', ann.id);
         if (arrowFeats) {
+          arrowFeats.shaft.properties!.strokeType = ann.strokeType || 'solid';
+          arrowFeats.head.properties!.strokeType = 'solid';
           acc.push(arrowFeats.shaft, arrowFeats.head);
+        }
+      } else if (ann.type === 'highlight' && ann.polygonGeometry) {
+        if (ann.polygonGeometry.type === 'Polygon' || ann.polygonGeometry.type === 'MultiPolygon') {
+          acc.push({
+            type: 'Feature',
+            geometry: ann.polygonGeometry,
+            properties: { color: ann.color, id: ann.id, type: 'polygon', strokeType: ann.strokeType || 'solid', fillOpacity: ann.fillOpacity ?? 0.5 }
+          });
         }
       }
       return acc;
@@ -604,14 +655,25 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         expectedMarkers.set(ann.id, { lngLat: ann.coordinates, el });
       } else if (ann.type === 'highlight') {
         const el = document.createElement('div');
-        el.className = 'custom-highlight-marker';
         const contrastColor = getContrastYIQ(ann.color || '#000000');
-        el.style.backgroundColor = ann.color;
-        el.innerHTML = `
-          <div class="custom-highlight-text" style="background-color: ${ann.color}; color: ${contrastColor}">
-            ${ann.text || ''}
-          </div>
-        `;
+        
+        if (ann.polygonGeometry) {
+          el.className = 'custom-country-marker';
+          el.innerHTML = `
+            <div class="custom-country-text" style="background-color: ${ann.color}; color: ${contrastColor}">
+              ${ann.text || ''}
+            </div>
+          `;
+        } else {
+          el.className = 'custom-highlight-marker';
+          el.style.backgroundColor = ann.color;
+          el.innerHTML = `
+            <div class="custom-highlight-text" style="background-color: ${ann.color}; color: ${contrastColor}">
+              ${ann.text || ''}
+            </div>
+          `;
+        }
+        
         el.style.cursor = 'pointer';
         el.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -1971,7 +2033,17 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const updateActiveDrawing = (geojson: any) => {
     if (!mapRef.current) return;
     const source = mapRef.current.getSource('active-drawing') as mapboxgl.GeoJSONSource;
-    if (source) source.setData(geojson);
+    if (source) {
+      source.setData(geojson);
+      if (mapRef.current.getLayer('active-drawing-line')) {
+        if (currentStrokeType === 'solid') {
+          mapRef.current.setPaintProperty('active-drawing-line', 'line-dasharray', undefined);
+        } else {
+          const dasharray = currentStrokeType === 'dashed' ? [2, 2] : [0.1, 2];
+          mapRef.current.setPaintProperty('active-drawing-line', 'line-dasharray', dasharray);
+        }
+      }
+    }
   };
 
   // Immediate popup rendering for selected aircraft
@@ -2165,7 +2237,10 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           if (trackSource) trackSource.setData({ type: 'FeatureCollection', features: [] });
         }
       }
-      const features = map.queryRenderedFeatures(e.point, { layers: ['custom-polygons', 'custom-lines'] });
+      let features: mapboxgl.MapboxGeoJSONFeature[] = [];
+      try {
+        features = map.queryRenderedFeatures(e.point, { layers: ['custom-polygons', 'custom-lines', 'custom-lines-dashed', 'custom-lines-dotted'] });
+      } catch (err) {}
       if (features.length > 0) {
         const clickedId = features[0].properties?.id;
         if (clickedId && activeTool !== 'none') {
@@ -2179,6 +2254,17 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       }
 
       if (activeTool === 'none') return;
+
+      if (activeTool === 'icon' && selectedIconId) {
+        setAnnotations(prev => [...prev, {
+          id: Date.now().toString(),
+          type: 'icon',
+          iconId: selectedIconId,
+          color: currentColor,
+          coordinates: [e.lngLat.lng, e.lngLat.lat]
+        }]);
+        return;
+      }
       
       if (activeTool === 'label') {
         setLabelPrompt({ lngLat: [e.lngLat.lng, e.lngLat.lat] });
@@ -2226,6 +2312,74 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               bearing: mapRef.current!.getBearing()
             }
           }]);
+        } else {
+          // Fetch country boundary if clicking on empty space
+          const fetchCountry = async () => {
+            try {
+              document.body.style.cursor = 'wait';
+              
+              let terrestrialGeometry = null;
+              if (!terrestrialCountriesRef.current) {
+                try {
+                  const cRes = await fetch('/countries.geo.json');
+                  terrestrialCountriesRef.current = await cRes.json();
+                } catch (e) {
+                  console.error("Failed to load terrestrial countries", e);
+                }
+              }
+              if (terrestrialCountriesRef.current) {
+                const pt = turf.point([e.lngLat.lng, e.lngLat.lat]);
+                for (const feature of terrestrialCountriesRef.current.features) {
+                  if (feature.geometry && (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon')) {
+                    if (turf.booleanPointInPolygon(pt, feature)) {
+                      terrestrialGeometry = feature.geometry;
+                      break;
+                    }
+                  }
+                }
+              }
+
+              const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${e.lngLat.lat}&lon=${e.lngLat.lng}&zoom=3&polygon_geojson=1&polygon_threshold=0.01`);
+              const data = await res.json();
+              if (data && data.geojson) {
+                const nameNative = data.name || data.display_name || '';
+                const hasCyrillic = /[А-Яа-яЁёІіЇїЄєҐґ]/.test(nameNative);
+                let name = nameNative;
+                if (hasCyrillic) {
+                  const isRussian = data.address?.country_code === 'ru';
+                  name = transliterateToGerman(nameNative, isRussian);
+                } else if (nameNative) {
+                  const needsTransliteration = /[^\u0000-\u024F\u1E00-\u1EFF]/.test(nameNative);
+                  if (needsTransliteration) name = anyAscii(nameNative);
+                }
+                
+                const centerLng = parseFloat(data.lon);
+                const centerLat = parseFloat(data.lat);
+                
+                setAnnotations(prev => [...prev, {
+                  id: Date.now().toString(),
+                  type: 'highlight',
+                  color: currentColor,
+                  strokeType: currentStrokeType || 'solid',
+                  fillOpacity: currentFillOpacity ?? 0.5,
+                  coordinates: [centerLng, centerLat],
+                  polygonGeometry: terrestrialGeometry || data.geojson,
+                  text: name,
+                  view: {
+                    center: [centerLng, centerLat],
+                    zoom: mapRef.current!.getZoom(),
+                    pitch: mapRef.current!.getPitch(),
+                    bearing: mapRef.current!.getBearing()
+                  }
+                }]);
+              }
+            } catch (err) {
+              console.error('Failed to fetch country from Nominatim', err);
+            } finally {
+              document.body.style.cursor = '';
+            }
+          };
+          fetchCountry();
         }
         return;
       }
@@ -2279,7 +2433,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       // Check if we clicked on an existing annotation feature FIRST
       let features: mapboxgl.MapboxGeoJSONFeature[] = [];
       try {
-        features = map.queryRenderedFeatures(e.point, { layers: ['custom-polygons', 'custom-lines'] });
+        features = map.queryRenderedFeatures(e.point, { layers: ['custom-polygons', 'custom-lines', 'custom-lines-dashed', 'custom-lines-dotted'] });
       } catch (e) {
         // layer might not be ready
       }
@@ -2426,6 +2580,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             id: Date.now().toString(),
             type: 'paint',
             color: currentColor,
+            strokeType: currentStrokeType,
             coordinates: simplified
           }]);
         }
@@ -2445,6 +2600,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               id: Date.now().toString(),
               type: 'circle',
               color: currentColor,
+              strokeType: currentStrokeType,
+              fillOpacity: currentFillOpacity ?? 0.5,
               coordinates: circlePoly.geometry.coordinates,
               radius
             }]);
@@ -2472,6 +2629,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             id: `arrow-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             type: 'arrow',
             color: currentColor,
+            strokeType: currentStrokeType,
             coordinates: [startPos, currentPos]
           }]);
           updateActiveDrawing({ type: 'FeatureCollection', features: [] });
@@ -2499,6 +2657,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             id: Date.now().toString(),
             type: 'polygon',
             color: currentColor,
+            strokeType: currentStrokeType,
+            fillOpacity: currentFillOpacity ?? 0.5,
             coordinates: [[...currentShapeCoords.current]]
           }]);
         }
@@ -2521,6 +2681,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             id: Date.now().toString(),
             type: 'measure',
             color: currentColor,
+            strokeType: currentStrokeType,
             coordinates: [...currentShapeCoords.current]
           }]);
         }
@@ -2591,7 +2752,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       map.off('touchmove', onTouchMove);
       map.off('touchend', onTouchEnd);
     };
-  }, [activeTool, currentColor, setAnnotations, activeGeojsonLayerId, setActiveGeojsonLayerId, setSelectedGeojsonFeatureId, selectedAircraftId, settings.layers]);
+  }, [activeTool, currentColor, currentStrokeType, currentFillOpacity, annotations, setAnnotations, activeGeojsonLayerId, setActiveGeojsonLayerId, setSelectedGeojsonFeatureId, selectedAircraftId, settings.layers, selectedIconId]);
 
   return (
     <div className={`absolute inset-0 w-full h-full ${isSecondary ? 'pointer-events-none' : ''}`} style={{ clipPath, WebkitClipPath: clipPath, zIndex: isSecondary ? 10 : 0 }}>

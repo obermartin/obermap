@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Tag, Highlighter, Paintbrush, Hexagon, Circle as CircleIcon, Ruler, Save, Trash2, X, MapPin, Loader2, ArrowUpRight } from 'lucide-react';
-import type { ToolType, AppSettings } from '../types';
+import { Tag, MousePointer2, Paintbrush, Hexagon, Circle as CircleIcon, Ruler, Save, Trash2, X, MapPin, Loader2, ArrowUpRight, Minus } from 'lucide-react';
+import type { ToolType, AppSettings, StrokeType } from '../types';
 import clsx from 'clsx';
 
 interface ToolbarProps {
@@ -9,6 +9,10 @@ interface ToolbarProps {
   setActiveTool: (tool: ToolType) => void;
   currentColor: string;
   setCurrentColor: (color: string) => void;
+  currentStrokeType?: StrokeType;
+  setCurrentStrokeType?: (type: StrokeType) => void;
+  currentFillOpacity?: number;
+  setCurrentFillOpacity?: (opacity: number) => void;
   onSave: () => void;
   onDelete: () => void;
   hasSelection: boolean;
@@ -16,10 +20,12 @@ interface ToolbarProps {
   isSaving?: boolean;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
+  selectedIconId?: string | null;
+  setSelectedIconId?: (id: string | null) => void;
 }
 
 const TOOLS = [
-  { id: 'highlight', icon: Highlighter, label: 'Highlight Place' },
+  { id: 'highlight', icon: MousePointer2, label: 'Select Place/Country' },
   { id: 'label', icon: Tag, label: 'Label' },
   { id: 'paint', icon: Paintbrush, label: 'Paint (Freehand)' },
   { id: 'polygon', icon: Hexagon, label: 'Polygon' },
@@ -45,54 +51,79 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   setActiveTool,
   currentColor,
   setCurrentColor,
+  currentStrokeType = 'solid',
+  setCurrentStrokeType,
+  currentFillOpacity,
+  setCurrentFillOpacity,
   onSave,
   onDelete,
   hasSelection,
   settings,
   isSaving,
   isOpen,
-  setIsOpen
+  setIsOpen,
+  selectedIconId,
+  setSelectedIconId
 }) => {
   const startIconDrag = (e: React.PointerEvent, iconId: string) => {
     if (activeTool !== 'icon') return;
-    e.preventDefault();
     const iconObj = settings.icons?.find(i => i.id === iconId);
     if (!iconObj) return;
 
-    const ghost = document.createElement('div');
-    ghost.className = 'fixed pointer-events-none z-[100] w-8 h-8 flex items-center justify-center opacity-80 p-1 icon-svg-wrapper';
-    ghost.style.backgroundColor = currentColor;
-    ghost.style.color = getContrastYIQ(currentColor);
-    ghost.innerHTML = iconObj.svg;
-    
-    ghost.style.left = `${e.clientX - 16}px`;
-    ghost.style.top = `${e.clientY - 16}px`;
-    document.body.appendChild(ghost);
+    // Immediately select the icon so they can click to place later
+    if (setSelectedIconId) {
+      setSelectedIconId(iconId);
+    }
+
+    let hasDragged = false;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let ghost: HTMLDivElement | null = null;
 
     const onPointerMove = (moveEvent: PointerEvent) => {
-      ghost.style.left = `${moveEvent.clientX - 16}px`;
-      ghost.style.top = `${moveEvent.clientY - 16}px`;
+      if (!hasDragged) {
+        const dist = Math.sqrt(Math.pow(moveEvent.clientX - startX, 2) + Math.pow(moveEvent.clientY - startY, 2));
+        if (dist > 5) {
+          hasDragged = true;
+          ghost = document.createElement('div');
+          ghost.className = 'fixed pointer-events-none z-[100] w-8 h-8 flex items-center justify-center opacity-80 p-1 icon-svg-wrapper';
+          ghost.style.backgroundColor = currentColor;
+          ghost.style.color = getContrastYIQ(currentColor);
+          ghost.innerHTML = iconObj.svg;
+          ghost.style.left = `${moveEvent.clientX - 16}px`;
+          ghost.style.top = `${moveEvent.clientY - 16}px`;
+          document.body.appendChild(ghost);
+        }
+      } else if (ghost) {
+        ghost.style.left = `${moveEvent.clientX - 16}px`;
+        ghost.style.top = `${moveEvent.clientY - 16}px`;
+      }
     };
 
     const onPointerUp = (upEvent: PointerEvent) => {
-      document.body.removeChild(ghost);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
 
-      const dropEvent = new CustomEvent('requestDropIcon', {
-        detail: {
-          clientX: upEvent.clientX,
-          clientY: upEvent.clientY,
-          iconId,
-          color: currentColor
-        }
-      });
-      window.dispatchEvent(dropEvent);
+      if (hasDragged && ghost) {
+        document.body.removeChild(ghost);
+        const dropEvent = new CustomEvent('requestDropIcon', {
+          detail: {
+            clientX: upEvent.clientX,
+            clientY: upEvent.clientY,
+            iconId,
+            color: currentColor
+          }
+        });
+        window.dispatchEvent(dropEvent);
+      }
     };
 
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
   };
+
+  const showStrokeControls = ['paint', 'polygon', 'circle', 'arrow', 'highlight'].includes(activeTool);
+  const showFillOpacityControl = ['highlight', 'polygon', 'circle'].includes(activeTool);
 
   return (
     <div className="relative flex flex-col items-start max-w-[calc(100vw-3rem)] sm:max-w-none">
@@ -109,12 +140,53 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               <button
                 key={iconObj.id}
                 onPointerDown={(e) => startIconDrag(e, iconObj.id)}
-                className="w-12 h-12 relative flex justify-center items-center cursor-grab active:cursor-grabbing border-r border-white/20 shrink-0 p-2 icon-svg-wrapper bg-white/10"
-                style={{ backgroundColor: currentColor, color: getContrastYIQ(currentColor) }}
-                title="Drag to place on map"
+                className={`w-12 h-12 relative flex justify-center items-center cursor-pointer border-r border-white/20 shrink-0 p-2 icon-svg-wrapper ${selectedIconId === iconObj.id ? 'bg-white text-black' : 'bg-white/10'}`}
+                style={selectedIconId === iconObj.id ? {} : { backgroundColor: currentColor, color: getContrastYIQ(currentColor) }}
+                title="Click to select, or drag to place"
                 dangerouslySetInnerHTML={{ __html: iconObj.svg }}
               />
             ))}
+          </motion.div>
+        )}
+
+        {isOpen && showStrokeControls && (
+          <motion.div
+            initial={{ y: 10, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 10, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="flex relative max-w-full overflow-x-auto overflow-y-hidden no-scrollbar shrink-0 border-b border-white/10 bg-black/50"
+          >
+            <button
+              onClick={() => setCurrentStrokeType?.('solid')}
+              className={clsx(
+                "group w-12 h-12 flex justify-center items-center transition-colors border-r border-white/20 shrink-0",
+                currentStrokeType === 'solid' ? "bg-white text-black" : "bg-black hover:bg-white text-white hover:text-black"
+              )}
+              title="Solid Line"
+            >
+              <div className={clsx("w-6 border-t-2", currentStrokeType === 'solid' ? "border-black" : "border-white group-hover:border-black")} />
+            </button>
+            <button
+              onClick={() => setCurrentStrokeType?.('dashed')}
+              className={clsx(
+                "group w-12 h-12 flex justify-center items-center transition-colors border-r border-white/20 shrink-0",
+                currentStrokeType === 'dashed' ? "bg-white text-black" : "bg-black hover:bg-white text-white hover:text-black"
+              )}
+              title="Dashed Line"
+            >
+              <div className={clsx("w-6 border-t-2 border-dashed", currentStrokeType === 'dashed' ? "border-black" : "border-white group-hover:border-black")} />
+            </button>
+            <button
+              onClick={() => setCurrentStrokeType?.('dotted')}
+              className={clsx(
+                "group w-12 h-12 flex justify-center items-center transition-colors border-r border-white/20 shrink-0",
+                currentStrokeType === 'dotted' ? "bg-white text-black" : "bg-black hover:bg-white text-white hover:text-black"
+              )}
+              title="Dotted Line"
+            >
+              <div className={clsx("w-6 border-t-2 border-dotted", currentStrokeType === 'dotted' ? "border-black" : "border-white group-hover:border-black")} />
+            </button>
           </motion.div>
         )}
 
@@ -139,6 +211,28 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 )}
               </button>
             ))}
+            
+            <AnimatePresence>
+              {showFillOpacityControl && setCurrentFillOpacity && (
+                <motion.div
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: 'auto', opacity: 1 }}
+                  exit={{ width: 0, opacity: 0 }}
+                  className="flex items-center px-4 border-l-2 border-white/20 bg-black h-12"
+                >
+                  <label className="text-white text-xs font-bold mr-3 uppercase tracking-wider">Fill</label>
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="1" 
+                    step="0.1" 
+                    value={currentFillOpacity ?? 0.5} 
+                    onChange={(e) => setCurrentFillOpacity(parseFloat(e.target.value))}
+                    className="w-24 accent-white"
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
 

@@ -124,7 +124,39 @@ function mockPhpBackend() {
             return;
           }
 
-          const dbPath = path.resolve(__dirname, 'public/db.json');
+          const show_id = urlObj.searchParams.get('show') || 'default';
+          const safe_show_id = show_id.replace(/[^a-zA-Z0-9_-]/g, '') || 'default';
+          const showsDir = path.resolve(__dirname, 'public/shows');
+          if (!fs.existsSync(showsDir)) fs.mkdirSync(showsDir, { recursive: true });
+
+          if (action === 'list_shows' && req.method === 'GET') {
+            const files = fs.readdirSync(showsDir).filter((f: string) => f.endsWith('.json'));
+            const shows = files.map((f: string) => {
+              const stat = fs.statSync(path.join(showsDir, f));
+              return { id: f.replace('.json', ''), updatedAt: stat.mtime.toISOString() };
+            });
+            shows.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 200;
+            res.end(JSON.stringify(shows));
+            return;
+          }
+
+          if (action === 'delete_show' && req.method === 'POST') {
+             const targetPath = path.resolve(showsDir, safe_show_id + '.json');
+             res.setHeader('Content-Type', 'application/json');
+             if (fs.existsSync(targetPath)) {
+                fs.unlinkSync(targetPath);
+                res.statusCode = 200;
+                res.end(JSON.stringify({ success: true }));
+             } else {
+                res.statusCode = 404;
+                res.end(JSON.stringify({ error: 'Not found' }));
+             }
+             return;
+          }
+
+          const dbPath = path.resolve(showsDir, safe_show_id + '.json');
           
           if (req.method === 'OPTIONS') {
             res.setHeader('Access-Control-Allow-Origin', '*');
@@ -138,6 +170,14 @@ function mockPhpBackend() {
           res.setHeader('Content-Type', 'application/json');
           
           if (req.method === 'GET') {
+            if (!fs.existsSync(dbPath)) {
+              const defaultPath = path.resolve(showsDir, '_DEFAULT.json');
+              if (fs.existsSync(defaultPath)) {
+                fs.copyFileSync(defaultPath, dbPath);
+              } else {
+                fs.writeFileSync(dbPath, JSON.stringify({ annotations: [], settings: null }), 'utf-8');
+              }
+            }
             if (fs.existsSync(dbPath)) {
               res.statusCode = 200;
               res.end(fs.readFileSync(dbPath, 'utf-8'));
@@ -155,8 +195,33 @@ function mockPhpBackend() {
             });
             req.on('end', () => {
               try {
-                JSON.parse(body);
-                fs.writeFileSync(dbPath, body, 'utf-8');
+                const decoded = JSON.parse(body);
+                
+                // Differential Save Logic
+                if (decoded.settings && decoded.settings.layers && fs.existsSync(dbPath)) {
+                  const existingJson = fs.readFileSync(dbPath, 'utf-8');
+                  const existingData = JSON.parse(existingJson);
+                  if (existingData.settings && existingData.settings.layers) {
+                    const existingLayers: any = {};
+                    existingData.settings.layers.forEach((l: any) => {
+                      if (l.id) existingLayers[l.id] = l;
+                    });
+                    
+                    decoded.settings.layers.forEach((l: any) => {
+                      if (l._keepExistingData === true) {
+                        if (l.id && existingLayers[l.id] && existingLayers[l.id].data) {
+                          l.data = existingLayers[l.id].data;
+                        }
+                        delete l._keepExistingData;
+                      }
+                      if (l._isDirty !== undefined) {
+                        delete l._isDirty;
+                      }
+                    });
+                  }
+                }
+                
+                fs.writeFileSync(dbPath, JSON.stringify(decoded), 'utf-8');
                 res.statusCode = 200;
                 res.end(JSON.stringify({ success: true }));
               } catch (e) {

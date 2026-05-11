@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Reorder, useDragControls, motion } from 'framer-motion';
-import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2, Edit2, Square, RefreshCcw, RotateCcw, Copy, Radio, Settings, Save, Loader2 } from 'lucide-react';
+import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2, Edit2, Square, RefreshCcw, RotateCcw, Copy, Radio, Settings, Save, Loader2, LogOut } from 'lucide-react';
 import type { AppSettings, MapLayer } from '../types';
 import { parseMapFileWithIds } from '../utils/fileUtils';
 
@@ -22,6 +22,7 @@ interface LayerSidebarProps {
   setActiveGeojsonLayerId: React.Dispatch<React.SetStateAction<string | null>>;
   selectedGeojsonFeatureId: string | number | null;
   onSave?: () => void;
+  onSaveAndExit?: () => void;
   isSaving?: boolean;
 }
 
@@ -34,6 +35,7 @@ export function LayerSidebar({
   setActiveGeojsonLayerId,
   selectedGeojsonFeatureId,
   onSave,
+  onSaveAndExit,
   isSaving
 }: LayerSidebarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -456,14 +458,26 @@ export function LayerSidebar({
           <Settings size={18} />
         </button>
         {onSave && (
-          <button
-            onClick={onSave}
-            disabled={isSaving}
-            className={`w-14 flex items-center justify-center border-l border-white/10 transition-colors ${isSaving ? 'text-white cursor-wait bg-white/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
-            title="Save Map & Settings"
-          >
-            {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-          </button>
+          <div className="flex border-l border-white/10">
+            <button
+              onClick={onSave}
+              disabled={isSaving}
+              className={`w-12 flex items-center justify-center border-r border-white/10 transition-colors ${isSaving ? 'text-white cursor-wait bg-white/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
+              title="Save Map & Settings"
+            >
+              {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+            </button>
+            {onSaveAndExit && (
+              <button
+                onClick={onSaveAndExit}
+                disabled={isSaving}
+                className={`w-12 flex items-center justify-center transition-colors ${isSaving ? 'text-white cursor-wait bg-white/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
+                title="Save & Exit to Overview"
+              >
+                <LogOut size={18} />
+              </button>
+            )}
+          </div>
         )}
       </div>
 

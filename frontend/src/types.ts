@@ -1,10 +1,14 @@
 export type ToolType = 'none' | 'label' | 'highlight' | 'paint' | 'polygon' | 'circle' | 'measure' | 'icon' | 'arrow';
+export type StrokeType = 'solid' | 'dashed' | 'dotted';
 
 export interface Annotation {
   id: string;
   type: ToolType;
   color: string;
+  strokeType?: StrokeType;
+  fillOpacity?: number;
   coordinates?: any;
+  polygonGeometry?: any;
   text?: string;
   radius?: number;
   iconId?: string;

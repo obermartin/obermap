@@ -11,12 +11,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-$db_file = __DIR__ . '/db.json';
+$shows_dir = __DIR__ . '/shows';
+if (!is_dir($shows_dir)) {
+    mkdir($shows_dir, 0755, true);
+}
+
+// Handle list_shows action
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'list_shows') {
+    $files = glob($shows_dir . '/*.json');
+    $shows = [];
+    foreach ($files as $file) {
+        $show_id = basename($file, '.json');
+        $mtime = filemtime($file);
+        $shows[] = [
+            'id' => $show_id,
+            'updatedAt' => date('c', $mtime)
+        ];
+    }
+    usort($shows, function($a, $b) {
+        return strtotime($b['updatedAt']) - strtotime($a['updatedAt']);
+    });
+    echo json_encode($shows);
+    exit;
+}
+
+// Handle delete_show action
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['action'] === 'delete_show') {
+    $show_id = $_GET['show'] ?? '';
+    if (preg_match('/^[a-zA-Z0-9_-]+$/', $show_id)) {
+        $file_path = $shows_dir . '/' . $show_id . '.json';
+        if (file_exists($file_path)) {
+            unlink($file_path);
+            echo json_encode(['success' => true]);
+            exit;
+        }
+    }
+    http_response_code(404);
+    echo json_encode(['error' => 'Show not found or invalid ID']);
+    exit;
+}
+
+$show_id = $_GET['show'] ?? 'default';
+if (!preg_match('/^[a-zA-Z0-9_-]+$/', $show_id)) {
+    $show_id = 'default';
+}
+$db_file = $shows_dir . '/' . $show_id . '.json';
 
 // Initialize db.json if it doesn't exist
 if (!file_exists($db_file)) {
-    $initial_data = json_encode(['annotations' => [], 'settings' => null]);
-    file_put_contents($db_file, $initial_data);
+    $default_file = $shows_dir . '/_DEFAULT.json';
+    if (file_exists($default_file)) {
+        copy($default_file, $db_file);
+    } else {
+        $initial_data = json_encode(['annotations' => [], 'settings' => null]);
+        file_put_contents($db_file, $initial_data);
+    }
 }
 
 // Handle OpenSky proxy request

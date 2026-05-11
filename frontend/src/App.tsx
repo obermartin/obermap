@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { MapContainer } from './components/MapContainer';
 import { Toolbar } from './components/Toolbar';
 import { SavedViews } from './components/SavedViews';
-import type { Annotation, ToolType, AppSettings, MapLayer } from './types';
+import { OverviewScreen } from './components/OverviewScreen';
+import type { Annotation, ToolType, StrokeType, AppSettings, MapLayer } from './types';
 
 const DEFAULT_SETTINGS: AppSettings = {
   mapboxToken: 'pk.eyJ1Ijoib2Jlcm1hcnRpbiIsImEiOiJja25ybGlpYTgyNDRhMnVwcmo5eml4ZGdzIn0.W_ZjSsvTOlZs-Xd7m72DIQ',
@@ -35,22 +36,42 @@ import { Layers, Loader2 } from 'lucide-react';
 function App() {
   const [activeTool, setActiveTool] = useState<ToolType>('none');
   const [currentColor, setCurrentColor] = useState<string>('#DD0000');
+  const [currentStrokeType, setCurrentStrokeType] = useState<StrokeType>('solid');
+  const [currentFillOpacity, setCurrentFillOpacity] = useState<number>(0.5);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [labelPrompt, setLabelPrompt] = useState<{ lngLat: [number, number] } | null>(null);
   const [activeDistance, setActiveDistance] = useState<number | null>(null);
   const [labelInput, setLabelInput] = useState('');
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
+  const [selectedIconId, setSelectedIconId] = useState<string | null>(null);
   const [isLayerSidebarOpen, setIsLayerSidebarOpen] = useState(false);
   const [activeGeojsonLayerId, setActiveGeojsonLayerId] = useState<string | null>(null);
   const [selectedGeojsonFeatureId, setSelectedGeojsonFeatureId] = useState<string | number | null>(null);
   const [isToolbarOpen, setIsToolbarOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [currentView, setCurrentView] = useState<'overview' | 'map'>('overview');
+  const [currentShow, setCurrentShow] = useState<string | null>(null);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const showParam = params.get('show');
+    if (showParam) {
+      setCurrentShow(showParam);
+      setCurrentView('map');
+    } else {
+      setCurrentView('overview');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (currentView !== 'map' || !currentShow) return;
+    
+    setIsLoaded(false);
+    
     // Load from backend
-    fetch('./api.php')
+    fetch(`./api.php?show=${currentShow}`)
       .then(res => res.json())
       .then(data => {
         if (data.annotations) {
@@ -107,9 +128,9 @@ function App() {
       })
       .catch(err => console.error('Error loading data:', err))
       .finally(() => setIsLoaded(true));
-  }, []);
+  }, [currentView, currentShow]);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback((andExit = false) => {
     setIsSaving(true);
 
     const optimizeLayer = (layer: MapLayer): MapLayer => {
@@ -134,7 +155,7 @@ function App() {
         layers: settings.layers.map(optimizeLayer)
       };
 
-      fetch('./api.php', {
+      fetch(`./api.php?show=${currentShow}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ annotations, settings: optimizedSettings })
@@ -146,6 +167,13 @@ function App() {
           ...prev,
           layers: prev.layers.map(l => ({ ...l, _isDirty: false }))
         }));
+        if (andExit) {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('show');
+          window.history.pushState({}, '', url);
+          setCurrentShow(null);
+          setCurrentView('overview');
+        }
       })
       .catch(err => {
         console.error('Error saving data:', err);
@@ -157,13 +185,31 @@ function App() {
       alert('Failed to save data due to an internal error.');
       setIsSaving(false);
     }
-  }, [annotations, settings]);
+  }, [annotations, settings, currentShow]);
 
   const handleColorSelect = useCallback((color: string) => {
     setCurrentColor(color);
     if (selectedAnnotationId) {
       setAnnotations(prev => prev.map(a => 
         a.id === selectedAnnotationId ? { ...a, color } : a
+      ));
+    }
+  }, [selectedAnnotationId]);
+
+  const handleStrokeTypeSelect = useCallback((strokeType: StrokeType) => {
+    setCurrentStrokeType(strokeType);
+    if (selectedAnnotationId) {
+      setAnnotations(prev => prev.map(a => 
+        a.id === selectedAnnotationId ? { ...a, strokeType } : a
+      ));
+    }
+  }, [selectedAnnotationId]);
+
+  const handleFillOpacitySelect = useCallback((opacity: number) => {
+    setCurrentFillOpacity(opacity);
+    if (selectedAnnotationId) {
+      setAnnotations(prev => prev.map(a => 
+        a.id === selectedAnnotationId ? { ...a, fillOpacity: opacity } : a
       ));
     }
   }, [selectedAnnotationId]);
@@ -216,6 +262,21 @@ function App() {
     };
   }, [currentColor]);
 
+  if (currentView === 'overview') {
+    return (
+      <OverviewScreen 
+        onSelectShow={(showId) => {
+          // Update URL without reloading
+          const url = new URL(window.location.href);
+          url.searchParams.set('show', showId);
+          window.history.pushState({}, '', url);
+          setCurrentShow(showId);
+          setCurrentView('map');
+        }}
+      />
+    );
+  }
+
   if (!isLoaded) {
     return (
       <div className="w-dvw h-dvh bg-black flex flex-col items-center justify-center text-white/50">
@@ -230,6 +291,8 @@ function App() {
       <MapContainer 
         activeTool={activeTool}
         currentColor={currentColor}
+        currentStrokeType={currentStrokeType}
+        currentFillOpacity={currentFillOpacity}
         annotations={annotations}
         setAnnotations={setAnnotations}
         labelPrompt={labelPrompt}
@@ -242,6 +305,7 @@ function App() {
         setActiveGeojsonLayerId={setActiveGeojsonLayerId}
         selectedGeojsonFeatureId={selectedGeojsonFeatureId}
         setSelectedGeojsonFeatureId={setSelectedGeojsonFeatureId}
+        selectedIconId={selectedIconId}
       />
       <SavedViews 
         annotations={annotations}
@@ -272,6 +336,10 @@ function App() {
           setActiveTool={setActiveTool}
           currentColor={currentColor}
           setCurrentColor={handleColorSelect}
+          currentStrokeType={currentStrokeType}
+          setCurrentStrokeType={handleStrokeTypeSelect}
+          currentFillOpacity={currentFillOpacity}
+          setCurrentFillOpacity={handleFillOpacitySelect}
           onSave={handleSave}
           onDelete={handleDelete}
           hasSelection={!!selectedAnnotationId}
@@ -279,6 +347,8 @@ function App() {
           isSaving={isSaving}
           isOpen={isToolbarOpen}
           setIsOpen={setIsToolbarOpen}
+          selectedIconId={selectedIconId}
+          setSelectedIconId={setSelectedIconId}
         />
       </div>
 
@@ -290,7 +360,8 @@ function App() {
         activeGeojsonLayerId={activeGeojsonLayerId}
         setActiveGeojsonLayerId={setActiveGeojsonLayerId}
         selectedGeojsonFeatureId={selectedGeojsonFeatureId}
-        onSave={handleSave}
+        onSave={() => handleSave(false)}
+        onSaveAndExit={() => handleSave(true)}
         isSaving={isSaving}
       />
 
