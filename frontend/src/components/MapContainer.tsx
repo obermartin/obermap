@@ -100,6 +100,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const wsRef = useRef<WebSocket | null>(null);
   const vesselPopupRef = useRef<mapboxgl.Popup | null>(null);
   const activeVesselMmsiRef = useRef<string | null>(null);
+  const routeClickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const getFlagHtml = (countryName: string) => {
     if (!countryName) return '';
@@ -2625,8 +2626,19 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             .addTo(map);
         };
 
-        if (!isDrawing.current) {
-          isDrawing.current = true;
+        if (routeClickTimeoutRef.current) {
+          clearTimeout(routeClickTimeoutRef.current);
+          routeClickTimeoutRef.current = null;
+          return;
+        }
+
+        const ePoint = e.point;
+
+        routeClickTimeoutRef.current = setTimeout(() => {
+          routeClickTimeoutRef.current = null;
+
+          if (!isDrawing.current) {
+            isDrawing.current = true;
           currentDrawSessionRef.current += 1;
           pendingFetchesRef.current = 0;
           currentShapeCoords.current = [point];
@@ -2647,7 +2659,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         } else {
           const lastPoint = currentShapeCoords.current[currentShapeCoords.current.length - 1];
           const p1 = map.project(lastPoint);
-          const p2 = e.point || map.project(point);
+          const p2 = ePoint || map.project(point);
           const distPx = Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
           if (distPx < 10) return;
 
@@ -2780,6 +2792,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               });
           }
         }
+        }, 250);
       }
     };
 

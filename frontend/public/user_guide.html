@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OBERMAP STUDIO User Guide</title>
+  <style>
+    body {
+      background-color: #000000;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+      margin: 0;
+      padding: 40px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background-color: #000000;
+      padding: 40px;
+    }
+
+    h1 {
+      text-align: center;
+      padding-bottom: 10px;
+      margin-bottom: 30px;
+    }
+
+    h2 {
+      color: #FFFFFF;
+      margin-top: 80px;
+      padding-bottom: 5px;
+    }
+
+    h3 {
+      color: #ffffff;
+      margin-top: 25px;
+    }
+
+    ul {
+      padding-left: 20px;
+    }
+
+    li {
+      margin-bottom: 10px;
+    }
+
+    strong {
+      color: #ffffff;
+    }
+
+    code {
+      background-color: #ffffff;
+      padding: 2px 6px;
+      font-family: monospace;
+      color: #000000;
+    }
+
+    em {
+      color: #aaa;
+    }
+
+    i[data-lucide] {
+      vertical-align: -15%;
+      margin-right: 8px;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      background-color: #000000;
+      color: #ffffff;
+      text-decoration: none;
+      font-weight: 600;
+      margin-bottom: 20px;
+      padding: 8px 16px;
+      border: 1px solid #ffffff;
+      transition: all 0.2s;
+      text-transform: uppercase;
+      font-size: 14px;
+      letter-spacing: 0.05em;
+    }
+
+    .back-link:hover {
+      background-color: #ffffff;
+      color: #000000;
+    }
+  
+    .lang-toggle {
+      position: absolute;
+      top: 40px;
+      right: 40px;
+      background-color: #000000;
+      color: #ffffff;
+      border: 1px solid #ffffff;
+      padding: 8px 12px;
+      font-size: 16px;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s;
+      z-index: 1000;
+      font-weight: bold;
+    }
+    .lang-toggle:hover {
+      background-color: #ffffff;
+      color: #000000;
+    }
+  </style>
+</head>
+
+<body>
+    <div class="lang-toggle" id="langToggleBtn" onclick="toggleLanguage()">
+    🇩🇪 DE
+  </div>
+
+<div class="container" id="content-en">
+    <a href="/" class="back-link">
+      <i data-lucide="arrow-left"></i> Back to Overview
+    </a>
+    <div style="text-align: center;">
+      <img src="/obermapstudio.svg" alt="Obermap Studio" style="height: 160px; width: auto; margin-bottom: 10px;" />
+    </div>
+    <h1>User Guide</h1>
+    <p>Welcome to <strong>OBERMAP STUDIO</strong>, a comprehensive map annotation, routing, and layer management tool
+      designed for deep cartographic analysis and visualization. This guide will walk you through all the available
+      tools, features, and shortcuts.</p>
+
+    <h2>The Interface Overview</h2>
+    <p>The interface is divided into several key sections:</p>
+    <ul>
+      <li><strong>Main Map Area</strong>: Your canvas for navigation, drawing, and visualization.</li>
+      <li><strong>Toolbar (Bottom Left)</strong>: Contains all the drawing, routing, and styling tools.</li>
+      <li><strong>Layer Manager (Bottom Left Icon)</strong>: Access specialized map layers like Satellite, DeepState,
+        Wildfires, Air Traffic, and Vessels.</li>
+      <li><strong>Saved Views (Top Left)</strong>: Save and quickly navigate between different camera angles and
+        locations.</li>
+    </ul>
+
+    <h2>The Toolbar Tools</h2>
+    <p>The Toolbar is the heart of your annotation workflow. You can toggle it open or closed using the <strong>"X" /
+        "Menu"</strong> button on the far right of the toolbar.</p>
+
+    <h3><i data-lucide="mouse-pointer-2"></i> Select Place / Country (Highlight)</h3>
+    <ul>
+      <li><strong>What it does</strong>: Allows you to click on specific places or countries highlight them
+        automatically.</li>
+      <li><strong>How to use</strong>: Select the tool, choose a color and fill opacity, and click on the map. Clicking
+        on a place label will highlight that label, clicking on an empty area of the map will highlight the country you
+        clicked in.</li>
+      <li><strong>NOTE</strong>: Adding a highlight will automatically add a camera view button with the current map
+        view (position, zoom, bearing, pitch).</li>
+    </ul>
+
+    <h3><i data-lucide="tag"></i> Label</h3>
+    <ul>
+      <li><strong>What it does</strong>: Drops a customizable text label anywhere on the map.</li>
+      <li><strong>How to use</strong>: Select the tool, pick a color, and click on the map. A prompt will appear asking
+        you to enter your text. Press <code>Enter</code> to save.</li>
+      <li><strong>NOTE</strong>: Adding a label will automatically add a camera view button with the current map view
+        (position, zoom, bearing, pitch).</li>
+    </ul>
+
+    <h3><i data-lucide="paintbrush"></i> Paint (Freehand)</h3>
+    <ul>
+      <li><strong>What it does</strong>: Draw arbitrary, freehand lines.</li>
+      <li><strong>How to use</strong>: Click and drag across the map to draw.</li>
+    </ul>
+
+    <h3><i data-lucide="hexagon"></i> Polygon</h3>
+    <ul>
+      <li><strong>What it does</strong>: Draw custom geometric shapes.</li>
+      <li><strong>How to use</strong>: Click on the map to drop vertices. Double-click to complete the shape.</li>
+    </ul>
+
+    <h3><i data-lucide="circle"></i> Circle</h3>
+    <ul>
+      <li><strong>What it does</strong>: Draw perfect circles with a specific radius.</li>
+      <li><strong>How to use</strong>: Click to set the center point, then drag outwards to define the radius. The
+        radius distance is dynamically displayed at the top of the screen while drawing.</li>
+    </ul>
+
+    <h3><i data-lucide="arrow-up-right"></i> Arrow</h3>
+    <ul>
+      <li><strong>What it does</strong>: Draw directional arrows.</li>
+      <li><strong>How to use</strong>: Either click and drag to draw an arrow or click once for the start of the arrow
+        (the tail), and click again for the end
+        (the head).</li>
+    </ul>
+
+    <h3><i data-lucide="ruler"></i> Measure</h3>
+    <ul>
+      <li><strong>What it does</strong>: Measure distance along a multi-segment path.</li>
+      <li><strong>How to use</strong>: Click to add points along your path. The total accumulated distance (in
+        kilometers) is displayed dynamically as you move your cursor, and permanent distance markers are placed at each
+        point. Double-click to complete.</li>
+    </ul>
+
+    <h3><i data-lucide="route"></i> Route Planner</h3>
+    <ul>
+      <li><strong>What it does</strong>: Generates accurate routes using real-world road and transit data.</li>
+      <li><strong>How to use</strong>:
+        <ol>
+          <li>Select the Route tool.</li>
+          <li>Choose your travel mode from the sub-menu: <strong>Car</strong>, <strong>Walk</strong>, or
+            <strong>Train</strong>.
+          </li>
+          <li>Click points on the map to generate the route segment by segment.</li>
+          <li>The distance and estimated travel time will be displayed along the route. Double-click to complete.</li>
+        </ol>
+      </li>
+    </ul>
+
+    <h3><i data-lucide="map-pin"></i> Add Icon</h3>
+    <ul>
+      <li><strong>What it does</strong>: Place pre-designed SVG icons onto the map (e.g., military symbols, vehicles,
+        custom markers).</li>
+      <li><strong>How to use</strong>:
+        <ol>
+          <li>Select the tool to open the Icon Gallery.</li>
+          <li>Use the <strong>Left/Right arrows</strong> to switch between different icon categories.</li>
+          <li>Either click an icon to select it (and then click on the map to place it), or click and drag the icon
+            directly from the menu onto the map.</li>
+        </ol>
+      </li>
+    </ul>
+
+    <h2>Styling Your Annotations</h2>
+    <p>Whenever you have a drawing tool selected (like Paint, Polygon, or Circle), formatting options appear in the
+      toolbar.</p>
+    <ul>
+      <li><strong>Colors</strong>: Pick from the predefined color palette.</li>
+      <li><strong>Stroke Type</strong>: Choose between <strong>Solid</strong>, <strong>Dashed</strong>, or
+        <strong>Dotted</strong> lines.
+      </li>
+      <li><strong>Fill Opacity</strong>: Adjust the slider to make the interior of polygons, circles, and highlights
+        more or less transparent.</li>
+    </ul>
+    <p><em>Note: You can change the style of an existing annotation by clicking on it to select it (it will glow), and
+        then modifying the color, stroke, or fill in the toolbar. Label backplates are not affected by the opacity
+        slider.</em></p>
+
+    <h2>Saving, Deleting, and Exporting</h2>
+    <p>On the right side of the open toolbar, you have three important actions:</p>
+    <ul>
+      <li><strong>Delete (Trash Icon)</strong>:
+        <ul>
+          <li>If an annotation is currently selected (glowing), clicking this deletes <em>only</em> that annotation.
+          </li>
+          <li>If no annotation is selected, clicking this deletes <em>all</em> annotations of the currently active tool
+            type (e.g., deletes all polygons if the Polygon tool is active).</li>
+        </ul>
+      </li>
+      <li><strong>Save (Disk Icon)</strong>: Saves your current annotations, layer configurations, and default map view
+        to the backend server.</li>
+      <li><strong>Export (Download Icon)</strong>: Downloads all your current annotations into a standardized
+        <code>GeoJSON</code> file, which can be imported into GeoLayers or GIS software (like QGIS or ArcGIS).
+      </li>
+    </ul>
+
+    <h2>Layer Management</h2>
+    <p>Click the <strong>Layers icon</strong> (looks like a stack of papers) on the far bottom left to open the Layer
+      Sidebar.</p>
+    <ul>
+      <li><strong>Drag and Drop</strong>: Reorder layers by dragging them up or down. Layers at the top render above
+        layers at the bottom.</li>
+      <li><strong>Visibility</strong>: Toggle the "eye" icon to show or hide a layer.</li>
+      <li><strong>Special Layers</strong>:
+        <ul>
+          <li><strong>Split View</strong>: An advanced layer type that lets you place two different maps side-by-side
+            with a
+            movable slider to compare them. Double-click the dividing line to toggle betweel vertical and horizontal
+            split.</li>
+          <li><strong>DeepState (Ukraine Current)</strong>: Real-time mapping of the conflict in Ukraine. If you want to
+            display historical data click the edit icon to reveal a date picker.</li>
+          <li><strong>Wildfires (EFFIS)</strong>: Live and historical Copernicus wildfire data. You can filter by date
+            range.</li>
+          <li><strong>Air Traffic & Maritime Traffic</strong>: Live tracking of aircraft and maritime ships. Clicking on
+            them
+            reveals detailed metadata (callsigns, origins, etc.).</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h2>Icon Library</h2>
+    <p>The middle tab in the Layer Sidebar (image icon) opens the <strong>Icon Library</strong>. Here you can manage the custom SVG icons available in the <strong>Add Icon</strong> tool.</p>
+    <ul>
+      <li><strong>Categories</strong>: Organize your icons into groups. Click on a category name to rename it, or click the trash icon to delete it.</li>
+      <li><strong>Add New Icons</strong>: Click the <strong>+</strong> button within a category to upload individual SVG files, or click <strong>Upload Icon Set</strong> at the bottom to upload multiple SVGs into a brand new category at once.</li>
+      <li><strong>Reordering</strong>: Drag and drop categories to reorder them, or drag and drop individual icons to reorder them within their category.</li>
+    </ul>
+
+    <h2>Base Map & App Settings</h2>
+    <p>The rightmost tab in the Layer Sidebar (gear icon) opens the <strong>App Configuration</strong> panel.</p>
+    <ul>
+      <li><strong>Color Palette</strong>: Customize the quick-select colors available in the toolbar. Click the <strong>+</strong> icon to add new hex colors, or click the <strong>×</strong> on an existing color to remove it. You can also drag and drop colors to reorder them.</li>
+      <li><strong>Default Map Layers</strong>: Toggle which layers (e.g., DeepState, Air Traffic, Satellite) are automatically loaded and visible when a new show is created.</li>
+      <li><strong>Default View</strong>: Click <strong>Capture Current View</strong> to save the exact camera position (zoom, pitch, bearing) as the default starting view when loading the application.</li>
+      <li><strong>Base Map & API Settings</strong>: Expand these sections to configure your Mapbox Token and Style, OpenSky API credentials (for Air Traffic), AISStream API key (for Maritime Traffic), and Google Maps API key (for Train routing).</li>
+    </ul>
+
+    <h2>Saved Views</h2>
+    <p>On the right side of the screen, you'll find the <strong>Saved Views</strong> menu.</p>
+    <ul>
+      <li>This tool allows you to save specific camera angles, zoom levels, and coordinates.</li>
+      <li>Click <strong>Capture View</strong> to save your current screen position.</li>
+      <li>You can name these views to easily jump back to critical locations with a smooth 3D fly-over animation.</li>
+    </ul>
+
+    <h2>Pro Tips</h2>
+    <ul>
+      <li><strong>Select Mode</strong>: If you want to interact with your annotations (to change their color or delete
+        them), make sure you either have the specific tool selected, or close the toolbar to enter "Select Mode".</li>
+      <li><strong>3D Navigation</strong>: Hold down the <code>Right Mouse Button</code> (or
+        <code>Ctrl + Left Click</code>) and drag to change the pitch (tilt) and bearing (rotation) of the map.
+      </li>
+      <li><strong>Smart Labels</strong>: Exported GeoJSON files automatically carry over the text from your Labels and
+        Highlights into the <code>name</code> property of the exported file for seamless compatibility with other
+        software.</li>
+    </ul>
+  </div>
+
+<div class="container" id="content-de" style="display: none;">
+    <a href="/" class="back-link">
+      <i data-lucide="arrow-left"></i> Zurück zur Übersicht
+    </a>
+    <div style="text-align: center;">
+      <img src="/obermapstudio.svg" alt="Obermap Studio" style="height: 160px; width: auto; margin-bottom: 10px;" />
+    </div>
+    <h1>Benutzerhandbuch</h1>
+    <p>Willkommen bei <strong>OBERMAP STUDIO</strong>, einem umfassenden Tool für Karten-Annotationen, Routenplanung und Layer-Verwaltung für tiefgehende kartografische Analysen und Visualisierungen. Diese Anleitung führt Sie durch alle verfügbaren Werkzeuge, Funktionen und Tastenkombinationen.</p>
+
+    <h2>Übersicht der Benutzeroberfläche</h2>
+    <p>Die Benutzeroberfläche ist in mehrere Hauptbereiche unterteilt:</p>
+    <ul>
+      <li><strong>Hauptkartenbereich</strong>: Ihre Leinwand für Navigation, Zeichnen und Visualisierung.</li>
+      <li><strong>Werkzeugleiste (Unten Links)</strong>: Enthält alle Zeichen-, Routen- und Styling-Werkzeuge.</li>
+      <li><strong>Layer-Manager (Symbol unten links)</strong>: Zugriff auf spezielle Karten-Layer wie Satellit, DeepState, Waldbrände, Flugverkehr und Schiffsverkehr.</li>
+      <li><strong>Gespeicherte Ansichten (Oben Links)</strong>: Speichern und schnelles Navigieren zwischen verschiedenen Kamerawinkeln und Orten.</li>
+    </ul>
+
+    <h2>Die Werkzeugleiste</h2>
+    <p>Die Werkzeugleiste ist das Herzstück Ihres Annotations-Workflows. Sie können sie über die Schaltfläche <strong>"X" / "Menü"</strong> ganz rechts in der Leiste ein- und ausklappen.</p>
+
+    <h3><i data-lucide="mouse-pointer-2"></i> Ort / Land auswählen (Hervorheben)</h3>
+    <ul>
+      <li><strong>Was es macht</strong>: Ermöglicht es Ihnen, auf bestimmte Orte oder Länder zu klicken, um diese automatisch hervorzuheben.</li>
+      <li><strong>Bedienung</strong>: Wählen Sie das Werkzeug, eine Farbe und eine Fülldeckkraft und klicken Sie auf die Karte. Wenn Sie auf das Beschriftung eines Ortes klicken, wird dieses hervorgehoben. Klicken Sie auf einen leeren Bereich der Karte, wird das angeklickte Land hervorgehoben.</li>
+      <li><strong>HINWEIS</strong>: Das Hinzufügen einer Hervorhebung erstellt automatisch eine Kameraansicht-Schaltfläche mit der aktuellen Kartenansicht (Position, Zoom, Ausrichtung, Neigung).</li>
+    </ul>
+
+    <h3><i data-lucide="tag"></i> Beschriftung</h3>
+    <ul>
+      <li><strong>Was es macht</strong>: Platziert eine anpassbare Textbeschriftung an einer beliebigen Stelle auf der Karte.</li>
+      <li><strong>Bedienung</strong>: Wählen Sie das Werkzeug, eine Farbe und klicken Sie auf die Karte. Ein Dialogfeld fordert Sie auf, Ihren Text einzugeben. Drücken Sie <code>Enter</code>, um zu speichern.</li>
+      <li><strong>HINWEIS</strong>: Das Hinzufügen einer Beschriftung erstellt automatisch eine Kameraansicht-Schaltfläche mit der aktuellen Kartenansicht (Position, Zoom, Ausrichtung, Neigung).</li>
+    </ul>
+
+    <h3><i data-lucide="paintbrush"></i> Zeichnen (Freihand)</h3>
+    <ul>
+      <li><strong>Was es macht</strong>: Zeichnet beliebige, freihändige Linien.</li>
+      <li><strong>Bedienung</strong>: Klicken und ziehen Sie über die Karte, um zu zeichnen.</li>
+    </ul>
+
+    <h3><i data-lucide="hexagon"></i> Polygon</h3>
+    <ul>
+      <li><strong>Was es macht</strong>: Zeichnet benutzerdefinierte geometrische Formen.</li>
+      <li><strong>Bedienung</strong>: Klicken Sie auf die Karte, um Eckpunkte zu setzen. Ein Doppelklick schließt die Form ab.</li>
+    </ul>
+
+    <h3><i data-lucide="circle"></i> Kreis</h3>
+    <ul>
+      <li><strong>Was es macht</strong>: Zeichnet perfekte Kreise mit einem bestimmten Radius.</li>
+      <li><strong>Bedienung</strong>: Klicken Sie, um den Mittelpunkt festzulegen, und ziehen Sie dann nach außen, um den Radius zu bestimmen. Die Entfernung des Radius wird während des Zeichnens oben auf dem Bildschirm dynamisch angezeigt.</li>
+    </ul>
+
+    <h3><i data-lucide="arrow-up-right"></i> Pfeil</h3>
+    <ul>
+      <li><strong>Was es macht</strong>: Zeichnet Richtungspfeile.</li>
+      <li><strong>Bedienung</strong>: Entweder klicken und ziehen, um einen Pfeil zu zeichnen, oder einmal für den Start (Ende des Pfeils) klicken und ein zweites Mal für das Ziel (Spitze) klicken.</li>
+    </ul>
+
+    <h3><i data-lucide="ruler"></i> Messen</h3>
+    <ul>
+      <li><strong>What it does</strong>: Messen distance along a multi-segment path.</li>
+      <li><strong>Bedienung</strong>: Klicken Sie, um Punkte entlang Ihres Pfads hinzuzufügen. Die Gesamtdistanz (in Kilometern) wird dynamisch angezeigt, während Sie den Mauszeiger bewegen, und dauerhafte Entfernungsmarkierungen werden an jedem Punkt platziert. Ein Doppelklick schließt die Messung ab.</li>
+    </ul>
+
+    <h3><i data-lucide="route"></i> Routenplaner</h3>
+    <ul>
+      <li><strong>Was es macht</strong>: Generiert genaue Routen basierend auf realen Straßen- und Nahverkehrsdaten.</li>
+      <li><strong>Bedienung</strong>:
+        <ol>
+          <li>Wählen Sie das Routen-Werkzeug.</li>
+          <li>Wählen Sie Ihre Reiseart aus dem Untermenü: <strong>Auto</strong>, <strong>Fußgänger</strong> oder
+            <strong>Zug</strong>.
+          </li>
+          <li>Klicken Sie auf Punkte auf der Karte, um die Route Abschnitt für Abschnitt zu generieren.</li>
+          <li>Distanz und geschätzte Reisezeit werden entlang der Route angezeigt. Ein Doppelklick schließt die Route ab.</li>
+        </ol>
+      </li>
+    </ul>
+
+    <h3><i data-lucide="map-pin"></i> Symbol hinzufügen</h3>
+    <ul>
+      <li><strong>Was es macht</strong>: Platziert vorgefertigte SVG-Symbole auf der Karte (z.B. militärische Symbole, Fahrzeuge, benutzerdefinierte Markierungen).</li>
+      <li><strong>Bedienung</strong>:
+        <ol>
+          <li>Wählen Sie das Werkzeug, um die Symbolgalerie zu öffnen.</li>
+          <li>Nutzen Sie die <strong>Links/Rechts-Pfeile</strong>, um zwischen Symbolkategorien zu wechseln.</li>
+          <li>Klicken Sie entweder auf ein Symbol, um es auszuwählen (und klicken Sie dann auf die Karte, um es zu platzieren), oder ziehen Sie das Symbol per Drag & Drop direkt aus dem Menü auf die Karte.</li>
+        </ol>
+      </li>
+    </ul>
+
+    <h2>Ihre Annotationen anpassen</h2>
+    <p>Whenever you have a drawing tool selected (like Paint, Polygon, or Kreis), formatting options appear in the
+      toolbar.</p>
+    <ul>
+      <li><strong>Farben</strong>: Wählen Sie aus der vordefinierten Farbpalette.</li>
+      <li><strong>Linienart</strong>: Wählen Sie zwischen <strong>durchgezogenen (Solid)</strong>, <strong>gestrichelten (Dashed)</strong> oder
+        <strong>gepunkteten (Dotted)</strong> Linien.
+      </li>
+      <li><strong>Fülldeckkraft</strong>: Passen Sie den Schieberegler an, um das Innere von Polygonen, Kreisen und Hervorhebungen mehr oder weniger transparent zu machen.</li>
+    </ul>
+    <p><em>Note: You can change the style of an existing annotation by clicking on it to select it (it will glow), and
+        then modifying the color, stroke, or fill in the toolbar. Beschriftung backplates are not affected by the opacity
+        slider.</em></p>
+
+    <h2>Speichern, Löschen und Exportieren</h2>
+    <p>Auf der rechten Seite der geöffneten Werkzeugleiste haben Sie drei wichtige Aktionen:</p>
+    <ul>
+      <li><strong>Löschen (Mülleimer-Symbol)</strong>:
+        <ul>
+          <li>Wenn eine Annotation aktuell ausgewählt ist, löscht ein Klick <em>nur</em> diese Annotation.
+          </li>
+          <li>Ist keine Annotation ausgewählt, löscht ein Klick <em>alle</em> Annotationen des gerade aktiven Werkzeugtyps (z.B. alle Polygone, wenn das Polygon-Werkzeug aktiv ist).</li>
+        </ul>
+      </li>
+      <li><strong>Speichern (Disketten-Symbol)</strong>: Speichert Ihre aktuellen Annotationen, Layer-Konfigurationen und die Standard-Kartenansicht auf dem Server.</li>
+      <li><strong>Exportieren (Download-Symbol)</strong>: Lädt all Ihre aktuellen Annotationen in eine standardisierte
+        <code>GeoJSON</code>-Datei herunter, die in GeoLayers oder GIS-Software (wie QGIS oder ArcGIS) importiert werden kann.
+      </li>
+    </ul>
+
+    <h2>Layer-Verwaltung</h2>
+    <p>Klicken Sie auf das <strong>Layer-Symbol</strong> (sieht aus wie ein Stapel Papiere) ganz unten links, um die Layer-Seitenleiste zu öffnen.</p>
+    <ul>
+      <li><strong>Drag & Drop</strong>: Ordnen Sie Layer durch Ziehen nach oben oder unten neu an. Oben stehende Layer verdecken darunterliegende Layer.</li>
+      <li><strong>Sichtbarkeit</strong>: Klicken Sie auf das "Auge"-Symbol, um einen Layer ein- oder auszublenden.</li>
+      <li><strong>Spezielle Layer</strong>:
+        <ul>
+          <li><strong>Split View (Geteilte Ansicht)</strong>: Ein erweiterter Layertyp, mit dem Sie zwei verschiedene Karten nebeneinander platzieren können, inklusive verschiebbarem Regler zum Vergleichen. Ein Doppelklick auf die Trennlinie wechselt zwischen vertikaler und horizontaler Teilung.</li>
+          <li><strong>DeepState (Aktuell Ukraine)</strong>: Echtzeitkarte des Konflikts in der Ukraine. Um historische Daten anzuzeigen, klicken Sie auf das Bearbeiten-Symbol, um eine Datumsauswahl zu öffnen.</li>
+          <li><strong>Waldbrände (EFFIS)</strong>: Aktuelle und historische Copernicus-Waldbranddaten. Sie können nach einem Datumsbereich filtern.</li>
+          <li><strong>Flug- und Schiffsverkehr</strong>: Live-Tracking von Flugzeugen und Schiffen. Ein Klick darauf offenbart detaillierte Metadaten (Rufzeichen, Herkunft, etc.).</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h2>Symbolbibliothek</h2>
+    <p>The middle tab in the Layer Sidebar (image icon) opens the <strong>Symbolbibliothek</strong>. Here you can manage the custom SVG icons available in the <strong>Symbol hinzufügen</strong> tool.</p>
+    <ul>
+      <li><strong>Kategorien</strong>: Gruppieren Sie Ihre Symbole. Klicken Sie auf einen Kategorienamen, um ihn umzubenennen, oder auf das Mülleimer-Symbol, um ihn zu löschen.</li>
+      <li><strong>Neue Symbole hinzufügen</strong>: Klicken Sie auf das <strong>+</strong>-Symbol in einer Kategorie, um einzelne SVG-Dateien hochzuladen, oder klicken Sie unten auf <strong>Symbol-Set hochladen</strong>, um mehrere SVGs gleichzeitig in eine komplett neue Kategorie hochzuladen.</li>
+      <li><strong>Neu anordnen</strong>: Ziehen Sie Kategorien per Drag & Drop, um sie neu anzuordnen, oder ziehen Sie einzelne Symbole, um sie innerhalb ihrer Kategorie neu anzuordnen.</li>
+    </ul>
+
+    <h2>Basiskarte & App-Einstellungen</h2>
+    <p>Der ganz rechte Reiter in der Layer-Seitenleiste (Zahnrad-Symbol) öffnet das <strong>App-Konfigurationspanel</strong>.</p>
+    <ul>
+      <li><strong>Farbpalette</strong>: Passen Sie die Schnellwahl-Farben für die Werkzeugleiste an. Klicken Sie auf das <strong>+</strong>-Symbol, um neue Hex-Farben hinzuzufügen, oder auf das <strong>×</strong> bei einer vorhandenen Farbe, um sie zu entfernen. Sie können Farben auch per Drag & Drop neu anordnen.</li>
+      <li><strong>Standard-Kartenlayer</strong>: Legen Sie fest, welche Layer (z.B. DeepState, Flugverkehr, Satellit) beim Erstellen einer neuen Show automatisch geladen und eingeblendet werden sollen.</li>
+      <li><strong>Standardansicht</strong>: Klicken Sie auf <strong>Aktuelle Ansicht erfassen</strong>, um die exakte Kameraposition (Zoom, Neigung, Ausrichtung) als Startansicht beim Laden der App zu speichern.</li>
+      <li><strong>Basiskarte & API-Einstellungen</strong>: Klappen Sie diese Bereiche aus, um Ihren Mapbox-Token und -Stil, die OpenSky-API-Zugangsdaten (für Flugverkehr), den AISStream-API-Key (für Schiffsverkehr) sowie den Google Maps API-Key (für die Routenplanung bei Zügen) zu konfigurieren.</li>
+    </ul>
+
+    <h2>Gespeicherte Ansichten</h2>
+    <p>On the right side of the screen, you'll find the <strong>Gespeicherte Ansichten</strong> menu.</p>
+    <ul>
+      <li>Mit diesem Werkzeug können Sie bestimmte Kamerawinkel, Zoomstufen und Koordinaten speichern.</li>
+      <li>Klicken Sie auf <strong>Ansicht erfassen</strong>, um Ihre aktuelle Bildschirmposition zu speichern.</li>
+      <li>Sie können diese Ansichten benennen, um mit einer flüssigen 3D-Fluganimation einfach zu wichtigen Orten zurückzuspringen.</li>
+    </ul>
+
+    <h2>Profi-Tipps</h2>
+    <ul>
+      <li><strong>Auswahl-Modus</strong>: Wenn Sie mit Ihren Annotationen interagieren möchten (um Farbe zu ändern oder sie zu löschen), stellen Sie sicher, dass Sie entweder das spezifische Werkzeug ausgewählt haben oder klappen Sie die Werkzeugleiste ein, um in den "Auswahl-Modus" zu wechseln.</li>
+      <li><strong>3D-Navigation</strong>: Halten Sie die <code>rechte Maustaste</code> (oder
+        <code>Strg + Linksklick</code>) gedrückt und ziehen Sie die Maus, um die Neigung (Pitch) und die Ausrichtung (Bearing/Rotation) der Karte zu ändern.
+      </li>
+      <li><strong>Smart Beschriftungs</strong>: Exported GeoJSON files automatically carry over the text from your Beschriftungs and
+        Highlights into the <code>name</code> property of the exported file for seamless compatibility with other
+        software.</li>
+    </ul>
+  </div>
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    lucide.createIcons();
+
+    let currentLang = 'en';
+    function toggleLanguage() {
+      if (currentLang === 'en') {
+        currentLang = 'de';
+        document.getElementById('content-en').style.display = 'none';
+        document.getElementById('content-de').style.display = 'block';
+        document.getElementById('langToggleBtn').innerHTML = '🇬🇧 EN';
+        document.title = 'OBERMAP STUDIO Benutzerhandbuch';
+      } else {
+        currentLang = 'en';
+        document.getElementById('content-en').style.display = 'block';
+        document.getElementById('content-de').style.display = 'none';
+        document.getElementById('langToggleBtn').innerHTML = '🇩🇪 DE';
+        document.title = 'OBERMAP STUDIO User Guide';
+      }
+    }
+  </script>
+</body>
+</html>

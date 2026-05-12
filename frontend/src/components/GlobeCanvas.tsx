@@ -101,8 +101,8 @@ export function GlobeCanvas() {
 
         const scale = cameraZ / zDist;
         const projX = (width / 2) + (rotX_x * radius * scale);
-        // The top of the globe (y=0) will perfectly align with the screen center (height/2)
-        const projY = (height / 2) + (translatedY * scale);
+        // The top of the globe (y=0) will perfectly align with 1/3 of the screen height
+        const projY = (height / 3) + (translatedY * scale);
 
         // Alpha based on depth
         const alpha = Math.max(0.1, Math.min(1, (rotX_z + 1) / 2));

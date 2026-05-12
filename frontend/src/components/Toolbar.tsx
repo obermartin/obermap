@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Tag, MousePointer2, Paintbrush, Hexagon, Circle as CircleIcon, Ruler, Save, Trash2, X, MapPin, Loader2, ArrowUpRight, ChevronLeft, ChevronRight, Route, Car, Footprints, TrainFront } from 'lucide-react';
+import { Tag, MousePointer2, Paintbrush, Hexagon, Circle as CircleIcon, Ruler, Save, Trash2, X, MapPin, Loader2, ArrowUpRight, ChevronLeft, ChevronRight, Route, Car, Footprints, TrainFront, Download } from 'lucide-react';
 import type { ToolType, AppSettings, StrokeType, RouteMode } from '../types';
 import clsx from 'clsx';
 
@@ -16,6 +16,7 @@ interface ToolbarProps {
   routeMode?: RouteMode;
   setRouteMode?: (mode: RouteMode) => void;
   onSave: () => void;
+  onExport: () => void;
   onDelete: () => void;
   hasSelection: boolean;
   settings: AppSettings;
@@ -61,6 +62,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   routeMode,
   setRouteMode,
   onSave,
+  onExport,
   onDelete,
   hasSelection,
   settings,
@@ -349,6 +351,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                   title={isSaving ? "Saving..." : "Save Annotations & Settings"}
                 >
                   {isSaving ? <Loader2 className="animate-spin" size={20} strokeWidth={1.5} /> : <Save size={20} strokeWidth={1.5} />}
+                </button>
+                <button
+                  onClick={onExport}
+                  className="w-12 flex justify-center items-center transition-colors text-white/60 hover:text-white hover:bg-white/20"
+                  title="Export Annotations as GeoJSON"
+                >
+                  <Download size={20} strokeWidth={1.5} />
                 </button>
               </div>
 

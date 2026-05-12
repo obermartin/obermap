@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { GlobeCanvas } from './GlobeCanvas';
-import { Play, Link as LinkIcon, Trash2, Plus, Loader2, Layers, Copy, Lock, Unlock } from 'lucide-react';
+import { Play, Link as LinkIcon, Trash2, Plus, Loader2, Layers, Copy, Lock, Unlock, BookOpen } from 'lucide-react';
 import { customAlert, customConfirm, customPrompt } from '../utils/dialogService';
 
 interface Show {
@@ -141,13 +141,13 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
 
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none p-6">
         
-        {/* Logo */}
-        <div className="absolute top-12 left-1/2 -translate-x-1/2 pointer-events-auto z-0">
-          <img src="/obermapstudio.svg" alt="Obermap Studio" className="h-36 w-auto" />
-        </div>
-
         {/* Panel */}
         <div className="relative z-10 w-full max-w-2xl bg-zinc-900 border border-white/10 shadow-2xl p-6 pointer-events-auto flex flex-col gap-4">
+          {/* Logo */}
+          <div className="flex justify-center mb-2">
+            <img src="/obermapstudio.svg" alt="Obermap Studio" className="h-36 w-auto" />
+          </div>
+
           <div className="text-white text-sm font-semibold flex items-center gap-2 pb-2 mb-2 uppercase tracking-wider">
             <Layers size={18} /> Available Shows
           </div>
@@ -225,14 +225,23 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
             )}
           </div>
 
-          <div className="mt-2 pt-2 flex justify-center">
+          <div className="mt-2 pt-2 flex flex-col gap-2">
             <button 
               onClick={handleCreateNew}
-              className="w-full py-3 bg-white/5 hover:bg-white/10 text-white flex items-center justify-center gap-2 text-sm transition-colors font-semibold tracking-wider uppercase"
+              className="w-full py-2 bg-white/5 hover:bg-white/10 text-white flex items-center justify-center gap-2 text-sm transition-colors"
               title="Create New Show"
             >
-              <Plus size={18} /> CREATE NEW SHOW
+              <Plus size={16} /> Create New Show
             </button>
+            <a 
+              href="/user_guide.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-2 bg-white/5 hover:bg-white/10 text-white flex items-center justify-center gap-2 text-sm transition-colors"
+              title="Open User Guide"
+            >
+              <BookOpen size={16} /> User Guide
+            </a>
           </div>
         </div>
       </div>

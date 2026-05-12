@@ -5,6 +5,7 @@ import { SavedViews } from './components/SavedViews';
 import { OverviewScreen } from './components/OverviewScreen';
 import { customAlert } from './utils/dialogService';
 import type { Annotation, ToolType, StrokeType, AppSettings, MapLayer, RouteMode } from './types';
+import { createArrowFeatures, calculateDistance } from './utils/mapUtils';
 
 import { DEFAULT_ICON_CATEGORIES } from './defaultIcons';
 
@@ -197,6 +198,87 @@ export function App() {
     }
   }, [annotations, settings, currentShow]);
 
+  const handleExport = useCallback(() => {
+    const features: GeoJSON.Feature[] = annotations.reduce((acc: GeoJSON.Feature[], ann) => {
+      if (ann.type === 'paint') {
+        acc.push({
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: ann.coordinates },
+          properties: { color: ann.color, id: ann.id, type: ann.type, strokeType: ann.strokeType || 'solid' }
+        });
+      } else if (ann.type === 'measure') {
+        const dist = calculateDistance(ann.coordinates);
+        acc.push({
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: ann.coordinates },
+          properties: { color: ann.color, id: ann.id, type: ann.type, textLabel: `${dist.toFixed(2)} km`, strokeType: ann.strokeType || 'solid' }
+        });
+      } else if (ann.type === 'circle') {
+        acc.push({
+          type: 'Feature',
+          geometry: { type: 'Polygon', coordinates: ann.coordinates },
+          properties: { color: ann.color, id: ann.id, type: ann.type, textLabel: `${ann.radius?.toFixed(2)} km`, strokeType: ann.strokeType || 'solid', fillOpacity: ann.fillOpacity ?? 0.5 }
+        });
+      } else if (ann.type === 'polygon') {
+        acc.push({
+          type: 'Feature',
+          geometry: { type: 'Polygon', coordinates: ann.coordinates },
+          properties: { color: ann.color, id: ann.id, type: ann.type, strokeType: ann.strokeType || 'solid', fillOpacity: ann.fillOpacity ?? 0.5 }
+        });
+      } else if (ann.type === 'arrow' && ann.coordinates && ann.coordinates.length === 2) {
+        const arrowFeats = createArrowFeatures(ann.coordinates[0], ann.coordinates[1], ann.color || '#ffffff', ann.id);
+        if (arrowFeats) {
+          arrowFeats.shaft.properties!.strokeType = ann.strokeType || 'solid';
+          arrowFeats.head.properties!.strokeType = 'solid';
+          acc.push(arrowFeats.shaft, arrowFeats.head);
+        }
+      } else if (ann.type === 'highlight') {
+        if (ann.polygonGeometry && (ann.polygonGeometry.type === 'Polygon' || ann.polygonGeometry.type === 'MultiPolygon')) {
+          acc.push({
+            type: 'Feature',
+            geometry: ann.polygonGeometry,
+            properties: { color: ann.color, id: ann.id, type: 'polygon', strokeType: ann.strokeType || 'solid', fillOpacity: ann.fillOpacity ?? 0.5, name: ann.text }
+          });
+        }
+        if (ann.coordinates) {
+          acc.push({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: ann.coordinates },
+            properties: { color: ann.color, id: `${ann.id}-label`, type: 'highlight-label', text: ann.text, name: ann.text }
+          });
+        }
+      } else if (ann.type === 'route' && ann.routeGeometry) {
+        acc.push({
+          type: 'Feature',
+          geometry: ann.routeGeometry,
+          properties: { color: ann.color, id: ann.id, type: ann.type, strokeType: ann.strokeType || 'solid' }
+        });
+      } else if (ann.type === 'label' || ann.type === 'icon') {
+        acc.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: ann.coordinates },
+          properties: { color: ann.color, id: ann.id, type: ann.type, text: ann.text, iconId: ann.iconId, name: ann.text }
+        });
+      }
+      return acc;
+    }, []);
+
+    const geojson = {
+      type: 'FeatureCollection',
+      features
+    };
+
+    const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/geo+json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `annotations_${new Date().toISOString().split('T')[0]}.geojson`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [annotations]);
+
   const handleColorSelect = useCallback((color: string) => {
     setCurrentColor(color);
     if (selectedAnnotationId) {
@@ -355,7 +437,8 @@ export function App() {
           setCurrentFillOpacity={handleFillOpacitySelect}
           routeMode={routeMode}
           setRouteMode={setRouteMode}
-          onSave={handleSave}
+          onSave={() => handleSave(false)}
+          onExport={handleExport}
           onDelete={handleDelete}
           hasSelection={!!selectedAnnotationId}
           settings={settings}
