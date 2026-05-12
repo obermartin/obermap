@@ -27,7 +27,7 @@ export interface Annotation {
 export interface MapLayer {
   id: string;
   name: string;
-  type: 'geojson' | 'raster' | 'satellite' | 'split' | 'deepstate' | 'empty-slot' | 'flights' | 'vessels';
+  type: 'geojson' | 'raster' | 'satellite' | 'split' | 'deepstate' | 'empty-slot' | 'flights' | 'vessels' | 'wind';
   visible: boolean;
   data?: any; // For GeoJSON
   url?: string; // For XYZ/WMTS
@@ -58,6 +58,19 @@ export interface MapLayer {
   // Vessel layer specific
   globalVesselColor?: string;
   vesselColors?: Record<string, string>;
+
+  // Wind layer specific
+  windOpacity?: number;
+  windColor?: string;
+  windParticleSize?: number;
+  windParticleTrail?: number;
+  showWindParticles?: boolean;
+  showWindArrows?: boolean;
+  showWindLegend?: boolean;
+  windParticleSizeBySpeed?: boolean;
+  windParticleSpeedBySpeed?: boolean;
+  windParticleTrailBySpeed?: boolean;
+  windParticleColorBySpeed?: boolean;
 }
 
 export interface IconCategory {

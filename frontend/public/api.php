@@ -65,6 +65,9 @@ if (!preg_match('/^[a-zA-Z0-9_-]+$/', $show_id)) {
     $show_id = 'default';
 }
 $db_file = $shows_dir . '/' . $show_id . '.json';
+$db_file = __DIR__ . '/db.json';
+$weather_cache_dir = __DIR__ . '/weather-cache';
+$weather_cache_latest = $weather_cache_dir . '/latest.json';
 
 // Initialize db.json if it doesn't exist
 if (!file_exists($db_file)) {
@@ -74,6 +77,93 @@ if (!file_exists($db_file)) {
     } else {
         $initial_data = json_encode(['annotations' => [], 'settings' => null]);
         file_put_contents($db_file, $initial_data);
+    }
+}
+
+// Handle project-backed weather wind cache
+if (isset($_GET['action']) && $_GET['action'] === 'weather_wind_cache') {
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        if (isset($_GET['list']) && $_GET['list'] === '1') {
+            $snapshots = [];
+            if (is_dir($weather_cache_dir)) {
+                foreach (glob($weather_cache_dir . '/weather-wind_*.json') as $file) {
+                    $data = json_decode(file_get_contents($file), true);
+                    if (isset($data['cacheId'], $data['createdAt'])) {
+                        $snapshots[] = [
+                            'cacheId' => $data['cacheId'],
+                            'createdAt' => $data['createdAt'],
+                            'path' => 'weather-cache/' . basename($file)
+                        ];
+                    }
+                }
+            }
+            usort($snapshots, fn($a, $b) => strcmp($a['createdAt'], $b['createdAt']));
+            echo json_encode(['snapshots' => $snapshots]);
+            exit;
+        }
+
+        $cache_file = $weather_cache_latest;
+        if (isset($_GET['cacheId'])) {
+            $cache_id = preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['cacheId']);
+            $cache_file = $weather_cache_dir . '/' . $cache_id . '.json';
+        }
+
+        if (!file_exists($cache_file)) {
+            http_response_code(404);
+            echo json_encode(['error' => 'No weather wind cache available']);
+            exit;
+        }
+
+        $data = file_get_contents($cache_file);
+        if ($data === false) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to read weather wind cache']);
+            exit;
+        }
+
+        echo $data;
+        exit;
+    }
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $json = file_get_contents('php://input');
+        $decoded = json_decode($json, true);
+        if ($decoded === null && json_last_error() !== JSON_ERROR_NONE) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Invalid JSON payload']);
+            exit;
+        }
+
+        if (!isset($decoded['geojson'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Missing geojson payload']);
+            exit;
+        }
+
+        if (!is_dir($weather_cache_dir) && !mkdir($weather_cache_dir, 0775, true)) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to create weather cache directory']);
+            exit;
+        }
+
+        $cache_id = 'weather-wind_' . gmdate('ymd-His');
+        $payload = [
+            'cacheId' => $cache_id,
+            'createdAt' => gmdate('c'),
+            'geojson' => $decoded['geojson']
+        ];
+
+        $encoded = json_encode($payload, JSON_PRETTY_PRINT);
+        $snapshot_file = $weather_cache_dir . '/' . $cache_id . '.json';
+
+        if (file_put_contents($snapshot_file, $encoded) === false || file_put_contents($weather_cache_latest, $encoded) === false) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Failed to write weather wind cache']);
+            exit;
+        }
+
+        echo json_encode(['success' => true, 'cacheId' => $cache_id, 'path' => 'weather-cache/' . $cache_id . '.json']);
+        exit;
     }
 }
 

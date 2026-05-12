@@ -1,0 +1,2457 @@
+{
+  "cacheId": "weather-wind_260511-102850",
+  "createdAt": "2026-05-11T10:28:50.895Z",
+  "geojson": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -10,
+            36
+          ]
+        },
+        "properties": {
+          "id": "europe-36--10",
+          "windSpeed": 26.5,
+          "windDirection": 225,
+          "arrowRotation": 45
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -5,
+            36
+          ]
+        },
+        "properties": {
+          "id": "europe-36--5",
+          "windSpeed": 1.9,
+          "windDirection": 22,
+          "arrowRotation": 202
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            0,
+            36
+          ]
+        },
+        "properties": {
+          "id": "europe-36-0",
+          "windSpeed": 11.2,
+          "windDirection": 274,
+          "arrowRotation": 94
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            5,
+            36
+          ]
+        },
+        "properties": {
+          "id": "europe-36-5",
+          "windSpeed": 25.9,
+          "windDirection": 194,
+          "arrowRotation": 14
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            10,
+            36
+          ]
+        },
+        "properties": {
+          "id": "europe-36-10",
+          "windSpeed": 21.1,
+          "windDirection": 172,
+          "arrowRotation": 352
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            15,
+            36
+          ]
+        },
+        "properties": {
+          "id": "europe-36-15",
+          "windSpeed": 18.1,
+          "windDirection": 301,
+          "arrowRotation": 121
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            20,
+            36
+          ]
+        },
+        "properties": {
+          "id": "europe-36-20",
+          "windSpeed": 16.9,
+          "windDirection": 344,
+          "arrowRotation": 164
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            25,
+            36
+          ]
+        },
+        "properties": {
+          "id": "europe-36-25",
+          "windSpeed": 20.2,
+          "windDirection": 90,
+          "arrowRotation": 270
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            30,
+            36
+          ]
+        },
+        "properties": {
+          "id": "europe-36-30",
+          "windSpeed": 9.2,
+          "windDirection": 222,
+          "arrowRotation": 42
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -10,
+            40
+          ]
+        },
+        "properties": {
+          "id": "europe-40--10",
+          "windSpeed": 33,
+          "windDirection": 207,
+          "arrowRotation": 27
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -5,
+            40
+          ]
+        },
+        "properties": {
+          "id": "europe-40--5",
+          "windSpeed": 6.9,
+          "windDirection": 6,
+          "arrowRotation": 186
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            0,
+            40
+          ]
+        },
+        "properties": {
+          "id": "europe-40-0",
+          "windSpeed": 13,
+          "windDirection": 92,
+          "arrowRotation": 272
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            5,
+            40
+          ]
+        },
+        "properties": {
+          "id": "europe-40-5",
+          "windSpeed": 13.5,
+          "windDirection": 241,
+          "arrowRotation": 61
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            10,
+            40
+          ]
+        },
+        "properties": {
+          "id": "europe-40-10",
+          "windSpeed": 11.6,
+          "windDirection": 185,
+          "arrowRotation": 5
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            15,
+            40
+          ]
+        },
+        "properties": {
+          "id": "europe-40-15",
+          "windSpeed": 4.4,
+          "windDirection": 235,
+          "arrowRotation": 55
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            20,
+            40
+          ]
+        },
+        "properties": {
+          "id": "europe-40-20",
+          "windSpeed": 8.7,
+          "windDirection": 263,
+          "arrowRotation": 83
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            25,
+            40
+          ]
+        },
+        "properties": {
+          "id": "europe-40-25",
+          "windSpeed": 4.9,
+          "windDirection": 216,
+          "arrowRotation": 36
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            30,
+            40
+          ]
+        },
+        "properties": {
+          "id": "europe-40-30",
+          "windSpeed": 10.3,
+          "windDirection": 324,
+          "arrowRotation": 144
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -10,
+            44
+          ]
+        },
+        "properties": {
+          "id": "europe-44--10",
+          "windSpeed": 13.7,
+          "windDirection": 125,
+          "arrowRotation": 305
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -5,
+            44
+          ]
+        },
+        "properties": {
+          "id": "europe-44--5",
+          "windSpeed": 8.8,
+          "windDirection": 279,
+          "arrowRotation": 99
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            0,
+            44
+          ]
+        },
+        "properties": {
+          "id": "europe-44-0",
+          "windSpeed": 16.9,
+          "windDirection": 268,
+          "arrowRotation": 88
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            5,
+            44
+          ]
+        },
+        "properties": {
+          "id": "europe-44-5",
+          "windSpeed": 11.6,
+          "windDirection": 306,
+          "arrowRotation": 126
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            10,
+            44
+          ]
+        },
+        "properties": {
+          "id": "europe-44-10",
+          "windSpeed": 35.6,
+          "windDirection": 219,
+          "arrowRotation": 39
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            15,
+            44
+          ]
+        },
+        "properties": {
+          "id": "europe-44-15",
+          "windSpeed": 15.3,
+          "windDirection": 161,
+          "arrowRotation": 341
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            20,
+            44
+          ]
+        },
+        "properties": {
+          "id": "europe-44-20",
+          "windSpeed": 10.4,
+          "windDirection": 224,
+          "arrowRotation": 44
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            25,
+            44
+          ]
+        },
+        "properties": {
+          "id": "europe-44-25",
+          "windSpeed": 8.5,
+          "windDirection": 126,
+          "arrowRotation": 306
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            30,
+            44
+          ]
+        },
+        "properties": {
+          "id": "europe-44-30",
+          "windSpeed": 7.8,
+          "windDirection": 146,
+          "arrowRotation": 326
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -10,
+            48
+          ]
+        },
+        "properties": {
+          "id": "europe-48--10",
+          "windSpeed": 23.8,
+          "windDirection": 20,
+          "arrowRotation": 200
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -5,
+            48
+          ]
+        },
+        "properties": {
+          "id": "europe-48--5",
+          "windSpeed": 24.9,
+          "windDirection": 357,
+          "arrowRotation": 177
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            0,
+            48
+          ]
+        },
+        "properties": {
+          "id": "europe-48-0",
+          "windSpeed": 17,
+          "windDirection": 4,
+          "arrowRotation": 184
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            5,
+            48
+          ]
+        },
+        "properties": {
+          "id": "europe-48-5",
+          "windSpeed": 12.8,
+          "windDirection": 322,
+          "arrowRotation": 142
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            10,
+            48
+          ]
+        },
+        "properties": {
+          "id": "europe-48-10",
+          "windSpeed": 21.9,
+          "windDirection": 250,
+          "arrowRotation": 70
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            15,
+            48
+          ]
+        },
+        "properties": {
+          "id": "europe-48-15",
+          "windSpeed": 9.8,
+          "windDirection": 324,
+          "arrowRotation": 144
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            20,
+            48
+          ]
+        },
+        "properties": {
+          "id": "europe-48-20",
+          "windSpeed": 6.1,
+          "windDirection": 168,
+          "arrowRotation": 348
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            25,
+            48
+          ]
+        },
+        "properties": {
+          "id": "europe-48-25",
+          "windSpeed": 7.6,
+          "windDirection": 239,
+          "arrowRotation": 59
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            30,
+            48
+          ]
+        },
+        "properties": {
+          "id": "europe-48-30",
+          "windSpeed": 9.4,
+          "windDirection": 252,
+          "arrowRotation": 72
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -10,
+            52
+          ]
+        },
+        "properties": {
+          "id": "europe-52--10",
+          "windSpeed": 14.8,
+          "windDirection": 334,
+          "arrowRotation": 154
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -5,
+            52
+          ]
+        },
+        "properties": {
+          "id": "europe-52--5",
+          "windSpeed": 17.6,
+          "windDirection": 12,
+          "arrowRotation": 192
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            0,
+            52
+          ]
+        },
+        "properties": {
+          "id": "europe-52-0",
+          "windSpeed": 19.4,
+          "windDirection": 358,
+          "arrowRotation": 178
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            5,
+            52
+          ]
+        },
+        "properties": {
+          "id": "europe-52-5",
+          "windSpeed": 11.9,
+          "windDirection": 305,
+          "arrowRotation": 125
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            10,
+            52
+          ]
+        },
+        "properties": {
+          "id": "europe-52-10",
+          "windSpeed": 19.8,
+          "windDirection": 295,
+          "arrowRotation": 115
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            15,
+            52
+          ]
+        },
+        "properties": {
+          "id": "europe-52-15",
+          "windSpeed": 10.5,
+          "windDirection": 207,
+          "arrowRotation": 27
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            20,
+            52
+          ]
+        },
+        "properties": {
+          "id": "europe-52-20",
+          "windSpeed": 20.2,
+          "windDirection": 137,
+          "arrowRotation": 317
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            25,
+            52
+          ]
+        },
+        "properties": {
+          "id": "europe-52-25",
+          "windSpeed": 10.4,
+          "windDirection": 137,
+          "arrowRotation": 317
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            30,
+            52
+          ]
+        },
+        "properties": {
+          "id": "europe-52-30",
+          "windSpeed": 2.2,
+          "windDirection": 171,
+          "arrowRotation": 351
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -10,
+            56
+          ]
+        },
+        "properties": {
+          "id": "europe-56--10",
+          "windSpeed": 8.3,
+          "windDirection": 360,
+          "arrowRotation": 180
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -5,
+            56
+          ]
+        },
+        "properties": {
+          "id": "europe-56--5",
+          "windSpeed": 8.3,
+          "windDirection": 338,
+          "arrowRotation": 158
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            0,
+            56
+          ]
+        },
+        "properties": {
+          "id": "europe-56-0",
+          "windSpeed": 41.4,
+          "windDirection": 344,
+          "arrowRotation": 164
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            5,
+            56
+          ]
+        },
+        "properties": {
+          "id": "europe-56-5",
+          "windSpeed": 63.7,
+          "windDirection": 357,
+          "arrowRotation": 177
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            10,
+            56
+          ]
+        },
+        "properties": {
+          "id": "europe-56-10",
+          "windSpeed": 14.4,
+          "windDirection": 93,
+          "arrowRotation": 273
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            15,
+            56
+          ]
+        },
+        "properties": {
+          "id": "europe-56-15",
+          "windSpeed": 23.8,
+          "windDirection": 53,
+          "arrowRotation": 233
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            20,
+            56
+          ]
+        },
+        "properties": {
+          "id": "europe-56-20",
+          "windSpeed": 21.2,
+          "windDirection": 133,
+          "arrowRotation": 313
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            25,
+            56
+          ]
+        },
+        "properties": {
+          "id": "europe-56-25",
+          "windSpeed": 15.1,
+          "windDirection": 137,
+          "arrowRotation": 317
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            30,
+            56
+          ]
+        },
+        "properties": {
+          "id": "europe-56-30",
+          "windSpeed": 2.9,
+          "windDirection": 246,
+          "arrowRotation": 66
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -10,
+            60
+          ]
+        },
+        "properties": {
+          "id": "europe-60--10",
+          "windSpeed": 34.6,
+          "windDirection": 210,
+          "arrowRotation": 30
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -5,
+            60
+          ]
+        },
+        "properties": {
+          "id": "europe-60--5",
+          "windSpeed": 13,
+          "windDirection": 296,
+          "arrowRotation": 116
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            0,
+            60
+          ]
+        },
+        "properties": {
+          "id": "europe-60-0",
+          "windSpeed": 30.6,
+          "windDirection": 336,
+          "arrowRotation": 156
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            5,
+            60
+          ]
+        },
+        "properties": {
+          "id": "europe-60-5",
+          "windSpeed": 48.2,
+          "windDirection": 338,
+          "arrowRotation": 158
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            10,
+            60
+          ]
+        },
+        "properties": {
+          "id": "europe-60-10",
+          "windSpeed": 9.7,
+          "windDirection": 26,
+          "arrowRotation": 206
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            15,
+            60
+          ]
+        },
+        "properties": {
+          "id": "europe-60-15",
+          "windSpeed": 5.8,
+          "windDirection": 61,
+          "arrowRotation": 241
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            20,
+            60
+          ]
+        },
+        "properties": {
+          "id": "europe-60-20",
+          "windSpeed": 10.1,
+          "windDirection": 161,
+          "arrowRotation": 341
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            25,
+            60
+          ]
+        },
+        "properties": {
+          "id": "europe-60-25",
+          "windSpeed": 11.9,
+          "windDirection": 98,
+          "arrowRotation": 278
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            30,
+            60
+          ]
+        },
+        "properties": {
+          "id": "europe-60-30",
+          "windSpeed": 5.4,
+          "windDirection": 225,
+          "arrowRotation": 45
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            6,
+            47
+          ]
+        },
+        "properties": {
+          "id": "germany-47-6",
+          "windSpeed": 13.8,
+          "windDirection": 237,
+          "arrowRotation": 57
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            7,
+            47
+          ]
+        },
+        "properties": {
+          "id": "germany-47-7",
+          "windSpeed": 20.8,
+          "windDirection": 240,
+          "arrowRotation": 60
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8,
+            47
+          ]
+        },
+        "properties": {
+          "id": "germany-47-8",
+          "windSpeed": 19.3,
+          "windDirection": 246,
+          "arrowRotation": 66
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            9,
+            47
+          ]
+        },
+        "properties": {
+          "id": "germany-47-9",
+          "windSpeed": 31.9,
+          "windDirection": 281,
+          "arrowRotation": 101
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            10,
+            47
+          ]
+        },
+        "properties": {
+          "id": "germany-47-10",
+          "windSpeed": 4.2,
+          "windDirection": 70,
+          "arrowRotation": 250
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            11,
+            47
+          ]
+        },
+        "properties": {
+          "id": "germany-47-11",
+          "windSpeed": 10.5,
+          "windDirection": 131,
+          "arrowRotation": 311
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            12,
+            47
+          ]
+        },
+        "properties": {
+          "id": "germany-47-12",
+          "windSpeed": 8.6,
+          "windDirection": 272,
+          "arrowRotation": 92
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            13,
+            47
+          ]
+        },
+        "properties": {
+          "id": "germany-47-13",
+          "windSpeed": 28.7,
+          "windDirection": 205,
+          "arrowRotation": 25
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            14,
+            47
+          ]
+        },
+        "properties": {
+          "id": "germany-47-14",
+          "windSpeed": 20.3,
+          "windDirection": 217,
+          "arrowRotation": 37
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            15,
+            47
+          ]
+        },
+        "properties": {
+          "id": "germany-47-15",
+          "windSpeed": 14.7,
+          "windDirection": 208,
+          "arrowRotation": 28
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            6,
+            48
+          ]
+        },
+        "properties": {
+          "id": "germany-48-6",
+          "windSpeed": 16.1,
+          "windDirection": 241,
+          "arrowRotation": 61
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            7,
+            48
+          ]
+        },
+        "properties": {
+          "id": "germany-48-7",
+          "windSpeed": 19.9,
+          "windDirection": 253,
+          "arrowRotation": 73
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8,
+            48
+          ]
+        },
+        "properties": {
+          "id": "germany-48-8",
+          "windSpeed": 19.9,
+          "windDirection": 250,
+          "arrowRotation": 70
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            9,
+            48
+          ]
+        },
+        "properties": {
+          "id": "germany-48-9",
+          "windSpeed": 18.2,
+          "windDirection": 261,
+          "arrowRotation": 81
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            10,
+            48
+          ]
+        },
+        "properties": {
+          "id": "germany-48-10",
+          "windSpeed": 21.9,
+          "windDirection": 250,
+          "arrowRotation": 70
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            11,
+            48
+          ]
+        },
+        "properties": {
+          "id": "germany-48-11",
+          "windSpeed": 32.8,
+          "windDirection": 261,
+          "arrowRotation": 81
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            12,
+            48
+          ]
+        },
+        "properties": {
+          "id": "germany-48-12",
+          "windSpeed": 14.8,
+          "windDirection": 256,
+          "arrowRotation": 76
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            13,
+            48
+          ]
+        },
+        "properties": {
+          "id": "germany-48-13",
+          "windSpeed": 17.3,
+          "windDirection": 274,
+          "arrowRotation": 94
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            14,
+            48
+          ]
+        },
+        "properties": {
+          "id": "germany-48-14",
+          "windSpeed": 15.8,
+          "windDirection": 294,
+          "arrowRotation": 114
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            15,
+            48
+          ]
+        },
+        "properties": {
+          "id": "germany-48-15",
+          "windSpeed": 9.8,
+          "windDirection": 324,
+          "arrowRotation": 144
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            6,
+            49
+          ]
+        },
+        "properties": {
+          "id": "germany-49-6",
+          "windSpeed": 15.6,
+          "windDirection": 308,
+          "arrowRotation": 128
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            7,
+            49
+          ]
+        },
+        "properties": {
+          "id": "germany-49-7",
+          "windSpeed": 16.7,
+          "windDirection": 295,
+          "arrowRotation": 115
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8,
+            49
+          ]
+        },
+        "properties": {
+          "id": "germany-49-8",
+          "windSpeed": 19.1,
+          "windDirection": 268,
+          "arrowRotation": 88
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            9,
+            49
+          ]
+        },
+        "properties": {
+          "id": "germany-49-9",
+          "windSpeed": 20.8,
+          "windDirection": 260,
+          "arrowRotation": 80
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            10,
+            49
+          ]
+        },
+        "properties": {
+          "id": "germany-49-10",
+          "windSpeed": 15.3,
+          "windDirection": 236,
+          "arrowRotation": 56
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            11,
+            49
+          ]
+        },
+        "properties": {
+          "id": "germany-49-11",
+          "windSpeed": 16.6,
+          "windDirection": 257,
+          "arrowRotation": 77
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            12,
+            49
+          ]
+        },
+        "properties": {
+          "id": "germany-49-12",
+          "windSpeed": 12.8,
+          "windDirection": 248,
+          "arrowRotation": 68
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            13,
+            49
+          ]
+        },
+        "properties": {
+          "id": "germany-49-13",
+          "windSpeed": 18,
+          "windDirection": 241,
+          "arrowRotation": 61
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            14,
+            49
+          ]
+        },
+        "properties": {
+          "id": "germany-49-14",
+          "windSpeed": 17.1,
+          "windDirection": 245,
+          "arrowRotation": 65
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            15,
+            49
+          ]
+        },
+        "properties": {
+          "id": "germany-49-15",
+          "windSpeed": 13.3,
+          "windDirection": 257,
+          "arrowRotation": 77
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            6,
+            50
+          ]
+        },
+        "properties": {
+          "id": "germany-50-6",
+          "windSpeed": 10.1,
+          "windDirection": 319,
+          "arrowRotation": 139
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            7,
+            50
+          ]
+        },
+        "properties": {
+          "id": "germany-50-7",
+          "windSpeed": 2.2,
+          "windDirection": 287,
+          "arrowRotation": 107
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8,
+            50
+          ]
+        },
+        "properties": {
+          "id": "germany-50-8",
+          "windSpeed": 12.8,
+          "windDirection": 308,
+          "arrowRotation": 128
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            9,
+            50
+          ]
+        },
+        "properties": {
+          "id": "germany-50-9",
+          "windSpeed": 11.1,
+          "windDirection": 335,
+          "arrowRotation": 155
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            10,
+            50
+          ]
+        },
+        "properties": {
+          "id": "germany-50-10",
+          "windSpeed": 22.4,
+          "windDirection": 274,
+          "arrowRotation": 94
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            11,
+            50
+          ]
+        },
+        "properties": {
+          "id": "germany-50-11",
+          "windSpeed": 21,
+          "windDirection": 254,
+          "arrowRotation": 74
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            12,
+            50
+          ]
+        },
+        "properties": {
+          "id": "germany-50-12",
+          "windSpeed": 17.9,
+          "windDirection": 251,
+          "arrowRotation": 71
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            13,
+            50
+          ]
+        },
+        "properties": {
+          "id": "germany-50-13",
+          "windSpeed": 18.1,
+          "windDirection": 247,
+          "arrowRotation": 67
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            14,
+            50
+          ]
+        },
+        "properties": {
+          "id": "germany-50-14",
+          "windSpeed": 16.3,
+          "windDirection": 252,
+          "arrowRotation": 72
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            15,
+            50
+          ]
+        },
+        "properties": {
+          "id": "germany-50-15",
+          "windSpeed": 14.9,
+          "windDirection": 250,
+          "arrowRotation": 70
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            6,
+            51
+          ]
+        },
+        "properties": {
+          "id": "germany-51-6",
+          "windSpeed": 13.3,
+          "windDirection": 304,
+          "arrowRotation": 124
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            7,
+            51
+          ]
+        },
+        "properties": {
+          "id": "germany-51-7",
+          "windSpeed": 15.1,
+          "windDirection": 308,
+          "arrowRotation": 128
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8,
+            51
+          ]
+        },
+        "properties": {
+          "id": "germany-51-8",
+          "windSpeed": 11.1,
+          "windDirection": 295,
+          "arrowRotation": 115
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            9,
+            51
+          ]
+        },
+        "properties": {
+          "id": "germany-51-9",
+          "windSpeed": 11.8,
+          "windDirection": 310,
+          "arrowRotation": 130
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            10,
+            51
+          ]
+        },
+        "properties": {
+          "id": "germany-51-10",
+          "windSpeed": 15,
+          "windDirection": 314,
+          "arrowRotation": 134
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            11,
+            51
+          ]
+        },
+        "properties": {
+          "id": "germany-51-11",
+          "windSpeed": 17.1,
+          "windDirection": 305,
+          "arrowRotation": 125
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            12,
+            51
+          ]
+        },
+        "properties": {
+          "id": "germany-51-12",
+          "windSpeed": 14.3,
+          "windDirection": 298,
+          "arrowRotation": 118
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            13,
+            51
+          ]
+        },
+        "properties": {
+          "id": "germany-51-13",
+          "windSpeed": 17.3,
+          "windDirection": 249,
+          "arrowRotation": 69
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            14,
+            51
+          ]
+        },
+        "properties": {
+          "id": "germany-51-14",
+          "windSpeed": 14.2,
+          "windDirection": 261,
+          "arrowRotation": 81
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            15,
+            51
+          ]
+        },
+        "properties": {
+          "id": "germany-51-15",
+          "windSpeed": 16.4,
+          "windDirection": 218,
+          "arrowRotation": 38
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            6,
+            52
+          ]
+        },
+        "properties": {
+          "id": "germany-52-6",
+          "windSpeed": 18.7,
+          "windDirection": 309,
+          "arrowRotation": 129
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            7,
+            52
+          ]
+        },
+        "properties": {
+          "id": "germany-52-7",
+          "windSpeed": 13.7,
+          "windDirection": 289,
+          "arrowRotation": 109
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8,
+            52
+          ]
+        },
+        "properties": {
+          "id": "germany-52-8",
+          "windSpeed": 16.5,
+          "windDirection": 293,
+          "arrowRotation": 113
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            9,
+            52
+          ]
+        },
+        "properties": {
+          "id": "germany-52-9",
+          "windSpeed": 15.8,
+          "windDirection": 287,
+          "arrowRotation": 107
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            10,
+            52
+          ]
+        },
+        "properties": {
+          "id": "germany-52-10",
+          "windSpeed": 19.8,
+          "windDirection": 295,
+          "arrowRotation": 115
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            11,
+            52
+          ]
+        },
+        "properties": {
+          "id": "germany-52-11",
+          "windSpeed": 24.9,
+          "windDirection": 284,
+          "arrowRotation": 104
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            12,
+            52
+          ]
+        },
+        "properties": {
+          "id": "germany-52-12",
+          "windSpeed": 21.4,
+          "windDirection": 290,
+          "arrowRotation": 110
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            13,
+            52
+          ]
+        },
+        "properties": {
+          "id": "germany-52-13",
+          "windSpeed": 20.9,
+          "windDirection": 274,
+          "arrowRotation": 94
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            14,
+            52
+          ]
+        },
+        "properties": {
+          "id": "germany-52-14",
+          "windSpeed": 14.2,
+          "windDirection": 234,
+          "arrowRotation": 54
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            15,
+            52
+          ]
+        },
+        "properties": {
+          "id": "germany-52-15",
+          "windSpeed": 10.5,
+          "windDirection": 207,
+          "arrowRotation": 27
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            6,
+            53
+          ]
+        },
+        "properties": {
+          "id": "germany-53-6",
+          "windSpeed": 13.7,
+          "windDirection": 273,
+          "arrowRotation": 93
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            7,
+            53
+          ]
+        },
+        "properties": {
+          "id": "germany-53-7",
+          "windSpeed": 21.2,
+          "windDirection": 300,
+          "arrowRotation": 120
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8,
+            53
+          ]
+        },
+        "properties": {
+          "id": "germany-53-8",
+          "windSpeed": 18.2,
+          "windDirection": 288,
+          "arrowRotation": 108
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            9,
+            53
+          ]
+        },
+        "properties": {
+          "id": "germany-53-9",
+          "windSpeed": 18,
+          "windDirection": 303,
+          "arrowRotation": 123
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            10,
+            53
+          ]
+        },
+        "properties": {
+          "id": "germany-53-10",
+          "windSpeed": 15.4,
+          "windDirection": 307,
+          "arrowRotation": 127
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            11,
+            53
+          ]
+        },
+        "properties": {
+          "id": "germany-53-11",
+          "windSpeed": 17.2,
+          "windDirection": 299,
+          "arrowRotation": 119
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            12,
+            53
+          ]
+        },
+        "properties": {
+          "id": "germany-53-12",
+          "windSpeed": 18.7,
+          "windDirection": 298,
+          "arrowRotation": 118
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            13,
+            53
+          ]
+        },
+        "properties": {
+          "id": "germany-53-13",
+          "windSpeed": 21.9,
+          "windDirection": 226,
+          "arrowRotation": 46
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            14,
+            53
+          ]
+        },
+        "properties": {
+          "id": "germany-53-14",
+          "windSpeed": 15.3,
+          "windDirection": 156,
+          "arrowRotation": 336
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            15,
+            53
+          ]
+        },
+        "properties": {
+          "id": "germany-53-15",
+          "windSpeed": 15.4,
+          "windDirection": 164,
+          "arrowRotation": 344
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            6,
+            54
+          ]
+        },
+        "properties": {
+          "id": "germany-54-6",
+          "windSpeed": 46.8,
+          "windDirection": 284,
+          "arrowRotation": 104
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            7,
+            54
+          ]
+        },
+        "properties": {
+          "id": "germany-54-7",
+          "windSpeed": 35.8,
+          "windDirection": 265,
+          "arrowRotation": 85
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8,
+            54
+          ]
+        },
+        "properties": {
+          "id": "germany-54-8",
+          "windSpeed": 16.9,
+          "windDirection": 241,
+          "arrowRotation": 61
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            9,
+            54
+          ]
+        },
+        "properties": {
+          "id": "germany-54-9",
+          "windSpeed": 16.7,
+          "windDirection": 303,
+          "arrowRotation": 123
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            10,
+            54
+          ]
+        },
+        "properties": {
+          "id": "germany-54-10",
+          "windSpeed": 14.3,
+          "windDirection": 321,
+          "arrowRotation": 141
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            11,
+            54
+          ]
+        },
+        "properties": {
+          "id": "germany-54-11",
+          "windSpeed": 30.9,
+          "windDirection": 328,
+          "arrowRotation": 148
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            12,
+            54
+          ]
+        },
+        "properties": {
+          "id": "germany-54-12",
+          "windSpeed": 14.4,
+          "windDirection": 357,
+          "arrowRotation": 177
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            13,
+            54
+          ]
+        },
+        "properties": {
+          "id": "germany-54-13",
+          "windSpeed": 9.1,
+          "windDirection": 18,
+          "arrowRotation": 198
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            14,
+            54
+          ]
+        },
+        "properties": {
+          "id": "germany-54-14",
+          "windSpeed": 16.7,
+          "windDirection": 71,
+          "arrowRotation": 251
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            15,
+            54
+          ]
+        },
+        "properties": {
+          "id": "germany-54-15",
+          "windSpeed": 13.9,
+          "windDirection": 159,
+          "arrowRotation": 339
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            6,
+            55
+          ]
+        },
+        "properties": {
+          "id": "germany-55-6",
+          "windSpeed": 21.6,
+          "windDirection": 269,
+          "arrowRotation": 89
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            7,
+            55
+          ]
+        },
+        "properties": {
+          "id": "germany-55-7",
+          "windSpeed": 25.9,
+          "windDirection": 204,
+          "arrowRotation": 24
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            8,
+            55
+          ]
+        },
+        "properties": {
+          "id": "germany-55-8",
+          "windSpeed": 22,
+          "windDirection": 190,
+          "arrowRotation": 10
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            9,
+            55
+          ]
+        },
+        "properties": {
+          "id": "germany-55-9",
+          "windSpeed": 9.7,
+          "windDirection": 268,
+          "arrowRotation": 88
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            10,
+            55
+          ]
+        },
+        "properties": {
+          "id": "germany-55-10",
+          "windSpeed": 15.5,
+          "windDirection": 316,
+          "arrowRotation": 136
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            11,
+            55
+          ]
+        },
+        "properties": {
+          "id": "germany-55-11",
+          "windSpeed": 20.5,
+          "windDirection": 16,
+          "arrowRotation": 196
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            12,
+            55
+          ]
+        },
+        "properties": {
+          "id": "germany-55-12",
+          "windSpeed": 13,
+          "windDirection": 68,
+          "arrowRotation": 248
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            13,
+            55
+          ]
+        },
+        "properties": {
+          "id": "germany-55-13",
+          "windSpeed": 29.5,
+          "windDirection": 62,
+          "arrowRotation": 242
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            14,
+            55
+          ]
+        },
+        "properties": {
+          "id": "germany-55-14",
+          "windSpeed": 34.6,
+          "windDirection": 62,
+          "arrowRotation": 242
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            15,
+            55
+          ]
+        },
+        "properties": {
+          "id": "germany-55-15",
+          "windSpeed": 23.8,
+          "windDirection": 43,
+          "arrowRotation": 223
+        }
+      }
+    ]
+  }
+}
