@@ -27,14 +27,21 @@ const DEFAULT_SETTINGS: AppSettings = {
     { id: 'copernicus', name: 'Wildfires (EFFIS)', type: 'raster', visible: false, url: 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}' },
     { id: 'satellite', name: 'Satellite Map Overlay (Mapbox)', type: 'satellite', visible: false },
     { id: 'flights', name: 'Air Traffic (OpenSky)', type: 'flights', visible: false },
-    { id: 'wind', name: 'Wind (Open-Meteo)', type: 'wind', visible: true, windOpacity: 1, windParticleSize: 1.5, windParticleTrail: 94, showWindParticles: true, showWindArrows: false, showWindLegend: true, windParticleSizeBySpeed: true, windParticleSpeedBySpeed: true, windParticleTrailBySpeed: false, windParticleColorBySpeed: true }
+    { id: 'wind', name: 'Wind (Open-Meteo)', type: 'wind', visible: true, windOpacity: 1, windParticleSize: 1.5, windParticleTrail: 94, showWindParticles: true, showWindArrows: false, showWindLegend: true, windParticleSizeBySpeed: true, windParticleSpeedBySpeed: true, windParticleTrailBySpeed: false, windParticleColorBySpeed: true },
+    { id: 'temperature', name: 'Live Temperature (OWM)', type: 'raster', visible: false, url: 'https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=d04bc4ae6960dc10d49057fc174ad2aa' },
+    { id: 'precipitation', name: 'Live Rain (OWM)', type: 'raster', visible: false, url: 'https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=d04bc4ae6960dc10d49057fc174ad2aa' },
+    { id: 'google_satellite', name: 'Satellite View (Google)', type: 'raster', visible: false, url: 'https://mt0.google.com/vt/lyrs=s&x={x}&y={y}&z={z}' },
+    { id: 'bing_satellite', name: 'Satellite View (Bing)', type: 'raster', visible: false, url: 'https://ecn.t0.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=685&mkt=en-us&n=z' },
+    { id: 'population_density', name: 'Population Density', type: 'raster', visible: false, url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GPW_Population_Density_2020/default/default/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png' }
   ]
 };
 
 import { LayerSidebar } from './components/LayerSidebar';
 import { Layers, Loader2 } from 'lucide-react';
+import { useTranslation } from './contexts/I18nContext';
 
 export function App() {
+  const { t } = useTranslation();
   const [activeTool, setActiveTool] = useState<ToolType>('none');
   const [currentColor, setCurrentColor] = useState(DEFAULT_SETTINGS.colorPalette[0]);
   const [currentStrokeType, setCurrentStrokeType] = useState<StrokeType>('solid');
@@ -78,9 +85,12 @@ export function App() {
       .then(data => {
         if (data.annotations) {
           setAnnotations(data.annotations);
+        } else {
+          setAnnotations([]);
         }
+        
         if (data.settings) {
-          setSettings(prev => {
+          setSettings(() => {
             const savedLayers = data.settings.layers || [];
             
             const processSavedLayer = (savedLayer: MapLayer): MapLayer => {
@@ -100,13 +110,12 @@ export function App() {
               }
 
               // Merge default properties if it's a default layer
-              const defaultMatch = prev.layers.find(l => l.id === merged.id);
+              const defaultMatch = DEFAULT_SETTINGS.layers.find(l => l.id === merged.id);
               if (defaultMatch) {
                 merged = { ...defaultMatch, ...merged, data: defaultMatch.data || merged.data };
               }
 
               if (merged.id === 'wind') {
-                merged.visible = true;
                 merged.showWindLegend = merged.showWindLegend !== false;
                 merged.windParticleTrailBySpeed = merged.windParticleTrailBySpeed === true;
               }
@@ -127,12 +136,10 @@ export function App() {
             };
 
             const mergedLayers = savedLayers.map(processSavedLayer);
-            const defaultWindLayer = prev.layers.find(l => l.id === 'wind');
-            if (defaultWindLayer && !mergedLayers.some((layer: MapLayer) => layer.id === 'wind' || layer.type === 'wind')) {
-              mergedLayers.push({ ...defaultWindLayer, visible: true });
-            }
+            // Note: The wind layer is no longer forcefully injected here.
+            // It respects the user's saved 'settings.layers' state or the Default Map Layers toggles.
 
-            let loadedIcons = data.settings.icons || prev.icons;
+            let loadedIcons = data.settings.icons || DEFAULT_SETTINGS.icons;
             if (loadedIcons && loadedIcons.length > 0 && !('icons' in loadedIcons[0])) {
               loadedIcons = [
                 ...DEFAULT_ICON_CATEGORIES,
@@ -142,10 +149,10 @@ export function App() {
               loadedIcons = DEFAULT_ICON_CATEGORIES;
             }
 
-            // We no longer forcefully inject mandatory layers here. 
-            // Users can now toggle them manually via the App Config menu.
-            return { ...prev, ...data.settings, layers: mergedLayers, icons: loadedIcons };
+            return { ...DEFAULT_SETTINGS, ...data.settings, layers: mergedLayers, icons: loadedIcons };
           });
+        } else {
+          setSettings(DEFAULT_SETTINGS);
         }
       })
       .catch(err => console.error('Error loading data:', err))
@@ -184,7 +191,7 @@ export function App() {
       })
       .then(res => res.json())
       .then(async () => {
-        await customAlert('Annotations & Settings saved successfully!');
+        await customAlert(t('Annotations & Settings saved successfully!'));
         setSettings(prev => ({
           ...prev,
           layers: prev.layers.map(l => ({ ...l, _isDirty: false }))
@@ -199,12 +206,12 @@ export function App() {
       })
       .catch(async err => {
         console.error('Error saving data:', err);
-        await customAlert('Failed to save data.');
+        await customAlert(t('Failed to save data.'));
       })
       .finally(() => setIsSaving(false));
     } catch (err) {
       console.error('Error during layer optimization:', err);
-      await customAlert('Failed to save data due to an internal error.');
+      await customAlert(t('Failed to save data due to an internal error.'));
       setIsSaving(false);
     }
   }, [annotations, settings, currentShow]);
@@ -412,6 +419,7 @@ export function App() {
         setSelectedGeojsonFeatureId={setSelectedGeojsonFeatureId}
         selectedIconId={selectedIconId}
         routeMode={routeMode}
+        isSidebarOpen={isLayerSidebarOpen}
       />
       <SavedViews 
         annotations={annotations}

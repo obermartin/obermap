@@ -113,27 +113,14 @@ export const createArrowFeatures = (start: [number, number], end: [number, numbe
   };
 
   const bearing = turf.bearing(startCoord, endCoord);
-  
-  // Dynamic head length based on distance, capped for sanity
-  let headLength = distance * 0.2;
-  if (headLength > 50) headLength = 50;
-  if (headLength < 0.05) headLength = 0.05;
 
-  // Draw two lines back from the tip at 45 degree angles (bearing +/- 135)
-  const leftPt = turf.destination(endCoord, headLength, bearing - 135, { units: 'kilometers' });
-  const rightPt = turf.destination(endCoord, headLength, bearing + 135, { units: 'kilometers' });
-
-  const head: GeoJSON.Feature<GeoJSON.LineString> = {
+  const head: GeoJSON.Feature<GeoJSON.Point> = {
     type: 'Feature',
     geometry: {
-      type: 'LineString',
-      coordinates: [
-        [leftPt.geometry.coordinates[0], leftPt.geometry.coordinates[1]],
-        endCoord,
-        [rightPt.geometry.coordinates[0], rightPt.geometry.coordinates[1]]
-      ]
+      type: 'Point',
+      coordinates: endCoord
     },
-    properties: { color, $type: 'LineString', id }
+    properties: { color, $type: 'ArrowHead', id, bearing }
   };
 
   return { shaft, head };

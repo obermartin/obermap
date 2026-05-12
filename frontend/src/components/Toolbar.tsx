@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Tag, MousePointer2, Paintbrush, Hexagon, Circle as CircleIcon, Ruler, Save, Trash2, X, MapPin, Loader2, ArrowUpRight, ChevronLeft, ChevronRight, Route, Car, Footprints, TrainFront, Download } from 'lucide-react';
 import type { ToolType, AppSettings, StrokeType, RouteMode } from '../types';
 import clsx from 'clsx';
+import { useTranslation } from '../contexts/I18nContext';
 
 interface ToolbarProps {
   activeTool: ToolType;
@@ -72,7 +73,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   selectedIconId,
   setSelectedIconId
 }) => {
-
+  const { t } = useTranslation();
   const [currentIconCategoryIdx, setCurrentIconCategoryIdx] = React.useState(0);
 
   const startIconDrag = (e: React.PointerEvent, iconId: string) => {
@@ -148,7 +149,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           >
             <div className="flex flex-col justify-center items-center px-2 border-r border-white/20 bg-black min-w-[80px]">
               <span className="text-[10px] text-white/50 uppercase font-bold tracking-wider mb-1">
-                {settings.icons?.[currentIconCategoryIdx]?.name || 'Icons'}
+                {t(settings.icons?.[currentIconCategoryIdx]?.name || 'Icons')}
               </span>
               <div className="flex items-center gap-1">
                 <button
@@ -172,7 +173,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 onPointerDown={(e) => startIconDrag(e, iconObj.id)}
                 className={`w-12 h-12 relative flex justify-center items-center cursor-pointer border-r border-white/20 shrink-0 p-2 icon-svg-wrapper ${selectedIconId === iconObj.id ? 'bg-white text-black' : 'bg-white/10'}`}
                 style={selectedIconId === iconObj.id ? {} : { backgroundColor: currentColor, color: getContrastYIQ(currentColor) }}
-                title="Click to select, or drag to place"
+                title={t("Click to select, or drag to place")}
                 dangerouslySetInnerHTML={{ __html: iconObj.svg }}
               />
             ))}
@@ -193,7 +194,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 "group w-12 h-12 flex justify-center items-center transition-colors border-r border-white/20 shrink-0",
                 currentStrokeType === 'solid' ? "bg-white text-black" : "bg-black hover:bg-white text-white hover:text-black"
               )}
-              title="Solid Line"
+              title={t("Solid Line")}
             >
               <div className={clsx("w-6 border-t-2", currentStrokeType === 'solid' ? "border-black" : "border-white group-hover:border-black")} />
             </button>
@@ -203,7 +204,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 "group w-12 h-12 flex justify-center items-center transition-colors border-r border-white/20 shrink-0",
                 currentStrokeType === 'dashed' ? "bg-white text-black" : "bg-black hover:bg-white text-white hover:text-black"
               )}
-              title="Dashed Line"
+              title={t("Dashed Line")}
             >
               <div className={clsx("w-6 border-t-2 border-dashed", currentStrokeType === 'dashed' ? "border-black" : "border-white group-hover:border-black")} />
             </button>
@@ -213,7 +214,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 "group w-12 h-12 flex justify-center items-center transition-colors border-r border-white/20 shrink-0",
                 currentStrokeType === 'dotted' ? "bg-white text-black" : "bg-black hover:bg-white text-white hover:text-black"
               )}
-              title="Dotted Line"
+              title={t("Dotted Line")}
             >
               <div className={clsx("w-6 border-t-2 border-dotted", currentStrokeType === 'dotted' ? "border-black" : "border-white group-hover:border-black")} />
             </button>
@@ -240,7 +241,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                   "group w-12 h-12 flex justify-center items-center transition-colors border-r border-white/20 shrink-0",
                   routeMode === mode.id ? "bg-white text-black" : "bg-black hover:bg-white text-white hover:text-black"
                 )}
-                title={mode.label}
+                title={t(mode.label)}
               >
                 <mode.icon size={20} />
               </button>
@@ -278,7 +279,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                   exit={{ width: 0, opacity: 0 }}
                   className="flex items-center px-4 border-l-2 border-white/20 bg-black h-12"
                 >
-                  <label className="text-white text-xs font-bold mr-3 uppercase tracking-wider">Fill</label>
+                  <label className="text-white text-xs font-bold mr-3 uppercase tracking-wider">{t('Fill')}</label>
                   <input 
                     type="range" 
                     min="0" 
@@ -320,7 +321,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                         "w-12 flex justify-center items-center transition-colors group relative",
                         isActive ? "bg-white text-black" : "text-white hover:bg-white/20"
                       )}
-                      title={tool.label}
+                      title={t(tool.label)}
                     >
                       <Icon size={20} strokeWidth={isActive ? 2.5 : 1.5} />
                     </button>
@@ -340,7 +341,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                       ? "text-white/60 hover:text-white hover:bg-white/20"
                       : "text-white/20 cursor-not-allowed"
                   )}
-                  title={hasSelection ? "Delete Selected" : "Delete All Active Type"}
+                  title={hasSelection ? t("Delete Selected") : t("Delete All Active Type")}
                 >
                   <Trash2 size={20} strokeWidth={1.5} />
                 </button>
@@ -348,14 +349,14 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                   onClick={onSave}
                   disabled={isSaving}
                   className={`w-12 flex justify-center items-center transition-colors ${isSaving ? 'text-white cursor-wait' : 'text-white/60 hover:text-white hover:bg-white/20'}`}
-                  title={isSaving ? "Saving..." : "Save Annotations & Settings"}
+                  title={isSaving ? t("Saving...") : t("Save Annotations & Settings")}
                 >
                   {isSaving ? <Loader2 className="animate-spin" size={20} strokeWidth={1.5} /> : <Save size={20} strokeWidth={1.5} />}
                 </button>
                 <button
                   onClick={onExport}
                   className="w-12 flex justify-center items-center transition-colors text-white/60 hover:text-white hover:bg-white/20"
-                  title="Export Annotations as GeoJSON"
+                  title={t("Export Annotations as GeoJSON")}
                 >
                   <Download size={20} strokeWidth={1.5} />
                 </button>

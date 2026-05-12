@@ -67,6 +67,7 @@ export interface MapLayer {
   showWindParticles?: boolean;
   showWindArrows?: boolean;
   showWindLegend?: boolean;
+  showWindTimeline?: boolean;
   windParticleSizeBySpeed?: boolean;
   windParticleSpeedBySpeed?: boolean;
   windParticleTrailBySpeed?: boolean;

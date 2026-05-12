@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { registerDialogListener, type DialogOptions } from '../utils/dialogService';
+import { useTranslation } from '../contexts/I18nContext';
 
 export const GlobalDialog: React.FC = () => {
+  const { t } = useTranslation();
   const [dialog, setDialog] = useState<DialogOptions | null>(null);
   const [inputValue, setInputValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -63,9 +65,9 @@ export const GlobalDialog: React.FC = () => {
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto">
       <div className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 min-w-[350px] max-w-md shadow-2xl mx-4 w-full">
         <h3 className="text-white font-semibold flex items-center gap-2 text-sm uppercase tracking-wider border-b border-white/10 pb-2">
-          {dialog.type === 'alert' && 'ATTENTION'}
-          {dialog.type === 'confirm' && 'CONFIRMATION REQUIRED'}
-          {dialog.type === 'prompt' && 'INPUT REQUIRED'}
+          {dialog.type === 'alert' && t('ATTENTION')}
+          {dialog.type === 'confirm' && t('CONFIRMATION REQUIRED')}
+          {dialog.type === 'prompt' && t('INPUT REQUIRED')}
         </h3>
         <p className="text-white text-sm whitespace-pre-wrap">{dialog.message}</p>
         
@@ -85,14 +87,14 @@ export const GlobalDialog: React.FC = () => {
               onClick={handleCancel}
               className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors uppercase font-semibold"
             >
-              Cancel
+              {t('Cancel')}
             </button>
           )}
           <button
             onClick={handleConfirm}
             className="px-4 py-2 bg-white text-black hover:bg-white/90 text-sm transition-colors uppercase font-semibold tracking-wider"
           >
-            {dialog.type === 'alert' ? 'OK' : 'Confirm'}
+            {dialog.type === 'alert' ? t('OK') : t('Confirm')}
           </button>
         </div>
       </div>

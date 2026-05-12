@@ -1,8 +1,11 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder';
+import '@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css';
 import type { Annotation, ToolType, AppSettings, StrokeType, RouteMode } from '../types';
 import * as turf from '@turf/turf';
+import { useTranslation } from '../contexts/I18nContext';
 import { createCirclePolygon, calculateDistance, simplifyLine, transliterateToGerman, createArrowFeatures, decodePolyline } from '../utils/mapUtils';
 import anyAscii from 'any-ascii';
 import { customAlert } from '../utils/dialogService';
@@ -75,6 +78,7 @@ interface MapContainerProps {
   selectedGeojsonFeatureId: string | number | null;
   setSelectedGeojsonFeatureId: React.Dispatch<React.SetStateAction<string | number | null>>;
   selectedIconId?: string | null;
+  isSidebarOpen?: boolean;
 }
 
 function getContrastYIQ(hexcolor: string) {
@@ -109,8 +113,10 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   selectedIconId,
   isSecondary,
   clipPath,
-  onMapInit
+  onMapInit,
+  isSidebarOpen
 }) => {
+  const { t } = useTranslation();
   const mapContainer = useRef<HTMLDivElement>(null);
   const windCanvasRef = useRef<HTMLCanvasElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -292,6 +298,15 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
     // Add Orbital controls (NavigationControl)
     map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true, showZoom: false }), 'top-right');
+    
+    // Add Geocoder
+    const geocoder = new MapboxGeocoder({
+      accessToken: mapboxgl.accessToken,
+      mapboxgl: mapboxgl as any,
+      collapsed: true,
+      marker: false
+    });
+    map.addControl(geocoder, 'top-right');
     
     // Add Scale control
     map.addControl(new mapboxgl.ScaleControl({ maxWidth: 150, unit: 'metric' }), 'top-right');
@@ -500,6 +515,32 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           'line-width': 6,
           'line-color': ['coalesce', ['get', 'color'], '#ffffff'],
           'line-dasharray': [0.01, 2.5]
+        }
+      }, firstSymbolId);
+
+      // Arrow Heads
+      map.addLayer({
+        id: 'custom-arrow-heads',
+        type: 'symbol',
+        source: 'custom-annotations',
+        filter: ['==', ['get', '$type'], 'ArrowHead'],
+        layout: {
+          'text-field': [
+            'case',
+            ['==', ['get', 'strokeType'], 'solid'],
+            '▲',
+            '△'
+          ],
+          'text-size': 80,
+          'text-rotate': ['get', 'bearing'],
+          'text-rotation-alignment': 'map',
+          'text-pitch-alignment': 'map',
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+          'text-anchor': 'center'
+        },
+        paint: {
+          'text-color': ['coalesce', ['get', 'color'], '#ffffff']
         }
       }, firstSymbolId);
 
@@ -1919,19 +1960,24 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
         const vector = interpolatedVector(particle.lon, particle.lat);
         const speedRatio = Math.max(0, Math.min(1, vector.intensity / maxWindSpeed));
-        const latScale = Math.max(0.25, Math.cos(particle.lat * Math.PI / 180));
-        const speedFloor = windLayer.windParticleSpeedBySpeed === false ? 1 : 4.5;
-        const visualSpeed = Math.max(vector.intensity, speedFloor);
-        const visualScale = vector.intensity > 0 ? visualSpeed / vector.intensity : 1;
-        const visualU = vector.u * visualScale;
-        const visualV = vector.v * visualScale;
-        const motionScale = windLayer.windParticleSpeedBySpeed === false ? 0.0001 : 0.000075 + speedRatio * 0.00014;
-        const nextLon = particle.lon + (visualU * motionScale / latScale);
-        const nextLat = particle.lat + (visualV * motionScale);
-        const nextPoint = map.project([nextLon, nextLat]);
+        const speedFloor = windLayer.windParticleSpeedBySpeed === false ? 1.5 : 0.5;
+        const speedPixels = speedFloor + (windLayer.windParticleSpeedBySpeed === false ? 0 : speedRatio * 2.5);
+        
+        const dirX = vector.intensity > 0 ? vector.u / vector.intensity : 0;
+        const dirY = vector.intensity > 0 ? -vector.v / vector.intensity : 0;
+
+        const nextPoint = {
+          x: point.x + dirX * speedPixels,
+          y: point.y + dirY * speedPixels
+        };
+
+        const nextLngLat = map.unproject([nextPoint.x, nextPoint.y]);
+        const nextLon = nextLngLat.lng;
+        const nextLat = nextLngLat.lat;
+
         const tailPoint = {
-          x: point.x + (nextPoint.x - point.x) * 1.8,
-          y: point.y + (nextPoint.y - point.y) * 1.8
+          x: point.x + dirX * speedPixels * 1.8,
+          y: point.y + dirY * speedPixels * 1.8
         };
 
         ctx.strokeStyle = windLayer.windParticleColorBySpeed === true ? getWindColor(vector.intensity) : (windLayer.windColor || 'rgba(255, 255, 255, 0.75)');
@@ -2081,7 +2127,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                   if (routeData && routeData.route) {
                     selectedAircraftMetaRef.current.route = routeData.route.join(' → ');
                   } else {
-                    selectedAircraftMetaRef.current.route = 'Unknown Route';
+                    selectedAircraftMetaRef.current.route = t('Unknown Route');
                   }
                 })
                 .catch(() => {});
@@ -2599,7 +2645,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         map.flyTo({ center: coords, zoom: 8 });
         setSelectedAircraftId(found.properties?.icao24 || null);
       } else {
-        await customAlert('Aircraft not found in currently visible airspace.');
+        await customAlert(t('Aircraft not found in currently visible airspace.'));
       }
     }) as EventListener;
     window.addEventListener('searchAircraft', handleSearchAircraft);
@@ -2826,7 +2872,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       }
       let features: mapboxgl.MapboxGeoJSONFeature[] = [];
       try {
-        features = map.queryRenderedFeatures(e.point, { layers: ['custom-polygons', 'custom-lines', 'custom-lines-dashed', 'custom-lines-dotted'] });
+        features = map.queryRenderedFeatures(e.point, { layers: ['custom-polygons', 'custom-lines', 'custom-lines-dashed', 'custom-lines-dotted', 'custom-arrow-heads'] });
       } catch (err) {}
       if (features.length > 0) {
         const clickedId = features[0].properties?.id;
@@ -3067,13 +3113,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                   fillOpacity: currentFillOpacity ?? 0.5,
                   coordinates: [centerLng, centerLat],
                   polygonGeometry: terrestrialGeometry || data.geojson,
-                  text: name,
-                  view: {
-                    center: [centerLng, centerLat],
-                    zoom: mapRef.current!.getZoom(),
-                    pitch: mapRef.current!.getPitch(),
-                    bearing: mapRef.current!.getBearing()
-                  }
+                  text: name
                 }]);
               }
             } catch (err) {
@@ -3328,7 +3368,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       // Check if we clicked on an existing annotation feature FIRST
       let features: mapboxgl.MapboxGeoJSONFeature[] = [];
       try {
-        features = map.queryRenderedFeatures(e.point, { layers: ['custom-polygons', 'custom-lines', 'custom-lines-dashed', 'custom-lines-dotted'] });
+        features = map.queryRenderedFeatures(e.point, { layers: ['custom-polygons', 'custom-lines', 'custom-lines-dashed', 'custom-lines-dotted', 'custom-arrow-heads'] });
       } catch (e) {
         // layer might not be ready
       }
@@ -3699,6 +3739,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const activeWindLayer = settings.layers.find(l => l.type === 'wind' && l.visible);
   const windLayerVisible = Boolean(activeWindLayer);
   const showWindLegend = Boolean(activeWindLayer && activeWindLayer.windParticleColorBySpeed === true && activeWindLayer.showWindLegend !== false);
+  const showWindTimeline = Boolean(activeWindLayer && activeWindLayer.showWindTimeline !== false);
   const windLegendStops = [
     { label: '0-8', color: '#334155' },
     { label: '8-18', color: '#2563eb' },
@@ -3738,11 +3779,58 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       {!isSecondary && windLayerVisible && (
         <>
           <canvas ref={windCanvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-[2]" />
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 max-w-[calc(100vw-2rem)] bg-black/90 border border-white/10 text-white shadow-2xl">
-            <div className="flex items-center gap-2 px-3 py-2">
-              <span className="text-[10px] text-white/50 font-semibold tracking-wider uppercase shrink-0">Wind Timeline</span>
-              {showWindLegend && (
-                <div className="flex items-center gap-1.5 shrink-0 border-l border-white/10 pl-3 mr-1">
+          <div className={`absolute bottom-20 left-6 z-30 max-w-[calc(100vw-3rem)] flex flex-col gap-2 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-[20rem]' : 'translate-x-0'}`}>
+            
+            {showWindTimeline && (
+              <div className="bg-black border border-white/20 text-white flex items-center gap-2 px-3 h-12 w-fit max-w-full">
+                <span className="text-[10px] text-white/50 font-semibold tracking-wider uppercase shrink-0">Wind Timeline</span>
+                <button
+                  onClick={() => {
+                    scrollWindTimeline(-1);
+                    selectAdjacentWindSnapshot(-1);
+                  }}
+                  disabled={windSnapshots.length === 0}
+                  className="shrink-0 w-7 h-7 flex items-center justify-center hover:bg-white hover:text-black disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-white transition-colors"
+                  title={t("Previous wind snapshot")}
+                >
+                  ‹
+                </button>
+                <div ref={windTimelineScrollRef} className="min-w-0 max-w-[36vw] overflow-x-auto no-scrollbar">
+                  <div className="flex items-center gap-2">
+                    {windSnapshots.length === 0 ? (
+                      <span className="text-xs text-white/50 whitespace-nowrap">No cached snapshots yet</span>
+                    ) : (
+                      windSnapshots.map(snapshot => (
+                        <button
+                          key={snapshot.cacheId}
+                          onClick={() => loadWindCache(snapshot.cacheId)}
+                          className={`px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors ${selectedWindCacheId === snapshot.cacheId ? 'bg-white text-black' : 'text-white hover:bg-white hover:text-black'}`}
+                          title={snapshot.cacheId}
+                        >
+                          {formatWindSnapshotTime(snapshot.createdAt)}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    scrollWindTimeline(1);
+                    selectAdjacentWindSnapshot(1);
+                  }}
+                  disabled={windSnapshots.length === 0}
+                  className="shrink-0 w-7 h-7 flex items-center justify-center hover:bg-white hover:text-black disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-white transition-colors"
+                  title={t("Next wind snapshot")}
+                >
+                  ›
+                </button>
+              </div>
+            )}
+
+            {showWindLegend && (
+              <div className="bg-black border border-white/20 text-white flex items-center gap-1.5 px-3 h-12 w-fit max-w-full overflow-x-auto no-scrollbar">
+                <span className="text-[10px] text-white/50 font-semibold tracking-wider uppercase shrink-0">Wind Speed</span>
+                <div className="flex items-center gap-1.5 shrink-0 border-l border-white/20 pl-3 ml-1.5">
                   <span className="text-[10px] text-white/50 font-semibold tracking-wider uppercase">km/h</span>
                   {windLegendStops.map(stop => (
                     <div key={stop.label} className="flex items-center gap-1">
@@ -3754,48 +3842,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                     </div>
                   ))}
                 </div>
-              )}
-              <button
-                onClick={() => {
-                  scrollWindTimeline(-1);
-                  selectAdjacentWindSnapshot(-1);
-                }}
-                disabled={windSnapshots.length === 0}
-                className="shrink-0 w-7 h-7 flex items-center justify-center bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-white/10 text-white transition-colors"
-                title="Previous wind snapshot"
-              >
-                ‹
-              </button>
-              <div ref={windTimelineScrollRef} className="min-w-0 max-w-[36vw] overflow-x-auto no-scrollbar">
-                <div className="flex items-center gap-2">
-                  {windSnapshots.length === 0 ? (
-                    <span className="text-xs text-white/50 whitespace-nowrap">No cached snapshots yet</span>
-                  ) : (
-                    windSnapshots.map(snapshot => (
-                      <button
-                        key={snapshot.cacheId}
-                        onClick={() => loadWindCache(snapshot.cacheId)}
-                        className={`px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors ${selectedWindCacheId === snapshot.cacheId ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/20'}`}
-                        title={snapshot.cacheId}
-                      >
-                        {formatWindSnapshotTime(snapshot.createdAt)}
-                      </button>
-                    ))
-                  )}
-                </div>
               </div>
-              <button
-                onClick={() => {
-                  scrollWindTimeline(1);
-                  selectAdjacentWindSnapshot(1);
-                }}
-                disabled={windSnapshots.length === 0}
-                className="shrink-0 w-7 h-7 flex items-center justify-center bg-white/10 hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-white/10 text-white transition-colors"
-                title="Next wind snapshot"
-              >
-                ›
-              </button>
-            </div>
+            )}
           </div>
         </>
       )}

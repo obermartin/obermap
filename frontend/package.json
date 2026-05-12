@@ -10,8 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mapbox/mapbox-gl-geocoder": "^5.1.2",
     "@tmcw/togeojson": "^7.1.2",
     "@turf/turf": "^7.3.5",
+    "@types/mapbox__mapbox-gl-geocoder": "^5.1.1",
     "@types/mapbox-gl": "^3.4.1",
     "any-ascii": "^0.3.3",
     "clsx": "^2.1.1",
@@ -19,6 +21,7 @@
     "jszip": "^3.10.1",
     "lucide-react": "^1.14.0",
     "mapbox-gl": "^3.23.0",
+    "mobile-drag-drop": "^3.0.0-rc.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "tailwind-merge": "^3.5.0"

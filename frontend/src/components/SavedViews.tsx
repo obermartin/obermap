@@ -2,6 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus } from 'lucide-react';
 import type { Annotation } from '../types';
+import { useTranslation } from '../contexts/I18nContext';
 
 interface SavedViewsProps {
   annotations: Annotation[];
@@ -17,6 +18,7 @@ interface SavedViewsProps {
 }
 
 export const SavedViews: React.FC<SavedViewsProps> = ({ annotations, onFlyTo, defaultView, isSidebarOpen, isToolbarOpen }) => {
+  const { t } = useTranslation();
   const labelAnnotations = annotations.filter(a => (a.type === 'label' || a.type === 'highlight') && a.text && a.view);
 
   const handleAddPosition = () => {
@@ -34,7 +36,7 @@ export const SavedViews: React.FC<SavedViewsProps> = ({ annotations, onFlyTo, de
           onClick={() => onFlyTo(defaultView)}
             className="flex items-center gap-2 bg-black border border-white/10 px-4 py-2 text-white hover:bg-white hover:text-black transition-colors group"
         >
-          <span className="font-semibold text-sm uppercase tracking-wider">ÜBERSICHT</span>
+          <span className="font-semibold text-sm uppercase tracking-wider">{t('OVERVIEW')}</span>
         </motion.button>
 
         {labelAnnotations.map((annotation) => (
@@ -58,7 +60,7 @@ export const SavedViews: React.FC<SavedViewsProps> = ({ annotations, onFlyTo, de
             exit={{ opacity: 0, scale: 0.8 }}
             onClick={handleAddPosition}
             className="w-10 h-10 flex items-center justify-center bg-black border border-white/10 text-white hover:bg-white hover:text-black transition-colors mt-2"
-            title="Save Current Position"
+            title={t("Save Current Position")}
           >
             <Plus size={20} strokeWidth={1.5} />
           </motion.button>

@@ -4,6 +4,7 @@ import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2, Edit2, Squa
 import type { AppSettings, MapLayer } from '../types';
 import { parseMapFileWithIds } from '../utils/fileUtils';
 import { customAlert, customConfirm, customPrompt } from '../utils/dialogService';
+import { useTranslation } from '../contexts/I18nContext';
 
 const DEFAULT_LAYERS: MapLayer[] = [
   { id: 'split-container', name: 'Split View Container', type: 'split', visible: false, splitPosition: 0.5, splitDirection: 'vertical', splitLayers: [] },
@@ -12,10 +13,16 @@ const DEFAULT_LAYERS: MapLayer[] = [
   { id: 'satellite', name: 'Satellite Map Overlay (Mapbox)', type: 'satellite', visible: false },
   { id: 'flights', name: 'Air Traffic (OpenSky)', type: 'flights', visible: false },
   { id: 'vessels', name: 'Maritime Traffic (AIS)', type: 'vessels', visible: false },
-  { id: 'wind', name: 'Wind (Open-Meteo)', type: 'wind', visible: true, windOpacity: 1, windParticleSize: 1.5, windParticleTrail: 94, showWindParticles: true, showWindArrows: false, showWindLegend: true, windParticleSizeBySpeed: true, windParticleSpeedBySpeed: true, windParticleTrailBySpeed: false, windParticleColorBySpeed: true }
+  { id: 'wind', name: 'Wind (Open-Meteo)', type: 'wind', visible: true, windOpacity: 1, windParticleSize: 1.5, windParticleTrail: 94, showWindParticles: true, showWindArrows: false, showWindLegend: true, windParticleSizeBySpeed: true, windParticleSpeedBySpeed: true, windParticleTrailBySpeed: false, windParticleColorBySpeed: true },
+  { id: 'temperature', name: 'Live Temperature (OWM)', type: 'raster', visible: false, url: 'https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=d04bc4ae6960dc10d49057fc174ad2aa' },
+  { id: 'precipitation', name: 'Live Rain (OWM)', type: 'raster', visible: false, url: 'https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=d04bc4ae6960dc10d49057fc174ad2aa' },
+  { id: 'google_satellite', name: 'Satellite View (Google)', type: 'raster', visible: false, url: 'https://mt0.google.com/vt/lyrs=s&x={x}&y={y}&z={z}' },
+  { id: 'bing_satellite', name: 'Satellite View (Bing)', type: 'raster', visible: false, url: 'https://ecn.t0.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=685&mkt=en-us&n=z' },
+  { id: 'population_density', name: 'Population Density', type: 'raster', visible: false, url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GPW_Population_Density_2020/default/default/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png' }
 ];
 
 const CategoryItem = ({ category, catIndex, expandedCategories, setExpandedCategories, setSettings }: any) => {
+  const { t } = useTranslation();
   const controls = useDragControls();
   const isExpanded = expandedCategories[category.id] ?? false;
 
@@ -54,7 +61,7 @@ const CategoryItem = ({ category, catIndex, expandedCategories, setExpandedCateg
         </div>
         <button 
           onClick={async () => {
-            const confirmed = await customConfirm(`Delete category "${category.name}" and all its icons?`);
+            const confirmed = await customConfirm(t('Delete category "{{name}}" and all its icons?', { name: category.name }));
             if (confirmed) {
               setSettings((prev: any) => {
                 const newIcons = [...(prev.icons || [])];
@@ -64,7 +71,7 @@ const CategoryItem = ({ category, catIndex, expandedCategories, setExpandedCateg
             }
           }}
           className="text-white/30 hover:text-white transition-colors p-1 shrink-0"
-          title="Delete Category"
+          title={t("Delete Category")}
         >
           <Trash2 size={14} />
         </button>
@@ -119,14 +126,14 @@ const CategoryItem = ({ category, catIndex, expandedCategories, setExpandedCateg
                     });
                   }}
                   className="absolute inset-0 bg-white text-black hidden group-hover:flex items-center justify-center text-xs font-bold transition-opacity"
-                  title="Remove icon"
+                  title={t("Remove icon")}
                 >
                   ×
                 </button>
               </div>
             ))}
             
-            <label className="w-10 h-10 border border-white flex items-center justify-center bg-black text-white hover:bg-white hover:text-black transition-colors shrink-0 cursor-pointer" title="Upload SVG Icon to this Category">
+            <label className="w-10 h-10 border border-white flex items-center justify-center bg-black text-white hover:bg-white hover:text-black transition-colors shrink-0 cursor-pointer" title={t("Upload SVG Icon to this Category")}>
               +
               <input 
                 type="file" 
@@ -186,6 +193,7 @@ export function LayerSidebar({
   onSaveAndExit,
   isSaving
 }: LayerSidebarProps) {
+  const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [urlInput, setUrlInput] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(false);
@@ -262,7 +270,7 @@ export function LayerSidebar({
       setSettings(prev => ({ ...prev, colorPalette: [...prev.colorPalette, newColorHex.toUpperCase()] }));
       setAddingColor(false);
     } else {
-      await customAlert('Invalid hex color format. Use #RRGGBB');
+      await customAlert(t('Invalid hex color format. Use #RRGGBB'));
     }
   };
 
@@ -467,7 +475,7 @@ export function LayerSidebar({
       };
       setSettings(prev => ({ ...prev, layers: [newLayer, ...prev.layers] }));
     } catch (err) {
-      await customAlert('Error parsing file: ' + (err as Error).message);
+      await customAlert(t('Error parsing file: ') + (err as Error).message);
     }
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -533,7 +541,7 @@ export function LayerSidebar({
       className={`absolute top-0 left-0 h-full w-80 bg-zinc-900 border-r border-white/10 flex flex-col shadow-2xl z-40 text-white transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
     >
       <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/20">
-        <h2 className="font-semibold flex items-center gap-2 text-sm"><Layers size={18} /> Map Settings</h2>
+        <h2 className="font-semibold flex items-center gap-2 text-sm"><Layers size={18} /> {t('Map Settings')}</h2>
         <button onClick={() => setIsOpen(false)} className="hover:text-red-400 transition-colors">
           <X size={18} />
         </button>
@@ -543,21 +551,21 @@ export function LayerSidebar({
         <button
           onClick={() => setActiveTab('layers')}
           className={`flex-1 py-3 text-center transition-colors ${activeTab === 'layers' ? 'bg-white text-black' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}
-          title="Layers"
+          title={t("Layers")}
         >
           <Layers size={18} className="mx-auto" />
         </button>
         <button
           onClick={() => setActiveTab('icons')}
           className={`flex-1 py-3 flex items-center justify-center transition-colors ${activeTab === 'icons' ? 'bg-white text-black' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}
-          title="Icon Library"
+          title={t("Icon Library")}
         >
           <ImageIcon size={18} />
         </button>
         <button
           onClick={() => setActiveTab('basemap')}
           className={`flex-1 py-3 flex items-center justify-center transition-colors ${activeTab === 'basemap' ? 'bg-white text-black' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}
-          title="Base Map & Settings"
+          title={t("Base Map & Settings")}
         >
           <Settings size={18} />
         </button>
@@ -567,7 +575,7 @@ export function LayerSidebar({
               onClick={onSave}
               disabled={isSaving}
               className={`w-12 flex items-center justify-center border-r border-white/10 transition-colors ${isSaving ? 'text-white cursor-wait bg-white/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
-              title="Save Map & Settings"
+              title={t("Save Map & Settings")}
             >
               {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
             </button>
@@ -576,7 +584,7 @@ export function LayerSidebar({
                 onClick={onSaveAndExit}
                 disabled={isSaving}
                 className={`w-12 flex items-center justify-center transition-colors ${isSaving ? 'text-white cursor-wait bg-white/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
-                title="Save & Exit to Overview"
+                title={t("Save & Exit to Overview")}
               >
                 <LogOut size={18} />
               </button>
@@ -589,7 +597,7 @@ export function LayerSidebar({
         <>
           <div className="p-4 border-b border-white/10">
             <label className="text-xs text-white mb-2 block font-semibold tracking-wider">
-              LABEL DENSITY ({settings.labelDensity ?? 50}%)
+              {t("LABEL DENSITY")} ({settings.labelDensity ?? 50}%)
             </label>
             <div className="flex items-center gap-3">
               <span className="text-xs text-white/50 w-8 text-right">0%</span>
@@ -612,7 +620,7 @@ export function LayerSidebar({
           </div>
 
           <div data-drop-zone="root" className="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col gap-2">
-            <label className="text-xs text-white mb-1 block font-semibold tracking-wider">LAYER STACK</label>
+            <label className="text-xs text-white mb-1 block font-semibold tracking-wider">{t("LAYER STACK")}</label>
             <Reorder.Group axis="y" values={flatLayers} onReorder={handleReorder} className="flex flex-col gap-2">
               {flatLayers.map((layer) => {
                 return (
@@ -690,7 +698,7 @@ export function LayerSidebar({
               onClick={() => fileInputRef.current?.click()}
               className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors"
             >
-              <Upload size={16} /> Upload GeoJSON/KML/KMZ
+              <Upload size={16} /> {t("Upload GeoJSON/KML/KMZ")}
             </button>
             <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".json,.geojson,.kml,.kmz" className="hidden" />
 
@@ -698,14 +706,14 @@ export function LayerSidebar({
               <div className="flex flex-col gap-2">
                 <input
                   type="text"
-                  placeholder="WMTS/WMS URL..."
+                  placeholder={t("WMTS/WMS URL...")}
                   value={urlInput}
                   onChange={e => setUrlInput(e.target.value)}
                   className="w-full bg-black/50 border border-white/10 px-3 py-2 text-sm outline-none focus:border-white/30"
                 />
                 <div className="flex gap-2">
-                  <button onClick={handleAddUrl} className="flex-1 py-1 bg-white text-black text-sm font-semibold hover:bg-white/90">Add</button>
-                  <button onClick={() => setShowUrlInput(false)} className="px-3 py-1 bg-white/10 hover:bg-white/20 text-sm">Cancel</button>
+                  <button onClick={handleAddUrl} className="flex-1 py-1 bg-white text-black text-sm font-semibold hover:bg-white/90">{t("Add")}</button>
+                  <button onClick={() => setShowUrlInput(false)} className="px-3 py-1 bg-white/10 hover:bg-white/20 text-sm">{t("Cancel")}</button>
                 </div>
               </div>
             ) : (
@@ -713,7 +721,7 @@ export function LayerSidebar({
                 onClick={() => setShowUrlInput(true)}
                 className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors"
               >
-                <Link size={16} /> Add WMTS/WMS URL
+                <Link size={16} /> {t("Add WMTS/WMS URL")}
               </button>
             )}
           </div>
@@ -721,7 +729,7 @@ export function LayerSidebar({
       ) : activeTab === 'icons' ? (
         <>
           <div className="p-4 pb-2 border-b border-white/20">
-            <div className="text-xs font-semibold tracking-wider text-white">ICON SETS</div>
+            <div className="text-xs font-semibold tracking-wider text-white">{t("ICON SETS")}</div>
           </div>
           
           <div className="p-4 flex flex-col flex-1 overflow-y-auto custom-scrollbar">
@@ -746,17 +754,17 @@ export function LayerSidebar({
                   ...prev,
                   icons: [
                     ...(prev.icons || []),
-                    { id: `cat-${Date.now()}`, name: 'New Icon Set', icons: [] }
+                    { id: `cat-${Date.now()}`, name: t('New Icon Set'), icons: [] }
                   ]
                 }));
               }}
               className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors"
             >
-              + New Icon Set
+              + {t("New Icon Set")}
             </button>
 
             <label className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors cursor-pointer">
-              <Upload size={16} /> Upload Icon Set
+              <Upload size={16} /> {t("Upload Icon Set")}
             <input 
               type="file" 
               accept=".svg" 
@@ -766,7 +774,7 @@ export function LayerSidebar({
                 const files = e.target.files;
                 if (!files || files.length === 0) return;
                 
-                const catName = await customPrompt(`Enter a name for the new category containing ${files.length} icons:`, 'New Category');
+                const catName = await customPrompt(t(`Enter a name for the new category containing {{count}} icons:`, { count: files.length }), t('New Category'));
                 if (!catName) {
                   e.target.value = '';
                   return;
@@ -802,11 +810,10 @@ export function LayerSidebar({
         </>
       ) : (
         <div className="p-4 flex flex-col gap-6 flex-1 overflow-y-auto custom-scrollbar">
-          <div className="text-xs font-semibold tracking-wider text-white border-b border-white/20 pb-2 -mx-4 px-4">APP CONFIGURATION</div>
 
           {/* 1. COLOR PALETTE */}
           <div>
-            <label className="text-xs text-white mb-2 block font-semibold tracking-wider">COLOR PALETTE</label>
+            <label className="text-xs text-white mb-2 block font-semibold tracking-wider">{t("COLOR PALETTE")}</label>
             <div className="flex flex-wrap gap-2 items-center">
               {settings.colorPalette.map((c, index) => (
                 <div 
@@ -822,7 +829,7 @@ export function LayerSidebar({
                   <button 
                     onClick={() => removeColor(c)}
                     className="absolute inset-0 bg-black/60 text-white hidden group-hover:flex items-center justify-center text-xs font-bold transition-opacity"
-                    title="Remove color"
+                    title={t("Remove color")}
                   >
                     ×
                   </button>
@@ -832,7 +839,7 @@ export function LayerSidebar({
                 <button 
                   onClick={() => setAddingColor(true)}
                   className="w-8 h-8 border border-white/20 flex items-center justify-center hover:bg-white hover:text-black transition-colors shrink-0"
-                  title="Add color"
+                  title={t("Add color")}
                 >
                   +
                 </button>
@@ -843,7 +850,7 @@ export function LayerSidebar({
                     className="w-8 h-8 p-0 border-0 cursor-pointer bg-transparent"
                     value={newColorHex}
                     onChange={e => setNewColorHex(e.target.value.toUpperCase())}
-                    title="Choose a color"
+                    title={t("Choose a color")}
                   />
                   <input 
                     autoFocus
@@ -855,7 +862,7 @@ export function LayerSidebar({
                       if (e.key === 'Escape') setAddingColor(false);
                     }}
                   />
-                  <button onClick={confirmAddColor} className="text-white hover:bg-white hover:text-black px-3 font-semibold border border-white/20 text-xs h-8">OK</button>
+                  <button onClick={confirmAddColor} className="text-white hover:bg-white hover:text-black px-3 font-semibold border border-white/20 text-xs h-8">{t("OK")}</button>
                 </div>
               )}
             </div>
@@ -865,13 +872,13 @@ export function LayerSidebar({
 
           {/* 3. DEFAULT MAP LAYERS */}
           <div>
-            <label className="text-xs text-white mb-3 block font-semibold tracking-wider">DEFAULT MAP LAYERS</label>
+            <label className="text-xs text-white mb-3 block font-semibold tracking-wider">{t("DEFAULT MAP LAYERS")}</label>
             <div className="flex flex-col gap-2">
               {DEFAULT_LAYERS.map(layer => {
                 const isEnabled = settings.layers.some(l => l.id === layer.id);
                 return (
                   <div key={layer.id} className="flex items-center justify-between px-2 py-2">
-                    <span className="text-sm font-medium">{layer.name}</span>
+                    <span className="text-sm font-medium">{t(layer.name)}</span>
                     <button
                       onClick={() => toggleDefaultLayer(layer)}
                       className={`w-9 h-5 rounded-full relative transition-colors ${isEnabled ? 'bg-white' : 'bg-white/20'}`}
@@ -888,13 +895,13 @@ export function LayerSidebar({
 
           {/* 4. DEFAULT VIEW */}
           <div>
-            <label className="text-xs text-white mb-2 block font-semibold tracking-wider mt-2">DEFAULT VIEW</label>
-            <p className="text-xs text-white/40 mb-3">Save the current map position and zoom level as the default view when loading the application.</p>
+            <label className="text-xs text-white mb-2 block font-semibold tracking-wider mt-2">{t("DEFAULT VIEW")}</label>
+            <p className="text-xs text-white/40 mb-3">{t("Save the current map position and zoom level as the default view when loading the application.")}</p>
             <button
               onClick={handleCaptureView}
               className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors"
             >
-              <Camera size={16} /> Capture Current View
+              <Camera size={16} /> {t("Capture Current View")}
             </button>
           </div>
 
@@ -905,11 +912,11 @@ export function LayerSidebar({
             <summary className="relative p-3 flex items-center gap-2 bg-black text-xs text-white font-semibold tracking-wider cursor-pointer list-none outline-none [&::-webkit-details-marker]:hidden">
               <ChevronRight size={14} className="text-white/50 group-hover:text-white transition-colors group-open:hidden shrink-0" />
               <ChevronDown size={14} className="text-white/50 group-hover:text-white transition-colors hidden group-open:block shrink-0" />
-              <span>BASE MAP</span>
+              <span>{t("BASE MAP")}</span>
             </summary>
             <div className="p-3 flex flex-col gap-4 bg-black mt-[2px]">
               <div>
-                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">MAPBOX TOKEN</label>
+                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">{t("MAPBOX TOKEN")}</label>
                 <input
                   className="w-full bg-black/60 px-3 py-2 outline-none font-mono text-xs border border-white/10 focus:border-white/50 transition-colors"
                   value={settings.mapboxToken}
@@ -917,7 +924,7 @@ export function LayerSidebar({
                 />
               </div>
               <div>
-                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">MAPBOX STYLE</label>
+                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">{t("MAPBOX STYLE")}</label>
                 <input
                   className="w-full bg-black/60 px-3 py-2 outline-none font-mono text-xs border border-white/10 focus:border-white/50 transition-colors"
                   value={settings.mapboxStyle}
@@ -932,22 +939,22 @@ export function LayerSidebar({
             <summary className="relative p-3 flex items-center gap-2 bg-black text-xs text-white font-semibold tracking-wider cursor-pointer list-none outline-none [&::-webkit-details-marker]:hidden">
               <ChevronRight size={14} className="text-white/50 group-hover:text-white transition-colors group-open:hidden shrink-0" />
               <ChevronDown size={14} className="text-white/50 group-hover:text-white transition-colors hidden group-open:block shrink-0" />
-              <span>API SETTINGS</span>
+              <span>{t("API SETTINGS")}</span>
             </summary>
             <div className="p-3 flex flex-col gap-4 bg-black mt-[2px]">
               <div>
-                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">OPENSKY CREDENTIALS</label>
-                <p className="text-[10px] text-white/40 mb-2 leading-tight">Optional. Leave blank for anonymous access (rate-limited).</p>
+                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">{t("OPENSKY CREDENTIALS")}</label>
+                <p className="text-[10px] text-white/40 mb-2 leading-tight">{t("Optional. Leave blank for anonymous access (rate-limited).")}</p>
                 <div className="flex gap-2">
                   <input
-                    placeholder="Client ID"
+                    placeholder={t("Client ID")}
                     className="w-1/2 bg-black/60 px-3 py-2 outline-none font-mono text-xs border border-white/10 focus:border-white/50 transition-colors"
                     value={settings.openSkyCredentials?.clientId || ''}
                     onChange={e => setSettings(prev => ({ ...prev, openSkyCredentials: { ...prev.openSkyCredentials, clientId: e.target.value, clientSecret: prev.openSkyCredentials?.clientSecret || '' } }))}
                   />
                   <input
                     type="password"
-                    placeholder="Client Secret"
+                    placeholder={t("Client Secret")}
                     className="w-1/2 bg-black/60 px-3 py-2 outline-none font-mono text-xs border border-white/10 focus:border-white/50 transition-colors"
                     value={settings.openSkyCredentials?.clientSecret || ''}
                     onChange={e => setSettings(prev => ({ ...prev, openSkyCredentials: { ...prev.openSkyCredentials, clientId: prev.openSkyCredentials?.clientId || '', clientSecret: e.target.value } }))}
@@ -955,22 +962,22 @@ export function LayerSidebar({
                 </div>
               </div>
               <div className="mt-2">
-                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">AISSTREAM CREDENTIALS</label>
-                <p className="text-[10px] text-white/40 mb-2 leading-tight">Required for Maritime Traffic. Get a free API key at aisstream.io</p>
+                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">{t("AISSTREAM CREDENTIALS")}</label>
+                <p className="text-[10px] text-white/40 mb-2 leading-tight">{t("Required for Maritime Traffic. Get a free API key at aisstream.io")}</p>
                 <input
                   type="password"
-                  placeholder="API Key"
+                  placeholder={t("API Key")}
                   className="w-full bg-black/60 px-3 py-2 outline-none font-mono text-xs border border-white/10 focus:border-white/50 transition-colors"
                   value={settings.aisstreamCredentials?.apiKey || ''}
                   onChange={e => setSettings(prev => ({ ...prev, aisstreamCredentials: { apiKey: e.target.value } }))}
                 />
               </div>
               <div className="mt-2">
-                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">GOOGLE MAPS API KEY</label>
-                <p className="text-[10px] text-white/40 mb-2 leading-tight">Optional. Enables train mode routing via Google Maps Directions API.</p>
+                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">{t("GOOGLE MAPS API KEY")}</label>
+                <p className="text-[10px] text-white/40 mb-2 leading-tight">{t("Optional. Enables train mode routing via Google Maps Directions API.")}</p>
                 <input
                   type="password"
-                  placeholder="API Key"
+                  placeholder={t("API Key")}
                   className="w-full bg-black/60 px-3 py-2 outline-none font-mono text-xs border border-white/10 focus:border-white/50 transition-colors"
                   value={settings.googleMapsToken || ''}
                   onChange={e => setSettings(prev => ({ ...prev, googleMapsToken: e.target.value }))}
@@ -1005,6 +1012,7 @@ function LayerItem(props: {
   selectedAircraftId?: string | null;
   selectedVesselMmsi?: string | null;
 }) {
+  const { t } = useTranslation();
   const { layer, isNestedChild = false, toggleVisibility, removeLayer, renameLayer, colorPalette, activeGeojsonLayerId, setActiveGeojsonLayerId, selectedFeatureId, updateLayerStyle, updateLayerProperty, updateLayerDates, duplicateLayer, toggleLive, handleDragEnd, isDraggingLayer, setIsDraggingLayer, selectedAircraftId, selectedVesselMmsi } = props;
   const isActiveEdit = activeGeojsonLayerId === layer.id;
   const setActiveEdit = () => {
@@ -1102,7 +1110,7 @@ function LayerItem(props: {
           key="transparent"
           onClick={() => handleColorClick('transparent')}
           className="w-6 h-6 relative overflow-hidden flex-shrink-0 transition-colors"
-          title="Transparent"
+          title={t("Transparent")}
         >
           <div className="absolute inset-0 bg-white/10 flex items-center justify-center">
             <div className="w-full h-0 border-t border-red-500 transform rotate-45"></div>
@@ -1184,8 +1192,8 @@ function LayerItem(props: {
                 <div className="flex flex-col gap-2 w-full">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-sm font-semibold truncate text-white">Split View Container</div>
-                      <div className="text-[10px] text-white/40 uppercase tracking-wider">{layer.splitLayers?.[0]?.name || 'Empty'} | {layer.splitLayers?.[1]?.name || 'Empty'}</div>
+                      <div className="text-sm font-semibold truncate text-white">{t("Split View Container")}</div>
+                      <div className="text-[10px] text-white/40 uppercase tracking-wider">{layer.splitLayers?.[0]?.name ? t(layer.splitLayers[0].name) : t('Empty')} | {layer.splitLayers?.[1]?.name ? t(layer.splitLayers[1].name) : t('Empty')}</div>
                     </div>
                   </div>
                 </div>
@@ -1202,8 +1210,8 @@ function LayerItem(props: {
                       className="w-full bg-black border border-white/20 text-sm font-medium px-1 outline-none text-white focus:border-white/50"
                     />
                   ) : (
-                    <div className="text-sm font-medium truncate cursor-text" title={layer.name}>
-                      {layer.name}
+                    <div className="text-sm font-medium truncate cursor-text" title={t(layer.name)}>
+                      {t(layer.name)}
                     </div>
                   )}
                   <div className="text-[10px] text-white/40 uppercase tracking-wider">{layer.type}</div>
@@ -1238,7 +1246,7 @@ function LayerItem(props: {
               {layer.type === 'deepstate' && (
                 <div className="flex items-center justify-between gap-3">
                   {duplicateLayer && (
-                    <button onClick={() => duplicateLayer(layer.id)} className="text-white/50 hover:text-white transition-colors flex items-center shrink-0" title="Duplicate Layer">
+                    <button onClick={() => duplicateLayer(layer.id)} className="text-white/50 hover:text-white transition-colors flex items-center shrink-0" title={t("Duplicate Layer")}>
                       <Copy size={16} />
                     </button>
                   )}
@@ -1271,7 +1279,7 @@ function LayerItem(props: {
               {layer.id === 'copernicus' && updateLayerDates && (
                 <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
                   <div className="flex items-center justify-between">
-                    <label className="text-[10px] text-white font-semibold tracking-wider">START DATE</label>
+                    <label className="text-[10px] text-white font-semibold tracking-wider">{t("START DATE")}</label>
                     <input 
                       type="date" 
                       value={layer.startDate || defaultStartDate} 
@@ -1281,7 +1289,7 @@ function LayerItem(props: {
                     />
                   </div>
                   <div className="flex items-center justify-between">
-                    <label className="text-[10px] text-white font-semibold tracking-wider">END DATE</label>
+                    <label className="text-[10px] text-white font-semibold tracking-wider">{t("END DATE")}</label>
                     <input 
                       type="date" 
                       value={layer.endDate || defaultEndDate} 
@@ -1295,7 +1303,7 @@ function LayerItem(props: {
 
               <div className={`flex flex-col gap-1 mt-1 ${layer.type === 'deepstate' ? '' : 'pt-2 border-t border-white/10'}`}>
                 <div className="flex justify-between items-end">
-                  <label className="text-[10px] text-white font-semibold tracking-wider">OPACITY</label>
+                  <label className="text-[10px] text-white font-semibold tracking-wider">{t("OPACITY")}</label>
                   <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.opacity ?? (layer.type === 'deepstate' ? 0.5 : 1.0)) * 100)}%</span>
                 </div>
                 <input
@@ -1315,7 +1323,7 @@ function LayerItem(props: {
                   <div className="pt-3 pb-1 flex flex-col gap-3">
                     <div className="flex flex-col gap-1">
                       <div className="flex justify-between items-end">
-                        <label className="text-[10px] text-white font-semibold tracking-wider">BRIGHTNESS</label>
+                        <label className="text-[10px] text-white font-semibold tracking-wider">{t("BRIGHTNESS")}</label>
                         <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.brightness ?? 0) * 100)}%</span>
                       </div>
                       <input
@@ -1329,7 +1337,7 @@ function LayerItem(props: {
                     </div>
                     <div className="flex flex-col gap-1">
                       <div className="flex justify-between items-end">
-                        <label className="text-[10px] text-white font-semibold tracking-wider">CONTRAST</label>
+                        <label className="text-[10px] text-white font-semibold tracking-wider">{t("CONTRAST")}</label>
                         <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.contrast ?? 0) * 100)}%</span>
                       </div>
                       <input
@@ -1343,7 +1351,7 @@ function LayerItem(props: {
                     </div>
                     <div className="flex flex-col gap-1">
                       <div className="flex justify-between items-end">
-                        <label className="text-[10px] text-white font-semibold tracking-wider">SATURATION</label>
+                        <label className="text-[10px] text-white font-semibold tracking-wider">{t("SATURATION")}</label>
                         <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.saturation ?? 0) * 100)}%</span>
                       </div>
                       <input
@@ -1357,7 +1365,7 @@ function LayerItem(props: {
                     </div>
                     <div className="flex flex-col gap-1">
                       <div className="flex justify-between items-end">
-                        <label className="text-[10px] text-white font-semibold tracking-wider">HUE ROTATE</label>
+                        <label className="text-[10px] text-white font-semibold tracking-wider">{t("HUE ROTATE")}</label>
                         <span className="text-[10px] text-white/70 font-mono">{layer.hue ?? 0}°</span>
                       </div>
                       <input
@@ -1387,7 +1395,7 @@ function LayerItem(props: {
               </div>
 
               <div className="flex flex-col gap-2">
-                <label className="text-[10px] text-white font-semibold tracking-wider">SEARCH CALLSIGN / REGISTRATION</label>
+                <label className="text-[10px] text-white font-semibold tracking-wider">{t("SEARCH CALLSIGN / REGISTRATION")}</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -1444,7 +1452,7 @@ function LayerItem(props: {
                       }
                     }}
                     className="w-6 h-6 relative overflow-hidden flex-shrink-0 transition-colors"
-                    title="Reset to Default White"
+                    title={t("Reset to Default White")}
                   >
                     <div className="absolute inset-0 bg-white/10 flex items-center justify-center">
                       <div className="w-full h-0 border-t border-red-500 transform rotate-45"></div>
@@ -1455,7 +1463,7 @@ function LayerItem(props: {
 
               <div className="flex flex-col gap-1 mt-2 border-t border-white/10 pt-3">
                 <div className="flex justify-between items-end">
-                  <label className="text-[10px] text-white font-semibold tracking-wider">FLIGHTPATH OPACITY</label>
+                  <label className="text-[10px] text-white font-semibold tracking-wider">{t("FLIGHTPATH OPACITY")}</label>
                   <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.flightpathOpacity ?? 0.8) * 100)}%</span>
                 </div>
                 <input
@@ -1506,7 +1514,7 @@ function LayerItem(props: {
                       }
                     }}
                     className="w-6 h-6 relative overflow-hidden flex-shrink-0 transition-colors"
-                    title="Reset to Default White"
+                    title={t("Reset to Default White")}
                   >
                     <div className="absolute inset-0 bg-white/10 flex items-center justify-center">
                       <div className="w-full h-0 border-t border-red-500 transform rotate-45"></div>
@@ -1525,76 +1533,85 @@ function LayerItem(props: {
               </button>
 
               <div className="grid grid-cols-2 gap-2">
-                <label className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 cursor-pointer text-xs font-semibold tracking-wider uppercase">
-                  <input
-                    type="checkbox"
-                    checked={layer.showWindParticles !== false}
-                    onChange={e => updateLayerProperty(layer.id, 'showWindParticles', e.target.checked)}
-                    className="accent-white"
-                  />
+                <button
+                  onClick={() => updateLayerProperty(layer.id, 'showWindParticles', layer.showWindParticles === false)}
+                  className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-xs font-semibold tracking-wider uppercase text-left"
+                >
                   Particles
-                </label>
-                <label className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 cursor-pointer text-xs font-semibold tracking-wider uppercase">
-                  <input
-                    type="checkbox"
-                    checked={layer.showWindArrows === true}
-                    onChange={e => updateLayerProperty(layer.id, 'showWindArrows', e.target.checked)}
-                    className="accent-white"
-                  />
+                  <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.showWindParticles !== false ? 'bg-white' : 'bg-white/20'}`}>
+                    <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.showWindParticles !== false ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
+                  </div>
+                </button>
+                <button
+                  onClick={() => updateLayerProperty(layer.id, 'showWindArrows', layer.showWindArrows !== true)}
+                  className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-xs font-semibold tracking-wider uppercase text-left"
+                >
                   Arrows
-                </label>
-                <label className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 cursor-pointer text-xs font-semibold tracking-wider uppercase">
-                  <input
-                    type="checkbox"
-                    checked={layer.showWindLegend !== false}
-                    onChange={e => updateLayerProperty(layer.id, 'showWindLegend', e.target.checked)}
-                    className="accent-white"
-                  />
+                  <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.showWindArrows === true ? 'bg-white' : 'bg-white/20'}`}>
+                    <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.showWindArrows === true ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
+                  </div>
+                </button>
+                <button
+                  onClick={() => updateLayerProperty(layer.id, 'showWindLegend', layer.showWindLegend === false)}
+                  className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-xs font-semibold tracking-wider uppercase text-left"
+                >
                   Legend
-                </label>
+                  <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.showWindLegend !== false ? 'bg-white' : 'bg-white/20'}`}>
+                    <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.showWindLegend !== false ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
+                  </div>
+                </button>
+                <button
+                  onClick={() => updateLayerProperty(layer.id, 'showWindTimeline', layer.showWindTimeline === false)}
+                  className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-xs font-semibold tracking-wider uppercase text-left"
+                >
+                  Timeline
+                  <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.showWindTimeline !== false ? 'bg-white' : 'bg-white/20'}`}>
+                    <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.showWindTimeline !== false ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
+                  </div>
+                </button>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <label className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 cursor-pointer text-[10px] font-semibold tracking-wider uppercase">
-                  <input
-                    type="checkbox"
-                    checked={layer.windParticleSizeBySpeed === true}
-                    onChange={e => updateLayerProperty(layer.id, 'windParticleSizeBySpeed', e.target.checked)}
-                    className="accent-white"
-                  />
+                <button
+                  onClick={() => updateLayerProperty(layer.id, 'windParticleSizeBySpeed', layer.windParticleSizeBySpeed !== true)}
+                  className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-[10px] font-semibold tracking-wider uppercase text-left"
+                >
                   Size by speed
-                </label>
-                <label className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 cursor-pointer text-[10px] font-semibold tracking-wider uppercase">
-                  <input
-                    type="checkbox"
-                    checked={layer.windParticleSpeedBySpeed !== false}
-                    onChange={e => updateLayerProperty(layer.id, 'windParticleSpeedBySpeed', e.target.checked)}
-                    className="accent-white"
-                  />
+                  <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.windParticleSizeBySpeed === true ? 'bg-white' : 'bg-white/20'}`}>
+                    <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.windParticleSizeBySpeed === true ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
+                  </div>
+                </button>
+                <button
+                  onClick={() => updateLayerProperty(layer.id, 'windParticleSpeedBySpeed', layer.windParticleSpeedBySpeed === false)}
+                  className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-[10px] font-semibold tracking-wider uppercase text-left"
+                >
                   Motion by speed
-                </label>
-                <label className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 cursor-pointer text-[10px] font-semibold tracking-wider uppercase">
-                  <input
-                    type="checkbox"
-                    checked={layer.windParticleTrailBySpeed === true}
-                    onChange={e => updateLayerProperty(layer.id, 'windParticleTrailBySpeed', e.target.checked)}
-                    className="accent-white"
-                  />
+                  <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.windParticleSpeedBySpeed !== false ? 'bg-white' : 'bg-white/20'}`}>
+                    <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.windParticleSpeedBySpeed !== false ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
+                  </div>
+                </button>
+                <button
+                  onClick={() => updateLayerProperty(layer.id, 'windParticleTrailBySpeed', layer.windParticleTrailBySpeed !== true)}
+                  className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-[10px] font-semibold tracking-wider uppercase text-left"
+                >
                   Trail by speed
-                </label>
-                <label className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 cursor-pointer text-[10px] font-semibold tracking-wider uppercase">
-                  <input
-                    type="checkbox"
-                    checked={layer.windParticleColorBySpeed === true}
-                    onChange={e => updateLayerProperty(layer.id, 'windParticleColorBySpeed', e.target.checked)}
-                    className="accent-white"
-                  />
+                  <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.windParticleTrailBySpeed === true ? 'bg-white' : 'bg-white/20'}`}>
+                    <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.windParticleTrailBySpeed === true ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
+                  </div>
+                </button>
+                <button
+                  onClick={() => updateLayerProperty(layer.id, 'windParticleColorBySpeed', layer.windParticleColorBySpeed !== true)}
+                  className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-[10px] font-semibold tracking-wider uppercase text-left"
+                >
                   Color by speed
-                </label>
+                  <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.windParticleColorBySpeed === true ? 'bg-white' : 'bg-white/20'}`}>
+                    <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.windParticleColorBySpeed === true ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
+                  </div>
+                </button>
               </div>
 
               <div className="flex flex-col gap-2">
-                <label className="text-[10px] text-white/50 font-semibold tracking-wider uppercase">ARROW COLOR</label>
+                <label className="text-[10px] text-white/50 font-semibold tracking-wider uppercase">{t("ARROW COLOR")}</label>
                 <div className="flex flex-wrap gap-1">
                   {colorPalette.map(color => (
                     <button
@@ -1613,7 +1630,7 @@ function LayerItem(props: {
                     key="transparent"
                     onClick={() => updateLayerProperty(layer.id, 'windColor', undefined)}
                     className="w-6 h-6 relative overflow-hidden flex-shrink-0 transition-colors"
-                    title="Reset to Default White"
+                    title={t("Reset to Default White")}
                   >
                     <div className="absolute inset-0 bg-white/10 flex items-center justify-center">
                       <div className="w-full h-0 border-t border-red-500 transform rotate-45"></div>
@@ -1624,7 +1641,7 @@ function LayerItem(props: {
 
               <div className="flex flex-col gap-1 mt-2 border-t border-white/10 pt-3">
                 <div className="flex justify-between items-end">
-                  <label className="text-[10px] text-white/50 font-semibold tracking-wider">WIND OPACITY</label>
+                  <label className="text-[10px] text-white/50 font-semibold tracking-wider">{t("WIND OPACITY")}</label>
                   <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.windOpacity ?? 1) * 100)}%</span>
                 </div>
                 <input
@@ -1637,7 +1654,7 @@ function LayerItem(props: {
 
               <div className="flex flex-col gap-1">
                 <div className="flex justify-between items-end">
-                  <label className="text-[10px] text-white/50 font-semibold tracking-wider">PARTICLE SIZE</label>
+                  <label className="text-[10px] text-white/50 font-semibold tracking-wider">{t("PARTICLE SIZE")}</label>
                   <span className="text-[10px] text-white/70 font-mono">{(layer.windParticleSize ?? 1.2).toFixed(1)}px</span>
                 </div>
                 <input
@@ -1650,7 +1667,7 @@ function LayerItem(props: {
 
               <div className="flex flex-col gap-1">
                 <div className="flex justify-between items-end">
-                  <label className="text-[10px] text-white/50 font-semibold tracking-wider">PARTICLE TRAIL</label>
+                  <label className="text-[10px] text-white/50 font-semibold tracking-wider">{t("PARTICLE TRAIL")}</label>
                   <span className="text-[10px] text-white/70 font-mono">{Math.round(layer.windParticleTrail ?? 90)}%</span>
                 </div>
                 <input
@@ -1675,18 +1692,18 @@ function LayerItem(props: {
                   <button
                     onClick={() => setEditTarget('fill')}
                     className={`p-1 flex items-center justify-center transition-colors ${editTarget === 'fill' ? 'text-white' : 'text-white/50 hover:text-white'}`}
-                    title="Edit Fill"
+                    title={t("Edit Fill")}
                   >
                     <Square size={16} fill="currentColor" stroke="none" />
                   </button>
                   <button
                     onClick={() => setEditTarget('outline')}
                     className={`p-1 flex items-center justify-center transition-colors ${editTarget === 'outline' ? 'text-white' : 'text-white/50 hover:text-white'}`}
-                    title="Edit Outline"
+                    title={t("Edit Outline")}
                   >
                     <Square size={16} />
                   </button>
-                  <button onClick={handleSwap} className="text-white/50 hover:text-white transition-colors p-1" title="Swap Fill and Outline">
+                  <button onClick={handleSwap} className="text-white/50 hover:text-white transition-colors p-1" title={t("Swap Fill and Outline")}>
                     <RefreshCcw size={16} />
                   </button>
                 </div>
@@ -1694,11 +1711,11 @@ function LayerItem(props: {
                 {/* Actions */}
                 <div className="flex gap-2">
                   {duplicateLayer && (
-                    <button onClick={() => duplicateLayer(layer.id)} className="text-white/50 hover:text-white transition-colors p-1" title="Duplicate Layer">
+                    <button onClick={() => duplicateLayer(layer.id)} className="text-white/50 hover:text-white transition-colors p-1" title={t("Duplicate Layer")}>
                       <Copy size={16} />
                     </button>
                   )}
-                  <button onClick={handleReset} className="text-white/50 hover:text-white transition-colors p-1" title="Reset Styles">
+                  <button onClick={handleReset} className="text-white/50 hover:text-white transition-colors p-1" title={t("Reset Styles")}>
                     <RotateCcw size={16} />
                   </button>
                 </div>
@@ -1707,7 +1724,7 @@ function LayerItem(props: {
               {/* Opacity slider */}
               <div className="flex flex-col gap-1">
                 <div className="flex justify-between items-end">
-                  <label className="text-[10px] text-white font-semibold tracking-wider">OPACITY</label>
+                  <label className="text-[10px] text-white font-semibold tracking-wider">{t("OPACITY")}</label>
                   <span className="text-[10px] text-white/70 font-mono">{Math.round((editTarget === 'fill' ? currentFillOpacity : currentOutlineOpacity) * 100)}%</span>
                 </div>
                 <input
@@ -1721,7 +1738,7 @@ function LayerItem(props: {
               {/* Outline width slider */}
               <div className="flex flex-col gap-1 pb-2">
                 <div className="flex justify-between items-end">
-                  <label className="text-[10px] text-white font-semibold tracking-wider">STROKE WIDTH</label>
+                  <label className="text-[10px] text-white font-semibold tracking-wider">{t("STROKE WIDTH")}</label>
                   <span className="text-[10px] text-white/70 font-mono">{currentOutlineWidth}px</span>
                 </div>
                 <input

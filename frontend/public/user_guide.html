@@ -133,7 +133,7 @@
       <li><strong>Main Map Area</strong>: Your canvas for navigation, drawing, and visualization.</li>
       <li><strong>Toolbar (Bottom Left)</strong>: Contains all the drawing, routing, and styling tools.</li>
       <li><strong>Layer Manager (Bottom Left Icon)</strong>: Access specialized map layers like Satellite, DeepState,
-        Wildfires, Air Traffic, and Vessels.</li>
+        Wildfires, Air Traffic, Vessels, Wind, Live Weather, and Population Density.</li>
       <li><strong>Saved Views (Top Left)</strong>: Save and quickly navigate between different camera angles and
         locations.</li>
     </ul>
@@ -149,8 +149,8 @@
       <li><strong>How to use</strong>: Select the tool, choose a color and fill opacity, and click on the map. Clicking
         on a place label will highlight that label, clicking on an empty area of the map will highlight the country you
         clicked in.</li>
-      <li><strong>NOTE</strong>: Adding a highlight will automatically add a camera view button with the current map
-        view (position, zoom, bearing, pitch).</li>
+      <li><strong>NOTE</strong>: Highlighting a specific place/city will automatically add a camera view button with the current map
+        view. Highlighting a country outline will not create a view button.</li>
     </ul>
 
     <h3><i data-lucide="tag"></i> Label</h3>
@@ -277,8 +277,12 @@
           <li><strong>Wildfires (EFFIS)</strong>: Live and historical Copernicus wildfire data. You can filter by date
             range.</li>
           <li><strong>Air Traffic & Maritime Traffic</strong>: Live tracking of aircraft and maritime ships. Clicking on
-            them
-            reveals detailed metadata (callsigns, origins, etc.).</li>
+            them reveals detailed metadata (callsigns, origins, etc.).</li>
+          <li><strong>Wind (Open-Meteo)</strong>: Animated global wind map with an adjustable timeline.</li>
+          <li><strong>Live Weather</strong>: Live temperature and precipitation radar overlays from OpenWeatherMap.</li>
+          <li><strong>Satellite View (Google)</strong>: High-resolution Google Maps satellite imagery.</li>
+          <li><strong>Satellite View (Bing)</strong>: High-resolution Bing Maps satellite imagery.</li>
+          <li><strong>Population Density</strong>: NASA EarthData population density heatmap.</li>
         </ul>
       </li>
     </ul>
@@ -336,7 +340,7 @@
     <ul>
       <li><strong>Hauptkartenbereich</strong>: Ihre Leinwand für Navigation, Zeichnen und Visualisierung.</li>
       <li><strong>Werkzeugleiste (Unten Links)</strong>: Enthält alle Zeichen-, Routen- und Styling-Werkzeuge.</li>
-      <li><strong>Layer-Manager (Symbol unten links)</strong>: Zugriff auf spezielle Karten-Layer wie Satellit, DeepState, Waldbrände, Flugverkehr und Schiffsverkehr.</li>
+      <li><strong>Layer-Manager (Symbol unten links)</strong>: Zugriff auf spezielle Karten-Layer wie Satellit, DeepState, Waldbrände, Flugverkehr, Schiffsverkehr, Wind, Live-Wetter und Bevölkerungsdichte.</li>
       <li><strong>Gespeicherte Ansichten (Oben Links)</strong>: Speichern und schnelles Navigieren zwischen verschiedenen Kamerawinkeln und Orten.</li>
     </ul>
 
@@ -347,7 +351,7 @@
     <ul>
       <li><strong>Was es macht</strong>: Ermöglicht es Ihnen, auf bestimmte Orte oder Länder zu klicken, um diese automatisch hervorzuheben.</li>
       <li><strong>Bedienung</strong>: Wählen Sie das Werkzeug, eine Farbe und eine Fülldeckkraft und klicken Sie auf die Karte. Wenn Sie auf das Beschriftung eines Ortes klicken, wird dieses hervorgehoben. Klicken Sie auf einen leeren Bereich der Karte, wird das angeklickte Land hervorgehoben.</li>
-      <li><strong>HINWEIS</strong>: Das Hinzufügen einer Hervorhebung erstellt automatisch eine Kameraansicht-Schaltfläche mit der aktuellen Kartenansicht (Position, Zoom, Ausrichtung, Neigung).</li>
+      <li><strong>HINWEIS</strong>: Das Hervorheben eines bestimmten Ortes/einer Stadt erstellt automatisch eine Kameraansicht-Schaltfläche mit der aktuellen Kartenansicht. Das Hervorheben von Länderumrissen erstellt keine Ansichts-Schaltfläche.</li>
     </ul>
 
     <h3><i data-lucide="tag"></i> Beschriftung</h3>
@@ -455,6 +459,11 @@
           <li><strong>DeepState (Aktuell Ukraine)</strong>: Echtzeitkarte des Konflikts in der Ukraine. Um historische Daten anzuzeigen, klicken Sie auf das Bearbeiten-Symbol, um eine Datumsauswahl zu öffnen.</li>
           <li><strong>Waldbrände (EFFIS)</strong>: Aktuelle und historische Copernicus-Waldbranddaten. Sie können nach einem Datumsbereich filtern.</li>
           <li><strong>Flug- und Schiffsverkehr</strong>: Live-Tracking von Flugzeugen und Schiffen. Ein Klick darauf offenbart detaillierte Metadaten (Rufzeichen, Herkunft, etc.).</li>
+          <li><strong>Wind (Open-Meteo)</strong>: Animierte globale Windkarte mit anpassbarer Zeitleiste.</li>
+          <li><strong>Live-Wetter</strong>: Live-Temperatur und Niederschlagsradar-Overlays von OpenWeatherMap.</li>
+          <li><strong>Satellitenansicht (Google)</strong>: Hochauflösende Google Maps Satellitenbilder.</li>
+          <li><strong>Satellitenansicht (Bing)</strong>: Hochauflösende Bing Maps Satellitenbilder.</li>
+          <li><strong>Bevölkerungsdichte</strong>: NASA EarthData Bevölkerungsdichte-Heatmap.</li>
         </ul>
       </li>
     </ul>

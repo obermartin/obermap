@@ -65,20 +65,10 @@ if (!preg_match('/^[a-zA-Z0-9_-]+$/', $show_id)) {
     $show_id = 'default';
 }
 $db_file = $shows_dir . '/' . $show_id . '.json';
-$db_file = __DIR__ . '/db.json';
 $weather_cache_dir = __DIR__ . '/weather-cache';
 $weather_cache_latest = $weather_cache_dir . '/latest.json';
 
-// Initialize db.json if it doesn't exist
-if (!file_exists($db_file)) {
-    $default_file = $shows_dir . '/_DEFAULT.json';
-    if (file_exists($default_file)) {
-        copy($default_file, $db_file);
-    } else {
-        $initial_data = json_encode(['annotations' => [], 'settings' => null]);
-        file_put_contents($db_file, $initial_data);
-    }
-}
+
 
 // Handle project-backed weather wind cache
 if (isset($_GET['action']) && $_GET['action'] === 'weather_wind_cache') {
@@ -316,6 +306,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
 
 // Handle GET request
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    // Initialize db.json if it doesn't exist
+    if (!file_exists($db_file)) {
+        $default_file = $shows_dir . '/_DEFAULT.json';
+        if (file_exists($default_file)) {
+            copy($default_file, $db_file);
+        } else {
+            $initial_data = json_encode(['annotations' => [], 'settings' => null]);
+            file_put_contents($db_file, $initial_data);
+        }
+    }
     $data = file_get_contents($db_file);
     if ($data === false) {
         http_response_code(500);

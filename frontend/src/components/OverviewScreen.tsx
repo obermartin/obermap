@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { GlobeCanvas } from './GlobeCanvas';
-import { Play, Link as LinkIcon, Trash2, Plus, Loader2, Layers, Copy, Lock, Unlock, BookOpen } from 'lucide-react';
+import { Play, Link as LinkIcon, Trash2, Plus, Loader2, Layers, Copy, Lock, Unlock, BookOpen, Globe } from 'lucide-react';
 import { customAlert, customConfirm, customPrompt } from '../utils/dialogService';
+import { useTranslation } from '../contexts/I18nContext';
 
 interface Show {
   id: string;
@@ -16,6 +17,7 @@ interface OverviewScreenProps {
 export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
   const [shows, setShows] = useState<Show[]>([]);
   const [loading, setLoading] = useState(true);
+  const { t, language, setLanguage } = useTranslation();
 
   const fetchShows = () => {
     setLoading(true);
@@ -37,7 +39,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
   const handleLink = async (showId: string) => {
     const url = `${window.location.origin}${window.location.pathname}?show=${showId}`;
     navigator.clipboard.writeText(url).then(async () => {
-      await customAlert(`Link copied to clipboard:\n${url}`);
+      await customAlert(t('Link copied to clipboard:\n{{url}}', { url }));
     });
   };
 
@@ -47,7 +49,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
   const handleDuplicate = async (showId: string) => {
     const targetShow = shows.find(s => s.id === showId);
     const oldTitle = targetShow?.title || showId;
-    const newName = await customPrompt("Enter name for duplicate show:", `Copy of ${oldTitle}`);
+    const newName = await customPrompt(t("Enter name for duplicate show:"), t("Copy of {{title}}", { title: oldTitle }));
     if (!newName) return;
     const safeId = 'show_' + Date.now();
     
@@ -71,7 +73,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
     
     const targetShow = shows.find(s => s.id === showId);
     const oldTitle = targetShow?.title || showId;
-    const newName = await customPrompt("Enter new name for the show:", oldTitle);
+    const newName = await customPrompt(t("Enter new name for the show:"), oldTitle);
     if (!newName || newName.trim() === oldTitle) return;
 
     fetch(`./api.php?show=${showId}&t=${Date.now()}`)
@@ -93,7 +95,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
     if (showId === '_DEFAULT' && !isDefaultUnlocked) return;
     const targetShow = shows.find(s => s.id === showId);
     const title = targetShow?.title || showId;
-    const confirmed = await customConfirm(`Are you sure you want to delete the show "${title}"? This cannot be undone.`);
+    const confirmed = await customConfirm(t("Are you sure you want to delete the show \"{{title}}\"? This cannot be undone.", { title }));
     if (confirmed) {
       fetch(`./api.php?action=delete_show&show=${showId}`, { method: 'POST' })
         .then(res => res.json())
@@ -144,21 +146,31 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
         {/* Panel */}
         <div className="relative z-10 w-full max-w-2xl bg-zinc-900 border border-white/10 shadow-2xl p-6 pointer-events-auto flex flex-col gap-4">
           {/* Logo */}
-          <div className="flex justify-center mb-2">
+          <div className="flex justify-between items-start mb-2">
+            <div className="w-24"></div> {/* Spacer for center alignment */}
             <img src="/obermapstudio.svg" alt="Obermap Studio" className="h-36 w-auto" />
+            <div className="w-24 flex justify-end">
+              <button 
+                onClick={() => setLanguage(language === 'en' ? 'de' : 'en')}
+                className="flex items-center gap-1.5 text-white/50 hover:text-white transition-colors bg-black/40 px-3 py-1.5 border border-white/10 text-xs font-semibold uppercase tracking-wider h-fit"
+                title="Toggle Language"
+              >
+                <Globe size={14} /> {language.toUpperCase()}
+              </button>
+            </div>
           </div>
 
           <div className="text-white text-sm font-semibold flex items-center gap-2 pb-2 mb-2 uppercase tracking-wider">
-            <Layers size={18} /> Available Shows
+            <Layers size={18} /> {t('Available Shows')}
           </div>
 
           <div className="flex flex-col gap-[2px] max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
             {loading ? (
               <div className="text-white flex items-center justify-center gap-2 py-8">
-                <Loader2 className="animate-spin" size={20} /> <span className="text-sm">Loading...</span>
+                <Loader2 className="animate-spin" size={20} /> <span className="text-sm">{t('Loading...')}</span>
               </div>
             ) : shows.length === 0 ? (
-              <div className="text-white/50 py-8 italic text-center text-sm">No shows found. Create one below.</div>
+              <div className="text-white/50 py-8 italic text-center text-sm">{t('No shows found. Create one below.')}</div>
             ) : (
               shows.map(show => {
                 const isDefault = show.id === '_DEFAULT';
@@ -175,7 +187,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
                         <button 
                           onClick={() => isLocked ? setShowUnlockWarning(true) : setIsDefaultUnlocked(false)}
                           className="flex-shrink-0 transition-all hover:text-white"
-                          title={isLocked ? "Unlock default template" : "Lock default template"}
+                          title={isLocked ? t("Unlock default template") : t("Lock default template")}
                         >
                           {isLocked ? <Lock size={16} /> : <Unlock size={16} className="text-white" />}
                         </button>
@@ -191,7 +203,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
                       <button 
                         onClick={() => !isLocked && onSelectShow(show.id)}
                         className={`transition-colors ${isLocked ? 'text-white/10 cursor-not-allowed' : 'text-white/50 hover:text-white'}`}
-                        title="Open Show"
+                        title={t("Open Show")}
                         disabled={isLocked}
                       >
                         <Play size={16} />
@@ -199,21 +211,21 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
                       <button 
                         onClick={() => handleLink(show.id)}
                         className="transition-colors text-white/50 hover:text-white"
-                        title="Copy Link"
+                        title={t("Copy Link")}
                       >
                         <LinkIcon size={16} />
                       </button>
                       <button 
                         onClick={() => handleDuplicate(show.id)}
                         className="transition-colors text-white/50 hover:text-white"
-                        title="Duplicate Show"
+                        title={t("Duplicate Show")}
                       >
                         <Copy size={16} />
                       </button>
                       <button 
                         onClick={() => !isLocked && handleDelete(show.id)}
-                        className={`transition-colors ${isLocked ? 'text-white/10 cursor-not-allowed' : 'text-white/50 hover:text-red-400'}`}
-                        title="Delete Show"
+                        className={`transition-colors ${isLocked ? 'text-white/10 cursor-not-allowed' : 'text-white/50 hover:text-white'}`}
+                        title={t("Delete Show")}
                         disabled={isLocked}
                       >
                         <Trash2 size={16} />
@@ -229,18 +241,18 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
             <button 
               onClick={handleCreateNew}
               className="w-full py-2 bg-white/5 hover:bg-white/10 text-white flex items-center justify-center gap-2 text-sm transition-colors"
-              title="Create New Show"
+              title={t("Create New Show")}
             >
-              <Plus size={16} /> Create New Show
+              <Plus size={16} /> {t('Create New Show')}
             </button>
             <a 
               href="/user_guide.html"
               target="_blank"
               rel="noopener noreferrer"
               className="w-full py-2 bg-white/5 hover:bg-white/10 text-white flex items-center justify-center gap-2 text-sm transition-colors"
-              title="Open User Guide"
+              title={t("User Guide")}
             >
-              <BookOpen size={16} /> User Guide
+              <BookOpen size={16} /> {t('User Guide')}
             </a>
           </div>
         </div>
@@ -250,7 +262,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
       {showPrompt && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto">
           <div className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 min-w-[350px] max-w-md shadow-2xl">
-            <h3 className="text-white font-semibold flex items-center gap-2 text-sm uppercase tracking-wider border-b border-white/10 pb-2">New Show Name</h3>
+            <h3 className="text-white font-semibold flex items-center gap-2 text-sm uppercase tracking-wider border-b border-white/10 pb-2">{t('New Show Name')}</h3>
             <input
               autoFocus
               type="text"
@@ -260,7 +272,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
                 if (e.key === 'Enter') confirmCreateNew();
                 if (e.key === 'Escape') setShowPrompt(false);
               }}
-              placeholder="e.g. My_Awesome_Show"
+              placeholder={t("e.g. My_Awesome_Show")}
               className="w-full bg-black/60 border border-white/10 px-3 py-2 outline-none font-mono text-sm text-white focus:border-white/50 transition-colors"
             />
             <div className="flex justify-end gap-2 mt-2 pt-4 border-t border-white/10">
@@ -268,13 +280,13 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
                 onClick={() => setShowPrompt(false)}
                 className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors uppercase font-semibold"
               >
-                Cancel
+                {t('Cancel')}
               </button>
               <button 
                 onClick={confirmCreateNew}
                 className="px-4 py-2 bg-white text-black hover:bg-white/90 text-sm transition-colors uppercase font-semibold tracking-wider"
               >
-                Create
+                {t('Create')}
               </button>
             </div>
           </div>
@@ -285,20 +297,20 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto">
           <div className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 min-w-[350px] max-w-md shadow-2xl">
             <h3 className="text-white font-semibold flex items-center gap-2 text-sm uppercase tracking-wider border-b border-white/10 pb-2">
-              <Unlock size={18} /> Unlock Template
+              <Unlock size={18} /> {t('Unlock Template')}
             </h3>
             <p className="text-white text-sm">
-              You are about to unlock the <span className="font-mono bg-black px-1">_DEFAULT</span> template.
+              <span dangerouslySetInnerHTML={{ __html: t('You are about to unlock the default template.') }} />
             </p>
             <p className="text-white/70 text-xs">
-              Any changes, edits, or deletions made to this show will directly affect the base template for all newly created shows in the future.
+              {t('Any changes, edits, or deletions made to this show will directly affect the base template for all newly created shows in the future.')}
             </p>
             <div className="flex justify-end gap-2 mt-2 pt-4 border-t border-white/10">
               <button 
                 onClick={() => setShowUnlockWarning(false)}
                 className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors uppercase font-semibold"
               >
-                Cancel
+                {t('Cancel')}
               </button>
               <button 
                 onClick={() => {
@@ -307,7 +319,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
                 }}
                 className="px-4 py-2 bg-white text-black hover:bg-white/90 text-sm transition-colors uppercase font-semibold tracking-wider"
               >
-                Unlock
+                {t('Unlock')}
               </button>
             </div>
           </div>
