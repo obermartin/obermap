@@ -37,7 +37,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 import { LayerSidebar } from './components/LayerSidebar';
-import { Layers, Loader2 } from 'lucide-react';
+import { Loader2, Menu } from 'lucide-react';
 import { useTranslation } from './contexts/I18nContext';
 
 export function App() {
@@ -442,7 +442,7 @@ export function App() {
           className="bg-black w-12 h-12 flex flex-shrink-0 items-center justify-center hover:bg-white hover:text-black transition-colors text-white shadow-lg"
           title="Manage Layers"
         >
-          <Layers size={20} strokeWidth={1.5} />
+          <Menu size={20} strokeWidth={1.5} />
         </button>
 
         <Toolbar 
@@ -472,6 +472,8 @@ export function App() {
       <LayerSidebar 
         settings={settings} 
         setSettings={setSettings} 
+        currentShow={currentShow}
+        annotations={annotations}
         isOpen={isLayerSidebarOpen} 
         setIsOpen={setIsLayerSidebarOpen} 
         activeGeojsonLayerId={activeGeojsonLayerId}

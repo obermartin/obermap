@@ -300,3 +300,9 @@ html, body, #root {
 .mapboxgl-ctrl-geocoder--suggestion-address {
   color: rgba(255, 255, 255, 0.7) !important;
 }
+
+/* Video Export Hide Rules */
+.is-recording .mapboxgl-control-container,
+.is-recording .react-ui-overlay {
+  display: none !important;
+}

@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Reorder, useDragControls, motion } from 'framer-motion';
-import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2, Edit2, Square, RefreshCcw, RotateCcw, Copy, Radio, Settings, Save, Loader2, LogOut, Image as ImageIcon, ChevronDown, ChevronRight, Camera } from 'lucide-react';
+import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2, Edit2, Square, RefreshCcw, RotateCcw, Copy, Radio, Settings, Save, Loader2, Image as ImageIcon, ChevronDown, ChevronRight, Camera, Video } from 'lucide-react';
 import type { AppSettings, MapLayer } from '../types';
 import { parseMapFileWithIds } from '../utils/fileUtils';
 import { customAlert, customConfirm, customPrompt } from '../utils/dialogService';
@@ -171,6 +171,8 @@ const CategoryItem = ({ category, catIndex, expandedCategories, setExpandedCateg
 interface LayerSidebarProps {
   settings: AppSettings;
   setSettings: React.Dispatch<React.SetStateAction<AppSettings>>;
+  annotations?: any[];
+  currentShow?: string | null;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
   activeGeojsonLayerId: string | null;
@@ -184,6 +186,8 @@ interface LayerSidebarProps {
 export function LayerSidebar({
   settings,
   setSettings,
+  annotations,
+  currentShow,
   isOpen,
   setIsOpen,
   activeGeojsonLayerId,
@@ -197,11 +201,17 @@ export function LayerSidebar({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [urlInput, setUrlInput] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(false);
-  const [activeTab, setActiveTab] = useState<'layers' | 'icons' | 'basemap'>('layers');
+  const [activeTab, setActiveTab] = useState<'layers' | 'icons' | 'basemap' | 'video'>('layers');
   const [isDraggingLayer, setIsDraggingLayer] = useState(false);
   const [selectedAircraftId, setSelectedAircraftId] = useState<string | null>(null);
   const [selectedVesselMmsi, setSelectedVesselMmsi] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  
+  // Video Export State
+  const [videoFormat, setVideoFormat] = useState<'16x9' | '9x16' | 'both'>('16x9');
+  const [videoDuration, setVideoDuration] = useState<number>(3);
+  const [dynamicLabels, setDynamicLabels] = useState<boolean>(true);
+  const [videoBitrate, setVideoBitrate] = useState<number>(15);
 
   useEffect(() => {
     const handler = (e: CustomEvent<string | null>) => setSelectedAircraftId(e.detail);
@@ -542,7 +552,7 @@ export function LayerSidebar({
     >
       <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/20">
         <h2 className="font-semibold flex items-center gap-2 text-sm"><Layers size={18} /> {t('Map Settings')}</h2>
-        <button onClick={() => setIsOpen(false)} className="hover:text-red-400 transition-colors">
+        <button onClick={onSaveAndExit || (() => setIsOpen(false))} className="text-white/50 hover:text-white transition-colors" title={onSaveAndExit ? t("Save & Exit to Overview") : t("Close")}>
           <X size={18} />
         </button>
       </div>
@@ -563,6 +573,13 @@ export function LayerSidebar({
           <ImageIcon size={18} />
         </button>
         <button
+          onClick={() => setActiveTab('video')}
+          className={`flex-1 py-3 flex items-center justify-center transition-colors ${activeTab === 'video' ? 'bg-white text-black' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}
+          title={t("Export Video")}
+        >
+          <Video size={18} />
+        </button>
+        <button
           onClick={() => setActiveTab('basemap')}
           className={`flex-1 py-3 flex items-center justify-center transition-colors ${activeTab === 'basemap' ? 'bg-white text-black' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}
           title={t("Base Map & Settings")}
@@ -579,16 +596,6 @@ export function LayerSidebar({
             >
               {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
             </button>
-            {onSaveAndExit && (
-              <button
-                onClick={onSaveAndExit}
-                disabled={isSaving}
-                className={`w-12 flex items-center justify-center transition-colors ${isSaving ? 'text-white cursor-wait bg-white/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
-                title={t("Save & Exit to Overview")}
-              >
-                <LogOut size={18} />
-              </button>
-            )}
           </div>
         )}
       </div>
@@ -806,6 +813,108 @@ export function LayerSidebar({
               }}
             />
           </label>
+          </div>
+        </>
+      ) : activeTab === 'video' ? (
+        <>
+          <div className="p-4 pb-2 border-b border-white/20">
+            <div className="text-xs font-semibold tracking-wider text-white">{t("VIDEO EXPORT")}</div>
+          </div>
+          
+          <div className="p-4 flex flex-col flex-1 overflow-y-auto custom-scrollbar gap-6">
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs text-white/60 mb-2 block font-semibold tracking-wider">{t("FORMAT")}</label>
+                <div className="flex border border-white/20 rounded-full p-1 relative bg-transparent">
+                  {(['16x9', '9x16', 'both'] as const).map(fmt => (
+                    <button
+                      key={fmt}
+                      onClick={() => setVideoFormat(fmt)}
+                      className={`flex-1 px-4 py-2 text-sm relative z-10 transition-colors ${
+                        videoFormat === fmt ? 'text-black' : 'text-white/60 hover:text-white/80'
+                      }`}
+                    >
+                      {videoFormat === fmt && (
+                        <motion.div
+                          layoutId="format-active-bg"
+                          className="absolute inset-0 bg-white rounded-full -z-10"
+                          transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                        />
+                      )}
+                      {t(fmt.charAt(0).toUpperCase() + fmt.slice(1))}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <div>
+                <label className="text-xs text-white/60 mb-2 flex justify-between font-semibold tracking-wider">
+                  <span>{t("STEP DURATION")}</span>
+                  <span>{videoDuration}s</span>
+                </label>
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  step="1"
+                  value={videoDuration}
+                  onChange={(e) => setVideoDuration(parseInt(e.target.value))}
+                  className="w-full accent-white"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-white/60 mb-2 flex justify-between font-semibold tracking-wider">
+                  <span>{t("VIDEO BITRATE")}</span>
+                  <span>{videoBitrate} Mbps</span>
+                </label>
+                <input
+                  type="range"
+                  min="5"
+                  max="100"
+                  step="5"
+                  value={videoBitrate}
+                  onChange={(e) => setVideoBitrate(parseInt(e.target.value))}
+                  className="w-full accent-white"
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-white/60 font-semibold tracking-wider cursor-pointer select-none" onClick={() => setDynamicLabels(!dynamicLabels)}>
+                  {t("DYNAMIC LABELS")}
+                </label>
+                <button
+                  onClick={() => setDynamicLabels(!dynamicLabels)}
+                  className={`w-9 h-5 rounded-full relative transition-colors ${dynamicLabels ? 'bg-white' : 'bg-white/20'}`}
+                >
+                  <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${dynamicLabels ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
+                </button>
+              </div>
+
+            </div>
+          </div>
+
+          <div className="p-4 border-t border-white/10 flex flex-col gap-3">
+            {!(annotations?.some(a => (a.type === 'label' || a.type === 'highlight') && a.text && a.view)) && (
+              <div className="text-xs text-red-400/80 text-center px-2 py-1 leading-relaxed bg-red-500/10 rounded">
+                {t("Video export requires custom map views to be set. Please use the highlight or label tools or manually add map views with the camera button.")}
+              </div>
+            )}
+            <button
+              disabled={!(annotations?.some(a => (a.type === 'label' || a.type === 'highlight') && a.text && a.view))}
+              onClick={() => {
+                const event = new CustomEvent('startVideoExport', { detail: { format: videoFormat, duration: videoDuration, dynamicLabels, bitrate: videoBitrate, showName: settings.title || currentShow } });
+                window.dispatchEvent(event);
+                setIsOpen(false);
+              }}
+              className={`w-full py-2 flex items-center justify-center gap-2 text-sm transition-colors ${
+                (annotations?.some(a => (a.type === 'label' || a.type === 'highlight') && a.text && a.view)) 
+                  ? 'bg-white/5 hover:bg-white/10' 
+                  : 'bg-white/5 text-white/30 cursor-not-allowed'
+              }`}
+            >
+              <Video size={16} /> {t("Export Video")}
+            </button>
           </div>
         </>
       ) : (

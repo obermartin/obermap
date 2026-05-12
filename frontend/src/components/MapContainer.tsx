@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder';
@@ -9,6 +10,7 @@ import { useTranslation } from '../contexts/I18nContext';
 import { createCirclePolygon, calculateDistance, simplifyLine, transliterateToGerman, createArrowFeatures, decodePolyline } from '../utils/mapUtils';
 import anyAscii from 'any-ascii';
 import { customAlert } from '../utils/dialogService';
+import * as Mp4Muxer from 'mp4-muxer';
 
 let globalDeepstateHistory: { id: number; createdAt: string }[] | null = null;
 let globalDeepstateHistoryPromise: Promise<void> | null = null;
@@ -90,6 +92,94 @@ function getContrastYIQ(hexcolor: string) {
   const b = parseInt(hexcolor.substr(4, 2), 16) || 0;
   const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
   return yiq >= 128 ? '#000000' : '#ffffff';
+}
+
+function generateLabelSvg(text: string, bgColor: string, type: 'label' | 'highlight' | 'flat', isPointHighlight = false): string {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d')!;
+  
+  const isUppercase = type === 'label' || type === 'highlight';
+  const hasPointer = type === 'label';
+  const displayText = isUppercase ? text.toUpperCase() : text;
+  
+  const fontSize = type === 'highlight' ? 14 : 12;
+  const fontWeight = type === 'highlight' ? 700 : 600;
+  ctx.font = `${fontWeight} ${fontSize}px "Inter", sans-serif`;
+  const metrics = ctx.measureText(displayText);
+  
+  const paddingX = type === 'flat' ? 6 : 8;
+  const paddingY = type === 'flat' ? 2 : 4;
+  
+  const boxWidth = metrics.width + paddingX * 2;
+  const boxHeight = fontSize + paddingY * 2;
+  const contrast = getContrastYIQ(bgColor);
+
+  if (isPointHighlight) {
+    const dotSize = 14;
+    const leftEdgeOfTextFromDotCenter = 22 - dotSize / 2; // 15px
+    const rightEdgeFromDotCenter = leftEdgeOfTextFromDotCenter + boxWidth + 10;
+    
+    // Make the SVG symmetric around the dot so icon-anchor: center works perfectly
+    const totalWidth = rightEdgeFromDotCenter * 2;
+    const totalHeight = Math.max(dotSize, boxHeight) + 20;
+    
+    const cx = totalWidth / 2;
+    const cy = totalHeight / 2;
+    
+    const rectX = cx + leftEdgeOfTextFromDotCenter;
+    const rectY = cy - boxHeight / 2;
+    
+    return `<svg width="${totalWidth}" height="${totalHeight}" viewBox="0 0 ${totalWidth} ${totalHeight}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.3" flood-color="#000000" />
+        </filter>
+      </defs>
+      <circle cx="${cx}" cy="${cy}" r="${dotSize / 2}" fill="${bgColor}" filter="url(#shadow)" />
+      <g filter="url(#shadow)">
+        <rect x="${rectX}" y="${rectY}" width="${boxWidth}" height="${boxHeight}" fill="${bgColor}" />
+      </g>
+      <text x="${rectX + boxWidth / 2}" y="${rectY + boxHeight / 2}" dy="0.35em" font-family="system-ui, sans-serif" font-weight="${fontWeight}" font-size="${fontSize}px" fill="${contrast}" text-anchor="middle">${displayText}</text>
+    </svg>`;
+  }
+
+  const pointerHeight = hasPointer ? 6 : 0;
+  const totalWidth = boxWidth + 20; 
+  
+  const rectX = 10;
+  const rectY = 10;
+  
+  const pointerTipY = rectY + boxHeight + pointerHeight;
+  
+  // If it has a pointer, we want the center of the image to be exactly at the pointer tip.
+  // We do this by making the total height twice the distance to the tip.
+  const totalHeight = hasPointer ? pointerTipY * 2 : boxHeight + 20;
+  
+  let pointerSvg = '';
+  if (hasPointer) {
+    const px = rectX + boxWidth / 2;
+    const py = rectY + boxHeight;
+    pointerSvg = `<polygon points="${px - 6},${py} ${px + 6},${py} ${px},${pointerTipY}" fill="${bgColor}" />`;
+  }
+  
+  let borderSvg = '';
+  if (type === 'label') {
+    borderSvg = `<rect x="${rectX}" y="${rectY}" width="${boxWidth}" height="${boxHeight}" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1" />`;
+  }
+  
+  return `<svg width="${totalWidth}" height="${totalHeight}" viewBox="0 0 ${totalWidth} ${totalHeight}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.3" flood-color="#000000" />
+      </filter>
+    </defs>
+    <g filter="url(#shadow)">
+      <rect x="${rectX}" y="${rectY}" width="${boxWidth}" height="${boxHeight}" fill="${bgColor}" />
+      ${borderSvg}
+      ${pointerSvg}
+    </g>
+    <text x="${rectX + boxWidth / 2}" y="${rectY + boxHeight / 2}" dy="0.35em" font-family="system-ui, sans-serif" font-weight="${fontWeight}" font-size="${fontSize}px" fill="${contrast}" text-anchor="middle">${displayText}</text>
+  </svg>`;
 }
 
 export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, clipPath?: string, onMapInit?: (map: mapboxgl.Map) => void }> = ({
@@ -544,6 +634,35 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         }
       }, firstSymbolId);
 
+      // WebGL Annotations (for Video Export)
+      map.addLayer({
+        id: 'custom-annotations-icon',
+        type: 'symbol',
+        source: 'custom-annotations',
+        filter: ['==', ['get', 'type'], 'icon'],
+        layout: {
+          'icon-image': ['get', 'iconImage'],
+          'icon-size': [
+            'case',
+            ['==', ['get', 'isLabel'], true],
+            2,
+            1
+          ],
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+          'visibility': 'none'
+        },
+        paint: {
+          'icon-opacity': [
+            'case',
+            ['boolean', ['feature-state', 'visible'], true],
+            1,
+            0
+          ],
+          'icon-opacity-transition': { duration: 500 }
+        }
+      });
+
       // Setup complete
       setMapLoaded(true);
       
@@ -782,10 +901,171 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           properties: { color: ann.color, id: ann.id, type: ann.type, strokeType: ann.strokeType || 'solid' }
         });
       }
+      
+      // --- Add WebGL Point Features for DOM Annotations (for video export) ---
+      
+      if (ann.type === 'label' || ann.type === 'highlight') {
+        if (ann.text && ann.coordinates) {
+          const colorHex = ann.color || '#ffffff';
+          acc.push({
+            type: 'Feature',
+            id: ann.id,
+            geometry: { type: 'Point', coordinates: ann.coordinates },
+            properties: { 
+              color: colorHex, 
+              id: `${ann.id}-text`, 
+              type: 'icon', 
+              isLabel: true,
+              iconImage: `label-${ann.id}-${colorHex.replace('#', '')}`
+            }
+          });
+        }
+      } else if (ann.type === 'icon' && ann.coordinates && ann.iconId) {
+        const colorHex = ann.color || '#ffffff';
+        acc.push({
+          type: 'Feature',
+          id: ann.id,
+          geometry: { type: 'Point', coordinates: ann.coordinates },
+          properties: { 
+            color: colorHex, 
+            id: `${ann.id}-icon`, 
+            type: 'icon', 
+            iconImage: `icon-${ann.iconId}-${colorHex.replace('#', '')}`
+          }
+        });
+      } else if (ann.type === 'measure' && ann.coordinates && ann.coordinates.length > 0) {
+        const lastCoord = ann.coordinates[ann.coordinates.length - 1];
+        const colorHex = ann.color || '#ffffff';
+        acc.push({
+          type: 'Feature',
+          id: ann.id,
+          geometry: { type: 'Point', coordinates: lastCoord },
+          properties: { 
+            color: colorHex, 
+            id: `${ann.id}-text`, 
+            type: 'icon', 
+            iconImage: `measure-${ann.id}-${colorHex.replace('#', '')}`
+          }
+        });
+      } else if (ann.type === 'circle' && ann.coordinates && ann.coordinates[0] && ann.coordinates[0][0]) {
+        const edgeCoord = ann.coordinates[0][0];
+        const colorHex = ann.color || '#ffffff';
+        acc.push({
+          type: 'Feature',
+          id: ann.id,
+          geometry: { type: 'Point', coordinates: edgeCoord },
+          properties: { 
+            color: colorHex, 
+            id: `${ann.id}-text`, 
+            type: 'icon', 
+            iconImage: `circle-${ann.id}-${colorHex.replace('#', '')}`
+          }
+        });
+      }
+
       return acc;
     }, []);
 
-    source.setData({ type: 'FeatureCollection', features });
+    // Register SVG icons and labels for video export
+    const imagePromises: Promise<void>[] = [];
+    const allIcons = settings.icons?.flatMap(cat => cat.icons) || [];
+    
+    annotations.forEach(ann => {
+      if (ann.type === 'icon' && ann.iconId) {
+        const colorHex = ann.color || '#ffffff';
+        const imgId = `icon-${ann.iconId}-${colorHex.replace('#', '')}`;
+        if (!mapRef.current?.hasImage(imgId)) {
+          const iconObj = allIcons.find(i => i.id === ann.iconId);
+          if (iconObj) {
+            const contrast = getContrastYIQ(colorHex);
+            const svgContent = iconObj.svg
+              .replace(/<svg[^>]*>/, '')
+              .replace(/<\/svg>/, '')
+              .replace(/currentColor/g, contrast);
+
+            const svgStr = `<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+              <rect width="64" height="64" fill="${colorHex}" rx="12" />
+              <g transform="translate(16, 16) scale(1.33)" fill="${contrast}" stroke="${contrast}">
+                ${svgContent}
+              </g>
+            </svg>`;
+            
+            imagePromises.push(new Promise(resolve => {
+              const img = new Image();
+              img.onload = () => {
+                if (mapRef.current && !mapRef.current.hasImage(imgId)) {
+                  mapRef.current.addImage(imgId, img);
+                }
+                resolve();
+              };
+              img.onerror = () => resolve();
+              img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgStr)));
+            }));
+          }
+        }
+      } else if (ann.type === 'label' || ann.type === 'highlight') {
+        if (ann.text) {
+          const colorHex = ann.color || '#ffffff';
+          const imgId = `label-${ann.id}-${colorHex.replace('#', '')}`;
+          if (!mapRef.current?.hasImage(imgId)) {
+            const isPointHighlight = ann.type === 'highlight' && !ann.polygonGeometry;
+            const svgStr = generateLabelSvg(ann.text, colorHex, ann.type, isPointHighlight);
+            imagePromises.push(new Promise(resolve => {
+              const img = new Image();
+              img.onload = () => {
+                if (mapRef.current && !mapRef.current.hasImage(imgId)) {
+                  mapRef.current.addImage(imgId, img);
+                }
+                resolve();
+              };
+              img.onerror = () => resolve();
+              img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgStr)));
+            }));
+          }
+        }
+      } else if (ann.type === 'measure' && ann.coordinates && ann.coordinates.length > 0) {
+        const dist = calculateDistance(ann.coordinates);
+        const colorHex = ann.color || '#ffffff';
+        const imgId = `measure-${ann.id}-${colorHex.replace('#', '')}`;
+        if (!mapRef.current?.hasImage(imgId)) {
+          const svgStr = generateLabelSvg(`${dist.toFixed(2)} km`, colorHex, 'flat');
+          imagePromises.push(new Promise(resolve => {
+            const img = new Image();
+            img.onload = () => {
+              if (mapRef.current && !mapRef.current.hasImage(imgId)) {
+                mapRef.current.addImage(imgId, img);
+              }
+              resolve();
+            };
+            img.onerror = () => resolve();
+            img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgStr)));
+          }));
+        }
+      } else if (ann.type === 'circle' && ann.radius) {
+        const colorHex = ann.color || '#ffffff';
+        const imgId = `circle-${ann.id}-${colorHex.replace('#', '')}`;
+        if (!mapRef.current?.hasImage(imgId)) {
+          const svgStr = generateLabelSvg(`${ann.radius.toFixed(2)} km`, colorHex, 'flat');
+          imagePromises.push(new Promise(resolve => {
+            const img = new Image();
+            img.onload = () => {
+              if (mapRef.current && !mapRef.current.hasImage(imgId)) {
+                mapRef.current.addImage(imgId, img);
+              }
+              resolve();
+            };
+            img.onerror = () => resolve();
+            img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgStr)));
+          }));
+        }
+      }
+    });
+
+    Promise.all(imagePromises).then(() => {
+      if (!mapRef.current) return;
+      const source = mapRef.current.getSource('custom-annotations') as mapboxgl.GeoJSONSource;
+      if (source) source.setData({ type: 'FeatureCollection', features });
+    });
 
     // Handle DOM markers for labels, measures, and circles
     const expectedMarkers = new Map<string, { lngLat: [number, number], el: HTMLElement }>();
@@ -2874,14 +3154,15 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       try {
         features = map.queryRenderedFeatures(e.point, { layers: ['custom-polygons', 'custom-lines', 'custom-lines-dashed', 'custom-lines-dotted', 'custom-arrow-heads'] });
       } catch (err) {}
+      let clickedAnnotationId: string | null = null;
       if (features.length > 0) {
-        const clickedId = features[0].properties?.id;
-        if (clickedId && activeTool !== 'none') {
-          setSelectedAnnotationId(clickedId);
+        clickedAnnotationId = features[0].properties?.id;
+        if (clickedAnnotationId && activeTool !== 'none' && activeTool !== 'highlight') {
+          setSelectedAnnotationId(clickedAnnotationId);
           return; // Prevent drawing if we selected an element
         }
       } else {
-        if (activeTool !== 'none') {
+        if (activeTool !== 'none' && activeTool !== 'highlight') {
           setSelectedAnnotationId(null);
         }
       }
@@ -2978,10 +3259,14 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           return null; // unsupported expression
         };
 
-        const features = map.queryRenderedFeatures(e.point);
+        const bbox: [mapboxgl.PointLike, mapboxgl.PointLike] = [
+          [e.point.x - 5, e.point.y - 5],
+          [e.point.x + 5, e.point.y + 5]
+        ];
+        const features = map.queryRenderedFeatures(bbox);
         const currentZoom = map.getZoom();
         
-        const symbolFeature = features.find(f => {
+        const validSymbolFeatures = features.filter(f => {
           if (f.layer?.type !== 'symbol') return false;
           if (!f.properties?.name && !f.properties?.name_en && !f.properties?.name_de) return false;
           
@@ -3013,7 +3298,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             if (textField !== undefined) {
               if (Array.isArray(textField)) {
                 const val = evaluateExpression(textField, currentZoom, f);
-                if (!val || val === '') return false;
+                if (val === '') return false;
               }
             }
 
@@ -3022,6 +3307,23 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             return true; // default to true if we can't determine visibility
           }
         });
+        
+        // Prioritize place labels over country/state labels
+        const symbolFeature = validSymbolFeatures.sort((a, b) => {
+          const aId = a.layer?.id.toLowerCase() || '';
+          const bId = b.layer?.id.toLowerCase() || '';
+          
+          const getScore = (id: string) => {
+            if (id.includes('poi')) return 4;
+            if (id.includes('settlement') || id.includes('place') || id.includes('city') || id.includes('town')) return 3;
+            if (id.includes('water') || id.includes('natural')) return 2;
+            if (id.includes('state') || id.includes('admin-1') || id.includes('province')) return 1;
+            if (id.includes('country') || id.includes('admin-0')) return 0;
+            return 2; // default middle score
+          };
+          
+          return getScore(bId) - getScore(aId);
+        })[0];
         
         if (symbolFeature) {
           const props = symbolFeature.properties || {};
@@ -3061,6 +3363,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               bearing: mapRef.current!.getBearing()
             }
           }]);
+        } else if (clickedAnnotationId) {
+          // If we clicked on an existing country polygon but missed all labels, select it instead of duplicating it
+          setSelectedAnnotationId(clickedAnnotationId);
         } else {
           // Fetch country boundary if clicking on empty space
           const fetchCountry = async () => {
@@ -3852,6 +4157,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 };
 
 export const MapContainer: React.FC<MapContainerProps> = (props) => {
+  const { t } = useTranslation();
   const [map1, setMap1] = useState<mapboxgl.Map | null>(null);
   const [map2, setMap2] = useState<mapboxgl.Map | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -3860,6 +4166,213 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
   const splitLayer = props.settings.layers.find(l => l.type === 'split' && l.visible);
   const [splitPos, setSplitPos] = useState(splitLayer?.splitPosition ? splitLayer.splitPosition * 100 : 50);
   const [splitVertical, setSplitVertical] = useState(splitLayer?.splitDirection !== 'horizontal');
+
+  // --- VIDEO EXPORT STATE ---
+  const [videoExportState, setVideoExportState] = useState<{
+    active: boolean;
+    format: '16x9' | '9x16' | 'both';
+    currentFormat: '16x9' | '9x16';
+    progress: number;
+    total: number;
+    message: string;
+    duration: number;
+    scaleTransform: string;
+    width: number;
+    height: number;
+  } | null>(null);
+
+  useEffect(() => {
+    const handleStartVideoExport = (e: any) => {
+      const { format, duration, dynamicLabels, bitrate, showName } = e.detail;
+      startExportSequence(format, duration, dynamicLabels, bitrate, showName);
+    };
+    window.addEventListener('startVideoExport', handleStartVideoExport);
+    return () => window.removeEventListener('startVideoExport', handleStartVideoExport);
+  }, [map1, props.annotations, props.settings]);
+
+  const startExportSequence = async (format: '16x9' | '9x16' | 'both', duration: number, dynamicLabels: boolean = true, bitrate: number = 15, showName?: string | null) => {
+    if (!map1) return;
+    
+    // Disable user interactions
+    document.body.classList.add('is-recording');
+
+    // Hide labels and highlights initially if dynamicLabels is enabled
+    if (dynamicLabels) {
+      props.annotations.forEach(ann => {
+        if (ann.type === 'label' || ann.type === 'highlight') {
+          map1!.setFeatureState({ source: 'custom-annotations', id: ann.id }, { visible: false });
+        }
+      });
+    }
+    
+    const formatsToRender: ('16x9' | '9x16')[] = format === 'both' ? ['16x9', '9x16'] : [format];
+    
+    // Calculate total views: defaultView + label views
+    const labelAnnotations = props.annotations.filter(a => (a.type === 'label' || a.type === 'highlight') && a.text && a.view);
+    const totalViews = labelAnnotations.length + 1;
+
+    for (let fIdx = 0; fIdx < formatsToRender.length; fIdx++) {
+      const currentFmt = formatsToRender[fIdx];
+      const targetWidth = currentFmt === '16x9' ? 1920 : 1080;
+      const targetHeight = currentFmt === '16x9' ? 1080 : 1920;
+      
+      // Calculate scale so it fits on screen
+      const screenW = window.innerWidth;
+      const screenH = window.innerHeight;
+      const scale = Math.min(screenW / targetWidth, screenH / targetHeight) * 0.8;
+      
+      setVideoExportState({
+        active: true,
+        format,
+        currentFormat: currentFmt,
+        progress: 0,
+        total: totalViews,
+        message: formatsToRender.length > 1 ? `${t("Rendering")} ${currentFmt.toUpperCase()} (${t("Video")} ${fIdx + 1} ${t("of")} 2)...` : t("Rendering Video..."),
+        duration,
+        scaleTransform: `scale(${scale})`,
+        width: targetWidth,
+        height: targetHeight
+      });
+
+      // Wait a bit for React to render the massive container
+      await new Promise(r => setTimeout(r, 500));
+      map1.resize();
+      await new Promise(r => setTimeout(r, 1000)); // allow tiles to load at new res
+
+      // INIT MUXER
+      const muxer = new Mp4Muxer.Muxer({
+        target: new Mp4Muxer.ArrayBufferTarget(),
+        video: { codec: 'avc', width: targetWidth, height: targetHeight },
+        fastStart: 'in-memory'
+      });
+      
+      const videoEncoder = new VideoEncoder({
+        output: (chunk, meta) => muxer.addVideoChunk(chunk, meta as any),
+        error: (e) => console.error(e)
+      });
+      
+      videoEncoder.configure({
+        codec: 'avc1.640028',
+        width: targetWidth,
+        height: targetHeight,
+        bitrate: bitrate * 1_000_000,
+        framerate: 60
+      });
+
+      // RENDER LOOP
+      let frameCount = 0;
+      let isRecording = true;
+      const canvas = map1.getCanvas();
+      
+      const captureFrame = () => {
+        if (!isRecording) return;
+        // Mapbox canvas context sometimes needs to be preserved, we assume preserveDrawingBuffer is true
+        const frame = new VideoFrame(canvas, { timestamp: frameCount * 1e6 / 60 });
+        videoEncoder.encode(frame, { keyFrame: frameCount % 60 === 0 });
+        frame.close();
+        frameCount++;
+        requestAnimationFrame(captureFrame);
+      };
+      
+      requestAnimationFrame(captureFrame);
+
+      // FLY TO VIEWS
+      const viewsToVisit = labelAnnotations.map(a => ({ view: a.view!, annotationId: a.id }));
+
+      for (let i = 0; i < viewsToVisit.length; i++) {
+        const { view, annotationId } = viewsToVisit[i];
+        
+        setVideoExportState(prev => prev ? { ...prev, progress: i + 1, total: viewsToVisit.length } : null);
+        
+        if (dynamicLabels) {
+          // Hide previous
+          if (i > 0) {
+            const prevId = viewsToVisit[i - 1].annotationId;
+            if (prevId) {
+              map1!.setFeatureState({ source: 'custom-annotations', id: prevId }, { visible: false });
+            }
+          }
+          // Show current
+          if (annotationId) {
+            map1!.setFeatureState({ source: 'custom-annotations', id: annotationId }, { visible: true });
+          }
+        }
+
+        await new Promise<void>((resolve) => {
+          if (i === 0) {
+            map1!.jumpTo({
+              center: view.center,
+              zoom: view.zoom,
+              pitch: view.pitch,
+              bearing: view.bearing
+            });
+            // Allow tiles to load and give a brief pause at the start of the video
+            setTimeout(resolve, 2000);
+          } else {
+            map1!.flyTo({
+              center: view.center,
+              zoom: view.zoom,
+              pitch: view.pitch,
+              bearing: view.bearing,
+              duration: duration * 1000,
+              essential: true
+            });
+            map1!.once('moveend', () => {
+              // Wait 1 second extra to let tiles settle and to pause on the view
+              setTimeout(resolve, 1000);
+            });
+          }
+        });
+      }
+
+      // STOP AND EXPORT
+      isRecording = false;
+      await videoEncoder.flush();
+      videoEncoder.close();
+      muxer.finalize();
+      
+      const buffer = muxer.target.buffer;
+      const blob = new Blob([buffer], { type: 'video/mp4' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safeShowName = (showName || 'obermap_tour').replace(/\s+/g, '_');
+      a.download = `${safeShowName}_${currentFmt}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+    
+    // RESTORE
+    document.body.classList.remove('is-recording');
+    setVideoExportState(null);
+    if (dynamicLabels) {
+      props.annotations.forEach(ann => {
+        if (ann.type === 'label' || ann.type === 'highlight') {
+          map1!.setFeatureState({ source: 'custom-annotations', id: ann.id }, { visible: true });
+        }
+      });
+    }
+    // Resize map back to 100%
+    setTimeout(() => map1?.resize(), 500);
+  };
+  // --- END VIDEO EXPORT ---
+
+  useEffect(() => {
+    if (!map1) return;
+    try {
+      const visibility = videoExportState ? 'visible' : 'none';
+      if (map1.getLayer('custom-annotations-text')) {
+        map1.setLayoutProperty('custom-annotations-text', 'visibility', visibility);
+      }
+      if (map1.getLayer('custom-annotations-icon')) {
+        map1.setLayoutProperty('custom-annotations-icon', 'visibility', visibility);
+      }
+    } catch (e) {
+      console.warn('Failed to toggle WebGL annotation visibility', e);
+    }
+  }, [videoExportState, map1]);
 
   useEffect(() => {
     if (!map1 || !map2) return;
@@ -3967,7 +4480,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
   const clipPath = splitVertical ? `inset(0 0 0 ${splitPos}%)` : `inset(${splitPos}% 0 0 0)`;
 
   return (
-    <div className="w-full h-full relative overflow-hidden z-0" ref={containerRef}>
+    <div className="w-full h-full relative overflow-hidden z-0" ref={containerRef} style={videoExportState ? { width: `${videoExportState.width}px`, height: `${videoExportState.height}px`, transform: videoExportState.scaleTransform, transformOrigin: 'top left', position: 'absolute', top: 0, left: 0 } : undefined}>
       <MapboxMap {...props} settings={settings1} onMapInit={setMap1} />
       {isSplitActive && (
         <>
@@ -4023,6 +4536,25 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
             </>
           )}
         </>
+      )}
+      
+      {videoExportState && createPortal(
+        <div className="absolute inset-0 z-[9999] bg-black flex flex-col items-center justify-center text-white p-8" style={{ width: '100vw', height: '100vh', position: 'fixed', top: 0, left: 0 }}>
+          <div className="flex flex-col items-center max-w-md w-full gap-6">
+            <h2 className="text-xl font-bold tracking-widest uppercase">{videoExportState.message}</h2>
+            <div className="w-full bg-white/10 h-2">
+              <div 
+                className="bg-white h-full transition-all duration-300"
+                style={{ width: `${(videoExportState.progress / videoExportState.total) * 100}%` }}
+              />
+            </div>
+            <p className="text-sm font-mono text-white/50">
+              {t("View")} {videoExportState.progress} {t("of")} {videoExportState.total}
+            </p>
+            <p className="text-xs text-[#ff0000] font-bold tracking-wider mt-4 animate-pulse">{t("DO NOT INTERACT WITH THE BROWSER")}</p>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

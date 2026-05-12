@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus } from 'lucide-react';
+import { Camera } from 'lucide-react';
 import type { Annotation } from '../types';
 import { useTranslation } from '../contexts/I18nContext';
 
@@ -62,7 +62,7 @@ export const SavedViews: React.FC<SavedViewsProps> = ({ annotations, onFlyTo, de
             className="w-10 h-10 flex items-center justify-center bg-black border border-white/10 text-white hover:bg-white hover:text-black transition-colors mt-2"
             title={t("Save Current Position")}
           >
-            <Plus size={20} strokeWidth={1.5} />
+            <Camera size={20} strokeWidth={1.5} />
           </motion.button>
         )}
       </AnimatePresence>

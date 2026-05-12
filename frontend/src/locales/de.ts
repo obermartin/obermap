@@ -142,6 +142,13 @@ export const de: Record<string, string> = {
 
   "BASE MAP": "BASISKARTE",
   "API SETTINGS": "API-EINSTELLUNGEN",
+  "VIDEO EXPORT": "VIDEO-EXPORT",
+  "FORMAT": "FORMAT",
+  "16x9": "16x9",
+  "9x16": "9x16",
+  "Both": "Beides",
+  "STEP DURATION": "SCHRITTDAUER",
+  "Export Video": "Video exportieren",
   "Optional. Leave blank for anonymous access (rate-limited).": "Optional. Für anonymen Zugriff leer lassen (ratenbegrenzt).",
   "Client ID": "Client-ID",
   "Client Secret": "Client-Secret",
@@ -151,5 +158,12 @@ export const de: Record<string, string> = {
   "Empty": "Leer",
   "Annotations & Settings saved successfully!": "Anmerkungen & Einstellungen erfolgreich gespeichert!",
   "Failed to save data.": "Fehler beim Speichern der Daten.",
-  "Failed to save data due to an internal error.": "Fehler beim Speichern der Daten aufgrund eines internen Fehlers."
+  "Failed to save data due to an internal error.": "Fehler beim Speichern der Daten aufgrund eines internen Fehlers.",
+  "Video export requires custom map views to be set. Please use the highlight or label tools or manually add map views with the camera button.": "Der Video-Export erfordert benutzerdefinierte Kartenansichten. Bitte nutze die Hervorhebungs- oder Beschriftungswerkzeuge oder füge Ansichten manuell mit dem Kamera-Button hinzu.",
+  "Rendering": "Rendern",
+  "Video": "Video",
+  "of": "von",
+  "Rendering Video...": "Video wird gerendert...",
+  "View": "Ansicht",
+  "DO NOT INTERACT WITH THE BROWSER": "BITTE NICHT MIT DEM BROWSER INTERAGIEREN"
 };
