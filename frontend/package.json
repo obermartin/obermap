@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@mapbox/mapbox-gl-geocoder": "^5.1.2",
+    "@openmeteo/weather-map-layer": "^0.0.19",
     "@tmcw/togeojson": "^7.1.2",
     "@turf/turf": "^7.3.5",
     "@types/mapbox__mapbox-gl-geocoder": "^5.1.1",

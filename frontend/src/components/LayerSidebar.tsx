@@ -14,6 +14,7 @@ const DEFAULT_LAYERS: MapLayer[] = [
   { id: 'flights', name: 'Air Traffic (OpenSky)', type: 'flights', visible: false },
   { id: 'vessels', name: 'Maritime Traffic (AIS)', type: 'vessels', visible: false },
   { id: 'wind', name: 'Wind (Open-Meteo)', type: 'wind', visible: true, windOpacity: 1, windParticleSize: 1.5, windParticleTrail: 94, showWindParticles: true, showWindArrows: false, showWindLegend: true, windParticleSizeBySpeed: true, windParticleSpeedBySpeed: true, windParticleTrailBySpeed: false, windParticleColorBySpeed: true },
+  { id: 'weather_forecast', name: 'Weather Forecast (Open-Meteo)', type: 'weather_forecast', visible: false, showTemperature: true, showPrecipitation: false },
   { id: 'temperature', name: 'Live Temperature (OWM)', type: 'raster', visible: false, url: 'https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=d04bc4ae6960dc10d49057fc174ad2aa' },
   { id: 'precipitation', name: 'Live Rain (OWM)', type: 'raster', visible: false, url: 'https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=d04bc4ae6960dc10d49057fc174ad2aa' },
   { id: 'google_satellite', name: 'Satellite View (Google)', type: 'raster', visible: false, url: 'https://mt0.google.com/vt/lyrs=s&x={x}&y={y}&z={z}' },
@@ -1328,14 +1329,14 @@ function LayerItem(props: {
               )}
             </div>
 
-            {layer.type !== 'split' && (layer.type === 'geojson' || layer.type === 'raster' || layer.type === 'satellite' || layer.type === 'deepstate' || layer.type === 'flights' || layer.type === 'vessels' || layer.type === 'wind') && (
+            {layer.type !== 'split' && (layer.type === 'geojson' || layer.type === 'raster' || layer.type === 'satellite' || layer.type === 'deepstate' || layer.type === 'flights' || layer.type === 'vessels' || layer.type === 'wind' || layer.type === 'weather_forecast') && (
               <button
                 onClick={() => {
                   if (!layer.visible) toggleVisibility(layer.id);
                   setActiveEdit();
                 }}
                 className={`transition-colors ${isActiveEdit ? 'text-white' : iconColorFaded}`}
-                title={`Toggle ${layer.type === 'geojson' ? 'GeoJSON' : layer.type === 'flights' ? 'Air Traffic' : layer.type === 'vessels' ? 'Maritime Traffic' : layer.type === 'wind' ? 'Wind' : 'Layer'} Edit Mode`}
+                title={`Toggle ${layer.type === 'geojson' ? 'GeoJSON' : layer.type === 'flights' ? 'Air Traffic' : layer.type === 'vessels' ? 'Maritime Traffic' : layer.type === 'wind' ? 'Wind' : layer.type === 'weather_forecast' ? 'Weather Forecast' : 'Layer'} Edit Mode`}
               >
                 <Edit2 size={16} />
               </button>
@@ -1785,6 +1786,66 @@ function LayerItem(props: {
                   onChange={e => updateLayerProperty(layer.id, 'windParticleTrail', Number(e.target.value))}
                   className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
                 />
+              </div>
+            </div>
+          ) : layer.type === 'weather_forecast' ? (
+            <div className="flex flex-col gap-4 pb-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {duplicateLayer && (
+                    <button onClick={() => duplicateLayer(layer.id)} className="text-white/50 hover:text-white transition-colors flex items-center shrink-0" title={t("Duplicate Layer")}>
+                      <Copy size={16} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <div className="flex justify-between items-end">
+                  <label className="text-[10px] text-white/50 font-semibold tracking-wider uppercase">{t("OPACITY")}</label>
+                  <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.opacity ?? 0.75) * 100)}%</span>
+                </div>
+                <input
+                  type="range" min="0" max="100" step="1"
+                  value={Math.round((layer.opacity ?? 0.75) * 100)}
+                  onChange={e => updateLayerProperty(layer.id, 'opacity', Number(e.target.value) / 100)}
+                  className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
+                />
+              </div>
+
+              <div className="flex border border-white/20 rounded-full p-1 relative bg-transparent mt-2">
+                <button
+                  onClick={() => {
+                    updateLayerProperty(layer.id, 'showTemperature', true);
+                    updateLayerProperty(layer.id, 'showPrecipitation', false);
+                  }}
+                  className={`flex-1 px-4 py-2 text-sm relative z-10 transition-colors ${layer.showTemperature ? 'text-black' : 'text-white/60 hover:text-white/80'}`}
+                >
+                  {layer.showTemperature && (
+                    <motion.div
+                      layoutId={`weather-active-bg-${layer.id}`}
+                      className="absolute inset-0 bg-white rounded-full -z-10"
+                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                    />
+                  )}
+                  {t("Temperature")}
+                </button>
+                <button
+                  onClick={() => {
+                    updateLayerProperty(layer.id, 'showTemperature', false);
+                    updateLayerProperty(layer.id, 'showPrecipitation', true);
+                  }}
+                  className={`flex-1 px-4 py-2 text-sm relative z-10 transition-colors ${layer.showPrecipitation ? 'text-black' : 'text-white/60 hover:text-white/80'}`}
+                >
+                  {layer.showPrecipitation && (
+                    <motion.div
+                      layoutId={`weather-active-bg-${layer.id}`}
+                      className="absolute inset-0 bg-white rounded-full -z-10"
+                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                    />
+                  )}
+                  {t("Precipitation")}
+                </button>
               </div>
             </div>
           ) : (

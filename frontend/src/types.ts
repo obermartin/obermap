@@ -27,7 +27,7 @@ export interface Annotation {
 export interface MapLayer {
   id: string;
   name: string;
-  type: 'geojson' | 'raster' | 'satellite' | 'split' | 'deepstate' | 'empty-slot' | 'flights' | 'vessels' | 'wind';
+  type: 'geojson' | 'raster' | 'satellite' | 'split' | 'deepstate' | 'empty-slot' | 'flights' | 'vessels' | 'wind' | 'weather_forecast';
   visible: boolean;
   data?: any; // For GeoJSON
   url?: string; // For XYZ/WMTS
@@ -72,6 +72,11 @@ export interface MapLayer {
   windParticleSpeedBySpeed?: boolean;
   windParticleTrailBySpeed?: boolean;
   windParticleColorBySpeed?: boolean;
+
+  // Weather forecast layer specific
+  showTemperature?: boolean;
+  showPrecipitation?: boolean;
+  weatherForecastTime?: string; // the time step to fetch
 }
 
 export interface IconCategory {
