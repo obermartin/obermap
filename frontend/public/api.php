@@ -14,35 +14,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-$shows_dir = __DIR__ . '/shows';
-if (!is_dir($shows_dir)) {
-    mkdir($shows_dir, 0755, true);
+$dbHost = 'db5020452906.hosting-data.io';
+$dbPort = '3306';
+$dbUser = 'dbu347313';
+$dbPass = 'aN19ehfS863SfvgXav1sOcvibu20a9sduOUAYVDyq083y7bh';
+$dbName = 'dbs15671316';
+
+try {
+    $pdo = new PDO("mysql:host=$dbHost;port=$dbPort;dbname=$dbName;charset=utf8mb4", $dbUser, $dbPass);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    
+    // Ensure tables exist
+    $pdo->exec("CREATE TABLE IF NOT EXISTS shows (
+        id VARCHAR(255) PRIMARY KEY,
+        title VARCHAR(255),
+        data LONGTEXT,
+        updated_at DATETIME
+    )");
+    
+    $pdo->exec("CREATE TABLE IF NOT EXISTS weather_cache (
+        id VARCHAR(255) PRIMARY KEY,
+        data LONGTEXT,
+        created_at DATETIME
+    )");
+} catch (PDOException $e) {
+    http_response_code(500);
+    echo json_encode(['error' => 'Database connection failed. Verify the $dbName variable in api.php. Error: ' . $e->getMessage()]);
+    exit;
+}
+
+// Migration Endpoint
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'migrate_to_sql') {
+    $shows_dir = __DIR__ . '/shows';
+    $weather_cache_dir = __DIR__ . '/weather-cache';
+    $migratedShows = 0;
+    
+    if (is_dir($shows_dir)) {
+        foreach (glob($shows_dir . '/*.json') as $file) {
+            $show_id = basename($file, '.json');
+            
+            $content = file_get_contents($file);
+            $mtime = filemtime($file);
+            $title = $show_id;
+            if ($content !== false) {
+                $data = json_decode($content, true);
+                if (isset($data['settings']['title']) && !empty($data['settings']['title'])) {
+                    $title = $data['settings']['title'];
+                }
+                $stmt = $pdo->prepare("INSERT INTO shows (id, title, data, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE title=VALUES(title), data=VALUES(data), updated_at=VALUES(updated_at)");
+                $stmt->execute([$show_id, $title, $content, date('Y-m-d H:i:s', $mtime)]);
+                $migratedShows++;
+            }
+        }
+    }
+
+    $migratedCache = 0;
+    if (is_dir($weather_cache_dir)) {
+        foreach (glob($weather_cache_dir . '/weather-wind_*.json') as $file) {
+            $content = file_get_contents($file);
+            if ($content !== false) {
+                $data = json_decode($content, true);
+                if (isset($data['cacheId'], $data['createdAt'])) {
+                    $stmt = $pdo->prepare("INSERT INTO weather_cache (id, data, created_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE data=VALUES(data)");
+                    $stmt->execute([$data['cacheId'], $content, date('Y-m-d H:i:s', strtotime($data['createdAt']))]);
+                    $migratedCache++;
+                }
+            }
+        }
+    }
+    
+    echo json_encode(['success' => true, 'migrated_shows' => $migratedShows, 'migrated_cache' => $migratedCache]);
+    exit;
 }
 
 // Handle list_shows action
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'list_shows') {
-    $files = glob($shows_dir . '/*.json');
-    $shows = [];
-    foreach ($files as $file) {
-        $show_id = basename($file, '.json');
-        $mtime = filemtime($file);
-        $title = $show_id;
-        $content = file_get_contents($file);
-        if ($content !== false) {
-            $data = json_decode($content, true);
-            if (isset($data['settings']['title']) && !empty($data['settings']['title'])) {
-                $title = $data['settings']['title'];
-            }
-        }
-        $shows[] = [
-            'id' => $show_id,
-            'title' => $title,
-            'updatedAt' => date('c', $mtime)
-        ];
+    $stmt = $pdo->query("SELECT id, title, updated_at FROM shows ORDER BY updated_at DESC");
+    $shows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    foreach ($shows as &$show) {
+        $show['updatedAt'] = date('c', strtotime($show['updated_at']));
+        unset($show['updated_at']);
     }
-    usort($shows, function($a, $b) {
-        return strtotime($b['updatedAt']) - strtotime($a['updatedAt']);
-    });
+    
     echo json_encode($shows);
     exit;
 }
@@ -51,9 +105,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['action'] === 'delete_show') {
     $show_id = $_GET['show'] ?? '';
     if (preg_match('/^[a-zA-Z0-9_-]+$/', $show_id)) {
-        $file_path = $shows_dir . '/' . $show_id . '.json';
-        if (file_exists($file_path)) {
-            unlink($file_path);
+        $stmt = $pdo->prepare("DELETE FROM shows WHERE id = ?");
+        $stmt->execute([$show_id]);
+        if ($stmt->rowCount() > 0) {
             echo json_encode(['success' => true]);
             exit;
         }
@@ -63,58 +117,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['ac
     exit;
 }
 
-$show_id = $_GET['show'] ?? 'default';
-if (!preg_match('/^[a-zA-Z0-9_-]+$/', $show_id)) {
-    $show_id = 'default';
-}
-$db_file = $shows_dir . '/' . $show_id . '.json';
-$weather_cache_dir = __DIR__ . '/weather-cache';
-$weather_cache_latest = $weather_cache_dir . '/latest.json';
-
-
-
 // Handle project-backed weather wind cache
 if (isset($_GET['action']) && $_GET['action'] === 'weather_wind_cache') {
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         if (isset($_GET['list']) && $_GET['list'] === '1') {
-            $snapshots = [];
-            if (is_dir($weather_cache_dir)) {
-                foreach (glob($weather_cache_dir . '/weather-wind_*.json') as $file) {
-                    $data = json_decode(file_get_contents($file), true);
-                    if (isset($data['cacheId'], $data['createdAt'])) {
-                        $snapshots[] = [
-                            'cacheId' => $data['cacheId'],
-                            'createdAt' => $data['createdAt'],
-                            'path' => 'weather-cache/' . basename($file)
-                        ];
-                    }
-                }
+            $stmt = $pdo->query("SELECT id as cacheId, created_at as createdAt FROM weather_cache ORDER BY created_at ASC");
+            $snapshots = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($snapshots as &$snap) {
+                $snap['createdAt'] = date('c', strtotime($snap['createdAt']));
+                $snap['path'] = 'weather-cache/' . $snap['cacheId'] . '.json';
             }
-            usort($snapshots, fn($a, $b) => strcmp($a['createdAt'], $b['createdAt']));
             echo json_encode(['snapshots' => $snapshots]);
             exit;
         }
 
-        $cache_file = $weather_cache_latest;
         if (isset($_GET['cacheId'])) {
             $cache_id = preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['cacheId']);
-            $cache_file = $weather_cache_dir . '/' . $cache_id . '.json';
+            $stmt = $pdo->prepare("SELECT data FROM weather_cache WHERE id = ?");
+            $stmt->execute([$cache_id]);
+        } else {
+            $stmt = $pdo->query("SELECT data FROM weather_cache ORDER BY created_at DESC LIMIT 1");
         }
-
-        if (!file_exists($cache_file)) {
+        
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
             http_response_code(404);
             echo json_encode(['error' => 'No weather wind cache available']);
             exit;
         }
 
-        $data = file_get_contents($cache_file);
-        if ($data === false) {
-            http_response_code(500);
-            echo json_encode(['error' => 'Failed to read weather wind cache']);
-            exit;
-        }
-
-        echo $data;
+        echo $row['data'];
         exit;
     }
 
@@ -133,25 +165,20 @@ if (isset($_GET['action']) && $_GET['action'] === 'weather_wind_cache') {
             exit;
         }
 
-        if (!is_dir($weather_cache_dir) && !mkdir($weather_cache_dir, 0775, true)) {
-            http_response_code(500);
-            echo json_encode(['error' => 'Failed to create weather cache directory']);
-            exit;
-        }
-
         $cache_id = 'weather-wind_' . gmdate('ymd-His');
+        $createdAt = gmdate('c');
         $payload = [
             'cacheId' => $cache_id,
-            'createdAt' => gmdate('c'),
+            'createdAt' => $createdAt,
             'geojson' => $decoded['geojson']
         ];
 
         $encoded = json_encode($payload, JSON_PRETTY_PRINT);
-        $snapshot_file = $weather_cache_dir . '/' . $cache_id . '.json';
-
-        if (file_put_contents($snapshot_file, $encoded) === false || file_put_contents($weather_cache_latest, $encoded) === false) {
+        
+        $stmt = $pdo->prepare("INSERT INTO weather_cache (id, data, created_at) VALUES (?, ?, ?)");
+        if (!$stmt->execute([$cache_id, $encoded, date('Y-m-d H:i:s', strtotime($createdAt))])) {
             http_response_code(500);
-            echo json_encode(['error' => 'Failed to write weather wind cache']);
+            echo json_encode(['error' => 'Failed to write weather wind cache to DB']);
             exit;
         }
 
@@ -309,28 +336,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
 
 // Handle GET request
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    // Initialize db.json if it doesn't exist
-    if (!file_exists($db_file)) {
-        $default_file = $shows_dir . '/_DEFAULT.json';
+    $show_id = $_GET['show'] ?? 'default';
+    if (!preg_match('/^[a-zA-Z0-9_-]+$/', $show_id)) {
+        $show_id = 'default';
+    }
+    
+    $stmt = $pdo->prepare("SELECT data FROM shows WHERE id = ?");
+    $stmt->execute([$show_id]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if (!$row) {
+        // Fallback to default file if SQL is empty
+        $default_file = __DIR__ . '/shows/_DEFAULT.json';
         if (file_exists($default_file)) {
-            copy($default_file, $db_file);
+            $data = file_get_contents($default_file);
         } else {
-            $initial_data = json_encode(['annotations' => [], 'settings' => null]);
-            file_put_contents($db_file, $initial_data);
+            $data = json_encode(['annotations' => [], 'settings' => null]);
         }
+        
+        // Auto-insert it into SQL
+        $insertStmt = $pdo->prepare("INSERT INTO shows (id, title, data, updated_at) VALUES (?, ?, ?, ?)");
+        $insertStmt->execute([$show_id, $show_id, $data, date('Y-m-d H:i:s')]);
+    } else {
+        $data = $row['data'];
     }
-    $data = file_get_contents($db_file);
-    if ($data === false) {
-        http_response_code(500);
-        echo json_encode(['error' => 'Failed to read data']);
-        exit;
-    }
+    
     echo $data;
     exit;
 }
 
 // Handle POST request
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $show_id = $_GET['show'] ?? 'default';
+    if (!preg_match('/^[a-zA-Z0-9_-]+$/', $show_id)) {
+        $show_id = 'default';
+    }
+    
     $json = file_get_contents('php://input');
     
     // Validate that it's actually JSON
@@ -340,11 +381,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo json_encode(['error' => 'Invalid JSON payload']);
         exit;
     }
+    
     // Differential Save Logic
-    if (isset($decoded['settings']['layers']) && file_exists($db_file)) {
-        $existing_json = file_get_contents($db_file);
-        if ($existing_json !== false) {
-            $existing_data = json_decode($existing_json, true);
+    if (isset($decoded['settings']['layers'])) {
+        $stmt = $pdo->prepare("SELECT data FROM shows WHERE id = ?");
+        $stmt->execute([$show_id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($row) {
+            $existing_data = json_decode($row['data'], true);
             if (isset($existing_data['settings']['layers'])) {
                 $existing_layers = [];
                 foreach ($existing_data['settings']['layers'] as $layer) {
@@ -369,12 +414,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     
-    // Write to file
-    $result = file_put_contents($db_file, $json);
+    // Write to DB
+    $title = $show_id;
+    if (isset($decoded['settings']['title']) && !empty($decoded['settings']['title'])) {
+        $title = $decoded['settings']['title'];
+    }
     
-    if ($result === false) {
+    $stmt = $pdo->prepare("INSERT INTO shows (id, title, data, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE title=VALUES(title), data=VALUES(data), updated_at=VALUES(updated_at)");
+    if (!$stmt->execute([$show_id, $title, $json, date('Y-m-d H:i:s')])) {
         http_response_code(500);
-        echo json_encode(['error' => 'Failed to save data']);
+        echo json_encode(['error' => 'Failed to save data to DB']);
         exit;
     }
     
