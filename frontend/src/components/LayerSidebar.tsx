@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Reorder, useDragControls, motion } from 'framer-motion';
-import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2, Edit2, Square, RefreshCcw, RotateCcw, Copy, Radio, Settings, Save, Loader2, Image as ImageIcon, ChevronDown, ChevronRight, Camera, Video } from 'lucide-react';
+import { Reorder, useDragControls, motion, AnimatePresence } from 'framer-motion';
+import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2, Edit2, Square, RefreshCcw, RotateCcw, Copy, Radio, Settings, Save, Loader2, Image as ImageIcon, ChevronDown, ChevronRight, Camera, Video, BookmarkPlus } from 'lucide-react';
 import type { AppSettings, MapLayer } from '../types';
 import { parseMapFileWithIds } from '../utils/fileUtils';
 import { customAlert, customConfirm, customPrompt } from '../utils/dialogService';
@@ -10,15 +10,13 @@ const DEFAULT_LAYERS: MapLayer[] = [
   { id: 'split-container', name: 'Split View Container', type: 'split', visible: false, splitPosition: 0.5, splitDirection: 'vertical', splitLayers: [] },
   { id: 'deepstate', name: 'UKRAINE CURRENT', type: 'deepstate', visible: false, isLive: true },
   { id: 'copernicus', name: 'Wildfires (EFFIS)', type: 'raster', visible: false, url: 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}' },
-  { id: 'satellite', name: 'Satellite Map Overlay (Mapbox)', type: 'satellite', visible: false },
   { id: 'flights', name: 'Air Traffic (OpenSky)', type: 'flights', visible: false },
   { id: 'vessels', name: 'Maritime Traffic (AIS)', type: 'vessels', visible: false },
   { id: 'wind', name: 'Wind (Open-Meteo)', type: 'wind', visible: true, windOpacity: 1, windParticleSize: 1.5, windParticleTrail: 94, showWindParticles: true, showWindArrows: false, showWindLegend: true, windParticleSizeBySpeed: true, windParticleSpeedBySpeed: true, windParticleTrailBySpeed: false, windParticleColorBySpeed: true },
   { id: 'weather_forecast', name: 'Weather Forecast (Open-Meteo)', type: 'weather_forecast', visible: false, showTemperature: true, showPrecipitation: false },
-  { id: 'temperature', name: 'Live Temperature (OWM)', type: 'raster', visible: false, url: 'https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=d04bc4ae6960dc10d49057fc174ad2aa' },
-  { id: 'precipitation', name: 'Live Rain (OWM)', type: 'raster', visible: false, url: 'https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=d04bc4ae6960dc10d49057fc174ad2aa' },
   { id: 'google_satellite', name: 'Satellite View (Google)', type: 'raster', visible: false, url: 'https://mt0.google.com/vt/lyrs=s&x={x}&y={y}&z={z}' },
   { id: 'bing_satellite', name: 'Satellite View (Bing)', type: 'raster', visible: false, url: 'https://ecn.t0.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=685&mkt=en-us&n=z' },
+  { id: 'satellite', name: 'Satellite View (Mapbox)', type: 'satellite', visible: false },
   { id: 'population_density', name: 'Population Density', type: 'raster', visible: false, url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GPW_Population_Density_2020/default/default/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png' }
 ];
 
@@ -204,6 +202,7 @@ export function LayerSidebar({
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [activeTab, setActiveTab] = useState<'layers' | 'icons' | 'basemap' | 'video'>('layers');
   const [isDraggingLayer, setIsDraggingLayer] = useState(false);
+  const [showPresetLayers, setShowPresetLayers] = useState(false);
   const [selectedAircraftId, setSelectedAircraftId] = useState<string | null>(null);
   const [selectedVesselMmsi, setSelectedVesselMmsi] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
@@ -226,6 +225,20 @@ export function LayerSidebar({
       window.removeEventListener('vesselSelected', vesselHandler as EventListener);
     };
   }, []);
+
+  const saveAsPreset = (layerToSave: MapLayer) => {
+    const newPreset: MapLayer = {
+      ...layerToSave,
+      id: `${layerToSave.id}_preset_${Date.now()}`,
+      visible: false,
+      _isDirty: undefined
+    };
+    setSettings(prev => ({
+      ...prev,
+      presetLayers: [...(prev.presetLayers || []), newPreset]
+    }));
+    customAlert(t("Layer saved as preset successfully!"));
+  };
 
   const toggleDefaultLayer = (defaultLayer: MapLayer) => {
     const exists = settings.layers.some(l => l.id === defaultLayer.id);
@@ -658,9 +671,10 @@ export function LayerSidebar({
             </div>
           </div>
 
-          <div data-drop-zone="root" className="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col gap-2">
-            <label className="text-xs text-white mb-1 block font-semibold tracking-wider">{t("LAYER STACK")}</label>
-            <Reorder.Group axis="y" values={flatLayers} onReorder={handleReorder} className="flex flex-col gap-2">
+          <div className="flex-1 overflow-hidden relative flex flex-col">
+            <div data-drop-zone="root" className="flex-1 overflow-y-auto custom-scrollbar p-4 flex flex-col gap-2">
+              <label className="text-xs text-white mb-1 block font-semibold tracking-wider">{t("LAYER STACK")}</label>
+              <Reorder.Group axis="y" values={flatLayers} onReorder={handleReorder} className="flex flex-col gap-2">
               {flatLayers.map((layer) => {
                 return (
                   <LayerItem
@@ -679,6 +693,7 @@ export function LayerSidebar({
                   activeGeojsonLayerId={activeGeojsonLayerId}
                   setActiveGeojsonLayerId={setActiveGeojsonLayerId}
                   selectedFeatureId={selectedGeojsonFeatureId}
+                  saveAsPreset={saveAsPreset}
                   updateLayerStyle={(layerId, featureId, styleChanges) => {
                     setSettings(prev => ({
                       ...prev,
@@ -729,10 +744,54 @@ export function LayerSidebar({
                   duplicateLayer={duplicateLayer}
                 />
               )})}
-            </Reorder.Group>
+              </Reorder.Group>
+            </div>
+
+            <AnimatePresence>
+              {showPresetLayers && (
+                <motion.div
+                  initial={{ y: '100%' }}
+                  animate={{ y: 0 }}
+                  exit={{ y: '100%' }}
+                  transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                  className="absolute inset-0 bg-zinc-900 z-20 flex flex-col p-4 custom-scrollbar overflow-y-auto"
+                >
+                  <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/10">
+                    <label className="text-xs text-white font-semibold tracking-wider flex items-center gap-2">
+                      <Layers size={14} /> {t("PRESET LAYERS")}
+                    </label>
+                    <button onClick={() => setShowPresetLayers(false)} className="text-white/50 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full p-1.5">
+                      <X size={16} />
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {[...DEFAULT_LAYERS, ...(settings.presetLayers || [])].map(layer => {
+                      const isEnabled = settings.layers.some(l => l.id === layer.id);
+                      return (
+                        <div key={layer.id} className="flex items-center justify-between px-2 py-2">
+                          <span className="text-sm font-medium text-white">{t(layer.name)}</span>
+                          <button
+                            onClick={() => toggleDefaultLayer(layer)}
+                            className={`w-9 h-5 rounded-full relative transition-colors ${isEnabled ? 'bg-white' : 'bg-white/20'}`}
+                          >
+                            <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${isEnabled ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
-          <div className="p-4 border-t border-white/10 flex flex-col gap-3">
+          <div className="p-4 border-t border-white/10 flex flex-col gap-3 relative z-30">
+            <button
+              onClick={() => setShowPresetLayers(true)}
+              className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors rounded-full"
+            >
+              <Layers size={16} /> {t("Preset layers")}
+            </button>
             <button
               onClick={() => fileInputRef.current?.click()}
               className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors rounded-full"
@@ -1025,29 +1084,6 @@ export function LayerSidebar({
           
           <div className="border-b border-white/20 -mx-4" />
 
-          {/* 3. DEFAULT MAP LAYERS */}
-          <div>
-            <label className="text-xs text-white mb-3 block font-semibold tracking-wider">{t("DEFAULT MAP LAYERS")}</label>
-            <div className="flex flex-col gap-2">
-              {DEFAULT_LAYERS.map(layer => {
-                const isEnabled = settings.layers.some(l => l.id === layer.id);
-                return (
-                  <div key={layer.id} className="flex items-center justify-between px-2 py-2">
-                    <span className="text-sm font-medium">{t(layer.name)}</span>
-                    <button
-                      onClick={() => toggleDefaultLayer(layer)}
-                      className={`w-9 h-5 rounded-full relative transition-colors ${isEnabled ? 'bg-white' : 'bg-white/20'}`}
-                    >
-                      <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${isEnabled ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="border-b border-white/20 -mx-4" />
-
           {/* 5. BASE MAP */}
           <details className="group flex flex-col gap-[2px] w-full">
             <summary className="relative p-3 flex items-center gap-2 bg-black text-xs text-white font-semibold tracking-wider cursor-pointer list-none outline-none [&::-webkit-details-marker]:hidden">
@@ -1146,6 +1182,7 @@ function LayerItem(props: {
   updateLayerProperty: (layerId: string, property: keyof MapLayer, value: any) => void;
   updateLayerDates?: (layerId: string, startDate?: string, endDate?: string) => void;
   duplicateLayer?: (id: string) => void;
+  saveAsPreset?: (layer: MapLayer) => void;
   toggleLive?: (layerId: string) => void;
   handleDragEnd?: (e: MouseEvent | TouchEvent | PointerEvent, layerId: string) => void;
   isDraggingLayer?: boolean;
@@ -1154,7 +1191,7 @@ function LayerItem(props: {
   selectedVesselMmsi?: string | null;
 }) {
   const { t } = useTranslation();
-  const { layer, isNestedChild = false, toggleVisibility, removeLayer, renameLayer, colorPalette, activeGeojsonLayerId, setActiveGeojsonLayerId, selectedFeatureId, updateLayerStyle, updateLayerProperty, updateLayerDates, duplicateLayer, toggleLive, handleDragEnd, isDraggingLayer, setIsDraggingLayer, selectedAircraftId, selectedVesselMmsi } = props;
+  const { layer, isNestedChild = false, toggleVisibility, removeLayer, renameLayer, colorPalette, activeGeojsonLayerId, setActiveGeojsonLayerId, selectedFeatureId, updateLayerStyle, updateLayerProperty, updateLayerDates, duplicateLayer, saveAsPreset, toggleLive, handleDragEnd, isDraggingLayer, setIsDraggingLayer, selectedAircraftId, selectedVesselMmsi } = props;
   const isActiveEdit = activeGeojsonLayerId === layer.id;
   const setActiveEdit = () => {
     if (isActiveEdit) setActiveGeojsonLayerId(null);
@@ -1384,14 +1421,18 @@ function LayerItem(props: {
             <div className={`bg-black p-3 pt-2 flex flex-col gap-4 text-sm animate-in slide-in-from-top-2 relative z-0 transition-opacity duration-200 ${!layer.visible ? 'opacity-40' : 'opacity-100'} ${isNestedChild ? 'ml-6' : ''}`}>
           {layer.type === 'raster' || layer.type === 'satellite' || layer.type === 'deepstate' ? (
             <div className="flex flex-col gap-3 pb-2">
-              {layer.type === 'deepstate' && (
-                <div className="flex items-center justify-between gap-3">
-                  {duplicateLayer && (
+              <div className="flex items-center gap-3">
+                {layer.type === 'raster' && saveAsPreset && (
+                  <button onClick={() => saveAsPreset(layer)} className="text-white/50 hover:text-white transition-colors flex items-center shrink-0" title={t("Save as Preset")}>
+                    <BookmarkPlus size={16} />
+                  </button>
+                )}
+                {layer.type === 'deepstate' && duplicateLayer && (
                     <button onClick={() => duplicateLayer(layer.id)} className="text-white/50 hover:text-white transition-colors flex items-center shrink-0" title={t("Duplicate Layer")}>
                       <Copy size={16} />
                     </button>
                   )}
-                  {toggleLive && (
+                  {layer.type === 'deepstate' && toggleLive && (
                     <button 
                       onClick={() => toggleLive(layer.id)} 
                       className={`transition-colors flex items-center shrink-0 ${layer.isLive ? 'text-[#ff0000] drop-shadow-[0_0_5px_rgba(255,0,0,0.8)]' : 'text-white/50 hover:text-white'}`} 
@@ -1400,7 +1441,7 @@ function LayerItem(props: {
                       <Radio size={16} />
                     </button>
                   )}
-                  {updateLayerDates && (
+                  {layer.type === 'deepstate' && updateLayerDates && (
                     <div className="flex-1 flex justify-end">
                       <input 
                         type="date" 
@@ -1414,8 +1455,7 @@ function LayerItem(props: {
                       />
                     </div>
                   )}
-                </div>
-              )}
+              </div>
               
               {layer.id === 'copernicus' && updateLayerDates && (
                 <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
@@ -1911,6 +1951,11 @@ function LayerItem(props: {
 
                 {/* Actions */}
                 <div className="flex gap-2">
+                  {saveAsPreset && (
+                    <button onClick={() => saveAsPreset(layer)} className="text-white/50 hover:text-white transition-colors p-1" title={t("Save as Preset")}>
+                      <BookmarkPlus size={16} />
+                    </button>
+                  )}
                   {duplicateLayer && (
                     <button onClick={() => duplicateLayer(layer.id)} className="text-white/50 hover:text-white transition-colors p-1" title={t("Duplicate Layer")}>
                       <Copy size={16} />

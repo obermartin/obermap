@@ -261,7 +261,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
       {/* New Show Prompt Modal */}
       {showPrompt && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto">
-          <div className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 min-w-[350px] max-w-md shadow-2xl">
+          <div className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 min-w-[350px] max-w-md shadow-2xl rounded-3xl mx-4">
             <h3 className="text-white font-semibold flex items-center gap-2 text-sm uppercase tracking-wider border-b border-white/10 pb-2">{t('New Show Name')}</h3>
             <input
               autoFocus
@@ -273,18 +273,18 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
                 if (e.key === 'Escape') setShowPrompt(false);
               }}
               placeholder={t("e.g. My_Awesome_Show")}
-              className="w-full bg-black/60 border border-white/10 px-3 py-2 outline-none font-mono text-sm text-white focus:border-white/50 transition-colors"
+              className="w-full bg-black/60 border border-white/10 px-4 py-2 outline-none font-mono text-sm text-white focus:border-white/50 transition-colors rounded-full"
             />
             <div className="flex justify-end gap-2 mt-2 pt-4 border-t border-white/10">
               <button 
                 onClick={() => setShowPrompt(false)}
-                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors uppercase font-semibold rounded-full"
+                className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors rounded-full"
               >
                 {t('Cancel')}
               </button>
               <button 
                 onClick={confirmCreateNew}
-                className="px-4 py-2 bg-white text-black hover:bg-white/90 text-sm transition-colors uppercase font-semibold tracking-wider rounded-full"
+                className="px-6 py-2 bg-white text-black hover:bg-white/90 text-sm transition-colors rounded-full"
               >
                 {t('Create')}
               </button>
@@ -295,7 +295,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
       {/* Unlock Warning Modal */}
       {showUnlockWarning && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto">
-          <div className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 min-w-[350px] max-w-md shadow-2xl">
+          <div className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 min-w-[350px] max-w-md shadow-2xl rounded-3xl mx-4">
             <h3 className="text-white font-semibold flex items-center gap-2 text-sm uppercase tracking-wider border-b border-white/10 pb-2">
               <Unlock size={18} /> {t('Unlock Template')}
             </h3>
@@ -308,7 +308,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
             <div className="flex justify-end gap-2 mt-2 pt-4 border-t border-white/10">
               <button 
                 onClick={() => setShowUnlockWarning(false)}
-                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors uppercase font-semibold rounded-full"
+                className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors rounded-full"
               >
                 {t('Cancel')}
               </button>
@@ -317,7 +317,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
                   setIsDefaultUnlocked(true);
                   setShowUnlockWarning(false);
                 }}
-                className="px-4 py-2 bg-white text-black hover:bg-white/90 text-sm transition-colors uppercase font-semibold tracking-wider rounded-full"
+                className="px-6 py-2 bg-white text-black hover:bg-white/90 text-sm transition-colors rounded-full"
               >
                 {t('Unlock')}
               </button>

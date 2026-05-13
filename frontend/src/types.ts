@@ -102,6 +102,7 @@ export interface AppSettings {
   openSkyCredentials?: { clientId: string; clientSecret: string };
   aisstreamCredentials?: { apiKey: string };
   googleMapsToken?: string;
+  presetLayers?: MapLayer[];
 }
 
 export interface AppState {

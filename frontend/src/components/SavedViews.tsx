@@ -30,15 +30,31 @@ export const SavedViews: React.FC<SavedViewsProps> = ({ annotations, onFlyTo, de
   return (
     <div className={`absolute top-6 left-6 z-10 flex flex-col gap-2 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-[20rem]' : 'translate-x-0'}`}>
       <AnimatePresence>
-        <motion.button
+        <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, scale: 0.8 }}
-          onClick={() => onFlyTo(defaultView)}
-          className="flex items-center gap-2 bg-black border border-white/10 px-4 py-2 text-white hover:bg-white hover:text-black transition-colors group rounded-full"
+          className="flex items-stretch border border-white/10 rounded-full overflow-hidden"
         >
-          <span className="font-semibold text-sm uppercase tracking-wider">{t('OVERVIEW')}</span>
-        </motion.button>
+          <button
+            onClick={() => onFlyTo(defaultView)}
+            className="flex items-center gap-2 bg-black px-4 py-2 text-white hover:bg-white hover:text-black transition-colors grow text-left"
+          >
+            <span className="font-semibold text-sm uppercase tracking-wider">{t('OVERVIEW')}</span>
+          </button>
+          {isToolbarOpen && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                window.dispatchEvent(new CustomEvent('requestViewCaptureForDefaultUpdate'));
+              }}
+              className="flex items-center justify-center px-3 bg-black text-white/50 hover:text-black hover:bg-white transition-colors shrink-0 border-l border-white/10"
+              title={t("Update Overview Camera")}
+            >
+              <Camera size={16} />
+            </button>
+          )}
+        </motion.div>
 
         {labelAnnotations.map((annotation) => (
           <motion.div
@@ -54,17 +70,31 @@ export const SavedViews: React.FC<SavedViewsProps> = ({ annotations, onFlyTo, de
             >
               <span className="font-semibold text-sm uppercase tracking-wider">{annotation.text}</span>
             </button>
-            {isToolbarOpen && onDeleteAnnotation && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDeleteAnnotation(annotation.id);
-                }}
-                className="flex items-center justify-center px-3 bg-black text-white/50 hover:text-black hover:bg-white transition-colors shrink-0"
-                title={t("Delete View")}
-              >
-                <Trash2 size={16} />
-              </button>
+            {isToolbarOpen && (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.dispatchEvent(new CustomEvent('requestViewCaptureForUpdate', { detail: annotation.id }));
+                  }}
+                  className="flex items-center justify-center px-3 bg-black text-white/50 hover:text-black hover:bg-white transition-colors shrink-0 border-l border-white/10"
+                  title={t("Update View Camera")}
+                >
+                  <Camera size={16} />
+                </button>
+                {onDeleteAnnotation && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteAnnotation(annotation.id);
+                    }}
+                    className="flex items-center justify-center px-3 bg-black text-white/50 hover:text-[#ff0000] hover:bg-white transition-colors shrink-0 border-l border-white/10"
+                    title={t("Delete View")}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
+              </>
             )}
           </motion.div>
         ))}

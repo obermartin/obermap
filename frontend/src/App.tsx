@@ -81,9 +81,11 @@ export function App() {
     setIsLoaded(false);
     
     // Load from backend
-    fetch(`./api.php?show=${currentShow}`)
+    fetch(`./api.php?show=${currentShow}&t=${Date.now()}`)
       .then(res => res.json())
       .then(data => {
+        setIsLayerSidebarOpen(false);
+        setIsToolbarOpen(false);
         if (data.annotations) {
           setAnnotations(data.annotations);
         } else {
@@ -369,9 +371,24 @@ export function App() {
     }) as EventListener;
     window.addEventListener('viewCapturedForPosition', handleViewCapturedForPosition);
 
+    const handleViewCapturedForUpdate = ((e: Event) => {
+      const customEvent = e as CustomEvent<{ id: string, view: AppSettings['defaultView'] }>;
+      const { id, view } = customEvent.detail;
+      setAnnotations(prev => prev.map(a => a.id === id ? { ...a, view } : a));
+    }) as EventListener;
+    window.addEventListener('viewCapturedForUpdate', handleViewCapturedForUpdate);
+
+    const handleViewCapturedForDefaultUpdate = ((e: Event) => {
+      const customEvent = e as CustomEvent<AppSettings['defaultView']>;
+      setSettings(prev => ({ ...prev, defaultView: customEvent.detail }));
+    }) as EventListener;
+    window.addEventListener('viewCapturedForDefaultUpdate', handleViewCapturedForDefaultUpdate);
+
     return () => {
       window.removeEventListener('viewCaptured', handleViewCaptured);
       window.removeEventListener('viewCapturedForPosition', handleViewCapturedForPosition);
+      window.removeEventListener('viewCapturedForUpdate', handleViewCapturedForUpdate);
+      window.removeEventListener('viewCapturedForDefaultUpdate', handleViewCapturedForDefaultUpdate);
     };
   }, [currentColor]);
 
@@ -414,6 +431,7 @@ export function App() {
         selectedAnnotationId={selectedAnnotationId}
         setSelectedAnnotationId={setSelectedAnnotationId}
         settings={settings}
+        setSettings={setSettings}
         activeGeojsonLayerId={activeGeojsonLayerId}
         setActiveGeojsonLayerId={setActiveGeojsonLayerId}
         selectedGeojsonFeatureId={selectedGeojsonFeatureId}
@@ -516,7 +534,7 @@ export function App() {
             <div className="flex justify-end gap-2 mt-2 pt-4 border-t border-white/10">
               <button 
                 onClick={() => setLabelPrompt(null)}
-                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors uppercase font-semibold rounded-full"
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors rounded-full"
               >
                 Cancel
               </button>
@@ -527,7 +545,7 @@ export function App() {
                     window.dispatchEvent(event);
                   }
                 }}
-                className="px-4 py-2 bg-white text-black hover:bg-white/90 text-sm transition-colors uppercase font-semibold tracking-wider rounded-full"
+                className="px-4 py-2 bg-white text-black hover:bg-white/90 text-sm transition-colors rounded-full"
               >
                 Save Label
               </button>

@@ -78,6 +78,7 @@ interface MapContainerProps {
   selectedAnnotationId: string | null;
   setSelectedAnnotationId: React.Dispatch<React.SetStateAction<string | null>>;
   settings: AppSettings;
+  setSettings?: React.Dispatch<React.SetStateAction<AppSettings>>;
   activeGeojsonLayerId: string | null;
   setActiveGeojsonLayerId: React.Dispatch<React.SetStateAction<string | null>>;
   selectedGeojsonFeatureId: string | number | null;
@@ -98,6 +99,7 @@ function getContrastYIQ(hexcolor: string) {
 }
 
 function generateLabelSvg(text: string, bgColor: string, type: 'label' | 'highlight' | 'flat', isPointHighlight = false): string {
+  const pr = 4; // Pixel ratio for high-res rendering
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d')!;
   
@@ -132,16 +134,9 @@ function generateLabelSvg(text: string, bgColor: string, type: 'label' | 'highli
     const rectX = cx + leftEdgeOfTextFromDotCenter;
     const rectY = cy - boxHeight / 2;
     
-    return `<svg width="${totalWidth}" height="${totalHeight}" viewBox="0 0 ${totalWidth} ${totalHeight}" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.3" flood-color="#000000" />
-        </filter>
-      </defs>
-      <circle cx="${cx}" cy="${cy}" r="${dotSize / 2}" fill="${bgColor}" filter="url(#shadow)" />
-      <g filter="url(#shadow)">
-        <rect x="${rectX}" y="${rectY}" width="${boxWidth}" height="${boxHeight}" fill="${bgColor}" />
-      </g>
+    return `<svg width="${totalWidth * pr}" height="${totalHeight * pr}" viewBox="0 0 ${totalWidth} ${totalHeight}" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="${cx}" cy="${cy}" r="${dotSize / 2}" fill="${bgColor}" />
+      <rect x="${rectX}" y="${rectY}" width="${boxWidth}" height="${boxHeight}" fill="${bgColor}" />
       <text x="${rectX + boxWidth / 2}" y="${rectY + boxHeight / 2}" dy="0.35em" font-family="system-ui, sans-serif" font-weight="${fontWeight}" font-size="${fontSize}px" fill="${contrast}" text-anchor="middle">${displayText}</text>
     </svg>`;
   }
@@ -170,17 +165,10 @@ function generateLabelSvg(text: string, bgColor: string, type: 'label' | 'highli
     borderSvg = `<rect x="${rectX}" y="${rectY}" width="${boxWidth}" height="${boxHeight}" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1" />`;
   }
   
-  return `<svg width="${totalWidth}" height="${totalHeight}" viewBox="0 0 ${totalWidth} ${totalHeight}" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-        <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.3" flood-color="#000000" />
-      </filter>
-    </defs>
-    <g filter="url(#shadow)">
-      <rect x="${rectX}" y="${rectY}" width="${boxWidth}" height="${boxHeight}" fill="${bgColor}" />
-      ${borderSvg}
-      ${pointerSvg}
-    </g>
+  return `<svg width="${totalWidth * pr}" height="${totalHeight * pr}" viewBox="0 0 ${totalWidth} ${totalHeight}" xmlns="http://www.w3.org/2000/svg">
+    <rect x="${rectX}" y="${rectY}" width="${boxWidth}" height="${boxHeight}" fill="${bgColor}" />
+    ${borderSvg}
+    ${pointerSvg}
     <text x="${rectX + boxWidth / 2}" y="${rectY + boxHeight / 2}" dy="0.35em" font-family="system-ui, sans-serif" font-weight="${fontWeight}" font-size="${fontSize}px" fill="${contrast}" text-anchor="middle">${displayText}</text>
   </svg>`;
 }
@@ -199,6 +187,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   selectedAnnotationId,
   setSelectedAnnotationId,
   settings,
+  setSettings,
   activeGeojsonLayerId,
   setActiveGeojsonLayerId,
   selectedGeojsonFeatureId,
@@ -452,10 +441,11 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       if (!e.result || !e.result.geometry || e.result.geometry.type !== 'Point') return;
       const coords = e.result.geometry.coordinates as [number, number];
       const name = e.result.text || e.result.place_name;
+      const annotationId = Date.now().toString();
       
       if (setAnnotationsRef.current && mapRef.current) {
         setAnnotationsRef.current(prev => [...prev, {
-          id: Date.now().toString(),
+          id: annotationId,
           type: 'highlight',
           color: currentColorRef.current || '#ffffff',
           coordinates: coords,
@@ -467,6 +457,12 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             bearing: mapRef.current!.getBearing()
           }
         }]);
+
+        // Wait for geocoder flight to finish, then update the view
+        mapRef.current.once('moveend', () => {
+          const event = new CustomEvent('requestViewCaptureForUpdate', { detail: annotationId });
+          window.dispatchEvent(event);
+        });
       }
     });
 
@@ -499,6 +495,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       // Add custom annotations source
       map.addSource('custom-annotations', {
         type: 'geojson',
+        promoteId: 'featureId',
         data: { type: 'FeatureCollection', features: [] }
       });
 
@@ -868,12 +865,46 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       const event = new CustomEvent('viewCapturedForPosition', { detail: view });
       window.dispatchEvent(event);
     };
+
+    const handleRequestViewCaptureForUpdate = (e: Event) => {
+      if (!mapRef.current) return;
+      const customEvent = e as CustomEvent<string>;
+      const annotationId = customEvent.detail;
+      const map = mapRef.current;
+      const center = map.getCenter();
+      const view = {
+        center: [center.lng, center.lat] as [number, number],
+        zoom: map.getZoom(),
+        pitch: map.getPitch(),
+        bearing: map.getBearing()
+      };
+      const event = new CustomEvent('viewCapturedForUpdate', { detail: { id: annotationId, view } });
+      window.dispatchEvent(event);
+    };
+
+    const handleRequestViewCaptureForDefaultUpdate = () => {
+      if (!mapRef.current) return;
+      const map = mapRef.current;
+      const center = map.getCenter();
+      const view = {
+        center: [center.lng, center.lat] as [number, number],
+        zoom: map.getZoom(),
+        pitch: map.getPitch(),
+        bearing: map.getBearing()
+      };
+      const event = new CustomEvent('viewCapturedForDefaultUpdate', { detail: view });
+      window.dispatchEvent(event);
+    };
     
     window.addEventListener('requestViewCapture', handleRequestViewCapture);
     window.addEventListener('requestViewCaptureForPosition', handleRequestViewCaptureForPosition);
+    window.addEventListener('requestViewCaptureForUpdate', handleRequestViewCaptureForUpdate);
+    window.addEventListener('requestViewCaptureForDefaultUpdate', handleRequestViewCaptureForDefaultUpdate);
     return () => {
       window.removeEventListener('requestViewCapture', handleRequestViewCapture);
       window.removeEventListener('requestViewCaptureForPosition', handleRequestViewCaptureForPosition);
+      window.removeEventListener('requestViewCaptureForUpdate', handleRequestViewCaptureForUpdate);
+      window.removeEventListener('requestViewCaptureForDefaultUpdate', handleRequestViewCaptureForDefaultUpdate);
     };
   }, []);
 
@@ -1038,7 +1069,13 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       }
 
       return acc;
-    }, []);
+    }, []).map(f => {
+      const targetId = f.id ?? (f.properties ? f.properties.id : undefined);
+      if (targetId && f.properties) {
+        f.properties.featureId = targetId;
+      }
+      return f;
+    });
 
     // Register SVG icons and labels for video export
     const imagePromises: Promise<void>[] = [];
@@ -1068,7 +1105,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               const img = new Image();
               img.onload = () => {
                 if (mapRef.current && !mapRef.current.hasImage(imgId)) {
-                  mapRef.current.addImage(imgId, img);
+                  mapRef.current.addImage(imgId, img, { pixelRatio: 4 });
                 }
                 resolve();
               };
@@ -1088,7 +1125,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               const img = new Image();
               img.onload = () => {
                 if (mapRef.current && !mapRef.current.hasImage(imgId)) {
-                  mapRef.current.addImage(imgId, img);
+                  mapRef.current.addImage(imgId, img, { pixelRatio: 4 });
                 }
                 resolve();
               };
@@ -1107,7 +1144,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             const img = new Image();
             img.onload = () => {
               if (mapRef.current && !mapRef.current.hasImage(imgId)) {
-                mapRef.current.addImage(imgId, img);
+                mapRef.current.addImage(imgId, img, { pixelRatio: 4 });
               }
               resolve();
             };
@@ -1124,7 +1161,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             const img = new Image();
             img.onload = () => {
               if (mapRef.current && !mapRef.current.hasImage(imgId)) {
-                mapRef.current.addImage(imgId, img);
+                mapRef.current.addImage(imgId, img, { pixelRatio: 4 });
               }
               resolve();
             };
@@ -4260,7 +4297,47 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         <>
           {windLayerVisible && <canvas ref={windCanvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-[2]" />}
           {weatherLayerVisible && (
-            <div className={`absolute top-6 left-1/2 -translate-x-1/2 z-30 transition-transform duration-300 ease-in-out`}>
+            <div className={`absolute top-6 left-1/2 -translate-x-1/2 z-30 transition-transform duration-300 ease-in-out flex gap-2 items-center`}>
+              <div className="flex border border-white/20 rounded-full p-1 relative bg-black shadow-xl shrink-0">
+                <button
+                  onClick={() => {
+                    if (!activeWeatherLayer || !setSettings) return;
+                    setSettings(prev => ({
+                      ...prev,
+                      layers: prev.layers.map(l => l.id === activeWeatherLayer.id ? { ...l, showTemperature: true, showPrecipitation: false } : l)
+                    }));
+                  }}
+                  className={`px-4 py-2 text-sm relative z-10 transition-colors whitespace-nowrap rounded-full ${activeWeatherLayer?.showTemperature ? 'text-black' : 'text-white/60 hover:text-white/80'}`}
+                >
+                  {activeWeatherLayer?.showTemperature && (
+                    <motion.div
+                      layoutId="weather-type-active-bg-map"
+                      className="absolute inset-0 bg-white rounded-full -z-10"
+                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                    />
+                  )}
+                  {t("Temperature")}
+                </button>
+                <button
+                  onClick={() => {
+                    if (!activeWeatherLayer || !setSettings) return;
+                    setSettings(prev => ({
+                      ...prev,
+                      layers: prev.layers.map(l => l.id === activeWeatherLayer.id ? { ...l, showTemperature: false, showPrecipitation: true } : l)
+                    }));
+                  }}
+                  className={`px-4 py-2 text-sm relative z-10 transition-colors whitespace-nowrap rounded-full ${activeWeatherLayer?.showPrecipitation ? 'text-black' : 'text-white/60 hover:text-white/80'}`}
+                >
+                  {activeWeatherLayer?.showPrecipitation && (
+                    <motion.div
+                      layoutId="weather-type-active-bg-map"
+                      className="absolute inset-0 bg-white rounded-full -z-10"
+                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                    />
+                  )}
+                  {t("Precipitation")}
+                </button>
+              </div>
               <div className="flex border border-white/20 rounded-full p-1 relative bg-black shadow-xl">
                 {weatherValidTimes.length === 0 ? (
                   <span className="text-sm text-white/50 whitespace-nowrap px-4 py-2">Loading...</span>
@@ -4401,6 +4478,11 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
   const startExportSequence = async (format: '16x9' | '9x16' | 'both', duration: number, dynamicLabels: boolean = true, bitrate: number = 15, showName?: string | null) => {
     if (!map1) return;
     
+    if (typeof window.VideoEncoder === 'undefined') {
+      await customAlert(t('Video export requires a modern browser and a secure context (HTTPS). WebCodecs API is not available on this server.'));
+      return;
+    }
+    
     // Disable user interactions
     document.body.classList.add('is-recording');
 
@@ -4417,9 +4499,25 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
     
     // Calculate total views: defaultView + label views
     const labelAnnotations = props.annotations.filter(a => (a.type === 'label' || a.type === 'highlight') && a.text && a.view);
-    const totalViews = labelAnnotations.length + 1;
+    const viewsToVisit = [
+      { view: props.settings.defaultView, annotationId: 'overview' },
+      ...labelAnnotations.map(a => ({ view: a.view!, annotationId: a.id }))
+    ];
+    const totalViews = viewsToVisit.length;
 
-    for (let fIdx = 0; fIdx < formatsToRender.length; fIdx++) {
+    try {
+      if (viewsToVisit.length > 0) {
+        map1!.jumpTo({
+          center: viewsToVisit[0].view.center,
+          zoom: viewsToVisit[0].view.zoom,
+          pitch: viewsToVisit[0].view.pitch,
+          bearing: viewsToVisit[0].view.bearing
+        });
+        // Let the map move to the starting position BEFORE starting the video export sequence
+        // This prevents capturing a short transition/loading frame in the final video
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      for (let fIdx = 0; fIdx < formatsToRender.length; fIdx++) {
       const currentFmt = formatsToRender[fIdx];
       const targetWidth = currentFmt === '16x9' ? 1920 : 1080;
       const targetHeight = currentFmt === '16x9' ? 1080 : 1920;
@@ -4485,8 +4583,6 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
       requestAnimationFrame(captureFrame);
 
       // FLY TO VIEWS
-      const viewsToVisit = labelAnnotations.map(a => ({ view: a.view!, annotationId: a.id }));
-
       for (let i = 0; i < viewsToVisit.length; i++) {
         const { view, annotationId } = viewsToVisit[i];
         
@@ -4496,12 +4592,12 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
           // Hide previous
           if (i > 0) {
             const prevId = viewsToVisit[i - 1].annotationId;
-            if (prevId) {
+            if (prevId && prevId !== 'overview') {
               map1!.setFeatureState({ source: 'custom-annotations', id: prevId }, { visible: false });
             }
           }
           // Show current
-          if (annotationId) {
+          if (annotationId && annotationId !== 'overview') {
             map1!.setFeatureState({ source: 'custom-annotations', id: annotationId }, { visible: true });
           }
         }
@@ -4551,19 +4647,23 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     }
-    
-    // RESTORE
-    document.body.classList.remove('is-recording');
-    setVideoExportState(null);
-    if (dynamicLabels) {
-      props.annotations.forEach(ann => {
-        if (ann.type === 'label' || ann.type === 'highlight') {
-          map1!.setFeatureState({ source: 'custom-annotations', id: ann.id }, { visible: true });
-        }
-      });
+    } catch (err: any) {
+      console.error('Video Export Error:', err);
+      await customAlert(t('An error occurred during video export: \n{{err}}', { err: err.message || String(err) }));
+    } finally {
+      // RESTORE
+      document.body.classList.remove('is-recording');
+      setVideoExportState(null);
+      if (dynamicLabels) {
+        props.annotations.forEach(ann => {
+          if (ann.type === 'label' || ann.type === 'highlight') {
+            map1!.setFeatureState({ source: 'custom-annotations', id: ann.id }, { visible: true });
+          }
+        });
+      }
+      // Resize map back to 100%
+      setTimeout(() => map1?.resize(), 500);
     }
-    // Resize map back to 100%
-    setTimeout(() => map1?.resize(), 500);
   };
   // --- END VIDEO EXPORT ---
 
