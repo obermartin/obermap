@@ -109,7 +109,7 @@ function generateLabelSvg(text: string, bgColor: string, type: 'label' | 'highli
   
   const fontSize = type === 'highlight' ? 14 : 12;
   const fontWeight = type === 'highlight' ? 700 : 600;
-  ctx.font = `${fontWeight} ${fontSize}px "Inter", sans-serif`;
+  ctx.font = `${fontWeight} ${fontSize}px "Roboto", sans-serif`;
   const metrics = ctx.measureText(displayText);
   
   const paddingX = type === 'flat' ? 6 : 8;

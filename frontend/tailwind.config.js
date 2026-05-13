@@ -12,6 +12,9 @@ export default {
         'status-occupied': '#C91D2C',
         'status-cadr': '#AB1926',
         'status-crimea': '#AB1926',
+      },
+      fontFamily: {
+        sans: ['Roboto', 'sans-serif'],
       }
     },
   },
