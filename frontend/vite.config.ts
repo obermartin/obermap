@@ -349,11 +349,12 @@ function mockPhpBackend() {
             try {
               const [rows]: any = await pool.query('SELECT data FROM shows WHERE id = ?', [safe_show_id]);
               if (rows.length === 0) {
-                const showsDir = path.resolve(__dirname, 'public/shows');
-                const defaultPath = path.resolve(showsDir, '_DEFAULT.json');
                 let initialData = JSON.stringify({ annotations: [], settings: null });
-                if (fs.existsSync(defaultPath)) {
-                  initialData = fs.readFileSync(defaultPath, 'utf-8');
+                if (safe_show_id !== '_DEFAULT') {
+                  const [defRows]: any = await pool.query("SELECT data FROM shows WHERE id = '_DEFAULT'");
+                  if (defRows.length > 0) {
+                    initialData = defRows[0].data;
+                  }
                 }
                 const dateStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
                 await pool.execute('INSERT INTO shows (id, title, data, updated_at) VALUES (?, ?, ?, ?)', [safe_show_id, safe_show_id, initialData, dateStr]);

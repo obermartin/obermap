@@ -346,10 +346,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$row) {
-        // Fallback to default file if SQL is empty
-        $default_file = __DIR__ . '/shows/_DEFAULT.json';
-        if (file_exists($default_file)) {
-            $data = file_get_contents($default_file);
+        if ($show_id !== '_DEFAULT') {
+            $stmtDef = $pdo->prepare("SELECT data FROM shows WHERE id = '_DEFAULT'");
+            $stmtDef->execute();
+            $rowDef = $stmtDef->fetch(PDO::FETCH_ASSOC);
+            if ($rowDef) {
+                $data = $rowDef['data'];
+            } else {
+                $data = json_encode(['annotations' => [], 'settings' => null]);
+            }
         } else {
             $data = json_encode(['annotations' => [], 'settings' => null]);
         }
