@@ -152,7 +152,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
             <div className="w-24 flex justify-end">
               <button 
                 onClick={() => setLanguage(language === 'en' ? 'de' : 'en')}
-                className="flex items-center gap-1.5 text-white/50 hover:text-white transition-colors bg-black/40 px-3 py-1.5 border border-white/10 text-xs font-semibold uppercase tracking-wider h-fit"
+                className="flex items-center gap-1.5 text-white/50 hover:text-white transition-colors bg-black/40 px-3 py-1.5 border border-white/10 text-xs font-semibold uppercase tracking-wider h-fit rounded-full"
                 title="Toggle Language"
               >
                 <Globe size={14} /> {language.toUpperCase()}
@@ -240,7 +240,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
           <div className="mt-2 pt-2 flex flex-col gap-2">
             <button 
               onClick={handleCreateNew}
-              className="w-full py-2 bg-white/5 hover:bg-white/10 text-white flex items-center justify-center gap-2 text-sm transition-colors"
+              className="w-full py-2 bg-white/5 hover:bg-white/10 text-white flex items-center justify-center gap-2 text-sm transition-colors rounded-full"
               title={t("Create New Show")}
             >
               <Plus size={16} /> {t('Create New Show')}
@@ -249,7 +249,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
               href="/user_guide.html"
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full py-2 bg-white/5 hover:bg-white/10 text-white flex items-center justify-center gap-2 text-sm transition-colors"
+              className="w-full py-2 bg-white/5 hover:bg-white/10 text-white flex items-center justify-center gap-2 text-sm transition-colors rounded-full"
               title={t("User Guide")}
             >
               <BookOpen size={16} /> {t('User Guide')}
@@ -278,13 +278,13 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
             <div className="flex justify-end gap-2 mt-2 pt-4 border-t border-white/10">
               <button 
                 onClick={() => setShowPrompt(false)}
-                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors uppercase font-semibold"
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors uppercase font-semibold rounded-full"
               >
                 {t('Cancel')}
               </button>
               <button 
                 onClick={confirmCreateNew}
-                className="px-4 py-2 bg-white text-black hover:bg-white/90 text-sm transition-colors uppercase font-semibold tracking-wider"
+                className="px-4 py-2 bg-white text-black hover:bg-white/90 text-sm transition-colors uppercase font-semibold tracking-wider rounded-full"
               >
                 {t('Create')}
               </button>
@@ -308,7 +308,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
             <div className="flex justify-end gap-2 mt-2 pt-4 border-t border-white/10">
               <button 
                 onClick={() => setShowUnlockWarning(false)}
-                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors uppercase font-semibold"
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors uppercase font-semibold rounded-full"
               >
                 {t('Cancel')}
               </button>
@@ -317,7 +317,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
                   setIsDefaultUnlocked(true);
                   setShowUnlockWarning(false);
                 }}
-                className="px-4 py-2 bg-white text-black hover:bg-white/90 text-sm transition-colors uppercase font-semibold tracking-wider"
+                className="px-4 py-2 bg-white text-black hover:bg-white/90 text-sm transition-colors uppercase font-semibold tracking-wider rounded-full"
               >
                 {t('Unlock')}
               </button>

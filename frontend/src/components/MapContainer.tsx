@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { motion } from 'framer-motion';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder';
@@ -208,7 +209,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   onMapInit,
   isSidebarOpen
 }) => {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const mapContainer = useRef<HTMLDivElement>(null);
   const windCanvasRef = useRef<HTMLCanvasElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -221,6 +222,13 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const [weatherValidTimes, setWeatherValidTimes] = useState<string[]>([]);
   const [selectedWeatherTime, setSelectedWeatherTime] = useState<string | null>(null);
 
+  const currentColorRef = useRef(currentColor);
+  const setAnnotationsRef = useRef(setAnnotations);
+  useEffect(() => {
+    currentColorRef.current = currentColor;
+    setAnnotationsRef.current = setAnnotations;
+  }, [currentColor, setAnnotations]);
+
   useEffect(() => {
     const weatherLayer = settings.layers.find(l => l.type === 'weather_forecast');
     if (weatherLayer && weatherLayer.visible) {
@@ -228,7 +236,19 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         .then(res => res.json())
         .then(data => {
           if (data && data.valid_times) {
-            setWeatherValidTimes(data.valid_times);
+            weatherAllValidTimesRef.current = data.valid_times;
+            const byDate = new Map<string, string[]>();
+            data.valid_times.forEach((time: string) => {
+              const date = time.split('T')[0];
+              if (!byDate.has(date)) byDate.set(date, []);
+              byDate.get(date)!.push(time);
+            });
+            const bestDailyTimes: string[] = [];
+            byDate.forEach((times) => {
+              const noon = times.find((t: string) => t.includes('T12:00'));
+              bestDailyTimes.push(noon || times[0]);
+            });
+            setWeatherValidTimes(bestDailyTimes);
           }
         })
         .catch(err => console.error("Failed to fetch Open-Meteo metadata", err));
@@ -246,6 +266,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     return () => window.removeEventListener('vesselSelected', vesselHandler as EventListener);
   }, []);
 
+  const weatherForecastLayerIdsRef = useRef<string[]>([]);
+  const weatherForecastSourceIdsRef = useRef<string[]>([]);
+  const weatherAllValidTimesRef = useRef<string[]>([]);
   const selectedAircraftIdRef = useRef<string | null>(null);
   const selectedFlightTrackRef = useRef<number[][]>([]);
 
@@ -424,6 +447,29 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       collapsed: true,
       marker: false
     });
+
+    geocoder.on('result', (e: any) => {
+      if (!e.result || !e.result.geometry || e.result.geometry.type !== 'Point') return;
+      const coords = e.result.geometry.coordinates as [number, number];
+      const name = e.result.text || e.result.place_name;
+      
+      if (setAnnotationsRef.current && mapRef.current) {
+        setAnnotationsRef.current(prev => [...prev, {
+          id: Date.now().toString(),
+          type: 'highlight',
+          color: currentColorRef.current || '#ffffff',
+          coordinates: coords,
+          text: name,
+          view: {
+            center: coords,
+            zoom: mapRef.current!.getZoom(),
+            pitch: mapRef.current!.getPitch(),
+            bearing: mapRef.current!.getBearing()
+          }
+        }]);
+      }
+    });
+
     map.addControl(geocoder, 'top-right');
     
     // Add Scale control
@@ -1476,7 +1522,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
     // Remove deleted layers
     dynamicLayerIds.forEach(id => {
-      if (!layers.find(l => l.id === id)) {
+      if (!layers.find(l => l.id === id || id.startsWith(`${l.id}-`))) {
         if (map.getLayer(`dynamic-layer-${id}`)) map.removeLayer(`dynamic-layer-${id}`);
         if (map.getLayer(`dynamic-line-${id}`)) map.removeLayer(`dynamic-line-${id}`);
         if (map.getSource(`dynamic-source-${id}`)) {
@@ -1509,73 +1555,97 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       }
 
       if (layer.type === 'weather_forecast') {
-        const tempSourceId = `${sourceId}-temp`;
-        const precipSourceId = `${sourceId}-precip`;
-        const tempLayerId = `${layerId}-temp`;
-        const precipLayerId = `${layerId}-precip`;
-        
-        const timeStepParam = selectedWeatherTime ? `time_step=${selectedWeatherTime}` : 'time_step=current_time_1H';
-        const baseUrl = `https://map-tiles.open-meteo.com/data_spatial/dwd_icon/latest.json?${timeStepParam}`;
-        const tempUrl = `om://${baseUrl}&variable=temperature_2m`;
-        const precipUrl = `om://${baseUrl}&variable=precipitation`;
-        
-        // Remove sources if time changed
-        if (map.getSource(tempSourceId) && (map.getSource(tempSourceId) as any).url !== tempUrl) {
-          if (map.getLayer(tempLayerId)) map.removeLayer(tempLayerId);
-          map.removeSource(tempSourceId);
-        }
-        if (map.getSource(precipSourceId) && (map.getSource(precipSourceId) as any).url !== precipUrl) {
-          if (map.getLayer(precipLayerId)) map.removeLayer(precipLayerId);
-          map.removeSource(precipSourceId);
-        }
+        const timesToLoad = Array.from(new Set([...weatherValidTimes, 'current_time_1H']));
+        const currentActiveTime = selectedWeatherTime || 'current_time_1H';
 
-        // Add sources
-        if (layer.showTemperature && !map.getSource(tempSourceId)) {
-          map.addSource(tempSourceId, { type: 'raster-om', url: tempUrl, maxzoom: 12 } as any);
-        }
-        if (layer.showPrecipitation && !map.getSource(precipSourceId)) {
-          map.addSource(precipSourceId, { type: 'raster-om', url: precipUrl, maxzoom: 12 } as any);
-        }
+        const newLayerIds: string[] = [];
+        const newSourceIds: string[] = [];
 
-        // Remove sources if toggled off
-        if (!layer.showTemperature && map.getSource(tempSourceId)) {
-          if (map.getLayer(tempLayerId)) map.removeLayer(tempLayerId);
-          map.removeSource(tempSourceId);
-        }
-        if (!layer.showPrecipitation && map.getSource(precipSourceId)) {
-          if (map.getLayer(precipLayerId)) map.removeLayer(precipLayerId);
-          map.removeSource(precipSourceId);
-        }
+        timesToLoad.forEach((time) => {
+          const timeSuffix = time.replace(/[:T-]/g, '');
+          const tempSourceId = `${sourceId}-temp-${timeSuffix}`;
+          const precipSourceId = `${sourceId}-precip-${timeSuffix}`;
+          const tempLayerId = `${layerId}-temp-${timeSuffix}`;
+          const precipLayerId = `${layerId}-precip-${timeSuffix}`;
+          
+          newLayerIds.push(tempLayerId, precipLayerId);
+          newSourceIds.push(tempSourceId, precipSourceId);
+          
+          let timeStepParam = 'time_step=current_time_1H';
+          if (time !== 'current_time_1H') {
+            const index = weatherAllValidTimesRef.current.indexOf(time);
+            timeStepParam = index !== -1 ? `time_step=valid_times_${index}` : `time_step=${time}`;
+          }
+          const baseUrl = `https://map-tiles.open-meteo.com/data_spatial/dwd_icon/latest.json?${timeStepParam}`;
+          const tempUrl = `om://${baseUrl}&variable=temperature_2m`;
+          const precipUrl = `om://${baseUrl}&variable=precipitation`;
+          
+          // Add sources
+          if (layer.showTemperature && !map.getSource(tempSourceId)) {
+            map.addSource(tempSourceId, { type: 'raster-om', url: tempUrl, maxzoom: 12 } as any);
+          }
+          if (layer.showPrecipitation && !map.getSource(precipSourceId)) {
+            map.addSource(precipSourceId, { type: 'raster-om', url: precipUrl, maxzoom: 12 } as any);
+          }
+
+          // Remove sources if toggled off
+          if (!layer.showTemperature && map.getSource(tempSourceId)) {
+            if (map.getLayer(tempLayerId)) map.removeLayer(tempLayerId);
+            map.removeSource(tempSourceId);
+          }
+          if (!layer.showPrecipitation && map.getSource(precipSourceId)) {
+            if (map.getLayer(precipLayerId)) map.removeLayer(precipLayerId);
+            map.removeSource(precipSourceId);
+          }
+          
+          // Add layers
+          if (layer.showTemperature && map.getSource(tempSourceId) && !map.getLayer(tempLayerId)) {
+            map.addLayer({
+              id: tempLayerId,
+              type: 'raster',
+              source: tempSourceId,
+              layout: { visibility: layer.visible ? 'visible' : 'none' },
+              paint: { 'raster-opacity': 0 } // start hidden
+            }, firstAdminId);
+          }
+          if (layer.showPrecipitation && map.getSource(precipSourceId) && !map.getLayer(precipLayerId)) {
+            map.addLayer({
+              id: precipLayerId,
+              type: 'raster',
+              source: precipSourceId,
+              layout: { visibility: layer.visible ? 'visible' : 'none' },
+              paint: { 'raster-opacity': 0 } // start hidden
+            }, firstAdminId);
+          }
+          
+          // Update visibility and opacity
+          const isActive = time === currentActiveTime;
+          const targetOpacity = isActive ? (layer.opacity ?? 0.75) : 0;
+          
+          if (map.getLayer(tempLayerId)) {
+            map.setLayoutProperty(tempLayerId, 'visibility', layer.visible ? 'visible' : 'none');
+            map.setPaintProperty(tempLayerId, 'raster-opacity', targetOpacity);
+          }
+          if (map.getLayer(precipLayerId)) {
+            map.setLayoutProperty(precipLayerId, 'visibility', layer.visible ? 'visible' : 'none');
+            map.setPaintProperty(precipLayerId, 'raster-opacity', targetOpacity);
+          }
+        });
+
+        // Cleanup old weather layers that are no longer in timesToLoad
+        weatherForecastLayerIdsRef.current.forEach(id => {
+          if (!newLayerIds.includes(id)) {
+            if (map.getLayer(id)) map.removeLayer(id);
+          }
+        });
+        weatherForecastSourceIdsRef.current.forEach(id => {
+          if (!newSourceIds.includes(id)) {
+            if (map.getSource(id)) map.removeSource(id);
+          }
+        });
         
-        // Add layers
-        if (layer.showTemperature && map.getSource(tempSourceId) && !map.getLayer(tempLayerId)) {
-          map.addLayer({
-            id: tempLayerId,
-            type: 'raster',
-            source: tempSourceId,
-            layout: { visibility: layer.visible ? 'visible' : 'none' },
-            paint: { 'raster-opacity': layer.opacity ?? 0.75 }
-          }, firstAdminId);
-        }
-        if (layer.showPrecipitation && map.getSource(precipSourceId) && !map.getLayer(precipLayerId)) {
-          map.addLayer({
-            id: precipLayerId,
-            type: 'raster',
-            source: precipSourceId,
-            layout: { visibility: layer.visible ? 'visible' : 'none' },
-            paint: { 'raster-opacity': layer.opacity ?? 0.75 }
-          }, firstAdminId);
-        }
-        
-        // Update visibility and opacity
-        if (map.getLayer(tempLayerId)) {
-          map.setLayoutProperty(tempLayerId, 'visibility', layer.visible ? 'visible' : 'none');
-          map.setPaintProperty(tempLayerId, 'raster-opacity', layer.opacity ?? 0.75);
-        }
-        if (map.getLayer(precipLayerId)) {
-          map.setLayoutProperty(precipLayerId, 'visibility', layer.visible ? 'visible' : 'none');
-          map.setPaintProperty(precipLayerId, 'raster-opacity', layer.opacity ?? 0.75);
-        }
+        weatherForecastLayerIdsRef.current = newLayerIds;
+        weatherForecastSourceIdsRef.current = newSourceIds;
         
         return; // Skip the rest of the generic layer loop
       }
@@ -2027,7 +2097,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       // Cleanup dynamically created raster layers that were removed from settings
       // We don't remove copernicus or deepstate sources to avoid reload flashes
     };
-  }, [settings.layers, mapLoaded, selectedAircraftId, selectedVesselMmsi, selectedWeatherTime]);
+  }, [settings.layers, mapLoaded, selectedAircraftId, selectedVesselMmsi, selectedWeatherTime, weatherValidTimes]);
 
   // Prototype Open-Meteo wind layer. Renders cached GeoJSON first; API refresh is manual or slow.
   useEffect(() => {
@@ -4180,22 +4250,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
   const activeWeatherLayer = settings.layers.find(l => l.type === 'weather_forecast' && l.visible);
   const weatherLayerVisible = Boolean(activeWeatherLayer);
-  const weatherTimelineScrollRef = useRef<HTMLDivElement>(null);
-  const scrollWeatherTimeline = (direction: -1 | 1) => {
-    const scroller = weatherTimelineScrollRef.current;
-    if (!scroller) return;
-    scroller.scrollBy({ left: direction * Math.max(160, scroller.clientWidth * 0.8), behavior: 'smooth' });
-  };
-  const selectAdjacentWeatherTime = (direction: -1 | 1) => {
-    if (weatherValidTimes.length === 0) return;
-    const currentIndex = selectedWeatherTime
-      ? weatherValidTimes.indexOf(selectedWeatherTime)
-      : -1;
-    const fallbackIndex = direction > 0 ? -1 : weatherValidTimes.length;
-    const nextIndex = Math.max(0, Math.min(weatherValidTimes.length - 1, (currentIndex >= 0 ? currentIndex : fallbackIndex) + direction));
-    const nextTime = weatherValidTimes[nextIndex];
-    if (nextTime) setSelectedWeatherTime(nextTime);
-  };
+
+
 
   return (
     <div className={`absolute inset-0 w-full h-full ${isSecondary ? 'pointer-events-none' : ''}`} style={{ clipPath, WebkitClipPath: clipPath, zIndex: isSecondary ? 10 : 0 }}>
@@ -4203,54 +4259,41 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       {!isSecondary && (windLayerVisible || weatherLayerVisible) && (
         <>
           {windLayerVisible && <canvas ref={windCanvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-[2]" />}
+          {weatherLayerVisible && (
+            <div className={`absolute top-6 left-1/2 -translate-x-1/2 z-30 transition-transform duration-300 ease-in-out`}>
+              <div className="flex border border-white/20 rounded-full p-1 relative bg-black shadow-xl">
+                {weatherValidTimes.length === 0 ? (
+                  <span className="text-sm text-white/50 whitespace-nowrap px-4 py-2">Loading...</span>
+                ) : (
+                  weatherValidTimes.map(time => {
+                    const actualActiveTime = selectedWeatherTime || weatherValidTimes[0];
+                    const isActive = actualActiveTime === time;
+                    return (
+                      <button
+                        key={time}
+                        onClick={() => setSelectedWeatherTime(time)}
+                        className={`flex-1 px-4 py-2 text-sm relative z-10 transition-colors whitespace-nowrap font-normal ${
+                          isActive ? 'text-black' : 'text-white/60 hover:text-white/80'
+                        }`}
+                      >
+                        {isActive && (
+                          <motion.div
+                            layoutId="weather-active-bg"
+                            className="absolute inset-0 bg-white rounded-full -z-10"
+                            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                          />
+                        )}
+                        {new Date(time).toLocaleDateString(language, { weekday: 'long' })}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+
           <div className={`absolute bottom-20 left-6 z-30 max-w-[calc(100vw-3rem)] flex flex-col gap-2 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-[20rem]' : 'translate-x-0'}`}>
             
-            {weatherLayerVisible && (
-              <div className="bg-black border border-white/20 text-white flex items-center gap-2 px-3 h-12 w-fit max-w-full">
-                <span className="text-[10px] text-white/50 font-semibold tracking-wider uppercase shrink-0">Forecast</span>
-                <button
-                  onClick={() => {
-                    scrollWeatherTimeline(-1);
-                    selectAdjacentWeatherTime(-1);
-                  }}
-                  disabled={weatherValidTimes.length === 0}
-                  className="shrink-0 w-7 h-7 flex items-center justify-center hover:bg-white hover:text-black disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-white transition-colors"
-                  title={t("Previous forecast step")}
-                >
-                  ‹
-                </button>
-                <div ref={weatherTimelineScrollRef} className="min-w-0 max-w-[36vw] overflow-x-auto no-scrollbar">
-                  <div className="flex items-center gap-2">
-                    {weatherValidTimes.length === 0 ? (
-                      <span className="text-xs text-white/50 whitespace-nowrap">Loading...</span>
-                    ) : (
-                      weatherValidTimes.map(time => (
-                        <button
-                          key={time}
-                          onClick={() => setSelectedWeatherTime(time)}
-                          className={`px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors ${selectedWeatherTime === time || (!selectedWeatherTime && time === 'current_time_1H') ? 'bg-white text-black' : 'text-white hover:bg-white hover:text-black'}`}
-                          title={time}
-                        >
-                          {formatWindSnapshotTime(time)}
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    scrollWeatherTimeline(1);
-                    selectAdjacentWeatherTime(1);
-                  }}
-                  disabled={weatherValidTimes.length === 0}
-                  className="shrink-0 w-7 h-7 flex items-center justify-center hover:bg-white hover:text-black disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-white transition-colors"
-                  title={t("Next forecast step")}
-                >
-                  ›
-                </button>
-              </div>
-            )}
-
             {showWindTimeline && windLayerVisible && (
               <div className="bg-black border border-white/20 text-white flex items-center gap-2 px-3 h-12 w-fit max-w-full">
                 <span className="text-[10px] text-white/50 font-semibold tracking-wider uppercase shrink-0">Wind Timeline</span>

@@ -428,10 +428,11 @@ export function App() {
         defaultView={settings.defaultView}
         isSidebarOpen={isLayerSidebarOpen}
         isToolbarOpen={isToolbarOpen}
+        onDeleteAnnotation={(id) => setAnnotations(prev => prev.filter(a => a.id !== id))}
       />
       {/* Floating active distance readout for Measure and Circle tools */}
       {(activeTool === 'measure' || activeTool === 'circle') && activeDistance !== null && (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 bg-black text-white px-6 py-3 border border-white/20 flex items-center gap-2">
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 bg-black text-white px-6 py-3 border border-white/20 flex items-center gap-2 rounded-full shadow-xl">
           <span className="font-semibold text-lg">{activeDistance.toFixed(2)} km</span>
         </div>
       )}
@@ -440,7 +441,7 @@ export function App() {
       <div className={`absolute bottom-6 left-6 z-10 flex items-end gap-2 transition-transform duration-300 ease-in-out ${isLayerSidebarOpen ? 'translate-x-[20rem]' : 'translate-x-0'}`}>
         <button 
           onClick={() => setIsLayerSidebarOpen(!isLayerSidebarOpen)}
-          className="bg-black w-12 h-12 flex flex-shrink-0 items-center justify-center hover:bg-white hover:text-black transition-colors text-white shadow-lg"
+          className="bg-black w-12 h-12 flex flex-shrink-0 items-center justify-center hover:bg-white hover:text-black transition-colors text-white shadow-lg rounded-full"
           title="Manage Layers"
         >
           <Menu size={20} strokeWidth={1.5} />
@@ -515,7 +516,7 @@ export function App() {
             <div className="flex justify-end gap-2 mt-2 pt-4 border-t border-white/10">
               <button 
                 onClick={() => setLabelPrompt(null)}
-                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors uppercase font-semibold"
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors uppercase font-semibold rounded-full"
               >
                 Cancel
               </button>
@@ -526,7 +527,7 @@ export function App() {
                     window.dispatchEvent(event);
                   }
                 }}
-                className="px-4 py-2 bg-white text-black hover:bg-white/90 text-sm transition-colors uppercase font-semibold tracking-wider"
+                className="px-4 py-2 bg-white text-black hover:bg-white/90 text-sm transition-colors uppercase font-semibold tracking-wider rounded-full"
               >
                 Save Label
               </button>

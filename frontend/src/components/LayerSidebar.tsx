@@ -551,54 +551,85 @@ export function LayerSidebar({
     <div
       className={`absolute top-0 left-0 h-full w-80 bg-zinc-900 border-r border-white/10 flex flex-col shadow-2xl z-40 text-white transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
     >
-      <div className="p-4 border-b border-white/10 flex justify-between items-center bg-black/20">
+      <div className="p-4 flex justify-between items-center bg-black/20">
         <h2 className="font-semibold flex items-center gap-2 text-sm"><Layers size={18} /> {t('Map Settings')}</h2>
         <button onClick={onSaveAndExit || (() => setIsOpen(false))} className="text-white/50 hover:text-white transition-colors" title={onSaveAndExit ? t("Save & Exit to Overview") : t("Close")}>
           <X size={18} />
         </button>
       </div>
 
-      <div className="flex border-b border-white/10 text-xs font-semibold tracking-wider">
-        <button
-          onClick={() => setActiveTab('layers')}
-          className={`flex-1 py-3 text-center transition-colors ${activeTab === 'layers' ? 'bg-white text-black' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}
-          title={t("Layers")}
-        >
-          <Layers size={18} className="mx-auto" />
-        </button>
-        <button
-          onClick={() => setActiveTab('icons')}
-          className={`flex-1 py-3 flex items-center justify-center transition-colors ${activeTab === 'icons' ? 'bg-white text-black' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}
-          title={t("Icon Library")}
-        >
-          <ImageIcon size={18} />
-        </button>
-        <button
-          onClick={() => setActiveTab('video')}
-          className={`flex-1 py-3 flex items-center justify-center transition-colors ${activeTab === 'video' ? 'bg-white text-black' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}
-          title={t("Export Video")}
-        >
-          <Video size={18} />
-        </button>
-        <button
-          onClick={() => setActiveTab('basemap')}
-          className={`flex-1 py-3 flex items-center justify-center transition-colors ${activeTab === 'basemap' ? 'bg-white text-black' : 'text-white/50 hover:bg-white/5 hover:text-white'}`}
-          title={t("Base Map & Settings")}
-        >
-          <Settings size={18} />
-        </button>
-        {onSave && (
-          <div className="flex border-l border-white/10">
+      <div className="p-3">
+        <div className="flex border border-white/20 rounded-full p-1 relative bg-transparent text-xs font-semibold tracking-wider">
+          <button
+            onClick={() => setActiveTab('layers')}
+            className={`flex-1 py-2 flex items-center justify-center relative z-10 transition-colors ${activeTab === 'layers' ? 'text-black' : 'text-white/50 hover:text-white/80'}`}
+            title={t("Layers")}
+          >
+            {activeTab === 'layers' && (
+              <motion.div
+                layoutId="tab-active-bg"
+                className="absolute inset-0 bg-white rounded-full -z-10"
+                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              />
+            )}
+            <Layers size={18} />
+          </button>
+          <button
+            onClick={() => setActiveTab('icons')}
+            className={`flex-1 py-2 flex items-center justify-center relative z-10 transition-colors ${activeTab === 'icons' ? 'text-black' : 'text-white/50 hover:text-white/80'}`}
+            title={t("Icon Library")}
+          >
+            {activeTab === 'icons' && (
+              <motion.div
+                layoutId="tab-active-bg"
+                className="absolute inset-0 bg-white rounded-full -z-10"
+                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              />
+            )}
+            <ImageIcon size={18} />
+          </button>
+          <button
+            onClick={() => setActiveTab('basemap')}
+            className={`flex-1 py-2 flex items-center justify-center relative z-10 transition-colors ${activeTab === 'basemap' ? 'text-black' : 'text-white/50 hover:text-white/80'}`}
+            title={t("Base Map & Settings")}
+          >
+            {activeTab === 'basemap' && (
+              <motion.div
+                layoutId="tab-active-bg"
+                className="absolute inset-0 bg-white rounded-full -z-10"
+                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              />
+            )}
+            <Settings size={18} />
+          </button>
+          <button
+            onClick={() => setActiveTab('video')}
+            className={`flex-1 py-2 flex items-center justify-center relative z-10 transition-colors ${activeTab === 'video' ? 'text-black' : 'text-white/50 hover:text-white/80'}`}
+            title={t("Export Video")}
+          >
+            {activeTab === 'video' && (
+              <motion.div
+                layoutId="tab-active-bg"
+                className="absolute inset-0 bg-white rounded-full -z-10"
+                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              />
+            )}
+            <Video size={18} />
+          </button>
+          {onSave && (
+            <div className="w-[1px] bg-white/20 mx-1 my-1" />
+          )}
+          {onSave && (
             <button
               onClick={onSave}
               disabled={isSaving}
-              className={`w-12 flex items-center justify-center border-r border-white/10 transition-colors ${isSaving ? 'text-white cursor-wait bg-white/5' : 'text-white/50 hover:text-white hover:bg-white/5'}`}
+              className={`w-12 flex items-center justify-center transition-colors rounded-full shrink-0 ${isSaving ? 'text-white cursor-wait bg-white/5' : 'text-white/50 hover:bg-white/10 hover:text-white'}`}
               title={t("Save Map & Settings")}
             >
               {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {activeTab === 'layers' ? (
@@ -704,7 +735,7 @@ export function LayerSidebar({
           <div className="p-4 border-t border-white/10 flex flex-col gap-3">
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors"
+              className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors rounded-full"
             >
               <Upload size={16} /> {t("Upload GeoJSON/KML/KMZ")}
             </button>
@@ -720,14 +751,14 @@ export function LayerSidebar({
                   className="w-full bg-black/50 border border-white/10 px-3 py-2 text-sm outline-none focus:border-white/30"
                 />
                 <div className="flex gap-2">
-                  <button onClick={handleAddUrl} className="flex-1 py-1 bg-white text-black text-sm font-semibold hover:bg-white/90">{t("Add")}</button>
-                  <button onClick={() => setShowUrlInput(false)} className="px-3 py-1 bg-white/10 hover:bg-white/20 text-sm">{t("Cancel")}</button>
+                  <button onClick={handleAddUrl} className="flex-1 py-1 bg-white text-black text-sm font-semibold hover:bg-white/90 rounded-full">{t("Add")}</button>
+                  <button onClick={() => setShowUrlInput(false)} className="px-3 py-1 bg-white/10 hover:bg-white/20 text-sm rounded-full">{t("Cancel")}</button>
                 </div>
               </div>
             ) : (
               <button
                 onClick={() => setShowUrlInput(true)}
-                className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors"
+                className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors rounded-full"
               >
                 <Link size={16} /> {t("Add WMTS/WMS URL")}
               </button>
@@ -766,12 +797,12 @@ export function LayerSidebar({
                   ]
                 }));
               }}
-              className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors"
+              className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors rounded-full"
             >
               + {t("New Icon Set")}
             </button>
 
-            <label className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors cursor-pointer">
+            <label className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors cursor-pointer rounded-full">
               <Upload size={16} /> {t("Upload Icon Set")}
             <input 
               type="file" 
@@ -912,7 +943,7 @@ export function LayerSidebar({
                 (annotations?.some(a => (a.type === 'label' || a.type === 'highlight') && a.text && a.view)) 
                   ? 'bg-white/5 hover:bg-white/10' 
                   : 'bg-white/5 text-white/30 cursor-not-allowed'
-              }`}
+              } rounded-full`}
             >
               <Video size={16} /> {t("Export Video")}
             </button>
@@ -920,6 +951,20 @@ export function LayerSidebar({
         </>
       ) : (
         <div className="p-4 flex flex-col gap-6 flex-1 overflow-y-auto custom-scrollbar">
+
+          {/* 4. DEFAULT VIEW */}
+          <div>
+            <label className="text-xs text-white mb-2 block font-semibold tracking-wider mt-2">{t("DEFAULT VIEW")}</label>
+            <p className="text-xs text-white/40 mb-3">{t("Save the current map position and zoom level as the default view when loading the application.")}</p>
+            <button
+              onClick={handleCaptureView}
+              className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors rounded-full"
+            >
+              <Camera size={16} /> {t("Capture Current View")}
+            </button>
+          </div>
+
+          <div className="border-b border-white/20 -mx-4" />
 
           {/* 1. COLOR PALETTE */}
           <div>
@@ -972,7 +1017,7 @@ export function LayerSidebar({
                       if (e.key === 'Escape') setAddingColor(false);
                     }}
                   />
-                  <button onClick={confirmAddColor} className="text-white hover:bg-white hover:text-black px-3 font-semibold border border-white/20 text-xs h-8">{t("OK")}</button>
+                  <button onClick={confirmAddColor} className="text-white hover:bg-white hover:text-black px-3 font-semibold border border-white/20 text-xs h-8 rounded-full">{t("OK")}</button>
                 </div>
               )}
             </div>
@@ -999,20 +1044,6 @@ export function LayerSidebar({
                 );
               })}
             </div>
-          </div>
-
-          <div className="border-b border-white/20 -mx-4" />
-
-          {/* 4. DEFAULT VIEW */}
-          <div>
-            <label className="text-xs text-white mb-2 block font-semibold tracking-wider mt-2">{t("DEFAULT VIEW")}</label>
-            <p className="text-xs text-white/40 mb-3">{t("Save the current map position and zoom level as the default view when loading the application.")}</p>
-            <button
-              onClick={handleCaptureView}
-              className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors"
-            >
-              <Camera size={16} /> {t("Capture Current View")}
-            </button>
           </div>
 
           <div className="border-b border-white/20 -mx-4" />
@@ -1276,7 +1307,7 @@ function LayerItem(props: {
         data-layer-id={layer.id}
         className="w-full relative"
       >
-        <div className={`relative flex flex-col transition-all duration-300 w-full ${isDraggingLayer && layer.type === 'split' ? 'bg-white/5' : ''}`}>
+        <div className={`relative flex flex-col transition-all duration-300 w-full ${isDraggingLayer && layer.type === 'split' ? 'bg-white/5' : ''} rounded-full`}>
           <div className={`relative p-3 flex items-center gap-3 select-none group transition-opacity duration-200 ${isActiveEdit ? 'bg-black z-10' : (layer.visible ? 'bg-black' : 'bg-transparent')} ${!layer.visible ? 'opacity-40' : 'opacity-100'} ${isNestedChild ? 'ml-6' : ''}`}>
             <div
               className={`cursor-grab active:cursor-grabbing ${iconColorFaded}`}
@@ -1343,7 +1374,7 @@ function LayerItem(props: {
             )}
 
             {layer.type !== 'split' && layer.id !== 'satellite' && layer.id !== 'deepstate' && layer.id !== 'copernicus' && layer.id !== 'flights' && layer.type !== 'vessels' && layer.type !== 'wind' && !isNestedChild && (
-              <button onClick={() => removeLayer(layer.id)} className={`transition-colors ml-1 ${iconColor}`}>
+              <button onClick={() => removeLayer(layer.id)} className={`transition-colors ml-1 ${iconColor} rounded-full`}>
                 <Trash2 size={16} />
               </button>
             )}
@@ -1873,7 +1904,7 @@ function LayerItem(props: {
                   >
                     <Square size={16} />
                   </button>
-                  <button onClick={handleSwap} className="text-white/50 hover:text-white transition-colors p-1" title={t("Swap Fill and Outline")}>
+                  <button onClick={handleSwap} className="text-white/50 hover:text-white transition-colors p-1 rounded-full" title={t("Swap Fill and Outline")}>
                     <RefreshCcw size={16} />
                   </button>
                 </div>
@@ -1885,7 +1916,7 @@ function LayerItem(props: {
                       <Copy size={16} />
                     </button>
                   )}
-                  <button onClick={handleReset} className="text-white/50 hover:text-white transition-colors p-1" title={t("Reset Styles")}>
+                  <button onClick={handleReset} className="text-white/50 hover:text-white transition-colors p-1 rounded-full" title={t("Reset Styles")}>
                     <RotateCcw size={16} />
                   </button>
                 </div>
@@ -1930,7 +1961,7 @@ function LayerItem(props: {
               ))}
               {Array.from({ length: 2 - (layer.splitLayers?.length || 0) }).map((_, i) => (
                 <div key={`empty-${i}`} data-drop-zone="split-container" data-layer-id={layer.id} className={`ml-6 transition-all duration-300 ${isDraggingLayer ? 'h-12 mt-[2px]' : 'h-0 overflow-hidden'}`}>
-                  <div className={`relative h-full flex items-center justify-center select-none transition-colors duration-200 border-2 border-dashed ${isDraggingLayer ? 'border-white bg-white/5' : 'border-transparent bg-transparent'}`}>
+                  <div className={`relative h-full flex items-center justify-center select-none transition-colors duration-200 border-2 border-dashed ${isDraggingLayer ? 'border-white bg-white/5' : 'border-transparent bg-transparent'} rounded-full`}>
                     <span className="text-xs text-white/40 font-semibold tracking-wider uppercase">DROP LAYER HERE</span>
                   </div>
                 </div>

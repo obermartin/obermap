@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera } from 'lucide-react';
+import { Camera, Trash2 } from 'lucide-react';
 import type { Annotation } from '../types';
 import { useTranslation } from '../contexts/I18nContext';
 
@@ -15,9 +15,10 @@ interface SavedViewsProps {
   };
   isSidebarOpen?: boolean;
   isToolbarOpen?: boolean;
+  onDeleteAnnotation?: (id: string) => void;
 }
 
-export const SavedViews: React.FC<SavedViewsProps> = ({ annotations, onFlyTo, defaultView, isSidebarOpen, isToolbarOpen }) => {
+export const SavedViews: React.FC<SavedViewsProps> = ({ annotations, onFlyTo, defaultView, isSidebarOpen, isToolbarOpen, onDeleteAnnotation }) => {
   const { t } = useTranslation();
   const labelAnnotations = annotations.filter(a => (a.type === 'label' || a.type === 'highlight') && a.text && a.view);
 
@@ -34,22 +35,38 @@ export const SavedViews: React.FC<SavedViewsProps> = ({ annotations, onFlyTo, de
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, scale: 0.8 }}
           onClick={() => onFlyTo(defaultView)}
-            className="flex items-center gap-2 bg-black border border-white/10 px-4 py-2 text-white hover:bg-white hover:text-black transition-colors group"
+          className="flex items-center gap-2 bg-black border border-white/10 px-4 py-2 text-white hover:bg-white hover:text-black transition-colors group rounded-full"
         >
           <span className="font-semibold text-sm uppercase tracking-wider">{t('OVERVIEW')}</span>
         </motion.button>
 
         {labelAnnotations.map((annotation) => (
-          <motion.button
+          <motion.div
             key={annotation.id}
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, scale: 0.8 }}
-            onClick={() => annotation.view && onFlyTo(annotation.view)}
-              className="flex items-center gap-2 bg-black border border-white/10 px-4 py-2 text-white hover:bg-white hover:text-black transition-colors group"
+            className="flex items-stretch border border-white/10 rounded-full overflow-hidden"
           >
-            <span className="font-semibold text-sm uppercase tracking-wider">{annotation.text}</span>
-          </motion.button>
+            <button
+              onClick={() => annotation.view && onFlyTo(annotation.view)}
+              className="flex items-center gap-2 bg-black px-4 py-2 text-white hover:bg-white hover:text-black transition-colors grow text-left"
+            >
+              <span className="font-semibold text-sm uppercase tracking-wider">{annotation.text}</span>
+            </button>
+            {isToolbarOpen && onDeleteAnnotation && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteAnnotation(annotation.id);
+                }}
+                className="flex items-center justify-center px-3 bg-black text-white/50 hover:text-black hover:bg-white transition-colors shrink-0"
+                title={t("Delete View")}
+              >
+                <Trash2 size={16} />
+              </button>
+            )}
+          </motion.div>
         ))}
 
         {isToolbarOpen && (
@@ -59,7 +76,7 @@ export const SavedViews: React.FC<SavedViewsProps> = ({ annotations, onFlyTo, de
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
             onClick={handleAddPosition}
-            className="w-10 h-10 flex items-center justify-center bg-black border border-white/10 text-white hover:bg-white hover:text-black transition-colors mt-2"
+            className="w-10 h-10 flex items-center justify-center bg-black border border-white/10 text-white hover:bg-white hover:text-black transition-colors mt-2 rounded-full"
             title={t("Save Current Position")}
           >
             <Camera size={20} strokeWidth={1.5} />
