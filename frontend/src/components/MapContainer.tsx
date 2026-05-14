@@ -85,6 +85,7 @@ interface MapContainerProps {
   setSelectedGeojsonFeatureId: React.Dispatch<React.SetStateAction<string | number | null>>;
   selectedIconId?: string | null;
   isSidebarOpen?: boolean;
+  markersRef?: React.MutableRefObject<{ [id: string]: mapboxgl.Marker }>;
 }
 
 function getContrastYIQ(hexcolor: string) {
@@ -98,80 +99,6 @@ function getContrastYIQ(hexcolor: string) {
   return yiq >= 128 ? '#000000' : '#ffffff';
 }
 
-function generateLabelSvg(text: string, bgColor: string, type: 'label' | 'highlight' | 'flat', isPointHighlight = false): string {
-  const pr = 4; // Pixel ratio for high-res rendering
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d')!;
-  
-  const isUppercase = type === 'label' || type === 'highlight';
-  const hasPointer = type === 'label';
-  const displayText = isUppercase ? text.toUpperCase() : text;
-  
-  const fontSize = type === 'highlight' ? 14 : 12;
-  const fontWeight = type === 'highlight' ? 700 : 600;
-  ctx.font = `${fontWeight} ${fontSize}px "Roboto", sans-serif`;
-  const metrics = ctx.measureText(displayText);
-  
-  const paddingX = type === 'flat' ? 6 : 8;
-  const paddingY = type === 'flat' ? 2 : 4;
-  
-  const boxWidth = metrics.width + paddingX * 2;
-  const boxHeight = fontSize + paddingY * 2;
-  const contrast = getContrastYIQ(bgColor);
-
-  if (isPointHighlight) {
-    const dotSize = 14;
-    const leftEdgeOfTextFromDotCenter = 22 - dotSize / 2; // 15px
-    const rightEdgeFromDotCenter = leftEdgeOfTextFromDotCenter + boxWidth + 10;
-    
-    // Make the SVG symmetric around the dot so icon-anchor: center works perfectly
-    const totalWidth = rightEdgeFromDotCenter * 2;
-    const totalHeight = Math.max(dotSize, boxHeight) + 20;
-    
-    const cx = totalWidth / 2;
-    const cy = totalHeight / 2;
-    
-    const rectX = cx + leftEdgeOfTextFromDotCenter;
-    const rectY = cy - boxHeight / 2;
-    
-    return `<svg width="${totalWidth * pr}" height="${totalHeight * pr}" viewBox="0 0 ${totalWidth} ${totalHeight}" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="${cx}" cy="${cy}" r="${dotSize / 2}" fill="${bgColor}" />
-      <rect x="${rectX}" y="${rectY}" width="${boxWidth}" height="${boxHeight}" fill="${bgColor}" />
-      <text x="${rectX + boxWidth / 2}" y="${rectY + boxHeight / 2}" dy="0.35em" font-family="system-ui, sans-serif" font-weight="${fontWeight}" font-size="${fontSize}px" fill="${contrast}" text-anchor="middle">${displayText}</text>
-    </svg>`;
-  }
-
-  const pointerHeight = hasPointer ? 6 : 0;
-  const totalWidth = boxWidth + 20; 
-  
-  const rectX = 10;
-  const rectY = 10;
-  
-  const pointerTipY = rectY + boxHeight + pointerHeight;
-  
-  // If it has a pointer, we want the center of the image to be exactly at the pointer tip.
-  // We do this by making the total height twice the distance to the tip.
-  const totalHeight = hasPointer ? pointerTipY * 2 : boxHeight + 20;
-  
-  let pointerSvg = '';
-  if (hasPointer) {
-    const px = rectX + boxWidth / 2;
-    const py = rectY + boxHeight;
-    pointerSvg = `<polygon points="${px - 6},${py} ${px + 6},${py} ${px},${pointerTipY}" fill="${bgColor}" />`;
-  }
-  
-  let borderSvg = '';
-  if (type === 'label') {
-    borderSvg = `<rect x="${rectX}" y="${rectY}" width="${boxWidth}" height="${boxHeight}" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1" />`;
-  }
-  
-  return `<svg width="${totalWidth * pr}" height="${totalHeight * pr}" viewBox="0 0 ${totalWidth} ${totalHeight}" xmlns="http://www.w3.org/2000/svg">
-    <rect x="${rectX}" y="${rectY}" width="${boxWidth}" height="${boxHeight}" fill="${bgColor}" />
-    ${borderSvg}
-    ${pointerSvg}
-    <text x="${rectX + boxWidth / 2}" y="${rectY + boxHeight / 2}" dy="0.35em" font-family="system-ui, sans-serif" font-weight="${fontWeight}" font-size="${fontSize}px" fill="${contrast}" text-anchor="middle">${displayText}</text>
-  </svg>`;
-}
 
 export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, clipPath?: string, onMapInit?: (map: mapboxgl.Map) => void }> = ({
   activeTool,
@@ -196,7 +123,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   isSecondary,
   clipPath,
   onMapInit,
-  isSidebarOpen
+  isSidebarOpen,
+  markersRef: propsMarkersRef
 }) => {
   const { t, language } = useTranslation();
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -271,7 +199,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   }, [selectedAircraftId]);
 
   const originalFiltersRef = useRef<{ [layerId: string]: any }>({});
-  const markersRef = useRef<{ [id: string]: mapboxgl.Marker }>({});
+  const localMarkersRef = useRef<{ [id: string]: mapboxgl.Marker }>({});
+  const markersRef = propsMarkersRef || localMarkersRef;
   const deepstateDatesRef = useRef<{ [layerId: string]: string | undefined }>({});
   const activeDrawMarkersRef = useRef<{ [id: string]: mapboxgl.Marker }>({});
   const openSkyTokenRef = useRef<{ token: string, expires: number } | null>(null);
@@ -720,34 +649,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         }
       }, firstSymbolId);
 
-      // WebGL Annotations (for Video Export)
-      map.addLayer({
-        id: 'custom-annotations-icon',
-        type: 'symbol',
-        source: 'custom-annotations',
-        filter: ['==', ['get', 'type'], 'icon'],
-        layout: {
-          'icon-image': ['get', 'iconImage'],
-          'icon-size': [
-            'case',
-            ['==', ['get', 'isLabel'], true],
-            2,
-            1
-          ],
-          'icon-allow-overlap': true,
-          'icon-ignore-placement': true,
-          'visibility': 'none'
-        },
-        paint: {
-          'icon-opacity': [
-            'case',
-            ['boolean', ['feature-state', 'visible'], true],
-            1,
-            0
-          ],
-          'icon-opacity-transition': { duration: 500 }
-        }
-      });
+      // WebGL Annotations fallback removed in favor of 2D Canvas Compositor
 
       // Setup complete
       setMapLoaded(true);
@@ -862,10 +764,55 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     }) as EventListener;
     window.addEventListener('flyToView', handleFlyTo);
 
+    const handleUpdateAnimationTrigger = ((e: CustomEvent<{ triggerId: string }>) => {
+      const { triggerId } = e.detail;
+      triggerProgressRef.current[triggerId] = 0;
+      triggerTimestampsRef.current[triggerId] = Date.now();
+      setRevealedTriggers(prev => {
+        const next = new Set(prev);
+        next.add(triggerId);
+        return next;
+      });
+      setHiddenTriggers(prev => {
+        const next = new Set(prev);
+        next.delete(triggerId);
+        return next;
+      });
+    }) as EventListener;
+    window.addEventListener('updateAnimationTrigger', handleUpdateAnimationTrigger);
+
+    const handleUpdateHideAnimationTrigger = ((e: CustomEvent<{ triggerId: string }>) => {
+      const { triggerId } = e.detail;
+      triggerProgressRef.current[triggerId] = 0;
+      triggerTimestampsRef.current[triggerId] = Date.now();
+      setHiddenTriggers(prev => {
+        const next = new Set(prev);
+        next.add(triggerId);
+        return next;
+      });
+      setRevealedTriggers(prev => {
+        const next = new Set(prev);
+        next.delete(triggerId);
+        return next;
+      });
+    }) as EventListener;
+    window.addEventListener('updateHideAnimationTrigger', handleUpdateHideAnimationTrigger);
+
+    const handleResetAnimationTriggers = () => {
+      triggerProgressRef.current = {};
+      triggerTimestampsRef.current = {};
+      setRevealedTriggers(new Set());
+      setHiddenTriggers(new Set());
+    };
+    window.addEventListener('resetAnimationTriggers', handleResetAnimationTriggers);
+
     mapRef.current = map;
 
     return () => {
       window.removeEventListener('flyToView', handleFlyTo);
+      window.removeEventListener('updateAnimationTrigger', handleUpdateAnimationTrigger);
+      window.removeEventListener('updateHideAnimationTrigger', handleUpdateHideAnimationTrigger);
+      window.removeEventListener('resetAnimationTriggers', handleResetAnimationTriggers);
       map.remove();
       mapRef.current = null;
     };
@@ -1060,65 +1007,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       }
       
       // --- Add WebGL Point Features for DOM Annotations (for video export) ---
-      
-      if (ann.type === 'label' || ann.type === 'highlight') {
-        if (ann.text && ann.coordinates) {
-          const colorHex = ann.color || '#ffffff';
-          acc.push({
-            type: 'Feature',
-            id: ann.id,
-            geometry: { type: 'Point', coordinates: ann.coordinates },
-            properties: { 
-              color: colorHex, 
-              id: `${ann.id}-text`, 
-              type: 'icon', 
-              isLabel: true,
-              iconImage: `label-${ann.id}-${colorHex.replace('#', '')}`
-            }
-          });
-        }
-      } else if (ann.type === 'icon' && ann.coordinates && ann.iconId) {
-        const colorHex = ann.color || '#ffffff';
-        acc.push({
-          type: 'Feature',
-          id: ann.id,
-          geometry: { type: 'Point', coordinates: ann.coordinates },
-          properties: { 
-            color: colorHex, 
-            id: `${ann.id}-icon`, 
-            type: 'icon', 
-            iconImage: `icon-${ann.iconId}-${colorHex.replace('#', '')}`
-          }
-        });
-      } else if (ann.type === 'measure' && ann.coordinates && ann.coordinates.length > 0) {
-        const lastCoord = ann.coordinates[ann.coordinates.length - 1];
-        const colorHex = ann.color || '#ffffff';
-        acc.push({
-          type: 'Feature',
-          id: ann.id,
-          geometry: { type: 'Point', coordinates: lastCoord },
-          properties: { 
-            color: colorHex, 
-            id: `${ann.id}-text`, 
-            type: 'icon', 
-            iconImage: `measure-${ann.id}-${colorHex.replace('#', '')}`
-          }
-        });
-      } else if (ann.type === 'circle' && ann.coordinates && ann.coordinates[0] && ann.coordinates[0][0]) {
-        const edgeCoord = ann.coordinates[0][0];
-        const colorHex = ann.color || '#ffffff';
-        acc.push({
-          type: 'Feature',
-          id: ann.id,
-          geometry: { type: 'Point', coordinates: edgeCoord },
-          properties: { 
-            color: colorHex, 
-            id: `${ann.id}-text`, 
-            type: 'icon', 
-            iconImage: `circle-${ann.id}-${colorHex.replace('#', '')}`
-          }
-        });
-      }
+      // Removed in favor of 2D Canvas Compositor
 
       return acc;
     }, []).map(f => {
@@ -1131,104 +1020,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     });
 
     // Register SVG icons and labels for video export
-    const imagePromises: Promise<void>[] = [];
-    const allIcons = settings.icons?.flatMap(cat => cat.icons) || [];
-    
-    annotations.forEach(ann => {
-      if (ann.type === 'icon' && ann.iconId) {
-        const colorHex = ann.color || '#ffffff';
-        const imgId = `icon-${ann.iconId}-${colorHex.replace('#', '')}`;
-        if (!mapRef.current?.hasImage(imgId)) {
-          const iconObj = allIcons.find(i => i.id === ann.iconId);
-          if (iconObj) {
-            const contrast = getContrastYIQ(colorHex);
-            const svgContent = iconObj.svg
-              .replace(/<svg[^>]*>/, '')
-              .replace(/<\/svg>/, '')
-              .replace(/currentColor/g, contrast);
-
-            const svgStr = `<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-              <rect width="64" height="64" fill="${colorHex}" rx="12" />
-              <g transform="translate(16, 16) scale(1.33)" fill="${contrast}" stroke="${contrast}">
-                ${svgContent}
-              </g>
-            </svg>`;
-            
-            imagePromises.push(new Promise(resolve => {
-              const img = new Image();
-              img.onload = () => {
-                if (mapRef.current && !mapRef.current.hasImage(imgId)) {
-                  mapRef.current.addImage(imgId, img, { pixelRatio: 4 });
-                }
-                resolve();
-              };
-              img.onerror = () => resolve();
-              img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgStr)));
-            }));
-          }
-        }
-      } else if (ann.type === 'label' || ann.type === 'highlight') {
-        if (ann.text) {
-          const colorHex = ann.color || '#ffffff';
-          const imgId = `label-${ann.id}-${colorHex.replace('#', '')}`;
-          if (!mapRef.current?.hasImage(imgId)) {
-            const isPointHighlight = ann.type === 'highlight' && !ann.polygonGeometry;
-            const svgStr = generateLabelSvg(ann.text, colorHex, ann.type, isPointHighlight);
-            imagePromises.push(new Promise(resolve => {
-              const img = new Image();
-              img.onload = () => {
-                if (mapRef.current && !mapRef.current.hasImage(imgId)) {
-                  mapRef.current.addImage(imgId, img, { pixelRatio: 4 });
-                }
-                resolve();
-              };
-              img.onerror = () => resolve();
-              img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgStr)));
-            }));
-          }
-        }
-      } else if (ann.type === 'measure' && ann.coordinates && ann.coordinates.length > 0) {
-        const dist = calculateDistance(ann.coordinates);
-        const colorHex = ann.color || '#ffffff';
-        const imgId = `measure-${ann.id}-${colorHex.replace('#', '')}`;
-        if (!mapRef.current?.hasImage(imgId)) {
-          const svgStr = generateLabelSvg(`${dist.toFixed(2)} km`, colorHex, 'flat');
-          imagePromises.push(new Promise(resolve => {
-            const img = new Image();
-            img.onload = () => {
-              if (mapRef.current && !mapRef.current.hasImage(imgId)) {
-                mapRef.current.addImage(imgId, img, { pixelRatio: 4 });
-              }
-              resolve();
-            };
-            img.onerror = () => resolve();
-            img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgStr)));
-          }));
-        }
-      } else if (ann.type === 'circle' && ann.radius) {
-        const colorHex = ann.color || '#ffffff';
-        const imgId = `circle-${ann.id}-${colorHex.replace('#', '')}`;
-        if (!mapRef.current?.hasImage(imgId)) {
-          const svgStr = generateLabelSvg(`${ann.radius.toFixed(2)} km`, colorHex, 'flat');
-          imagePromises.push(new Promise(resolve => {
-            const img = new Image();
-            img.onload = () => {
-              if (mapRef.current && !mapRef.current.hasImage(imgId)) {
-                mapRef.current.addImage(imgId, img, { pixelRatio: 4 });
-              }
-              resolve();
-            };
-            img.onerror = () => resolve();
-            img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgStr)));
-          }));
-        }
-      }
-    });
-
+    // Removed in favor of 2D Canvas Compositor
     baseFeaturesRef.current = features;
-    Promise.all(imagePromises).then(() => {
-      // Images loaded
-    });
 
     // Handle DOM markers for labels, measures, and circles
     const expectedMarkers = new Map<string, { lngLat: [number, number], el: HTMLElement }>();
@@ -4941,6 +4734,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
   const [map2, setMap2] = useState<mapboxgl.Map | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const map1MarkersRef = useRef<{ [id: string]: mapboxgl.Marker }>({});
   
   const splitLayer = props.settings.layers.find(l => l.type === 'split' && l.visible);
   const [splitPos, setSplitPos] = useState(splitLayer?.splitPosition ? splitLayer.splitPosition * 100 : 50);
@@ -4980,6 +4774,9 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
     // Disable user interactions
     document.body.classList.add('is-recording');
 
+    // Reset all animation triggers
+    window.dispatchEvent(new CustomEvent('resetAnimationTriggers'));
+
     // Hide labels and highlights initially if dynamicLabels is enabled
     if (dynamicLabels) {
       props.annotations.forEach(ann => {
@@ -4994,8 +4791,8 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
     // Calculate total views: defaultView + label views
     const labelAnnotations = props.annotations.filter(a => (a.type === 'label' || a.type === 'highlight') && a.text && a.view);
     const viewsToVisit = [
-      { view: props.settings.defaultView, annotationId: 'overview' },
-      ...labelAnnotations.map(a => ({ view: a.view!, annotationId: a.id }))
+      { view: props.settings.defaultView, annotationId: 'overview', animationTriggerId: undefined, hideAnimationTriggerId: undefined },
+      ...labelAnnotations.map(a => ({ view: a.view!, annotationId: a.id, animationTriggerId: a.animationTriggerId, hideAnimationTriggerId: a.hideAnimationTriggerId }))
     ];
     const totalViews = viewsToVisit.length;
 
@@ -5039,6 +4836,36 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
       map1.resize();
       await new Promise(r => setTimeout(r, 1000)); // allow tiles to load at new res
 
+      // PRELOAD SVGS FOR COMPOSITOR
+      const preloadedIcons = new Map<string, HTMLImageElement>();
+      for (const ann of props.annotations) {
+        if (ann.type === 'icon' && ann.iconId) {
+          const iconObj = props.settings.icons?.flatMap(c => c.icons).find(i => i.id === ann.iconId);
+          if (iconObj) {
+            const colorHex = ann.color || '#ffffff';
+            const contrast = getContrastYIQ(colorHex);
+            const svgContent = iconObj.svg
+              .replace(/<\?xml[^>]*\?>/gi, '')
+              .replace(/<svg[^>]*>/, '')
+              .replace(/<\/svg>/, '')
+              .replace(/currentColor/g, contrast);
+              
+            const svgStr = `<svg width="48" height="48" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="${contrast}" stroke="${contrast}">${svgContent}</svg>`;
+            
+            const img = new Image();
+            await new Promise((resolve) => {
+              img.onload = resolve;
+              img.onerror = (e) => {
+                console.error("Failed to load SVG icon:", e, svgStr);
+                resolve(null);
+              };
+              img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgStr)));
+            });
+            preloadedIcons.set(ann.id, img);
+          }
+        }
+      }
+
       // INIT MUXER
       const muxer = new Mp4Muxer.Muxer({
         target: new Mp4Muxer.ArrayBufferTarget(),
@@ -5059,15 +4886,227 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
         framerate: 60
       });
 
+      // COMPOSITOR CANVAS
+      const compositorCanvas = document.createElement('canvas');
+      compositorCanvas.width = targetWidth;
+      compositorCanvas.height = targetHeight;
+      const ctx = compositorCanvas.getContext('2d', { willReadFrequently: true })!;
+
       // RENDER LOOP
       let frameCount = 0;
       let isRecording = true;
-      const canvas = map1.getCanvas();
+      const mapCanvas = map1.getCanvas();
       
       const captureFrame = () => {
         if (!isRecording) return;
-        // Mapbox canvas context sometimes needs to be preserved, we assume preserveDrawingBuffer is true
-        const frame = new VideoFrame(canvas, { timestamp: frameCount * 1e6 / 60 });
+        
+        ctx.clearRect(0, 0, targetWidth, targetHeight);
+        ctx.drawImage(mapCanvas, 0, 0, targetWidth, targetHeight);
+        
+        Object.entries(map1MarkersRef.current).forEach(([id, markerInfo]) => {
+          const el = markerInfo.getElement();
+          if (!el || el.style.opacity === '0' || el.style.visibility === 'hidden' || el.style.display === 'none') return;
+          
+          const lngLat = markerInfo.getLngLat();
+          if (!lngLat) return;
+          
+          const point = map1!.project(lngLat);
+          ctx.save();
+          ctx.translate(point.x, point.y);
+          
+          const opacity = parseFloat(el.style.opacity || '1');
+          ctx.globalAlpha = opacity;
+
+          if (el.classList.contains('custom-marker')) {
+            const plate = el.querySelector('.custom-marker-plate') as HTMLElement;
+            const textEl = el.querySelector('.custom-marker-text') as HTMLElement;
+            if (plate && textEl) {
+              const text = (textEl.textContent?.trim() || '').toUpperCase();
+              ctx.font = '600 12px ui-sans-serif, system-ui, sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              
+              const boxW = ctx.measureText(text).width + 16;
+              const boxH = 20;
+              const pointerH = 6;
+              
+              const startX = -boxW / 2;
+              const startY = -(boxH + pointerH);
+              
+              const clipStr = plate.style.clipPath || '';
+              let clipTop = 0;
+              if (clipStr.includes('inset')) {
+                const match = clipStr.match(/inset\(([-\d.]+)%?/);
+                if (match) clipTop = parseFloat(match[1]) || 0;
+              }
+              const clipPx = (clipTop / 100) * boxH;
+              
+              let transY = 0;
+              const transStr = textEl.style.transform || '';
+              if (transStr.includes('translateY')) {
+                const match = transStr.match(/translateY\(([-\d.]+)%\)/);
+                if (match) transY = parseFloat(match[1]) || 0;
+              }
+              const textOffY = (transY / 100) * boxH;
+
+              ctx.beginPath();
+              ctx.moveTo(-6, startY + boxH);
+              ctx.lineTo(6, startY + boxH);
+              ctx.lineTo(0, startY + boxH + pointerH);
+              ctx.fillStyle = plate.style.borderColor || '#000';
+              ctx.fill();
+
+              ctx.save();
+              ctx.beginPath();
+              ctx.rect(startX, startY + clipPx, boxW, boxH - clipPx);
+              ctx.clip();
+              ctx.fillStyle = plate.style.backgroundColor || '#000';
+              ctx.fillRect(startX, startY, boxW, boxH);
+              
+              ctx.fillStyle = textEl.style.color || '#fff';
+              ctx.fillText(text, 0, startY + boxH / 2 + textOffY);
+              ctx.restore();
+            }
+          } 
+          else if (el.classList.contains('custom-highlight-marker')) {
+            const plate = el.querySelector('.custom-highlight-plate') as HTMLElement;
+            const textEl = el.querySelector('.custom-highlight-text') as HTMLElement;
+            
+            ctx.beginPath();
+            ctx.arc(0, 0, 7, 0, Math.PI * 2);
+            ctx.fillStyle = el.style.backgroundColor || '#000';
+            ctx.fill();
+
+            if (plate && textEl) {
+              const text = (textEl.textContent?.trim() || '').toUpperCase();
+              ctx.font = '700 14px ui-sans-serif, system-ui, sans-serif';
+              ctx.textAlign = 'left';
+              ctx.textBaseline = 'middle';
+              
+              const boxW = ctx.measureText(text).width + 16;
+              const boxH = 22;
+              const startX = 14; 
+              const startY = -boxH / 2;
+              
+              let clipLeft = 0;
+              const clipStr = plate.style.clipPath || '';
+              if (clipStr.includes('inset')) {
+                const parts = clipStr.replace('inset(', '').replace(')', '').split(' ');
+                if (parts.length > 1) clipLeft = parseFloat(parts[1]) || 0;
+              }
+              const clipPx = (clipLeft / 100) * boxW;
+              
+              let transY = 0;
+              const transStr = textEl.style.transform || '';
+              if (transStr.includes('translateY')) {
+                const match = transStr.match(/translateY\(([-\d.]+)%\)/);
+                if (match) transY = parseFloat(match[1]) || 0;
+              }
+              const textOffY = (transY / 100) * boxH;
+              
+              ctx.save();
+              ctx.beginPath();
+              ctx.rect(startX, startY, boxW - clipPx, boxH);
+              ctx.clip();
+              ctx.fillStyle = plate.style.backgroundColor || '#000';
+              ctx.fillRect(startX, startY, boxW, boxH);
+              ctx.fillStyle = textEl.style.color || '#fff';
+              ctx.fillText(text, startX + 8, textOffY);
+              ctx.restore();
+            }
+          }
+          else if (el.classList.contains('custom-country-marker')) {
+            const plate = el.querySelector('.custom-country-plate') as HTMLElement;
+            const textEl = el.querySelector('.custom-country-text') as HTMLElement;
+            if (plate && textEl) {
+              const text = (textEl.textContent?.trim() || '').toUpperCase();
+              ctx.font = '700 14px ui-sans-serif, system-ui, sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              
+              const boxW = ctx.measureText(text).width + 16;
+              const boxH = 22;
+              const startX = -boxW / 2;
+              const startY = -boxH / 2;
+              
+              let clipRight = 0;
+              const clipStr = plate.style.clipPath || '';
+              if (clipStr.includes('inset')) {
+                const parts = clipStr.replace('inset(', '').replace(')', '').split(' ');
+                if (parts.length > 1) clipRight = parseFloat(parts[1]) || 0;
+              }
+              const clipPx = (clipRight / 100) * boxW;
+              
+              let transY = 0;
+              const transStr = textEl.style.transform || '';
+              if (transStr.includes('translateY')) {
+                const match = transStr.match(/translateY\(([-\d.]+)%\)/);
+                if (match) transY = parseFloat(match[1]) || 0;
+              }
+              const textOffY = (transY / 100) * boxH;
+              
+              ctx.save();
+              ctx.beginPath();
+              ctx.rect(startX, startY, boxW - clipPx, boxH);
+              ctx.clip();
+              ctx.fillStyle = plate.style.backgroundColor || '#000';
+              ctx.fillRect(startX, startY, boxW, boxH);
+              ctx.fillStyle = textEl.style.color || '#fff';
+              ctx.fillText(text, 0, textOffY);
+              ctx.restore();
+            }
+          }
+          else if (el.classList.contains('icon-svg-wrapper')) {
+            const img = preloadedIcons.get(id);
+            if (img && img.complete && img.naturalWidth > 0) {
+              const bgStr = el.style.backgroundColor || '#000';
+              ctx.beginPath();
+              if (ctx.roundRect) {
+                 ctx.roundRect(-32, -32, 64, 64, 12);
+              } else {
+                 ctx.rect(-32, -32, 64, 64);
+              }
+              ctx.fillStyle = bgStr;
+              ctx.fill();
+              ctx.drawImage(img, -24, -24, 48, 48);
+            }
+          }
+          else if (el.classList.contains('custom-marker-flat')) {
+            const lines = el.innerHTML.split(/<br\s*\/?>/i).map((s: string) => s.replace(/<[^>]+>/g, '').trim());
+            ctx.font = el.classList.contains('text-xs') ? '700 12px ui-sans-serif, system-ui' : '600 12px ui-sans-serif, system-ui';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            const textW = Math.max(...lines.map((l: string) => ctx.measureText(l).width));
+            const boxW = textW + 12;
+            const boxH = lines.length === 2 ? 30 : 20;
+            const startX = -boxW / 2;
+            const startY = -boxH / 2;
+            
+            ctx.fillStyle = el.style.backgroundColor || '#000';
+            ctx.fillRect(startX, startY, boxW, boxH);
+            ctx.fillStyle = el.style.color || '#fff';
+            
+            if (lines.length === 1) {
+              ctx.fillText(lines[0], 0, 0);
+            } else {
+              ctx.fillText(lines[0], 0, -6);
+              ctx.font = '600 9px ui-sans-serif, system-ui';
+              ctx.globalAlpha = opacity * 0.9;
+              ctx.fillText(lines[1], 0, 8);
+            }
+          }
+          else if (el.classList.contains('custom-marker-dot') || el.classList.contains('custom-route-dot')) {
+            ctx.beginPath();
+            ctx.arc(0, 0, 12, 0, Math.PI * 2);
+            ctx.fillStyle = el.style.backgroundColor || '#000';
+            ctx.fill();
+          }
+          
+          ctx.restore();
+        });
+
+        const frame = new VideoFrame(compositorCanvas, { timestamp: frameCount * 1e6 / 60 });
         videoEncoder.encode(frame, { keyFrame: frameCount % 60 === 0 });
         frame.close();
         frameCount++;
@@ -5078,21 +5117,28 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
 
       // FLY TO VIEWS
       for (let i = 0; i < viewsToVisit.length; i++) {
-        const { view, annotationId } = viewsToVisit[i];
+        const { view } = viewsToVisit[i];
         
         setVideoExportState(prev => prev ? { ...prev, progress: i + 1, total: viewsToVisit.length } : null);
         
         if (dynamicLabels) {
-          // Hide previous
+          // Trigger actual DOM animation via event bus
           if (i > 0) {
-            const prevId = viewsToVisit[i - 1].annotationId;
-            if (prevId && prevId !== 'overview') {
-              map1!.setFeatureState({ source: 'custom-annotations', id: prevId }, { visible: false });
+            const prevHideId = viewsToVisit[i - 1].hideAnimationTriggerId;
+            if (prevHideId && prevHideId !== 'overview') {
+              window.dispatchEvent(new CustomEvent('updateHideAnimationTrigger', { 
+                detail: { targetId: null, triggerId: prevHideId } 
+              }));
+              // Wait for hide animation to finish before moving map
+              await new Promise(r => setTimeout(r, 600)); 
             }
           }
-          // Show current
-          if (annotationId && annotationId !== 'overview') {
-            map1!.setFeatureState({ source: 'custom-annotations', id: annotationId }, { visible: true });
+          
+          const currId = viewsToVisit[i].animationTriggerId || viewsToVisit[i].annotationId;
+          if (currId && currId !== 'overview') {
+            window.dispatchEvent(new CustomEvent('updateAnimationTrigger', { 
+              detail: { targetId: null, triggerId: currId } 
+            }));
           }
         }
 
@@ -5160,21 +5206,6 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
     }
   };
   // --- END VIDEO EXPORT ---
-
-  useEffect(() => {
-    if (!map1) return;
-    try {
-      const visibility = videoExportState ? 'visible' : 'none';
-      if (map1.getLayer('custom-annotations-text')) {
-        map1.setLayoutProperty('custom-annotations-text', 'visibility', visibility);
-      }
-      if (map1.getLayer('custom-annotations-icon')) {
-        map1.setLayoutProperty('custom-annotations-icon', 'visibility', visibility);
-      }
-    } catch (e) {
-      console.warn('Failed to toggle WebGL annotation visibility', e);
-    }
-  }, [videoExportState, map1]);
 
   useEffect(() => {
     if (!map1 || !map2) return;
@@ -5283,7 +5314,12 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
 
   return (
     <div className="w-full h-full relative overflow-hidden z-0" ref={containerRef} style={videoExportState ? { width: `${videoExportState.width}px`, height: `${videoExportState.height}px`, transform: videoExportState.scaleTransform, transformOrigin: 'top left', position: 'absolute', top: 0, left: 0 } : undefined}>
-      <MapboxMap {...props} settings={settings1} onMapInit={setMap1} />
+      <MapboxMap
+          {...props}
+          markersRef={map1MarkersRef}
+          settings={settings1}
+          onMapInit={setMap1}
+        />
       {isSplitActive && (
         <>
           <MapboxMap {...props} settings={settings2} onMapInit={setMap2} isSecondary clipPath={clipPath} />
