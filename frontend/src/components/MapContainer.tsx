@@ -210,6 +210,11 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const [selectedWindCacheId, setSelectedWindCacheId] = useState<string | null>(null);
   const [weatherValidTimes, setWeatherValidTimes] = useState<string[]>([]);
   const [selectedWeatherTime, setSelectedWeatherTime] = useState<string | null>(null);
+  const [revealedTriggers, setRevealedTriggers] = useState<Set<string>>(new Set());
+  const [hiddenTriggers, setHiddenTriggers] = useState<Set<string>>(new Set());
+  const baseFeaturesRef = useRef<GeoJSON.Feature[]>([]);
+  const triggerProgressRef = useRef<Record<string, number>>({});
+  const triggerTimestampsRef = useRef<Record<string, number>>({});
 
   const currentColorRef = useRef(currentColor);
   const setAnnotationsRef = useRef(setAnnotations);
@@ -450,6 +455,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           color: currentColorRef.current || '#ffffff',
           coordinates: coords,
           text: name,
+          animationTriggerId: annotationId,
           view: {
             center: coords,
             zoom: mapRef.current!.getZoom(),
@@ -506,7 +512,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         source: 'custom-annotations',
         filter: ['==', '$type', 'Polygon'],
         paint: {
-          'fill-opacity': ['coalesce', ['get', 'fillOpacity'], 0.5],
+          'fill-opacity': ['coalesce', ['get', 'currentOpacity'], ['get', 'fillOpacity'], 0.5],
+          'fill-opacity-transition': { duration: 0 },
           'fill-color': ['coalesce', ['get', 'color'], '#ffffff']
         }
       }, firstSymbolId);
@@ -643,7 +650,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         },
         paint: {
           'line-width': 6,
-          'line-color': ['coalesce', ['get', 'color'], '#ffffff']
+          'line-color': ['coalesce', ['get', 'color'], '#ffffff'],
+          'line-opacity': ['coalesce', ['get', 'currentLineOpacity'], 1],
+          'line-opacity-transition': { duration: 0 }
         }
       }, firstSymbolId);
 
@@ -659,7 +668,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         paint: {
           'line-width': 6,
           'line-color': ['coalesce', ['get', 'color'], '#ffffff'],
-          'line-dasharray': [2, 2]
+          'line-dasharray': [2, 2],
+          'line-opacity': ['coalesce', ['get', 'currentLineOpacity'], 1],
+          'line-opacity-transition': { duration: 0 }
         }
       }, firstSymbolId);
 
@@ -675,7 +686,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         paint: {
           'line-width': 6,
           'line-color': ['coalesce', ['get', 'color'], '#ffffff'],
-          'line-dasharray': [0.01, 2.5]
+          'line-dasharray': [0.01, 2.5],
+          'line-opacity': ['coalesce', ['get', 'currentLineOpacity'], 1],
+          'line-opacity-transition': { duration: 0 }
         }
       }, firstSymbolId);
 
@@ -701,7 +714,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           'text-anchor': 'center'
         },
         paint: {
-          'text-color': ['coalesce', ['get', 'color'], '#ffffff']
+          'text-color': ['coalesce', ['get', 'color'], '#ffffff'],
+          'text-opacity': ['coalesce', ['get', 'currentLineOpacity'], 1],
+          'text-opacity-transition': { duration: 0 }
         }
       }, firstSymbolId);
 
@@ -812,9 +827,29 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     });
 
     // Add flyTo listener
-    const handleFlyTo = ((e: CustomEvent<Annotation['view']>) => {
-      const view = e.detail;
+    const handleFlyTo = ((e: CustomEvent<{ viewId: string, view: Annotation['view'] }>) => {
+      const { viewId, view } = e.detail;
       if (view && mapRef.current) {
+        if (viewId === 'overview') {
+          triggerProgressRef.current = {};
+          triggerTimestampsRef.current = {};
+          setRevealedTriggers(new Set());
+          setHiddenTriggers(new Set());
+        } else {
+          triggerProgressRef.current[viewId] = 0;
+          triggerTimestampsRef.current[viewId] = Date.now();
+          setRevealedTriggers(prev => {
+            const next = new Set(prev);
+            next.add(viewId);
+            return next;
+          });
+          setHiddenTriggers(prev => {
+            const next = new Set(prev);
+            next.add(viewId);
+            return next;
+          });
+        }
+        
         mapRef.current.flyTo({
           center: view.center,
           zoom: view.zoom,
@@ -835,6 +870,19 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       mapRef.current = null;
     };
   }, [settings.mapboxToken, settings.mapboxStyle]);
+
+  // Handle dynamic mapbox transitions based on settings
+  useEffect(() => {
+    if (!mapRef.current || !mapLoaded) return;
+    const duration = settings.animationDuration ?? 2000;
+    const map = mapRef.current;
+    
+    if (map.getLayer('custom-polygons')) map.setPaintProperty('custom-polygons', 'fill-opacity-transition', { duration });
+    if (map.getLayer('custom-lines')) map.setPaintProperty('custom-lines', 'line-opacity-transition', { duration });
+    if (map.getLayer('custom-lines-dashed')) map.setPaintProperty('custom-lines-dashed', 'line-opacity-transition', { duration });
+    if (map.getLayer('custom-lines-dotted')) map.setPaintProperty('custom-lines-dotted', 'line-opacity-transition', { duration });
+    if (map.getLayer('custom-arrow-heads')) map.setPaintProperty('custom-arrow-heads', 'text-opacity-transition', { duration });
+  }, [settings.animationDuration, mapLoaded]);
 
   // Handle view capture request
   useEffect(() => {
@@ -914,12 +962,14 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       const text = e.detail;
       const map = mapRef.current;
       if (text && labelPrompt && map) {
+        const newId = Date.now().toString();
         const newLabel: Annotation = {
-          id: Date.now().toString(),
+          id: newId,
           type: 'label',
           color: currentColor,
           text,
           coordinates: labelPrompt.lngLat,
+          animationTriggerId: newId,
           view: {
             center: [map.getCenter().lng, map.getCenter().lat],
             zoom: map.getZoom(),
@@ -989,6 +1039,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         if (arrowFeats) {
           arrowFeats.shaft.properties!.strokeType = ann.strokeType || 'solid';
           arrowFeats.head.properties!.strokeType = 'solid';
+          arrowFeats.shaft.properties!.type = 'arrow';
+          arrowFeats.head.properties!.type = 'arrow';
           acc.push(arrowFeats.shaft, arrowFeats.head);
         }
       } else if (ann.type === 'highlight' && ann.polygonGeometry) {
@@ -1073,6 +1125,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       const targetId = f.id ?? (f.properties ? f.properties.id : undefined);
       if (targetId && f.properties) {
         f.properties.featureId = targetId;
+        f.id = targetId;
       }
       return f;
     });
@@ -1172,10 +1225,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       }
     });
 
+    baseFeaturesRef.current = features;
     Promise.all(imagePromises).then(() => {
-      if (!mapRef.current) return;
-      const source = mapRef.current.getSource('custom-annotations') as mapboxgl.GeoJSONSource;
-      if (source) source.setData({ type: 'FeatureCollection', features });
+      // Images loaded
     });
 
     // Handle DOM markers for labels, measures, and circles
@@ -1187,7 +1239,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         el.className = 'custom-marker';
         const contrastColor = getContrastYIQ(ann.color || '#ffffff');
         el.innerHTML = `
-          <div class="custom-marker-content" style="background-color: ${ann.color}; color: ${contrastColor}">${ann.text}</div>
+          <div class="custom-marker-plate" style="background-color: ${ann.color}; border-color: ${ann.color === '#000000' || ann.color === '#000' ? 'rgba(255,255,255,0.1)' : ann.color}">
+            <div class="custom-marker-text" style="color: ${contrastColor}">${ann.text}</div>
+          </div>
           <div class="custom-marker-pointer" style="border-top-color: ${ann.color}"></div>
         `;
         el.style.cursor = 'pointer';
@@ -1202,7 +1256,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         if (ann.id === selectedAnnotationId) {
           el.style.filter = 'drop-shadow(0 0 6px rgba(255,255,255,1)) drop-shadow(0 0 12px rgba(255,255,255,0.8))';
           el.style.zIndex = '1000';
-          const content = el.querySelector('.custom-marker-content') as HTMLElement;
+          const content = el.querySelector('.custom-marker-plate') as HTMLElement;
           if (content) {
             content.style.outline = '2px dashed #ffffff';
             content.style.outlineOffset = '2px';
@@ -1216,16 +1270,20 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         if (ann.polygonGeometry) {
           el.className = 'custom-country-marker';
           el.innerHTML = `
-            <div class="custom-country-text" style="background-color: ${ann.color}; color: ${contrastColor}">
-              ${ann.text || ''}
+            <div class="custom-country-plate" style="background-color: ${ann.color};">
+              <div class="custom-country-text" style="color: ${contrastColor}">
+                ${ann.text || ''}
+              </div>
             </div>
           `;
         } else {
           el.className = 'custom-highlight-marker';
           el.style.backgroundColor = ann.color;
           el.innerHTML = `
-            <div class="custom-highlight-text" style="background-color: ${ann.color}; color: ${contrastColor}">
-              ${ann.text || ''}
+            <div class="custom-highlight-plate" style="background-color: ${ann.color};">
+              <div class="custom-highlight-text" style="color: ${contrastColor}">
+                ${ann.text || ''}
+              </div>
             </div>
           `;
         }
@@ -1407,6 +1465,438 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         .addTo(mapRef.current!);
     });
   }, [annotations, activeTool, mapLoaded, selectedAnnotationId, settings.icons]);
+
+  // Animation Loop for Reveals
+  useEffect(() => {
+    if (!mapRef.current || !mapLoaded) return;
+    
+    let frameId: number;
+    let startTime: number;
+    const duration = settings.animationDuration ?? 2000;
+    const labelDuration = settings.labelAnimationDuration ?? 1000;
+    const maxDuration = Math.max(duration, labelDuration);
+
+    // Find triggers that need animation
+    const overrideVisible = activeTool !== 'none';
+    const activeTriggers = overrideVisible ? [] : Array.from(revealedTriggers).filter(t => (triggerProgressRef.current[t] ?? 0) < 1);
+    const activeHiddenTriggers = overrideVisible ? [] : Array.from(hiddenTriggers).filter(t => (triggerProgressRef.current[t] ?? 0) < 1);
+    const allActiveTriggers = [...activeTriggers, ...activeHiddenTriggers];
+    
+    // First, sync feature-state and static opacities
+    annotations.forEach(ann => {
+      if (!ann.animationTriggerId && !ann.hideAnimationTriggerId) return;
+      
+      const hasRevealTrigger = !!ann.animationTriggerId;
+      const hasHideTrigger = !!ann.hideAnimationTriggerId;
+      const isRevealTriggered = hasRevealTrigger && revealedTriggers.has(ann.animationTriggerId!);
+      const isHideTriggered = hasHideTrigger && hiddenTriggers.has(ann.hideAnimationTriggerId!);
+      
+      let isRevealed = false;
+      if (overrideVisible) {
+        isRevealed = true;
+      } else {
+        const revealTime = hasRevealTrigger ? (triggerTimestampsRef.current[ann.animationTriggerId!] || 0) : -1;
+        const hideTime = hasHideTrigger ? (triggerTimestampsRef.current[ann.hideAnimationTriggerId!] || 0) : -1;
+        
+        if (isHideTriggered && isRevealTriggered) {
+          if (hideTime > revealTime) isRevealed = activeHiddenTriggers.includes(ann.hideAnimationTriggerId!);
+          else isRevealed = true;
+        } else if (isHideTriggered) {
+          isRevealed = activeHiddenTriggers.includes(ann.hideAnimationTriggerId!);
+        } else if (isRevealTriggered) {
+          isRevealed = true;
+        } else if (hasHideTrigger && !hasRevealTrigger) {
+          isRevealed = true; // start visible if only hide trigger exists
+        }
+      }
+
+      // Feature-state for opacity fades
+      mapRef.current!.setFeatureState(
+        { source: 'custom-annotations', id: ann.id },
+        { hidden: !isRevealed }
+      );
+
+      // DOM Markers static opacity (only if NOT currently animating)
+      const isActiveReveal = hasRevealTrigger && activeTriggers.includes(ann.animationTriggerId!);
+      const isActiveHide = hasHideTrigger && activeHiddenTriggers.includes(ann.hideAnimationTriggerId!);
+      
+      if (!isActiveReveal && !isActiveHide) {
+        const markerIds = [ann.id, `${ann.id}-circle-center`, `${ann.id}-circle-radius`];
+        const noFadeIds: string[] = [];
+        
+        if (ann.type === 'measure' && ann.coordinates) ann.coordinates.forEach((_: any, i: number) => noFadeIds.push(`${ann.id}-measure-${i}`));
+        if (ann.type === 'route' && ann.coordinates) ann.coordinates.forEach((_: any, i: number) => noFadeIds.push(`${ann.id}-route-${i}`));
+        
+        markerIds.forEach(id => {
+          const marker = markersRef.current[id];
+          if (marker) {
+            const el = marker.getElement();
+            if (ann.type === 'highlight' || ann.type === 'label') {
+              el.style.transition = 'none';
+              
+              const isLabel = ann.type === 'label';
+              const plateSel = isLabel ? '.custom-marker-plate' : '.custom-highlight-plate, .custom-country-plate';
+              const textSel = isLabel ? '.custom-marker-text' : '.custom-highlight-text, .custom-country-text';
+              
+              const plate = el.querySelector(plateSel) as HTMLElement;
+              const text = el.querySelector(textSel) as HTMLElement;
+              const pointer = el.querySelector('.custom-marker-pointer') as HTMLElement;
+              
+              if (pointer) pointer.style.opacity = isRevealed ? '1' : '0';
+              if (plate && text) {
+                if (isRevealed) {
+                   plate.style.clipPath = `inset(0 0% 0 0)`;
+                   text.style.transform = `translateY(0%)`;
+                } else {
+                   if (isLabel) plate.style.clipPath = `inset(100% 0 0 0)`;
+                   else plate.style.clipPath = `inset(0 100% 0 0)`;
+                   text.style.transform = `translateY(100%)`;
+                }
+              }
+            } else {
+              let dur = duration;
+              if (ann.type === 'icon') {
+                dur = labelDuration;
+              }
+              el.style.transition = `opacity ${dur}ms ease-in-out`;
+            }
+            el.style.opacity = isRevealed ? '1' : '0';
+            el.style.pointerEvents = isRevealed ? 'auto' : 'none';
+          }
+        });
+        
+        noFadeIds.forEach(id => {
+          const marker = markersRef.current[id];
+          if (marker) {
+            const el = marker.getElement();
+            el.style.transition = 'none';
+            el.style.opacity = isRevealed ? '1' : '0';
+            el.style.pointerEvents = isRevealed ? 'auto' : 'none';
+          }
+        });
+      }
+    });
+
+    const animate = (timestamp: number) => {
+      if (!startTime) startTime = timestamp;
+      const elapsed = timestamp - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      const labelProgress = Math.min(1, elapsed / labelDuration);
+      const loopProgress = Math.min(1, elapsed / maxDuration);
+      
+      allActiveTriggers.forEach(t => {
+        triggerProgressRef.current[t] = loopProgress;
+      });
+
+      // Update GeoJSON path coordinates
+      const currentFeatures = JSON.parse(JSON.stringify(baseFeaturesRef.current));
+      
+      annotations.forEach(ann => {
+        if (!ann.animationTriggerId && !ann.hideAnimationTriggerId) return;
+        
+        const hasRevealTrigger = !!ann.animationTriggerId;
+        const hasHideTrigger = !!ann.hideAnimationTriggerId;
+        const isRevealTriggered = hasRevealTrigger && revealedTriggers.has(ann.animationTriggerId!);
+        const isHideTriggered = hasHideTrigger && hiddenTriggers.has(ann.hideAnimationTriggerId!);
+        const revealTime = hasRevealTrigger ? (triggerTimestampsRef.current[ann.animationTriggerId!] || 0) : -1;
+        const hideTime = hasHideTrigger ? (triggerTimestampsRef.current[ann.hideAnimationTriggerId!] || 0) : -1;
+        
+        let isRevealed = false;
+        let annProgress = 0;
+        let labelAnnProgress = 0;
+        
+        if (overrideVisible) {
+          isRevealed = true;
+          annProgress = 1;
+          labelAnnProgress = 1;
+        } else {
+          // If both triggered, the most recent wins
+          if (isHideTriggered && isRevealTriggered) {
+             if (hideTime > revealTime) {
+                isRevealed = true;
+                if (activeHiddenTriggers.includes(ann.hideAnimationTriggerId!)) {
+                   annProgress = Math.max(0, 1 - progress);
+                   labelAnnProgress = Math.max(0, 1 - labelProgress);
+                } else {
+                   annProgress = 0;
+                   labelAnnProgress = 0;
+                   isRevealed = false;
+                }
+             } else {
+                isRevealed = true;
+                if (activeTriggers.includes(ann.animationTriggerId!)) {
+                   annProgress = progress;
+                   labelAnnProgress = labelProgress;
+                } else {
+                   annProgress = 1;
+                   labelAnnProgress = 1;
+                }
+             }
+          } else if (isHideTriggered) {
+             if (hasRevealTrigger && !isRevealTriggered) {
+               isRevealed = false;
+               annProgress = 0;
+               labelAnnProgress = 0;
+             } else {
+               isRevealed = true;
+               if (activeHiddenTriggers.includes(ann.hideAnimationTriggerId!)) {
+                  annProgress = Math.max(0, 1 - progress);
+                  labelAnnProgress = Math.max(0, 1 - labelProgress);
+               } else {
+                  annProgress = 0;
+                  labelAnnProgress = 0;
+                  isRevealed = false;
+               }
+             }
+          } else if (isRevealTriggered) {
+             isRevealed = true;
+             if (activeTriggers.includes(ann.animationTriggerId!)) {
+                annProgress = progress;
+                labelAnnProgress = labelProgress;
+             } else {
+                annProgress = 1;
+                labelAnnProgress = 1;
+             }
+          } else {
+             if (hasRevealTrigger) {
+               isRevealed = false;
+               annProgress = 0;
+               labelAnnProgress = 0;
+             } else if (hasHideTrigger) {
+               isRevealed = true;
+               annProgress = 1;
+               labelAnnProgress = 1;
+             } else {
+               isRevealed = true;
+               annProgress = 1;
+               labelAnnProgress = 1;
+             }
+          }
+        }
+        
+        // Apply hidden property to all features of this annotation
+        const featureIndices = currentFeatures.map((f: any, i: number) => (f.id === ann.id || f.properties?.id === ann.id || f.properties?.featureId === ann.id) ? i : -1).filter((i: number) => i !== -1);
+        featureIndices.forEach((idx: number) => {
+           currentFeatures[idx].properties.hidden = !isRevealed;
+           
+           if (ann.type === 'polygon' || ann.type === 'highlight' || ann.type === 'circle') {
+             const targetFillOpacity = currentFeatures[idx].properties.fillOpacity ?? 0.5;
+             currentFeatures[idx].properties.currentOpacity = targetFillOpacity * annProgress;
+             currentFeatures[idx].properties.currentLineOpacity = annProgress;
+           } else {
+             currentFeatures[idx].properties.currentLineOpacity = 1;
+           }
+        });
+        
+        // Write-on logic
+        if ((ann.type === 'paint' || ann.type === 'measure' || ann.type === 'route') && ann.coordinates) {
+          featureIndices.forEach((idx: number) => {
+             const f = currentFeatures[idx];
+             const baseF = baseFeaturesRef.current[idx];
+             if (f.geometry.type === 'LineString' && baseF.geometry.type === 'LineString') {
+               if (annProgress === 0) {
+                 f.geometry.coordinates = [];
+               } else if (annProgress < 1) {
+                 const baseCoords = baseF.geometry.coordinates;
+                 if (baseCoords.length >= 2) {
+                   const line = turf.lineString(baseCoords);
+                   const totalDist = turf.length(line, { units: 'kilometers' });
+                   const targetDist = totalDist * annProgress;
+                   if (targetDist > 0) {
+                     const sliced = turf.lineSliceAlong(line, 0, targetDist, { units: 'kilometers' });
+                     f.geometry.coordinates = sliced.geometry.coordinates;
+                   } else {
+                     f.geometry.coordinates = [];
+                   }
+                 } else {
+                   f.geometry.coordinates = [];
+                 }
+               }
+             } else if (f.geometry.type === 'MultiLineString' && baseF.geometry.type === 'MultiLineString') {
+               if (annProgress === 0) {
+                 f.geometry.coordinates = [];
+               } else if (annProgress < 1) {
+                 const baseCoords = baseF.geometry.coordinates as [number, number][][];
+                 const totalSegments = baseCoords.length;
+                 const targetSegments = Math.max(1, Math.floor(totalSegments * annProgress));
+                 f.geometry.coordinates = baseCoords.slice(0, targetSegments);
+               }
+             }
+          });
+        }
+
+        // Arrow logic
+        if (ann.type === 'arrow' && ann.coordinates && ann.coordinates.length === 2) {
+           const p1 = ann.coordinates[0];
+           const p2 = ann.coordinates[1];
+           const shaftIdx = currentFeatures.findIndex((f: any) => f.properties?.featureId === ann.id && f.properties?.$type === 'LineString');
+           const headIdx = currentFeatures.findIndex((f: any) => f.properties?.featureId === ann.id && f.properties?.$type === 'ArrowHead');
+           
+           if (annProgress === 0) {
+             if (shaftIdx !== -1) currentFeatures[shaftIdx].geometry.coordinates = [];
+             if (headIdx !== -1) currentFeatures[headIdx].geometry.coordinates = [];
+           } else {
+             const pCurr = [
+               p1[0] + (p2[0] - p1[0]) * annProgress,
+               p1[1] + (p2[1] - p1[1]) * annProgress
+             ];
+             const arrowFeats = createArrowFeatures(p1, pCurr as [number, number], ann.color || '#ffffff', ann.id);
+             
+             if (arrowFeats) {
+               if (shaftIdx !== -1) currentFeatures[shaftIdx].geometry = arrowFeats.shaft.geometry;
+               if (headIdx !== -1) {
+                  currentFeatures[headIdx].geometry = arrowFeats.head.geometry;
+                  currentFeatures[headIdx].properties.bearing = arrowFeats.head.properties?.bearing;
+               }
+             }
+           }
+        }
+        
+        // Circle radial expansion
+        if (ann.type === 'circle' && ann.radius && ann.coordinates) {
+          const featureIdx = currentFeatures.findIndex((f: any) => f.id === ann.id || f.properties?.featureId === ann.id);
+          if (featureIdx !== -1 && currentFeatures[featureIdx].geometry.type === 'Polygon') {
+             if (annProgress === 0) {
+               currentFeatures[featureIdx].geometry.coordinates = [];
+             } else if (annProgress < 1) {
+               const center = turf.center(turf.polygon(ann.coordinates)).geometry.coordinates as [number, number];
+               const poly = createCirclePolygon(center, ann.radius * annProgress);
+               if (poly) currentFeatures[featureIdx].geometry.coordinates = poly.geometry.coordinates;
+             }
+          }
+        }
+        
+        // Update DOM Marker dynamic opacity during animation
+        const isAnimatingReveal = hasRevealTrigger && activeTriggers.includes(ann.animationTriggerId!);
+        const isAnimatingHide = hasHideTrigger && activeHiddenTriggers.includes(ann.hideAnimationTriggerId!);
+        
+        if (isAnimatingReveal || isAnimatingHide) {
+          const markerIds = [ann.id];
+          
+          markerIds.forEach(id => {
+            const marker = markersRef.current[id];
+            if (marker) {
+              const el = marker.getElement();
+              let p = annProgress;
+              if (ann.type === 'label' || ann.type === 'highlight' || ann.type === 'icon') {
+                 p = labelAnnProgress;
+              }
+              
+              if (ann.type === 'highlight' || ann.type === 'label') {
+                el.style.transition = 'none';
+                const isVisible = isRevealed && p > 0;
+                
+                el.style.opacity = isVisible ? '1' : '0';
+                el.style.pointerEvents = isVisible ? 'auto' : 'none';
+                
+                const isLabel = ann.type === 'label';
+                const plateSel = isLabel ? '.custom-marker-plate' : '.custom-highlight-plate, .custom-country-plate';
+                const textSel = isLabel ? '.custom-marker-text' : '.custom-highlight-text, .custom-country-text';
+                
+                const plate = el.querySelector(plateSel) as HTMLElement;
+                const text = el.querySelector(textSel) as HTMLElement;
+                const pointer = el.querySelector('.custom-marker-pointer') as HTMLElement;
+                
+                if (pointer) {
+                   pointer.style.opacity = isVisible ? '1' : '0';
+                }
+                
+                if (plate && text) {
+                  if (p <= 0.5) {
+                    const plateP = p * 2;
+                    if (isLabel) {
+                      plate.style.clipPath = `inset(${100 - plateP * 100}% 0 0 0)`;
+                    } else {
+                      plate.style.clipPath = `inset(0 ${100 - plateP * 100}% 0 0)`;
+                    }
+                    text.style.transform = `translateY(100%)`;
+                  } else {
+                    const textP = (p - 0.5) * 2;
+                    plate.style.clipPath = `inset(0 0% 0 0)`;
+                    text.style.transform = `translateY(${(1 - textP) * 100}%)`;
+                  }
+                }
+              } else {
+                el.style.transition = 'none';
+                el.style.opacity = p.toString();
+                el.style.pointerEvents = p > 0.5 ? 'auto' : 'none';
+              }
+            }
+          });
+          
+          if (ann.type === 'circle') {
+            const centerMarker = markersRef.current[`${ann.id}-circle-center`];
+            const radiusMarker = markersRef.current[`${ann.id}-circle-radius`];
+            const isVisible = isRevealed && annProgress > 0;
+            
+            if (centerMarker) {
+               centerMarker.getElement().style.transition = 'none';
+               centerMarker.getElement().style.opacity = isVisible ? '1' : '0';
+               centerMarker.getElement().style.pointerEvents = isVisible ? 'auto' : 'none';
+            }
+            if (radiusMarker) {
+               radiusMarker.getElement().style.transition = 'none';
+               radiusMarker.getElement().style.opacity = isVisible ? '1' : '0';
+               radiusMarker.getElement().style.pointerEvents = isVisible ? 'auto' : 'none';
+               
+               const featureIdx = currentFeatures.findIndex((f: any) => f.id === ann.id || f.properties?.featureId === ann.id);
+               if (featureIdx !== -1 && currentFeatures[featureIdx].geometry.type === 'Polygon') {
+                  const polyCoords = currentFeatures[featureIdx].geometry.coordinates;
+                  if (polyCoords && polyCoords[0] && polyCoords[0][0]) {
+                     radiusMarker.setLngLat(polyCoords[0][0] as [number, number]);
+                  }
+               }
+            }
+          }
+          
+          if (ann.type === 'measure' && ann.coordinates) {
+             ann.coordinates.forEach((_: any, i: number) => {
+               const marker = markersRef.current[`${ann.id}-measure-${i}`];
+               if (marker) {
+                  const threshold = ann.coordinates.length > 1 ? i / (ann.coordinates.length - 1) : 0;
+                  const visible = isRevealed && annProgress > 0 && annProgress >= threshold;
+                  marker.getElement().style.transition = 'none';
+                  marker.getElement().style.opacity = visible ? '1' : '0';
+                  marker.getElement().style.pointerEvents = visible ? 'auto' : 'none';
+               }
+             });
+          }
+          
+          if (ann.type === 'route' && ann.coordinates) {
+             ann.coordinates.forEach((_: any, i: number) => {
+               const marker = markersRef.current[`${ann.id}-route-${i}`];
+               if (marker) {
+                  const threshold = ann.coordinates.length > 1 ? i / (ann.coordinates.length - 1) : 0;
+                  const visible = isRevealed && annProgress > 0 && annProgress >= threshold;
+                  marker.getElement().style.transition = 'none';
+                  marker.getElement().style.opacity = visible ? '1' : '0';
+                  marker.getElement().style.pointerEvents = visible ? 'auto' : 'none';
+               }
+             });
+          }
+        }
+      });
+      
+      const source = mapRef.current?.getSource('custom-annotations') as mapboxgl.GeoJSONSource;
+      if (source) source.setData({ type: 'FeatureCollection', features: currentFeatures });
+
+      if (progress < 1 && allActiveTriggers.length > 0) {
+        frameId = requestAnimationFrame(animate);
+      } else {
+        // Run one last time to ensure exact final positions if needed
+        allActiveTriggers.forEach(t => {
+          triggerProgressRef.current[t] = 1;
+        });
+      }
+    };
+    
+    // Start animation loop
+    frameId = requestAnimationFrame(animate);
+    
+    return () => {
+      if (frameId) cancelAnimationFrame(frameId);
+    };
+  }, [revealedTriggers, hiddenTriggers, annotations, mapLoaded, activeTool]);
 
   // Synchronize selected geojson feature
   useEffect(() => {
@@ -3557,12 +4047,14 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           if (symbolFeature.geometry.type === 'Point') {
             coords = symbolFeature.geometry.coordinates as [number, number];
           }
+          const newId = Date.now().toString();
           setAnnotations(prev => [...prev, {
-            id: Date.now().toString(),
+            id: newId,
             type: 'highlight',
             color: currentColor,
             coordinates: coords,
             text: name,
+            animationTriggerId: newId,
             view: {
               center: coords,
               zoom: mapRef.current!.getZoom(),
@@ -3617,15 +4109,17 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                 const centerLng = parseFloat(data.lon);
                 const centerLat = parseFloat(data.lat);
                 
+                const newId = Date.now().toString();
                 setAnnotations(prev => [...prev, {
-                  id: Date.now().toString(),
+                  id: newId,
                   type: 'highlight',
                   color: currentColor,
                   strokeType: currentStrokeType || 'solid',
                   fillOpacity: currentFillOpacity ?? 0.5,
                   coordinates: [centerLng, centerLat],
                   polygonGeometry: terrestrialGeometry || data.geojson,
-                  text: name
+                  text: name,
+                  animationTriggerId: newId
                 }]);
               }
             } catch (err) {

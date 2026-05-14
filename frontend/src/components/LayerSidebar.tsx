@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Reorder, useDragControls, motion, AnimatePresence } from 'framer-motion';
-import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2, Edit2, Square, RefreshCcw, RotateCcw, Copy, Radio, Settings, Save, Loader2, Image as ImageIcon, ChevronDown, ChevronRight, Camera, Video, BookmarkPlus } from 'lucide-react';
+import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2, Edit2, Square, RefreshCcw, RotateCcw, Copy, Radio, Settings, Save, Loader2, Image as ImageIcon, ChevronDown, ChevronRight, Video, BookmarkPlus } from 'lucide-react';
 import type { AppSettings, MapLayer } from '../types';
 import { parseMapFileWithIds } from '../utils/fileUtils';
 import { customAlert, customConfirm, customPrompt } from '../utils/dialogService';
@@ -249,10 +249,6 @@ export function LayerSidebar({
     }
   };
 
-  const handleCaptureView = () => {
-    const event = new CustomEvent('requestViewCapture');
-    window.dispatchEvent(event);
-  };
 
 
   const [addingColor, setAddingColor] = useState(false);
@@ -1011,19 +1007,7 @@ export function LayerSidebar({
       ) : (
         <div className="p-4 flex flex-col gap-6 flex-1 overflow-y-auto custom-scrollbar">
 
-          {/* 4. DEFAULT VIEW */}
-          <div>
-            <label className="text-xs text-white mb-2 block font-semibold tracking-wider mt-2">{t("DEFAULT VIEW")}</label>
-            <p className="text-xs text-white/40 mb-3">{t("Save the current map position and zoom level as the default view when loading the application.")}</p>
-            <button
-              onClick={handleCaptureView}
-              className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors rounded-full"
-            >
-              <Camera size={16} /> {t("Capture Current View")}
-            </button>
-          </div>
 
-          <div className="border-b border-white/20 -mx-4" />
 
           {/* 1. COLOR PALETTE */}
           <div>
@@ -1107,6 +1091,64 @@ export function LayerSidebar({
                   value={settings.mapboxStyle}
                   onChange={e => setSettings(prev => ({ ...prev, mapboxStyle: e.target.value }))}
                 />
+              </div>
+            </div>
+          </details>
+
+          {/* 6. ANIMATIONS */}
+          <details className="group flex flex-col gap-[2px] w-full mb-6">
+            <summary className="relative p-3 flex items-center gap-2 bg-black text-xs text-white font-semibold tracking-wider cursor-pointer list-none outline-none [&::-webkit-details-marker]:hidden">
+              <ChevronRight size={14} className="text-white/50 group-hover:text-white transition-colors group-open:hidden shrink-0" />
+              <ChevronDown size={14} className="text-white/50 group-hover:text-white transition-colors hidden group-open:block shrink-0" />
+              <span>{t("ANIMATIONS")}</span>
+            </summary>
+            <div className="p-3 flex flex-col gap-4 bg-black mt-[2px]">
+              <div>
+                <label className="text-[10px] text-white mb-2 block font-semibold tracking-wider">
+                  {t("PATH & POLYGON REVEAL")} ({(settings.animationDuration ?? 2000) / 1000}s)
+                </label>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-white/50 w-6 text-right">0s</span>
+                  <div className="relative flex-1 flex flex-col justify-center h-8">
+                    <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 flex justify-between px-2 pointer-events-none">
+                      {[...Array(6)].map((_, i) => (
+                        <div key={i} className="w-[1px] h-2.5 bg-white/30" />
+                      ))}
+                    </div>
+                    <input
+                      type="range"
+                      min="0" max="5000" step="500"
+                      value={settings.animationDuration ?? 2000}
+                      onChange={e => setSettings(prev => ({ ...prev, animationDuration: Number(e.target.value) }))}
+                      className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer relative z-10"
+                    />
+                  </div>
+                  <span className="text-xs text-white/50 w-6">5s</span>
+                </div>
+              </div>
+              
+              <div>
+                <label className="text-[10px] text-white mb-2 block font-semibold tracking-wider">
+                  {t("LABEL & ICON REVEAL")} ({(settings.labelAnimationDuration ?? 1000) / 1000}s)
+                </label>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-white/50 w-6 text-right">0s</span>
+                  <div className="relative flex-1 flex flex-col justify-center h-8">
+                    <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 flex justify-between px-2 pointer-events-none">
+                      {[...Array(6)].map((_, i) => (
+                        <div key={i} className="w-[1px] h-2.5 bg-white/30" />
+                      ))}
+                    </div>
+                    <input
+                      type="range"
+                      min="0" max="5000" step="500"
+                      value={settings.labelAnimationDuration ?? 1000}
+                      onChange={e => setSettings(prev => ({ ...prev, labelAnimationDuration: Number(e.target.value) }))}
+                      className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer relative z-10"
+                    />
+                  </div>
+                  <span className="text-xs text-white/50 w-6">5s</span>
+                </div>
               </div>
             </div>
           </details>

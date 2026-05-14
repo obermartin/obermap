@@ -340,11 +340,11 @@ export function App() {
     setSelectedAnnotationId(null);
   }, [activeTool]);
 
-  const handleFlyTo = useCallback((view: NonNullable<Annotation['view']>) => {
+  const handleFlyTo = useCallback((viewId: string, view: NonNullable<Annotation['view']>) => {
     // We need to pass the flyTo trigger down or pass map instance up.
     // Instead of full map ref in App, we can dispatch an event or use a ref.
     // A simple hack: window.mapInstance is often used, but let's pass a CustomEvent
-    const event = new CustomEvent('flyToView', { detail: view });
+    const event = new CustomEvent('flyToView', { detail: { viewId, view } });
     window.dispatchEvent(event);
   }, []);
 
@@ -384,11 +384,41 @@ export function App() {
     }) as EventListener;
     window.addEventListener('viewCapturedForDefaultUpdate', handleViewCapturedForDefaultUpdate);
 
+    const handleUpdateAnimationTrigger = ((e: Event) => {
+      const customEvent = e as CustomEvent<{ targetId: string, triggerId: string, clearHideTrigger?: boolean }>;
+      const { targetId, triggerId, clearHideTrigger } = customEvent.detail;
+      setAnnotations(prev => prev.map(a => {
+        if (a.id === targetId) {
+          const update = { ...a, animationTriggerId: triggerId };
+          if (clearHideTrigger) update.hideAnimationTriggerId = undefined;
+          return update;
+        }
+        return a;
+      }));
+    }) as EventListener;
+    window.addEventListener('updateAnimationTrigger', handleUpdateAnimationTrigger);
+
+    const handleUpdateHideAnimationTrigger = ((e: Event) => {
+      const customEvent = e as CustomEvent<{ targetId: string, triggerId: string, clearRevealTrigger?: boolean }>;
+      const { targetId, triggerId, clearRevealTrigger } = customEvent.detail;
+      setAnnotations(prev => prev.map(a => {
+        if (a.id === targetId) {
+          const update = { ...a, hideAnimationTriggerId: triggerId };
+          if (clearRevealTrigger) update.animationTriggerId = undefined;
+          return update;
+        }
+        return a;
+      }));
+    }) as EventListener;
+    window.addEventListener('updateHideAnimationTrigger', handleUpdateHideAnimationTrigger);
+
     return () => {
       window.removeEventListener('viewCaptured', handleViewCaptured);
       window.removeEventListener('viewCapturedForPosition', handleViewCapturedForPosition);
       window.removeEventListener('viewCapturedForUpdate', handleViewCapturedForUpdate);
       window.removeEventListener('viewCapturedForDefaultUpdate', handleViewCapturedForDefaultUpdate);
+      window.removeEventListener('updateAnimationTrigger', handleUpdateAnimationTrigger);
+      window.removeEventListener('updateHideAnimationTrigger', handleUpdateHideAnimationTrigger);
     };
   }, [currentColor]);
 
@@ -447,6 +477,7 @@ export function App() {
         isSidebarOpen={isLayerSidebarOpen}
         isToolbarOpen={isToolbarOpen}
         onDeleteAnnotation={(id) => setAnnotations(prev => prev.filter(a => a.id !== id))}
+        selectedAnnotationId={selectedAnnotationId}
       />
       {/* Floating active distance readout for Measure and Circle tools */}
       {(activeTool === 'measure' || activeTool === 'circle') && activeDistance !== null && (
@@ -486,6 +517,7 @@ export function App() {
           setIsOpen={setIsToolbarOpen}
           selectedIconId={selectedIconId}
           setSelectedIconId={setSelectedIconId}
+          onClearSelection={() => setSelectedAnnotationId(null)}
         />
       </div>
 

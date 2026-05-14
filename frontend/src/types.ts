@@ -16,6 +16,8 @@ export interface Annotation {
   routeGeometry?: any;
   routeMode?: RouteMode;
   routeLegs?: { distance: number; duration: number }[];
+  animationTriggerId?: string;
+  hideAnimationTriggerId?: string;
   view?: {
     center: [number, number];
     zoom: number;
@@ -103,6 +105,8 @@ export interface AppSettings {
   aisstreamCredentials?: { apiKey: string };
   googleMapsToken?: string;
   presetLayers?: MapLayer[];
+  animationDuration?: number;
+  labelAnimationDuration?: number;
 }
 
 export interface AppState {

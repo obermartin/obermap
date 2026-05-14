@@ -40,15 +40,19 @@ html, body, #root {
   pointer-events: auto;
 }
 
-.custom-marker-content {
+.custom-marker-plate {
   background-color: #000;
+  border: 1px solid rgba(255,255,255,0.1);
+  overflow: hidden;
+}
+
+.custom-marker-text {
   color: white;
   padding: 4px 8px;
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   white-space: nowrap;
-  border: 1px solid rgba(255,255,255,0.1);
 }
 
 .custom-marker-pointer {
@@ -83,11 +87,15 @@ html, body, #root {
   pointer-events: auto;
 }
 
-.custom-highlight-text {
+.custom-highlight-plate {
   position: absolute;
   left: 22px;
   top: 50%;
   transform: translateY(-50%);
+  overflow: hidden;
+}
+
+.custom-highlight-text {
   padding: 4px 8px;
   font-size: 14px;
   font-weight: 700;
@@ -101,6 +109,10 @@ html, body, #root {
   justify-content: center;
   align-items: center;
   pointer-events: auto;
+}
+
+.custom-country-plate {
+  overflow: hidden;
 }
 
 .custom-country-text {

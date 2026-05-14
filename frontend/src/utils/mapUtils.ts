@@ -12,7 +12,7 @@ export const calculateDistance = (coords: [number, number][]) => {
 };
 
 // Simplified freehand using turf simplify
-export const simplifyLine = (coords: [number, number][], tolerance: number = 0.001) => {
+export const simplifyLine = (coords: [number, number][], tolerance: number = 0.00001) => {
   if (coords.length < 2) return coords;
   const line = turf.lineString(coords);
   const simplified = turf.simplify(line, { tolerance, highQuality: false });

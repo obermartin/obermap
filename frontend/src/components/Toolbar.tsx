@@ -26,6 +26,7 @@ interface ToolbarProps {
   setIsOpen: (open: boolean) => void;
   selectedIconId?: string | null;
   setSelectedIconId?: (id: string | null) => void;
+  onClearSelection?: () => void;
 }
 
 const TOOLS = [
@@ -71,7 +72,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   isOpen,
   setIsOpen,
   selectedIconId,
-  setSelectedIconId
+  setSelectedIconId,
+  onClearSelection
 }) => {
   const { t } = useTranslation();
   const [currentIconCategoryIdx, setCurrentIconCategoryIdx] = React.useState(0);
@@ -362,6 +364,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               setActiveTool('highlight');
             } else {
               setActiveTool('none');
+              onClearSelection?.();
             }
           }}
           className="w-10 h-10 rounded-full flex items-center justify-center text-white hover:bg-white hover:text-black transition-colors shrink-0 z-10"
