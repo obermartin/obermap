@@ -42,6 +42,75 @@ app.post('/api/data', (req, res) => {
   }
 });
 
+const multer = require('multer');
+const unzipper = require('unzipper');
+
+const upload = multer({ dest: 'uploads/' });
+const templatesDir = path.join(__dirname, '../frontend/public/label-templates');
+
+app.get('/api/templates', (req, res) => {
+  try {
+    if (!fs.existsSync(templatesDir)) {
+      return res.json([]);
+    }
+    const templates = fs.readdirSync(templatesDir, { withFileTypes: true })
+      .filter(dirent => dirent.isDirectory())
+      .map(dirent => dirent.name);
+    res.json(templates);
+  } catch (error) {
+    console.error('Error reading templates:', error);
+    res.status(500).json({ error: 'Failed to list templates' });
+  }
+});
+
+app.post('/api/upload-template', upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  
+  try {
+    // Template name is the name of the zip file without extension
+    const templateName = path.basename(req.file.originalname, '.zip');
+    const targetDir = path.join(templatesDir, templateName);
+    
+    if (!fs.existsSync(templatesDir)) {
+      fs.mkdirSync(templatesDir, { recursive: true });
+    }
+    
+    // Extract the zip
+    await fs.createReadStream(req.file.path)
+      .pipe(unzipper.Extract({ path: targetDir }))
+      .promise();
+      
+    // Clean up uploaded zip
+    fs.unlinkSync(req.file.path);
+    
+    // macOS zips often contain a __MACOSX directory which breaks the single-directory check
+    const macosxPath = path.join(targetDir, '__MACOSX');
+    if (fs.existsSync(macosxPath)) {
+      fs.rmSync(macosxPath, { recursive: true, force: true });
+    }
+    
+    // Check if the extracted directory contains another directory with the same name
+    // (Common when zipping a folder on Mac/Windows)
+    const contents = fs.readdirSync(targetDir);
+    if (contents.length === 1 && fs.statSync(path.join(targetDir, contents[0])).isDirectory()) {
+      const innerDir = path.join(targetDir, contents[0]);
+      const innerContents = fs.readdirSync(innerDir);
+      for (const file of innerContents) {
+        fs.renameSync(path.join(innerDir, file), path.join(targetDir, file));
+      }
+      fs.rmdirSync(innerDir);
+    }
+    
+    res.json({ success: true, name: templateName });
+  } catch (error) {
+    console.error('Error extracting template:', error);
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    res.status(500).json({ error: 'Failed to extract template' });
+  }
+});
+
 const PORT = 3001;
 app.listen(PORT, () => {
   console.log(`Backend server running on http://localhost:${PORT}`);

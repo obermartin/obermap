@@ -1,10 +1,26 @@
 import React, { useRef, useState, useEffect } from 'react';
+import type { AppSettings, MapLayer } from '../types';
 import { Reorder, useDragControls, motion, AnimatePresence } from 'framer-motion';
 import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2, Edit2, Square, RefreshCcw, RotateCcw, Copy, Radio, Settings, Save, Loader2, Image as ImageIcon, ChevronDown, ChevronRight, Video, BookmarkPlus } from 'lucide-react';
-import type { AppSettings, MapLayer } from '../types';
 import { parseMapFileWithIds } from '../utils/fileUtils';
 import { customAlert, customConfirm, customPrompt } from '../utils/dialogService';
 import { useTranslation } from '../contexts/I18nContext';
+import { LabelMarkerManager, type Theme } from '../labels/LabelMarkerManager';
+
+const TemplatePreview: React.FC<{ templateName: string, isRegular: boolean }> = ({ templateName, isRegular }) => {
+  const [html, setHtml] = useState<string | null>(null);
+  
+  useEffect(() => {
+    const manager = new LabelMarkerManager(null);
+    manager.loadTemplates([templateName]).then(() => {
+      const p = manager.getPreviewHtml(templateName, isRegular ? { primary: "PREVIEW", secondary: "Label" } : "PREVIEW");
+      setHtml(p);
+    }).catch(e => console.error(e));
+  }, [templateName, isRegular]);
+  
+  if (!html) return <div className="text-[10px] text-white/50"><Loader2 size={14} className="animate-spin" /></div>;
+  return <div dangerouslySetInnerHTML={{ __html: html }} className="scale-75 origin-center pointer-events-none" />;
+};
 
 const DEFAULT_LAYERS: MapLayer[] = [
   { id: 'split-container', name: 'Split View Container', type: 'split', visible: false, splitPosition: 0.5, splitDirection: 'vertical', splitLayers: [] },
@@ -225,6 +241,55 @@ export function LayerSidebar({
       window.removeEventListener('vesselSelected', vesselHandler as EventListener);
     };
   }, []);
+
+  // Fetch available templates
+  useEffect(() => {
+    fetch('http://localhost:3001/api/templates')
+      .then(r => r.json())
+      .then(list => {
+        setSettings(prev => ({
+          ...prev,
+          labelTemplates: {
+            ...prev.labelTemplates,
+            availableTemplates: list
+          }
+        }));
+      })
+      .catch(e => console.error('Error fetching templates', e));
+  }, [setSettings]);
+
+  const handleZipUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch('http://localhost:3001/api/upload-template', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success) {
+        customAlert(t("Template uploaded successfully"));
+        fetch('http://localhost:3001/api/templates')
+          .then(r => r.json())
+          .then(list => {
+            setSettings(prev => ({
+              ...prev,
+              labelTemplates: {
+                ...prev.labelTemplates,
+                availableTemplates: list
+              }
+            }));
+          });
+      } else {
+        customAlert(t("Upload failed") + ": " + data.error);
+      }
+    } catch (err) {
+      console.error(err);
+      customAlert(t("Error uploading template"));
+    }
+  };
 
   const saveAsPreset = (layerToSave: MapLayer) => {
     const newPreset: MapLayer = {
@@ -1066,6 +1131,126 @@ export function LayerSidebar({
             </div>
           </div>
           
+          <div className="border-b border-white/20 -mx-4" />
+
+          {/* LABEL TEMPLATES */}
+          <details className="group flex flex-col gap-[2px] w-full">
+            <summary className="relative p-3 flex items-center gap-2 bg-black text-xs text-white font-semibold tracking-wider cursor-pointer list-none outline-none [&::-webkit-details-marker]:hidden">
+              <ChevronRight size={14} className="text-white/50 group-hover:text-white transition-colors group-open:hidden shrink-0" />
+              <ChevronDown size={14} className="text-white/50 group-hover:text-white transition-colors hidden group-open:block shrink-0" />
+              <span>{t("LABEL TEMPLATES")}</span>
+            </summary>
+            <div className="p-3 flex flex-col gap-4 bg-black mt-[2px]">
+              <div>
+                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">{t("HIGHLIGHT LABEL")}</label>
+                <select 
+                  className="w-full bg-black/60 px-3 py-2 outline-none text-xs border border-white/10 focus:border-white/50 transition-colors"
+                  value={settings.labelTemplates?.highlightLabelTemplate || ''}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? undefined : e.target.value;
+                    setSettings(prev => ({
+                      ...prev,
+                      labelTemplates: {
+                        ...prev.labelTemplates,
+                        availableTemplates: prev.labelTemplates?.availableTemplates || [],
+                        highlightLabelTemplate: val
+                      }
+                    }));
+                    window.dispatchEvent(new CustomEvent('updateSelectedLabelTemplate', { detail: { type: 'highlight', template: val } }));
+                  }}
+                >
+                  <option value="">{t("Default (HTML)")}</option>
+                  {settings.labelTemplates?.availableTemplates.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+                <div className="mt-2 flex justify-center bg-zinc-900 border border-white/10 p-2 min-h-[64px] items-center rounded overflow-hidden">
+                   {settings.labelTemplates?.highlightLabelTemplate ? (
+                     <TemplatePreview templateName={settings.labelTemplates.highlightLabelTemplate} isRegular={false} />
+                   ) : (
+                     <span className="text-[10px] text-white/30 uppercase font-mono tracking-wider">{t("NO TEMPLATE")}</span>
+                   )}
+                </div>
+              </div>
+              
+              <div>
+                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">{t("REGULAR LABEL")}</label>
+                <select 
+                  className="w-full bg-black/60 px-3 py-2 outline-none text-xs border border-white/10 focus:border-white/50 transition-colors"
+                  value={settings.labelTemplates?.regularLabelTemplate || ''}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? undefined : e.target.value;
+                    setSettings(prev => ({
+                      ...prev,
+                      labelTemplates: {
+                        ...prev.labelTemplates,
+                        availableTemplates: prev.labelTemplates?.availableTemplates || [],
+                        regularLabelTemplate: val
+                      }
+                    }));
+                    window.dispatchEvent(new CustomEvent('updateSelectedLabelTemplate', { detail: { type: 'regular', template: val } }));
+                  }}
+                >
+                  <option value="">{t("Default (HTML)")}</option>
+                  {settings.labelTemplates?.availableTemplates.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+                <div className="mt-2 flex justify-center bg-zinc-900 border border-white/10 p-2 min-h-[64px] items-center rounded overflow-hidden">
+                   {settings.labelTemplates?.regularLabelTemplate ? (
+                     <TemplatePreview templateName={settings.labelTemplates.regularLabelTemplate} isRegular={true} />
+                   ) : (
+                     <span className="text-[10px] text-white/30 uppercase font-mono tracking-wider">{t("NO TEMPLATE")}</span>
+                   )}
+                </div>
+              </div>
+              
+              <div className="pt-2 border-t border-white/10 flex flex-col gap-2">
+                <label className="text-[10px] text-white font-semibold tracking-wider">{t("TEMPLATE THEME")}</label>
+                {[
+                  { key: 'primaryBackplateFill', label: 'Primary Fill' },
+                  { key: 'secondaryBackplateFill', label: 'Secondary Fill' },
+                  { key: 'primaryTextColor', label: 'Primary Text' },
+                  { key: 'secondaryTextColor', label: 'Secondary Text' },
+                  { key: 'pointerFill', label: 'Pointer Fill' },
+                  { key: 'accentFill', label: 'Accent Fill' }
+                ].map(({ key, label }) => (
+                  <div key={key} className="flex justify-between items-center">
+                    <span className="text-[10px] text-white/70">{t(label)}</span>
+                    <input
+                      type="color"
+                      value={settings.labelTemplates?.theme?.[key as keyof Theme] || '#ffffff'}
+                      onChange={(e) => {
+                        const newColor = e.target.value;
+                        setSettings(prev => ({
+                          ...prev,
+                          labelTemplates: {
+                            ...prev.labelTemplates,
+                            availableTemplates: prev.labelTemplates?.availableTemplates || [],
+                            theme: {
+                              ...(prev.labelTemplates?.theme || {}),
+                              [key]: newColor
+                            }
+                          }
+                        }));
+                        window.dispatchEvent(new CustomEvent('updateSelectedLabelTheme', { detail: { key, value: newColor } }));
+                      }}
+                      className="w-6 h-6 p-0 border-0 bg-transparent cursor-pointer"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="pt-2 border-t border-white/10">
+                <label className="flex items-center justify-center gap-2 w-full bg-white text-black py-2 cursor-pointer font-bold tracking-wider text-xs hover:bg-white/90 transition-colors">
+                  <Upload size={14} />
+                  {t("UPLOAD .ZIP TEMPLATE")}
+                  <input type="file" accept=".zip" className="hidden" onChange={handleZipUpload} />
+                </label>
+              </div>
+            </div>
+          </details>
+
           <div className="border-b border-white/20 -mx-4" />
 
           {/* 5. BASE MAP */}

@@ -13,6 +13,7 @@ import anyAscii from 'any-ascii';
 import { customAlert } from '../utils/dialogService';
 import * as Mp4Muxer from 'mp4-muxer';
 import { addMapboxProtocolSupport, omProtocol } from '@openmeteo/weather-map-layer';
+import { globalLabelManager } from '../labels/LabelMarkerManager';
 
 let omAdapter: any = null;
 let globalDeepstateHistory: { id: number; createdAt: string }[] | null = null;
@@ -146,10 +147,25 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
   const currentColorRef = useRef(currentColor);
   const setAnnotationsRef = useRef(setAnnotations);
+  const settingsRef = useRef(settings);
   useEffect(() => {
     currentColorRef.current = currentColor;
     setAnnotationsRef.current = setAnnotations;
-  }, [currentColor, setAnnotations]);
+    settingsRef.current = settings;
+  }, [currentColor, setAnnotations, settings]);
+
+  useEffect(() => {
+    if (settings.labelTemplates) {
+      const templatesToLoad: string[] = [];
+      if (settings.labelTemplates.highlightLabelTemplate) templatesToLoad.push(settings.labelTemplates.highlightLabelTemplate);
+      if (settings.labelTemplates.regularLabelTemplate) templatesToLoad.push(settings.labelTemplates.regularLabelTemplate);
+      if (templatesToLoad.length > 0) {
+        globalLabelManager.loadTemplates(templatesToLoad).then(() => {
+          setAnnotations(prev => [...prev]);
+        });
+      }
+    }
+  }, [settings.labelTemplates, setAnnotations]);
 
   useEffect(() => {
     const weatherLayer = settings.layers.find(l => l.type === 'weather_forecast');
@@ -382,6 +398,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           id: annotationId,
           type: 'highlight',
           color: currentColorRef.current || '#ffffff',
+          template: settingsRef.current?.labelTemplates?.highlightLabelTemplate,
+          theme: settingsRef.current?.labelTemplates?.theme,
           coordinates: coords,
           text: name,
           animationTriggerId: annotationId,
@@ -905,8 +923,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
   useEffect(() => {
     if (isSecondary) return;
-    const handleSaveLabel = ((e: CustomEvent<string>) => {
-      const text = e.detail;
+    const handleSaveLabel = ((e: CustomEvent<{ text: string, secondaryText?: string }>) => {
+      const { text, secondaryText } = e.detail;
       const map = mapRef.current;
       if (text && labelPrompt && map) {
         const newId = Date.now().toString();
@@ -915,6 +933,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           type: 'label',
           color: currentColor,
           text,
+          secondaryText,
+          template: settingsRef.current?.labelTemplates?.regularLabelTemplate,
+          theme: settingsRef.current?.labelTemplates?.theme,
           coordinates: labelPrompt.lngLat,
           animationTriggerId: newId,
           view: {
@@ -1028,76 +1049,135 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
     annotations.forEach(ann => {
       if (ann.type === 'label' && ann.coordinates) {
-        const el = document.createElement('div');
-        el.className = 'custom-marker';
-        const contrastColor = getContrastYIQ(ann.color || '#ffffff');
-        el.innerHTML = `
-          <div class="custom-marker-plate" style="background-color: ${ann.color}; border-color: ${ann.color === '#000000' || ann.color === '#000' ? 'rgba(255,255,255,0.1)' : ann.color}">
-            <div class="custom-marker-text" style="color: ${contrastColor}">${ann.text}</div>
-          </div>
-          <div class="custom-marker-pointer" style="border-top-color: ${ann.color}"></div>
-        `;
-        el.style.cursor = 'pointer';
-        el.addEventListener('click', (e) => {
-          e.stopPropagation();
+        const onClick = () => {
           if (activeTool !== 'none') {
             setSelectedAnnotationId(ann.id);
           }
           window.dispatchEvent(new CustomEvent('flyToLabel', { detail: ann.id }));
-        });
-        el.addEventListener('mousedown', (e) => e.stopPropagation());
+        };
+        
+        let el: HTMLElement;
+        const contrastColor = getContrastYIQ(ann.color || '#ffffff');
+        
+        if (ann.template) {
+          try {
+            const handle = globalLabelManager.createLabel({
+              id: ann.id,
+              lngLat: ann.coordinates,
+              text: ann.secondaryText ? { primary: ann.text || '', secondary: ann.secondaryText } : (ann.text || ''),
+              template: ann.template,
+              theme: ann.theme || { primaryBackplateFill: ann.color, primaryTextColor: contrastColor },
+              onClick
+            });
+            el = handle.getElement();
+          } catch (e) {
+            console.error('Error rendering SVG label', e);
+            el = document.createElement('div'); // fallback
+          }
+        } else {
+          el = document.createElement('div');
+          el.className = 'custom-marker';
+          el.innerHTML = `
+            <div class="custom-marker-plate" style="background-color: ${ann.color}; border-color: ${ann.color === '#000000' || ann.color === '#000' ? 'rgba(255,255,255,0.1)' : ann.color}">
+              <div class="custom-marker-text" style="color: ${contrastColor}; display: flex; flex-direction: column; align-items: flex-start;">
+                <span style="font-size: 1.6em; line-height: 1;">${ann.text}</span>
+                ${ann.secondaryText ? `<span style="font-size: 1em; line-height: 1;">${ann.secondaryText}</span>` : ''}
+              </div>
+            </div>
+            <div class="custom-marker-pointer" style="border-top-color: ${ann.color}"></div>
+          `;
+          el.style.cursor = 'pointer';
+          el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            onClick();
+          });
+          el.addEventListener('mousedown', (e) => e.stopPropagation());
+        }
+
         if (ann.id === selectedAnnotationId) {
           el.style.filter = 'drop-shadow(0 0 6px rgba(255,255,255,1)) drop-shadow(0 0 12px rgba(255,255,255,0.8))';
           el.style.zIndex = '1000';
-          const content = el.querySelector('.custom-marker-plate') as HTMLElement;
+          const content = el.querySelector('.custom-marker-plate') || el.querySelector('.backplate.primary');
           if (content) {
-            content.style.outline = '2px dashed #ffffff';
-            content.style.outlineOffset = '2px';
+            (content as HTMLElement).style.outline = '2px dashed #ffffff';
+            (content as HTMLElement).style.outlineOffset = '2px';
           }
         }
         expectedMarkers.set(ann.id, { lngLat: ann.coordinates, el });
       } else if (ann.type === 'highlight') {
-        const el = document.createElement('div');
-        const contrastColor = getContrastYIQ(ann.color || '#000000');
-        
-        if (ann.polygonGeometry) {
-          el.className = 'custom-country-marker';
-          el.innerHTML = `
-            <div class="custom-country-plate" style="background-color: ${ann.color};">
-              <div class="custom-country-text" style="color: ${contrastColor}">
-                ${ann.text || ''}
-              </div>
-            </div>
-          `;
-        } else {
-          el.className = 'custom-highlight-marker';
-          el.style.backgroundColor = ann.color;
-          el.innerHTML = `
-            <div class="custom-highlight-plate" style="background-color: ${ann.color};">
-              <div class="custom-highlight-text" style="color: ${contrastColor}">
-                ${ann.text || ''}
-              </div>
-            </div>
-          `;
-        }
-        
-        el.style.cursor = 'pointer';
-        el.addEventListener('click', (e) => {
-          e.stopPropagation();
+        const onClick = () => {
           if (activeTool !== 'none') {
             setSelectedAnnotationId(ann.id);
           } else {
             window.dispatchEvent(new CustomEvent('flyToLabel', { detail: ann.id }));
           }
-        });
-        el.addEventListener('mousedown', (e) => e.stopPropagation());
+        };
+
+        let el: HTMLElement;
+        const contrastColor = getContrastYIQ(ann.color || '#000000');
+        
+        if (ann.template && !ann.polygonGeometry) {
+          try {
+            const handle = globalLabelManager.createLabel({
+              id: ann.id,
+              lngLat: ann.coordinates,
+              text: ann.text || '',
+              template: ann.template,
+              theme: ann.theme || { primaryBackplateFill: ann.color, primaryTextColor: contrastColor },
+              onClick
+            });
+            el = handle.getElement();
+          } catch (e) {
+            console.error('Error rendering SVG highlight', e);
+            el = document.createElement('div'); // fallback
+          }
+        } else {
+          el = document.createElement('div');
+          
+          if (ann.polygonGeometry) {
+            el.className = 'custom-country-marker';
+            el.innerHTML = `
+              <div class="custom-country-plate" style="background-color: ${ann.color};">
+                <div class="custom-country-text" style="color: ${contrastColor}">
+                  ${ann.text || ''}
+                </div>
+              </div>
+            `;
+          } else {
+            el.className = 'custom-highlight-marker';
+            el.style.backgroundColor = ann.color;
+            el.innerHTML = `
+              <div class="custom-highlight-plate" style="background-color: ${ann.color};">
+                <div class="custom-highlight-text" style="color: ${contrastColor}">
+                  ${ann.text || ''}
+                </div>
+              </div>
+            `;
+          }
+          
+          el.style.cursor = 'pointer';
+          el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            onClick();
+          });
+          el.addEventListener('mousedown', (e) => e.stopPropagation());
+        }
+
         if (ann.id === selectedAnnotationId) {
           el.style.filter = 'drop-shadow(0 0 6px rgba(255,255,255,1)) drop-shadow(0 0 12px rgba(255,255,255,0.8))';
           el.style.zIndex = '1000';
-          el.style.outline = '2px dashed #ffffff';
-          el.style.outlineOffset = '2px';
+          const content = el.querySelector('.custom-highlight-plate') || el.querySelector('.backplate.primary') || el;
+          if (content) {
+            (content as HTMLElement).style.outline = '2px dashed #ffffff';
+            (content as HTMLElement).style.outlineOffset = '2px';
+          }
         }
-        expectedMarkers.set(ann.id, { lngLat: ann.coordinates, el });
+        
+        // Use either centroid or the primary coordinates for marker placement
+        const markerLngLat = ann.polygonGeometry && ann.polygonGeometry.type === 'Polygon' ? turf.centerOfMass(ann.polygonGeometry).geometry.coordinates as [number, number] : ann.coordinates;
+        if (markerLngLat) {
+          expectedMarkers.set(ann.id, { lngLat: markerLngLat, el });
+        }
       } else if (ann.type === 'measure' && ann.coordinates) {
         let totalDistance = 0;
         const contrastColor = getContrastYIQ(ann.color || '#ffffff');
@@ -3845,6 +3925,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             id: newId,
             type: 'highlight',
             color: currentColor,
+            template: settings.labelTemplates?.highlightLabelTemplate,
+            theme: settings.labelTemplates?.theme,
             coordinates: coords,
             text: name,
             animationTriggerId: newId,
@@ -3907,6 +3989,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                   id: newId,
                   type: 'highlight',
                   color: currentColor,
+                  template: settings.labelTemplates?.highlightLabelTemplate,
+                  theme: settings.labelTemplates?.theme,
                   strokeType: currentStrokeType || 'solid',
                   fillOpacity: currentFillOpacity ?? 0.5,
                   coordinates: [centerLng, centerLat],
@@ -4866,6 +4950,21 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
         }
       }
 
+      const preloadedLabels = new Map<string, HTMLImageElement>();
+      for (const ann of props.annotations) {
+        if (ann.type === 'label' || ann.type === 'highlight') {
+          const el = document.querySelector(`.label-marker-${ann.id}`);
+          if (el && el.classList.contains('label-marker')) {
+            try {
+              const img = await globalLabelManager.getRasterizedImage(ann.id);
+              if (img) preloadedLabels.set(ann.id, img);
+            } catch (e) {
+              console.error('Failed to rasterize label for video export', e);
+            }
+          }
+        }
+      }
+
       // INIT MUXER
       const muxer = new Mp4Muxer.Muxer({
         target: new Mp4Muxer.ArrayBufferTarget(),
@@ -5069,6 +5168,15 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               ctx.fillStyle = bgStr;
               ctx.fill();
               ctx.drawImage(img, -24, -24, 48, 48);
+            }
+          }
+          else if (el.classList.contains('label-marker')) {
+            const img = preloadedLabels.get(id);
+            if (img && img.complete && img.naturalWidth > 0) {
+               const offset = globalLabelManager.getAnchorOffset(id);
+               if (offset) {
+                 ctx.drawImage(img, -offset.x, -offset.y);
+               }
             }
           }
           else if (el.classList.contains('custom-marker-flat')) {

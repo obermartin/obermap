@@ -1,0 +1,51 @@
+{
+  "name": "my-template",
+  "kind": "regular",
+  "primary": {
+    "height": 32,
+    "capWidth": 4,
+    "minWidth": 60,
+    "paddingX": 14,
+    "paddingY": 6,
+    "typography": {
+      "fontFamily": "Gotham Condensed",
+      "fontSize": 14,
+      "fontWeight": 800,
+      "color": "var(--primary-text-color, #1a1a1a)",
+      "letterSpacing": 0,
+      "lineHeight": 1.2,
+      "textTransform": "none",
+      "textAlign": "left"
+    },
+    "pointer": {
+      "width": 32,
+      "height": 32,
+      "attachEdge": "left",
+      "attachFrom": "left",
+      "attachOffset": 16,
+      "tipX": 16,
+      "tipY": 16,
+      "independentColor": false
+    }
+  },
+  "secondary": {
+    "height": 32,
+    "capWidth": 4,
+    "minWidth": 32,
+    "paddingX": 8,
+    "paddingY": 4,
+    "position": "below",
+    "align": "left",
+    "gap": 0,
+    "typography": {
+      "fontFamily": "gotham condensed",
+      "fontSize": 11,
+      "fontWeight": 500,
+      "color": "var(--secondary-text-color, #ffffff)",
+      "letterSpacing": 0.3,
+      "lineHeight": 1.3,
+      "textTransform": "none",
+      "textAlign": "left"
+    }
+  }
+}

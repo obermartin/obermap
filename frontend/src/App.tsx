@@ -53,6 +53,7 @@ export function App() {
   const [labelPrompt, setLabelPrompt] = useState<{ lngLat: [number, number] } | null>(null);
   const [activeDistance, setActiveDistance] = useState<number | null>(null);
   const [labelInput, setLabelInput] = useState('');
+  const [secondaryLabelInput, setSecondaryLabelInput] = useState('');
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [selectedIconId, setSelectedIconId] = useState<string | null>(null);
   const [isLayerSidebarOpen, setIsLayerSidebarOpen] = useState(false);
@@ -412,6 +413,30 @@ export function App() {
     }) as EventListener;
     window.addEventListener('updateHideAnimationTrigger', handleUpdateHideAnimationTrigger);
 
+    const handleUpdateTemplate = ((e: Event) => {
+      const { type, template } = (e as CustomEvent).detail;
+      setAnnotations(prev => prev.map(a => {
+        if (a.id === selectedAnnotationId) {
+          if ((type === 'regular' && a.type === 'label') || (type === 'highlight' && a.type === 'highlight')) {
+            return { ...a, template };
+          }
+        }
+        return a;
+      }));
+    }) as EventListener;
+    window.addEventListener('updateSelectedLabelTemplate', handleUpdateTemplate);
+
+    const handleUpdateTheme = ((e: Event) => {
+      const { key, value } = (e as CustomEvent).detail;
+      setAnnotations(prev => prev.map(a => {
+        if (a.id === selectedAnnotationId && (a.type === 'label' || a.type === 'highlight')) {
+          return { ...a, theme: { ...(a.theme || {}), [key]: value } };
+        }
+        return a;
+      }));
+    }) as EventListener;
+    window.addEventListener('updateSelectedLabelTheme', handleUpdateTheme);
+
     return () => {
       window.removeEventListener('viewCaptured', handleViewCaptured);
       window.removeEventListener('viewCapturedForPosition', handleViewCapturedForPosition);
@@ -419,8 +444,10 @@ export function App() {
       window.removeEventListener('viewCapturedForDefaultUpdate', handleViewCapturedForDefaultUpdate);
       window.removeEventListener('updateAnimationTrigger', handleUpdateAnimationTrigger);
       window.removeEventListener('updateHideAnimationTrigger', handleUpdateHideAnimationTrigger);
+      window.removeEventListener('updateSelectedLabelTemplate', handleUpdateTemplate);
+      window.removeEventListener('updateSelectedLabelTheme', handleUpdateTheme);
     };
-  }, [currentColor]);
+  }, [currentColor, selectedAnnotationId]);
 
   if (currentView === 'overview') {
     return (
@@ -547,22 +574,39 @@ export function App() {
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto">
           <div className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 min-w-[350px] max-w-md shadow-2xl">
             <h3 className="text-white font-semibold flex items-center gap-2 text-sm uppercase tracking-wider border-b border-white/10 pb-2">Add Label</h3>
-            <input
-              autoFocus
-              type="text"
-              value={labelInput}
-              onChange={e => setLabelInput(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter' && labelInput.trim()) {
-                  // Save label logic
-                  const event = new CustomEvent('saveLabel', { detail: labelInput });
-                  window.dispatchEvent(event);
-                }
-                if (e.key === 'Escape') setLabelPrompt(null);
-              }}
-              placeholder="Enter text..."
-              className="w-full bg-black/60 border border-white/10 px-3 py-2 outline-none font-mono text-sm text-white focus:border-white/50 transition-colors"
-            />
+            <div className="flex flex-col gap-2">
+              <input
+                autoFocus
+                type="text"
+                value={labelInput}
+                onChange={e => setLabelInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && labelInput.trim()) {
+                    const event = new CustomEvent('saveLabel', { detail: { text: labelInput, secondaryText: secondaryLabelInput } });
+                    window.dispatchEvent(event);
+                  }
+                  if (e.key === 'Escape') setLabelPrompt(null);
+                }}
+                placeholder={activeTool === 'label' ? "Primary text..." : "Enter text..."}
+                className="w-full bg-black/60 border border-white/10 px-3 py-2 outline-none font-mono text-sm text-white focus:border-white/50 transition-colors"
+              />
+              {activeTool === 'label' && (
+                <input
+                  type="text"
+                  value={secondaryLabelInput}
+                  onChange={e => setSecondaryLabelInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && labelInput.trim()) {
+                      const event = new CustomEvent('saveLabel', { detail: { text: labelInput, secondaryText: secondaryLabelInput } });
+                      window.dispatchEvent(event);
+                    }
+                    if (e.key === 'Escape') setLabelPrompt(null);
+                  }}
+                  placeholder="Secondary text (optional)..."
+                  className="w-full bg-black/60 border border-white/10 px-3 py-2 outline-none font-mono text-sm text-white focus:border-white/50 transition-colors"
+                />
+              )}
+            </div>
             <div className="flex justify-end gap-2 mt-2 pt-4 border-t border-white/10">
               <button 
                 onClick={() => setLabelPrompt(null)}
@@ -573,7 +617,7 @@ export function App() {
               <button 
                 onClick={() => {
                   if (labelInput.trim()) {
-                    const event = new CustomEvent('saveLabel', { detail: labelInput });
+                    const event = new CustomEvent('saveLabel', { detail: { text: labelInput, secondaryText: secondaryLabelInput } });
                     window.dispatchEvent(event);
                   }
                 }}

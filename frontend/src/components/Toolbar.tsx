@@ -137,6 +137,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
   const showStrokeControls = ['paint', 'polygon', 'circle', 'arrow', 'highlight'].includes(activeTool);
   const showFillOpacityControl = ['highlight', 'polygon', 'circle'].includes(activeTool);
+  const hideColorSwatches = (activeTool === 'label' && settings.labelTemplates?.regularLabelTemplate) || 
+                            (activeTool === 'highlight' && settings.labelTemplates?.highlightLabelTemplate);
 
   return (
     <div className="relative flex flex-col gap-1 items-start max-w-[calc(100vw-3rem)] sm:max-w-none">
@@ -171,9 +173,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
             <div className="w-[1px] h-8 bg-white/20 mx-1 shrink-0" />
 
-            {settings.icons?.[currentIconCategoryIdx]?.icons?.map((iconObj) => (
+            {settings.icons?.[currentIconCategoryIdx]?.icons?.map((iconObj, idx) => (
               <button
-                key={iconObj.id}
+                key={iconObj.id || `icon-${idx}`}
                 onPointerDown={(e) => startIconDrag(e, iconObj.id)}
                 className={`w-10 h-10 rounded-full relative flex justify-center items-center cursor-pointer shrink-0 p-2 icon-svg-wrapper z-10 transition-colors ${selectedIconId === iconObj.id ? 'text-black' : 'text-white hover:opacity-80'}`}
                 style={selectedIconId === iconObj.id ? {} : { backgroundColor: currentColor, color: getContrastYIQ(currentColor) }}
@@ -252,9 +254,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             transition={{ duration: 0.2 }}
             className="flex items-center gap-3 p-2 relative max-w-full overflow-x-auto overflow-y-hidden no-scrollbar shrink-0"
           >
-            {settings.colorPalette.map((c) => (
+            {!hideColorSwatches && settings.colorPalette.map((c, idx) => (
               <button
-                key={c}
+                key={`${c}-${idx}`}
                 onClick={() => setCurrentColor(c)}
                 className={clsx(
                   "w-8 h-8 rounded-full shrink-0 transition-all",

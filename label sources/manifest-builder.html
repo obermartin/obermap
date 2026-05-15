@@ -1,0 +1,1515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Label Template Manifest Builder</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #15181f;
+    --panel-2: #1c2029;
+    --border: #2a2f3a;
+    --border-strong: #3a4150;
+    --text: #e6e9ef;
+    --text-dim: #8a93a4;
+    --text-faint: #5a6275;
+    --accent: #d4ff3f;
+    --accent-dim: #9bc02e;
+    --warn: #ff9b3f;
+    --error: #ff4f6f;
+    --map-bg: #2a3340;
+    --map-line: #3a4555;
+
+    /* Defaults used by the live preview */
+    --primary-backplate-fill: #ffffff;
+    --primary-text-color: #1a1a1a;
+    --secondary-backplate-fill: #1a1a1a;
+    --secondary-text-color: #ffffff;
+    --pointer-fill: var(--primary-backplate-fill);
+    --accent-fill: #d4ff3f;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-monospace, "JetBrains Mono", "SF Mono", "Cascadia Code", Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    overflow: hidden;
+  }
+
+  .app {
+    display: grid;
+    grid-template-columns: 380px 1fr 420px;
+    height: 100vh;
+  }
+
+  /* Header bar */
+  header {
+    grid-column: 1 / -1;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    gap: 16px;
+  }
+
+  .logo {
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    font-size: 12px;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .logo::before {
+    content: "▸ ";
+    color: var(--text-faint);
+  }
+
+  .header-meta {
+    color: var(--text-faint);
+    font-size: 11px;
+  }
+
+  .header-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+  }
+
+  button {
+    font: inherit;
+    font-size: 12px;
+    background: var(--panel-2);
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: all 0.12s ease;
+  }
+  button:hover { background: var(--border); border-color: var(--accent-dim); }
+  button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0f1115;
+    font-weight: 600;
+  }
+  button.primary:hover { background: var(--accent-dim); border-color: var(--accent-dim); }
+  button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background: var(--panel-2);
+    border-color: var(--border);
+  }
+
+  /* Layout columns */
+  .col {
+    overflow-y: auto;
+    overflow-x: hidden;
+    height: calc(100vh - 48px);
+  }
+  .col.left { border-right: 1px solid var(--border); background: var(--panel); }
+  .col.center { background: var(--bg); display: flex; flex-direction: column; }
+  .col.right { border-left: 1px solid var(--border); background: var(--panel); }
+
+  /* Scrollbar styling */
+  .col::-webkit-scrollbar { width: 8px; }
+  .col::-webkit-scrollbar-track { background: transparent; }
+  .col::-webkit-scrollbar-thumb { background: var(--border-strong); }
+
+  /* Drop zone */
+  .dropzone {
+    margin: 20px;
+    border: 1px dashed var(--border-strong);
+    padding: 28px 20px;
+    text-align: center;
+    transition: all 0.15s ease;
+    cursor: pointer;
+  }
+  .dropzone.drag-over {
+    border-color: var(--accent);
+    background: rgba(212, 255, 63, 0.06);
+  }
+  .dropzone .icon {
+    font-size: 24px;
+    color: var(--text-faint);
+    margin-bottom: 12px;
+  }
+  .dropzone .label {
+    color: var(--text-dim);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .dropzone .hint {
+    color: var(--text-faint);
+    font-size: 11px;
+    margin-top: 6px;
+  }
+  .dropzone input[type="file"] { display: none; }
+
+  /* File list */
+  .files-section {
+    padding: 0 20px 20px;
+  }
+  .section-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-faint);
+    margin: 16px 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-title::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .file-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .file-row .status {
+    width: 8px;
+    height: 8px;
+    flex-shrink: 0;
+  }
+  .file-row .status.found { background: var(--accent); }
+  .file-row .status.missing { background: var(--text-faint); }
+  .file-row .status.error { background: var(--error); }
+  .file-row .name {
+    font-family: ui-monospace, monospace;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .file-row .dims {
+    color: var(--text-faint);
+    font-size: 10px;
+  }
+  .file-row.found .name { color: var(--text); }
+
+  /* Form */
+  .form {
+    padding: 0 20px 40px;
+  }
+  .group {
+    border-top: 1px solid var(--border);
+    padding: 16px 0;
+  }
+  .group-header {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .group-header .badge {
+    font-size: 9px;
+    background: var(--panel-2);
+    color: var(--text-dim);
+    padding: 2px 6px;
+    border: 1px solid var(--border-strong);
+    letter-spacing: 0.5px;
+  }
+
+  .subgroup-header {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-faint);
+    margin: 12px 0 8px;
+  }
+
+  .field {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .field label {
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .field .value-wrap {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .field input[type="number"],
+  .field input[type="text"],
+  .field select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px 8px;
+    font: inherit;
+    font-size: 11px;
+    width: 80px;
+    text-align: right;
+    outline: none;
+  }
+  .field input[type="text"] { text-align: left; width: 120px; }
+  .field select { text-align: left; width: 100px; padding-right: 4px; }
+  .field input:focus, .field select:focus {
+    border-color: var(--accent);
+  }
+  .field .unit {
+    color: var(--text-faint);
+    font-size: 10px;
+    width: 18px;
+  }
+
+  .field.full {
+    grid-template-columns: 1fr;
+  }
+  .field.full label {
+    margin-bottom: 4px;
+  }
+  .field.full input, .field.full select {
+    width: 100%;
+    text-align: left;
+  }
+
+  .checkbox-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 11px;
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+  .checkbox-field input { accent-color: var(--accent); }
+
+  .kind-toggle {
+    display: flex;
+    border: 1px solid var(--border-strong);
+    margin-bottom: 4px;
+  }
+  .kind-toggle button {
+    flex: 1;
+    background: transparent;
+    border: none;
+    padding: 8px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+  }
+  .kind-toggle button.active {
+    background: var(--accent);
+    color: #0f1115;
+    font-weight: 600;
+  }
+
+  /* Preview area */
+  .preview-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  .preview-header .label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-faint);
+  }
+  .preview-header input[type="text"] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 4px 8px;
+    font: inherit;
+    font-size: 11px;
+    outline: none;
+    width: 200px;
+  }
+  .preview-header input:focus { border-color: var(--accent); }
+
+  .preview-area {
+    flex: 1;
+    position: relative;
+    overflow: auto;
+    background:
+      linear-gradient(var(--map-line) 1px, transparent 1px) 0 0 / 40px 40px,
+      linear-gradient(90deg, var(--map-line) 1px, transparent 1px) 0 0 / 40px 40px,
+      var(--map-bg);
+  }
+
+  .preview-strip {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    padding: 40px;
+    align-items: flex-start;
+    min-width: max-content;
+  }
+
+  .preview-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 28px;
+  }
+
+  .preview-row .strip-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-faint);
+    padding: 4px 8px;
+    background: rgba(15, 17, 21, 0.6);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border);
+    white-space: nowrap;
+    align-self: flex-start;
+    margin-top: 4px;
+  }
+
+  .preview-canvas {
+    position: relative;
+  }
+
+  /* Anchor crosshair (showing where lng/lat lands) */
+  .anchor-mark {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+  }
+  .anchor-mark::before, .anchor-mark::after {
+    content: "";
+    position: absolute;
+    background: var(--accent);
+    box-shadow: 0 0 4px rgba(212, 255, 63, 0.6);
+  }
+  .anchor-mark::before {
+    left: 50%; top: 0; bottom: 0;
+    width: 1px; transform: translateX(-50%);
+  }
+  .anchor-mark::after {
+    top: 50%; left: 0; right: 0;
+    height: 1px; transform: translateY(-50%);
+  }
+
+  /* Output panel */
+  .output-section {
+    padding: 20px;
+  }
+  .output-status {
+    margin-bottom: 12px;
+    font-size: 11px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .output-status .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+  .output-status .dot.ok { background: var(--accent); }
+  .output-status .dot.warn { background: var(--warn); }
+  .output-status .dot.error { background: var(--error); }
+
+  .json-output {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 14px;
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    line-height: 1.6;
+    color: var(--text);
+    white-space: pre;
+    overflow-x: auto;
+    min-height: 400px;
+  }
+
+  .json-output .key { color: var(--accent); }
+  .json-output .string { color: #ffcc7a; }
+  .json-output .number { color: #ff9b8a; }
+  .json-output .bool { color: #8acfff; }
+  .json-output .null { color: var(--text-faint); }
+
+  .validation {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .validation.empty { color: var(--text-faint); }
+  .validation .error { color: var(--error); display: block; margin-bottom: 4px; }
+  .validation .error::before { content: "✕ "; }
+  .validation .ok { color: var(--accent); }
+  .validation .ok::before { content: "✓ "; }
+
+  /* Theme color picker mini */
+  .theme-controls {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .color-mini {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+  .color-mini input[type="color"] {
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    cursor: pointer;
+    padding: 0;
+  }
+  .color-mini input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+  .color-mini input[type="color"]::-webkit-color-swatch { border: none; }
+
+  /* Empty state */
+  .empty-preview {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-faint);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .help-text {
+    font-size: 10px;
+    color: var(--text-faint);
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <div class="logo">Label Template Builder</div>
+    <div class="header-meta">map label manifest authoring</div>
+    <div class="header-actions">
+      <button id="loadExampleBtn">Load Example</button>
+      <button id="loadManifestBtn">Load Manifest…</button>
+      <input type="file" id="manifestFileInput" accept=".json,application/json" style="display:none">
+      <button id="downloadBtn" class="primary" disabled>Download manifest.json</button>
+    </div>
+  </header>
+
+  <!-- LEFT: File loading + form -->
+  <div class="col left">
+
+    <div class="dropzone" id="dropzone">
+      <div class="icon">⬚</div>
+      <div class="label">Drop SVG files here</div>
+      <div class="hint">or click to browse — select all primary_*.svg and secondary_*.svg files (and optionally a manifest.json to edit an existing template)</div>
+      <input type="file" id="fileInput" multiple accept=".svg,.json">
+    </div>
+
+    <div class="files-section">
+      <div class="section-title">Primary backplate files</div>
+      <div id="primaryFiles">
+        <div class="file-row"><div class="status missing"></div><div class="name">primary_left-cap.svg</div></div>
+        <div class="file-row"><div class="status missing"></div><div class="name">primary_middle.svg</div></div>
+        <div class="file-row"><div class="status missing"></div><div class="name">primary_right-cap.svg</div></div>
+        <div class="file-row"><div class="status missing"></div><div class="name">primary_pointer.svg</div></div>
+      </div>
+
+      <div class="section-title">Secondary backplate files</div>
+      <div id="secondaryFiles">
+        <div class="file-row"><div class="status missing"></div><div class="name">secondary_left-cap.svg</div></div>
+        <div class="file-row"><div class="status missing"></div><div class="name">secondary_middle.svg</div></div>
+        <div class="file-row"><div class="status missing"></div><div class="name">secondary_right-cap.svg</div></div>
+      </div>
+    </div>
+
+    <div class="form">
+      <div class="group">
+        <div class="group-header">Template</div>
+        <div class="field full">
+          <label>name</label>
+          <input type="text" id="name" value="my-template">
+          <div class="help-text">Used for identification; can match folder name but doesn't have to. Any characters except slashes.</div>
+        </div>
+        <div class="field full">
+          <label>kind</label>
+          <div class="kind-toggle">
+            <button class="active" data-kind="highlight">Highlight</button>
+            <button data-kind="regular">Regular</button>
+          </div>
+          <div class="help-text">Highlight = 1 line. Regular = 2 lines (primary + secondary).</div>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-header">Primary backplate <span class="badge">required</span></div>
+        <div class="field"><label>height</label><div class="value-wrap"><input type="number" id="primaryHeight" value="36" min="1"><span class="unit">px</span></div></div>
+        <div class="field"><label>capWidth</label><div class="value-wrap"><input type="number" id="primaryCapWidth" value="18" min="1"><span class="unit">px</span></div></div>
+        <div class="field"><label>minWidth</label><div class="value-wrap"><input type="number" id="primaryMinWidth" value="60" min="1"><span class="unit">px</span></div></div>
+        <div class="field"><label>paddingX</label><div class="value-wrap"><input type="number" id="primaryPaddingX" value="14" min="0"><span class="unit">px</span></div></div>
+        <div class="field"><label>paddingY</label><div class="value-wrap"><input type="number" id="primaryPaddingY" value="6" min="0"><span class="unit">px</span></div></div>
+
+        <div class="subgroup-header">Primary typography</div>
+        <div class="field full"><label>fontFamily</label><input type="text" id="primaryFontFamily" value="Inter"></div>
+        <div class="field"><label>fontSize</label><div class="value-wrap"><input type="number" id="primaryFontSize" value="14" min="1"><span class="unit">px</span></div></div>
+        <div class="field"><label>fontWeight</label><div class="value-wrap"><input type="number" id="primaryFontWeight" value="600" min="100" max="900" step="100"><span class="unit"></span></div></div>
+        <div class="field full"><label>color</label><input type="text" id="primaryColor" value="var(--primary-text-color, #1a1a1a)"></div>
+        <div class="field"><label>letterSpacing</label><div class="value-wrap"><input type="number" id="primaryLetterSpacing" value="0" step="0.1"><span class="unit">px</span></div></div>
+        <div class="field"><label>lineHeight</label><div class="value-wrap"><input type="number" id="primaryLineHeight" value="1.2" step="0.1"><span class="unit"></span></div></div>
+        <div class="field"><label>textTransform</label><select id="primaryTextTransform"><option>none</option><option>uppercase</option><option>lowercase</option><option>capitalize</option></select></div>
+        <div class="field"><label>textAlign</label><select id="primaryTextAlign"><option>center</option><option>left</option><option>right</option></select></div>
+
+        <div class="subgroup-header">Primary pointer</div>
+        <div class="field"><label>width</label><div class="value-wrap"><input type="number" id="pointerWidth" value="16" min="1"><span class="unit">px</span></div></div>
+        <div class="field"><label>height</label><div class="value-wrap"><input type="number" id="pointerHeight" value="10" min="1"><span class="unit">px</span></div></div>
+        <div class="field"><label>attachEdge</label><select id="pointerAttachEdge"><option>bottom</option><option>top</option><option>left</option><option>right</option></select></div>
+        <div class="field"><label>attachFrom</label><select id="pointerAttachFrom"><option>left</option><option>right</option></select></div>
+        <div class="field"><label>attachOffset</label><div class="value-wrap"><input type="number" id="pointerAttachOffset" value="30" min="0"><span class="unit">px</span></div></div>
+        <div class="field"><label>tipX</label><div class="value-wrap"><input type="number" id="pointerTipX" value="8" min="0"><span class="unit">px</span></div></div>
+        <div class="field"><label>tipY</label><div class="value-wrap"><input type="number" id="pointerTipY" value="10" min="0"><span class="unit">px</span></div></div>
+        <label class="checkbox-field"><input type="checkbox" id="pointerIndependentColor"> independentColor (pointer uses --pointer-fill)</label>
+      </div>
+
+      <div class="group" id="secondaryGroup" style="display:none">
+        <div class="group-header">Secondary backplate</div>
+        <div class="field"><label>height</label><div class="value-wrap"><input type="number" id="secondaryHeight" value="18" min="1"><span class="unit">px</span></div></div>
+        <div class="field"><label>capWidth</label><div class="value-wrap"><input type="number" id="secondaryCapWidth" value="9" min="1"><span class="unit">px</span></div></div>
+        <div class="field"><label>minWidth</label><div class="value-wrap"><input type="number" id="secondaryMinWidth" value="32" min="1"><span class="unit">px</span></div></div>
+        <div class="field"><label>paddingX</label><div class="value-wrap"><input type="number" id="secondaryPaddingX" value="8" min="0"><span class="unit">px</span></div></div>
+        <div class="field"><label>paddingY</label><div class="value-wrap"><input type="number" id="secondaryPaddingY" value="3" min="0"><span class="unit">px</span></div></div>
+        <div class="field"><label>position</label><select id="secondaryPosition"><option>below</option><option>above</option></select></div>
+        <div class="field"><label>align</label><select id="secondaryAlign"><option>center</option><option>left</option><option>right</option></select></div>
+        <div class="field"><label>gap</label><div class="value-wrap"><input type="number" id="secondaryGap" value="4" min="0"><span class="unit">px</span></div></div>
+
+        <div class="subgroup-header">Secondary typography</div>
+        <div class="field full"><label>fontFamily</label><input type="text" id="secondaryFontFamily" value="Inter"></div>
+        <div class="field"><label>fontSize</label><div class="value-wrap"><input type="number" id="secondaryFontSize" value="11" min="1"><span class="unit">px</span></div></div>
+        <div class="field"><label>fontWeight</label><div class="value-wrap"><input type="number" id="secondaryFontWeight" value="500" min="100" max="900" step="100"><span class="unit"></span></div></div>
+        <div class="field full"><label>color</label><input type="text" id="secondaryColor" value="var(--secondary-text-color, #ffffff)"></div>
+        <div class="field"><label>letterSpacing</label><div class="value-wrap"><input type="number" id="secondaryLetterSpacing" value="0.3" step="0.1"><span class="unit">px</span></div></div>
+        <div class="field"><label>lineHeight</label><div class="value-wrap"><input type="number" id="secondaryLineHeight" value="1.3" step="0.1"><span class="unit"></span></div></div>
+        <div class="field"><label>textTransform</label><select id="secondaryTextTransform"><option>uppercase</option><option>none</option><option>lowercase</option><option>capitalize</option></select></div>
+        <div class="field"><label>textAlign</label><select id="secondaryTextAlign"><option>center</option><option>left</option><option>right</option></select></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER: Live preview -->
+  <div class="col center">
+    <div class="preview-header">
+      <div class="label">Preview text</div>
+      <input type="text" id="previewPrimary" value="Berlin Hbf" placeholder="primary text">
+      <input type="text" id="previewSecondary" value="STATION" placeholder="secondary text" disabled>
+      <div style="margin-left:auto" class="theme-controls">
+        <label class="color-mini">primary <input type="color" id="themePrimaryFill" value="#ffffff"></label>
+        <label class="color-mini">secondary <input type="color" id="themeSecondaryFill" value="#1a1a1a"></label>
+        <label class="color-mini">primary text <input type="color" id="themePrimaryText" value="#1a1a1a"></label>
+        <label class="color-mini">secondary text <input type="color" id="themeSecondaryText" value="#ffffff"></label>
+        <label class="color-mini">pointer <input type="color" id="themePointer" value="#ffffff"></label>
+      </div>
+    </div>
+    <div class="preview-area" id="previewArea">
+      <div class="empty-preview">Drop your SVG files to see the live preview</div>
+    </div>
+  </div>
+
+  <!-- RIGHT: JSON output + validation -->
+  <div class="col right">
+    <div class="output-section">
+      <div class="section-title">manifest.json</div>
+      <div class="output-status" id="outputStatus">
+        <div class="dot warn"></div>
+        <span>Awaiting SVG files…</span>
+      </div>
+      <div class="json-output" id="jsonOutput">{}</div>
+      <div class="validation empty" id="validation">No template loaded yet.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================================
+// State
+// ============================================================================
+
+const REQUIRED_PRIMARY = ['primary_left-cap', 'primary_middle', 'primary_right-cap', 'primary_pointer'];
+const REQUIRED_SECONDARY = ['secondary_left-cap', 'secondary_middle', 'secondary_right-cap'];
+
+const state = {
+  kind: 'highlight',
+  files: {},          // key: 'primary_left-cap' → { text, sourceWidth, sourceHeight }
+  primaryText: 'Berlin Hbf',
+  secondaryText: 'STATION',
+  theme: {
+    primaryBackplateFill: '#ffffff',
+    secondaryBackplateFill: '#1a1a1a',
+    primaryTextColor: '#1a1a1a',
+    secondaryTextColor: '#ffffff',
+    pointerFill: '#ffffff',
+  },
+};
+
+// ============================================================================
+// SVG parsing
+// ============================================================================
+
+// Parse a CSS-rules text block (from an SVG <style> element) into
+// a map of selector → { property: value, ... }. Handles only the subset
+// Illustrator and similar exporters produce: .className { fill: X; ... }
+function parseCssRules(cssText) {
+  const rules = {};
+  // Match `selector { body }` non-greedily
+  const ruleRegex = /([^{}]+)\{([^{}]*)\}/g;
+  let m;
+  while ((m = ruleRegex.exec(cssText)) !== null) {
+    const selectors = m[1].split(',').map(s => s.trim()).filter(Boolean);
+    const decls = {};
+    m[2].split(';').forEach(decl => {
+      const idx = decl.indexOf(':');
+      if (idx > -1) {
+        const prop = decl.slice(0, idx).trim();
+        const val = decl.slice(idx + 1).trim();
+        if (prop && val) decls[prop] = val;
+      }
+    });
+    selectors.forEach(sel => { rules[sel] = { ...(rules[sel] || {}), ...decls }; });
+  }
+  return rules;
+}
+
+// Convert Illustrator-style class-based fills into direct attributes,
+// then strip the <style> block. This makes each SVG self-contained so
+// inlining multiple SVGs in the same DOM doesn't cause CSS class name
+// collisions (e.g. `.cls-1` defined in two SVGs with different fills).
+function normalizeSvgFills(svgDoc) {
+  const styleEls = Array.from(svgDoc.querySelectorAll('style'));
+  if (styleEls.length === 0) return;
+
+  // Aggregate all rules across all <style> elements in this SVG
+  let rules = {};
+  styleEls.forEach(s => { rules = { ...rules, ...parseCssRules(s.textContent || '') }; });
+
+  // Apply class rules to elements that reference them
+  const applyRulesToElement = (el) => {
+    const classAttr = el.getAttribute('class');
+    if (!classAttr) return;
+    const classes = classAttr.split(/\s+/).filter(Boolean);
+    classes.forEach(cls => {
+      const decls = rules['.' + cls];
+      if (!decls) return;
+      Object.entries(decls).forEach(([prop, val]) => {
+        // Only apply if the element doesn't already have an inline override
+        if (prop === 'fill' || prop === 'stroke' || prop === 'fill-opacity' || prop === 'stroke-opacity' || prop === 'stroke-width' || prop === 'opacity') {
+          if (!el.hasAttribute(prop) && !((el.getAttribute('style') || '').includes(prop + ':'))) {
+            el.setAttribute(prop, val);
+          }
+        }
+      });
+    });
+    // Class attribute is no longer needed and would still match if any leak occurred
+    el.removeAttribute('class');
+  };
+
+  // Walk every descendant of the svg root
+  const root = svgDoc.documentElement;
+  const walker = svgDoc.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+  let node = walker.currentNode;
+  // currentNode is the root; skip it but visit all descendants
+  while ((node = walker.nextNode())) {
+    if (node.nodeName.toLowerCase() !== 'style') applyRulesToElement(node);
+  }
+
+  // Remove all <style> blocks (and now-empty <defs> wrappers)
+  styleEls.forEach(s => s.remove());
+  Array.from(svgDoc.querySelectorAll('defs')).forEach(defs => {
+    if (defs.children.length === 0 && !defs.textContent.trim()) defs.remove();
+  });
+}
+
+function parseSvgDimensions(svgText) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(svgText, 'image/svg+xml');
+  const svg = doc.documentElement;
+  if (svg.nodeName !== 'svg') return null;
+
+  let w, h;
+  const vb = svg.getAttribute('viewBox');
+  if (vb) {
+    const parts = vb.trim().split(/[\s,]+/).map(parseFloat);
+    if (parts.length === 4) { w = parts[2]; h = parts[3]; }
+  }
+  if (!w || !h) {
+    const wAttr = parseFloat(svg.getAttribute('width'));
+    const hAttr = parseFloat(svg.getAttribute('height'));
+    if (!isNaN(wAttr)) w = wAttr;
+    if (!isNaN(hAttr)) h = hAttr;
+  }
+
+  // Normalize: inline class-based fills as direct attributes and strip <style>
+  normalizeSvgFills(doc);
+
+  // Serialize the normalized SVG back to a string
+  const serializer = new XMLSerializer();
+  const normalizedRaw = serializer.serializeToString(svg);
+
+  return { sourceWidth: w || 1, sourceHeight: h || 1, raw: normalizedRaw };
+}
+
+function extractSvgInner(svgText) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(svgText, 'image/svg+xml');
+  const svg = doc.documentElement;
+  return svg.innerHTML;
+}
+
+// ============================================================================
+// File loading
+// ============================================================================
+
+function fileBaseName(filename) {
+  return filename.replace(/\.svg$/i, '').toLowerCase();
+}
+
+async function handleFiles(fileList) {
+  const files = Array.from(fileList);
+  let manifestLoaded = false;
+  for (const file of files) {
+    const lower = file.name.toLowerCase();
+    if (lower.endsWith('.svg')) {
+      const baseName = fileBaseName(file.name);
+      const validKey = [...REQUIRED_PRIMARY, ...REQUIRED_SECONDARY].find(k => k === baseName);
+      if (!validKey) continue;
+      const text = await file.text();
+      const dims = parseSvgDimensions(text);
+      if (!dims) continue;
+      state.files[validKey] = dims;
+    } else if (lower.endsWith('.json')) {
+      try {
+        const text = await file.text();
+        const json = JSON.parse(text);
+        applyManifestToForm(json);
+        manifestLoaded = true;
+      } catch (err) {
+        alert(`Could not load manifest from ${file.name}: ${err.message}`);
+      }
+    }
+  }
+  updateFileList();
+  // When a manifest is loaded, it carries authoritative values — don't let
+  // SVG-derived auto-fill overwrite them.
+  if (!manifestLoaded) updatePrimaryFromSvgs();
+  rerender();
+}
+
+// Apply a parsed manifest object to the form fields. Missing fields fall
+// back to whatever is currently in the form (which starts at sensible defaults).
+function applyManifestToForm(manifest) {
+  const set = (id, value) => {
+    if (value === undefined || value === null) return;
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.type === 'checkbox') el.checked = !!value;
+    else el.value = value;
+  };
+
+  set('name', manifest.name);
+
+  // Kind toggle
+  if (manifest.kind === 'highlight' || manifest.kind === 'regular') {
+    state.kind = manifest.kind;
+    document.querySelectorAll('.kind-toggle button').forEach(b => {
+      b.classList.toggle('active', b.dataset.kind === manifest.kind);
+    });
+    document.getElementById('secondaryGroup').style.display = manifest.kind === 'regular' ? 'block' : 'none';
+    document.getElementById('previewSecondary').disabled = manifest.kind === 'highlight';
+  }
+
+  // Primary backplate
+  const p = manifest.primary || {};
+  set('primaryHeight', p.height);
+  set('primaryCapWidth', p.capWidth);
+  set('primaryMinWidth', p.minWidth);
+  set('primaryPaddingX', p.paddingX);
+  set('primaryPaddingY', p.paddingY);
+  const pt = p.typography || {};
+  set('primaryFontFamily', pt.fontFamily);
+  set('primaryFontSize', pt.fontSize);
+  set('primaryFontWeight', pt.fontWeight);
+  set('primaryColor', pt.color);
+  set('primaryLetterSpacing', pt.letterSpacing);
+  // lineHeight may be number or string; the input is number, so coerce gently
+  if (typeof pt.lineHeight === 'number') set('primaryLineHeight', pt.lineHeight);
+  set('primaryTextTransform', pt.textTransform);
+  set('primaryTextAlign', pt.textAlign);
+
+  // Primary pointer
+  const pp = p.pointer || {};
+  set('pointerWidth', pp.width);
+  set('pointerHeight', pp.height);
+  set('pointerAttachEdge', pp.attachEdge);
+  set('pointerAttachFrom', pp.attachFrom);
+  set('pointerAttachOffset', pp.attachOffset);
+  set('pointerTipX', pp.tipX);
+  set('pointerTipY', pp.tipY);
+  set('pointerIndependentColor', pp.independentColor);
+
+  // Secondary backplate
+  if (manifest.secondary) {
+    const s = manifest.secondary;
+    set('secondaryHeight', s.height);
+    set('secondaryCapWidth', s.capWidth);
+    set('secondaryMinWidth', s.minWidth);
+    set('secondaryPaddingX', s.paddingX);
+    set('secondaryPaddingY', s.paddingY);
+    set('secondaryPosition', s.position);
+    set('secondaryAlign', s.align);
+    set('secondaryGap', s.gap);
+    const st = s.typography || {};
+    set('secondaryFontFamily', st.fontFamily);
+    set('secondaryFontSize', st.fontSize);
+    set('secondaryFontWeight', st.fontWeight);
+    set('secondaryColor', st.color);
+    set('secondaryLetterSpacing', st.letterSpacing);
+    if (typeof st.lineHeight === 'number') set('secondaryLineHeight', st.lineHeight);
+    set('secondaryTextTransform', st.textTransform);
+    set('secondaryTextAlign', st.textAlign);
+  }
+
+  // Lock auto-fill so re-dropping SVGs doesn't clobber the loaded manifest's values.
+  state._primaryDimsAutoSet = true;
+  state._pointerDimsAutoSet = true;
+  state._secondaryDimsAutoSet = true;
+}
+
+function updatePrimaryFromSvgs() {
+  // Auto-populate primary height and capWidth from first detected SVG dimensions
+  // (only on initial load — don't override user edits).
+  if (state.files['primary_left-cap'] && !state._primaryDimsAutoSet) {
+    const cap = state.files['primary_left-cap'];
+    document.getElementById('primaryHeight').value = Math.round(cap.sourceHeight);
+    document.getElementById('primaryCapWidth').value = Math.round(cap.sourceWidth);
+    state._primaryDimsAutoSet = true;
+  }
+  if (state.files['primary_pointer'] && !state._pointerDimsAutoSet) {
+    const p = state.files['primary_pointer'];
+    document.getElementById('pointerWidth').value = Math.round(p.sourceWidth);
+    document.getElementById('pointerHeight').value = Math.round(p.sourceHeight);
+    state._pointerDimsAutoSet = true;
+  }
+  if (state.files['secondary_left-cap'] && !state._secondaryDimsAutoSet) {
+    const cap = state.files['secondary_left-cap'];
+    document.getElementById('secondaryHeight').value = Math.round(cap.sourceHeight);
+    document.getElementById('secondaryCapWidth').value = Math.round(cap.sourceWidth);
+    state._secondaryDimsAutoSet = true;
+  }
+}
+
+function updateFileList() {
+  const renderRow = (key, container) => {
+    const found = !!state.files[key];
+    const row = document.createElement('div');
+    row.className = 'file-row' + (found ? ' found' : '');
+    const dims = found ? `${Math.round(state.files[key].sourceWidth)}×${Math.round(state.files[key].sourceHeight)}` : '';
+    row.innerHTML = `
+      <div class="status ${found ? 'found' : 'missing'}"></div>
+      <div class="name">${key}.svg</div>
+      <div class="dims">${dims}</div>
+    `;
+    container.appendChild(row);
+  };
+
+  const primary = document.getElementById('primaryFiles');
+  primary.innerHTML = '';
+  REQUIRED_PRIMARY.forEach(k => renderRow(k, primary));
+
+  const secondary = document.getElementById('secondaryFiles');
+  secondary.innerHTML = '';
+  REQUIRED_SECONDARY.forEach(k => renderRow(k, secondary));
+}
+
+// ============================================================================
+// Manifest building
+// ============================================================================
+
+function buildManifest() {
+  const m = {
+    name: document.getElementById('name').value || 'unnamed-template',
+    kind: state.kind,
+    primary: {
+      height: parseInt(document.getElementById('primaryHeight').value, 10),
+      capWidth: parseInt(document.getElementById('primaryCapWidth').value, 10),
+      minWidth: parseInt(document.getElementById('primaryMinWidth').value, 10),
+      paddingX: parseInt(document.getElementById('primaryPaddingX').value, 10),
+      paddingY: parseInt(document.getElementById('primaryPaddingY').value, 10),
+      typography: {
+        fontFamily: document.getElementById('primaryFontFamily').value,
+        fontSize: parseInt(document.getElementById('primaryFontSize').value, 10),
+        fontWeight: parseInt(document.getElementById('primaryFontWeight').value, 10),
+        color: document.getElementById('primaryColor').value,
+        letterSpacing: parseFloat(document.getElementById('primaryLetterSpacing').value),
+        lineHeight: parseFloat(document.getElementById('primaryLineHeight').value),
+        textTransform: document.getElementById('primaryTextTransform').value,
+        textAlign: document.getElementById('primaryTextAlign').value,
+      },
+      pointer: {
+        width: parseInt(document.getElementById('pointerWidth').value, 10),
+        height: parseInt(document.getElementById('pointerHeight').value, 10),
+        attachEdge: document.getElementById('pointerAttachEdge').value,
+        attachFrom: document.getElementById('pointerAttachFrom').value,
+        attachOffset: parseInt(document.getElementById('pointerAttachOffset').value, 10),
+        tipX: parseInt(document.getElementById('pointerTipX').value, 10),
+        tipY: parseInt(document.getElementById('pointerTipY').value, 10),
+        independentColor: document.getElementById('pointerIndependentColor').checked,
+      },
+    },
+  };
+
+  if (state.kind === 'regular') {
+    m.secondary = {
+      height: parseInt(document.getElementById('secondaryHeight').value, 10),
+      capWidth: parseInt(document.getElementById('secondaryCapWidth').value, 10),
+      minWidth: parseInt(document.getElementById('secondaryMinWidth').value, 10),
+      paddingX: parseInt(document.getElementById('secondaryPaddingX').value, 10),
+      paddingY: parseInt(document.getElementById('secondaryPaddingY').value, 10),
+      position: document.getElementById('secondaryPosition').value,
+      align: document.getElementById('secondaryAlign').value,
+      gap: parseInt(document.getElementById('secondaryGap').value, 10),
+      typography: {
+        fontFamily: document.getElementById('secondaryFontFamily').value,
+        fontSize: parseInt(document.getElementById('secondaryFontSize').value, 10),
+        fontWeight: parseInt(document.getElementById('secondaryFontWeight').value, 10),
+        color: document.getElementById('secondaryColor').value,
+        letterSpacing: parseFloat(document.getElementById('secondaryLetterSpacing').value),
+        lineHeight: parseFloat(document.getElementById('secondaryLineHeight').value),
+        textTransform: document.getElementById('secondaryTextTransform').value,
+        textAlign: document.getElementById('secondaryTextAlign').value,
+      },
+    };
+  }
+
+  return m;
+}
+
+// ============================================================================
+// Validation
+// ============================================================================
+
+function validate(manifest) {
+  const errors = [];
+
+  if (!manifest.name || !manifest.name.trim()) {
+    errors.push('name is required');
+  } else if (/[\/\\]/.test(manifest.name) || manifest.name !== manifest.name.trim()) {
+    errors.push('name cannot contain slashes or leading/trailing whitespace');
+  }
+
+  REQUIRED_PRIMARY.forEach(k => {
+    if (!state.files[k]) errors.push(`Missing file: ${k}.svg`);
+  });
+
+  if (manifest.kind === 'regular') {
+    REQUIRED_SECONDARY.forEach(k => {
+      if (!state.files[k]) errors.push(`Missing file: ${k}.svg`);
+    });
+  }
+
+  // Dimension cross-checks
+  const checkHeight = (file, expected, what) => {
+    if (state.files[file] && state.files[file].sourceHeight !== expected) {
+      errors.push(`${file}.svg height is ${state.files[file].sourceHeight}px but manifest says ${what} = ${expected}px`);
+    }
+  };
+  checkHeight('primary_left-cap', manifest.primary.height, 'primary.height');
+  checkHeight('primary_middle', manifest.primary.height, 'primary.height');
+  checkHeight('primary_right-cap', manifest.primary.height, 'primary.height');
+
+  if (state.files['primary_left-cap'] && state.files['primary_left-cap'].sourceWidth !== manifest.primary.capWidth) {
+    errors.push(`primary_left-cap.svg width is ${state.files['primary_left-cap'].sourceWidth}px but manifest says primary.capWidth = ${manifest.primary.capWidth}px`);
+  }
+
+  if (manifest.kind === 'regular') {
+    checkHeight('secondary_left-cap', manifest.secondary.height, 'secondary.height');
+    checkHeight('secondary_middle', manifest.secondary.height, 'secondary.height');
+    checkHeight('secondary_right-cap', manifest.secondary.height, 'secondary.height');
+  }
+
+  // (Numeric sanity checks removed — the renderer handles edge cases like
+  // overlapping caps and tips outside the pointer bounding box gracefully.)
+
+  return errors;
+}
+
+// ============================================================================
+// Rendering (live preview)
+// ============================================================================
+
+function applyTheme(el) {
+  el.style.setProperty('--primary-backplate-fill', state.theme.primaryBackplateFill);
+  el.style.setProperty('--secondary-backplate-fill', state.theme.secondaryBackplateFill);
+  el.style.setProperty('--primary-text-color', state.theme.primaryTextColor);
+  el.style.setProperty('--secondary-text-color', state.theme.secondaryTextColor);
+  el.style.setProperty('--pointer-fill', state.theme.pointerFill);
+  el.style.setProperty('--accent-fill', '#d4ff3f');
+}
+
+function measureText(text, typography) {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  let str = text;
+  if (typography.textTransform === 'uppercase') str = str.toUpperCase();
+  else if (typography.textTransform === 'lowercase') str = str.toLowerCase();
+  else if (typography.textTransform === 'capitalize') str = str.replace(/\b\w/g, c => c.toUpperCase());
+  ctx.font = `${typography.fontWeight} ${typography.fontSize}px ${typography.fontFamily}, sans-serif`;
+  const m = ctx.measureText(str);
+  const ls = (typography.letterSpacing || 0) * Math.max(0, str.length - 1);
+  return Math.ceil(m.width + ls);
+}
+
+function renderBackplate(role, manifest, text) {
+  const config = role === 'primary' ? manifest.primary : manifest.secondary;
+  const prefix = role;
+  const leftCap = state.files[`${prefix}_left-cap`];
+  const middle = state.files[`${prefix}_middle`];
+  const rightCap = state.files[`${prefix}_right-cap`];
+  if (!leftCap || !middle || !rightCap) return null;
+
+  const textWidth = measureText(text, config.typography);
+  const totalWidth = Math.max(config.minWidth, textWidth + 2 * config.paddingX);
+  // When the total width is smaller than 2 * capWidth, the caps would overlap.
+  // Clamp each cap to half the total width and skip the middle.
+  const effectiveCapWidth = Math.min(config.capWidth, totalWidth / 2);
+  const middleWidth = Math.max(0, totalWidth - 2 * effectiveCapWidth);
+
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = `
+    position: relative;
+    display: flex;
+    width: ${totalWidth}px;
+    height: ${config.height}px;
+  `;
+
+  const capLeft = document.createElement('div');
+  capLeft.style.cssText = `width:${effectiveCapWidth}px; height:${config.height}px; display:block; flex-shrink:0;`;
+  capLeft.innerHTML = leftCap.raw;
+  capLeft.querySelector('svg').style.cssText = 'display:block; width:100%; height:100%;';
+
+  let middleSvg = null;
+  if (middleWidth > 0) {
+    middleSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    middleSvg.setAttribute('width', middleWidth);
+    middleSvg.setAttribute('height', middle.sourceHeight);
+    middleSvg.setAttribute('viewBox', `0 0 ${middle.sourceWidth} ${middle.sourceHeight}`);
+    middleSvg.setAttribute('preserveAspectRatio', 'none');
+    middleSvg.style.cssText = `display:block; width:${middleWidth}px; height:${config.height}px;`;
+    middleSvg.innerHTML = extractSvgInner(middle.raw);
+  }
+
+  const capRight = document.createElement('div');
+  capRight.style.cssText = `width:${effectiveCapWidth}px; height:${config.height}px; display:block; flex-shrink:0;`;
+  capRight.innerHTML = rightCap.raw;
+  capRight.querySelector('svg').style.cssText = 'display:block; width:100%; height:100%;';
+
+  const textEl = document.createElement('span');
+  textEl.textContent = text;
+  textEl.style.cssText = `
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: ${config.typography.textAlign === 'left' ? 'flex-start' : config.typography.textAlign === 'right' ? 'flex-end' : 'center'};
+    padding: 0 ${config.paddingX}px;
+    font-family: ${config.typography.fontFamily}, sans-serif;
+    font-size: ${config.typography.fontSize}px;
+    font-weight: ${config.typography.fontWeight};
+    color: ${role === 'primary' ? state.theme.primaryTextColor : state.theme.secondaryTextColor};
+    letter-spacing: ${config.typography.letterSpacing || 0}px;
+    line-height: ${config.typography.lineHeight || 1.2};
+    text-transform: ${config.typography.textTransform || 'none'};
+    text-align: ${config.typography.textAlign};
+    pointer-events: none;
+    white-space: nowrap;
+  `;
+
+  wrapper.appendChild(capLeft);
+  if (middleSvg) wrapper.appendChild(middleSvg);
+  wrapper.appendChild(capRight);
+  wrapper.appendChild(textEl);
+
+  return { el: wrapper, width: totalWidth, height: config.height };
+}
+
+function renderPointer(manifest, primaryWidth, primaryHeight) {
+  const pointerFile = state.files['primary_pointer'];
+  if (!pointerFile) return null;
+  const p = manifest.primary.pointer;
+  const el = document.createElement('div');
+  el.style.cssText = `
+    position: absolute;
+    width: ${p.width}px;
+    height: ${p.height}px;
+    pointer-events: none;
+  `;
+  el.innerHTML = pointerFile.raw;
+  const svg = el.querySelector('svg');
+  if (svg) svg.style.cssText = 'display:block; width:100%; height:100%;';
+  return { el, pointer: p };
+}
+
+function renderLabel(primaryText, secondaryText) {
+  const manifest = buildManifest();
+  applyTheme(document.documentElement);
+
+  const primary = renderBackplate('primary', manifest, primaryText);
+  if (!primary) return null;
+
+  const secondary = manifest.kind === 'regular' && secondaryText.trim()
+    ? renderBackplate('secondary', manifest, secondaryText)
+    : null;
+
+  const pointerInfo = renderPointer(manifest, primary.width, primary.height);
+
+  // Compute marker layout
+  const p = manifest.primary.pointer;
+  const pointerOverhangTop = p.attachEdge === 'top' ? p.height : 0;
+  const pointerOverhangBottom = p.attachEdge === 'bottom' ? p.height : 0;
+
+  let secondaryAboveBlock = 0, secondaryBelowBlock = 0;
+  if (secondary) {
+    const sBlock = secondary.height + manifest.secondary.gap;
+    if (manifest.secondary.position === 'above') secondaryAboveBlock = sBlock;
+    else secondaryBelowBlock = sBlock;
+  }
+
+  const markerWidth = Math.max(primary.width, secondary ? secondary.width : 0);
+  const markerHeight = secondaryAboveBlock + pointerOverhangTop + primary.height + pointerOverhangBottom + secondaryBelowBlock;
+
+  // Primary's offset within the marker
+  const primaryOffsetY = secondaryAboveBlock + pointerOverhangTop;
+  const primaryOffsetX = (markerWidth - primary.width) / 2; // center primary horizontally in marker
+
+  // Marker container
+  const marker = document.createElement('div');
+  marker.style.cssText = `
+    position: relative;
+    width: ${markerWidth}px;
+    height: ${markerHeight}px;
+  `;
+
+  // Place primary
+  primary.el.style.position = 'absolute';
+  primary.el.style.left = `${primaryOffsetX}px`;
+  primary.el.style.top = `${primaryOffsetY}px`;
+  marker.appendChild(primary.el);
+
+  // Place secondary
+  let secondaryOffsetX = 0;
+  if (secondary) {
+    if (manifest.secondary.align === 'left') {
+      secondaryOffsetX = primaryOffsetX;
+    } else if (manifest.secondary.align === 'right') {
+      secondaryOffsetX = primaryOffsetX + primary.width - secondary.width;
+    } else {
+      secondaryOffsetX = primaryOffsetX + (primary.width - secondary.width) / 2;
+    }
+    secondary.el.style.position = 'absolute';
+    secondary.el.style.left = `${secondaryOffsetX}px`;
+    secondary.el.style.top = manifest.secondary.position === 'above'
+      ? `0px`
+      : `${primaryOffsetY + primary.height + (pointerOverhangBottom) + manifest.secondary.gap}px`;
+    marker.appendChild(secondary.el);
+  }
+
+  // Place pointer
+  let pointerLeft = 0, pointerTop = 0, tipMarkerX = 0, tipMarkerY = 0;
+  if (pointerInfo) {
+    const pt = pointerInfo.pointer;
+    if (pt.attachEdge === 'bottom') {
+      pointerTop = primaryOffsetY + primary.height;
+      pointerLeft = primaryOffsetX + (pt.attachFrom === 'right' ? primary.width - pt.attachOffset - pt.tipX : pt.attachOffset - pt.tipX);
+    } else if (pt.attachEdge === 'top') {
+      pointerTop = primaryOffsetY - pt.height;
+      pointerLeft = primaryOffsetX + (pt.attachFrom === 'right' ? primary.width - pt.attachOffset - pt.tipX : pt.attachOffset - pt.tipX);
+    } else if (pt.attachEdge === 'left') {
+      pointerLeft = primaryOffsetX - pt.width;
+      pointerTop = primaryOffsetY + (pt.attachFrom === 'bottom' ? primary.height - pt.attachOffset - pt.tipY : pt.attachOffset - pt.tipY);
+    } else { // right
+      pointerLeft = primaryOffsetX + primary.width;
+      pointerTop = primaryOffsetY + (pt.attachFrom === 'bottom' ? primary.height - pt.attachOffset - pt.tipY : pt.attachOffset - pt.tipY);
+    }
+    pointerInfo.el.style.left = `${pointerLeft}px`;
+    pointerInfo.el.style.top = `${pointerTop}px`;
+    marker.appendChild(pointerInfo.el);
+    tipMarkerX = pointerLeft + pt.tipX;
+    tipMarkerY = pointerTop + pt.tipY;
+  }
+
+  // Crosshair at the tip (the lng/lat anchor)
+  const anchor = document.createElement('div');
+  anchor.className = 'anchor-mark';
+  anchor.style.left = `${tipMarkerX}px`;
+  anchor.style.top = `${tipMarkerY}px`;
+  marker.appendChild(anchor);
+
+  return { el: marker, markerWidth, markerHeight, tipX: tipMarkerX, tipY: tipMarkerY };
+}
+
+function rerender() {
+  // JSON output
+  const manifest = buildManifest();
+  const errors = validate(manifest);
+  document.getElementById('jsonOutput').innerHTML = syntaxHighlight(JSON.stringify(manifest, null, 2));
+  const validationEl = document.getElementById('validation');
+  if (errors.length === 0) {
+    validationEl.innerHTML = '<span class="ok">Manifest valid. Ready to download.</span>';
+    validationEl.className = 'validation';
+  } else {
+    validationEl.innerHTML = errors.map(e => `<span class="error">${escapeHtml(e)}</span>`).join('');
+    validationEl.className = 'validation';
+  }
+
+  // Status indicator
+  const status = document.getElementById('outputStatus');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const allFilesPresent = REQUIRED_PRIMARY.every(k => state.files[k]) &&
+    (state.kind === 'highlight' || REQUIRED_SECONDARY.every(k => state.files[k]));
+
+  if (errors.length === 0 && allFilesPresent) {
+    status.innerHTML = '<div class="dot ok"></div><span>Manifest complete</span>';
+    downloadBtn.disabled = false;
+  } else if (!allFilesPresent) {
+    status.innerHTML = '<div class="dot warn"></div><span>Waiting for required SVG files</span>';
+    downloadBtn.disabled = true;
+  } else {
+    status.innerHTML = '<div class="dot error"></div><span>' + errors.length + ' validation issue' + (errors.length === 1 ? '' : 's') + '</span>';
+    downloadBtn.disabled = true;
+  }
+
+  // Live preview
+  const previewArea = document.getElementById('previewArea');
+  previewArea.innerHTML = '';
+
+  if (!allFilesPresent) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-preview';
+    empty.textContent = 'Drop your SVG files to see the live preview';
+    previewArea.appendChild(empty);
+    return;
+  }
+
+  const strip = document.createElement('div');
+  strip.className = 'preview-strip';
+
+  const testCases = [
+    { label: 'Short', primary: 'A', secondary: 'X' },
+    { label: 'Word', primary: 'Park', secondary: 'OPEN' },
+    { label: 'Custom', primary: state.primaryText, secondary: state.secondaryText },
+    { label: 'Medium', primary: 'Tiergarten S-Bahn', secondary: 'TRANSIT HUB' },
+    { label: 'Long', primary: 'Großer Tiergarten and surrounding paths', secondary: 'HISTORIC DISTRICT WITH MULTIPLE ENTRANCES' },
+  ];
+
+  if (state.kind === 'highlight') {
+    testCases.forEach(tc => tc.secondary = '');
+  }
+
+  testCases.forEach(tc => {
+    const row = document.createElement('div');
+    row.className = 'preview-row';
+
+    const stripLabel = document.createElement('div');
+    stripLabel.className = 'strip-label';
+    stripLabel.textContent = tc.label;
+    row.appendChild(stripLabel);
+
+    const canvas = document.createElement('div');
+    canvas.className = 'preview-canvas';
+
+    const rendered = renderLabel(tc.primary, tc.secondary);
+    if (rendered) {
+      canvas.style.width = `${rendered.markerWidth}px`;
+      canvas.style.height = `${rendered.markerHeight}px`;
+      canvas.appendChild(rendered.el);
+    }
+    row.appendChild(canvas);
+    strip.appendChild(row);
+  });
+
+  previewArea.appendChild(strip);
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function syntaxHighlight(json) {
+  return escapeHtml(json)
+    .replace(/(&quot;[^&]*&quot;)(\s*:)/g, '<span class="key">$1</span>$2')
+    .replace(/: (&quot;[^&]*&quot;)/g, ': <span class="string">$1</span>')
+    .replace(/: (-?\d+\.?\d*)/g, ': <span class="number">$1</span>')
+    .replace(/: (true|false)/g, ': <span class="bool">$1</span>')
+    .replace(/: (null)/g, ': <span class="null">$1</span>');
+}
+
+// ============================================================================
+// Event wiring
+// ============================================================================
+
+// Drag and drop
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+
+dropzone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+['dragenter', 'dragover'].forEach(ev =>
+  dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add('drag-over'); })
+);
+['dragleave', 'drop'].forEach(ev =>
+  dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove('drag-over'); })
+);
+dropzone.addEventListener('drop', e => handleFiles(e.dataTransfer.files));
+
+// Kind toggle
+document.querySelectorAll('.kind-toggle button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.kind-toggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.kind = btn.dataset.kind;
+    document.getElementById('secondaryGroup').style.display = state.kind === 'regular' ? 'block' : 'none';
+    document.getElementById('previewSecondary').disabled = state.kind === 'highlight';
+    rerender();
+  });
+});
+
+// Preview text inputs
+document.getElementById('previewPrimary').addEventListener('input', e => {
+  state.primaryText = e.target.value;
+  rerender();
+});
+document.getElementById('previewSecondary').addEventListener('input', e => {
+  state.secondaryText = e.target.value;
+  rerender();
+});
+
+// Theme color inputs
+const themeMap = {
+  themePrimaryFill: 'primaryBackplateFill',
+  themeSecondaryFill: 'secondaryBackplateFill',
+  themePrimaryText: 'primaryTextColor',
+  themeSecondaryText: 'secondaryTextColor',
+  themePointer: 'pointerFill',
+};
+Object.entries(themeMap).forEach(([id, key]) => {
+  document.getElementById(id).addEventListener('input', e => {
+    state.theme[key] = e.target.value;
+    rerender();
+  });
+});
+
+// All form inputs trigger rerender
+document.querySelectorAll('.form input, .form select').forEach(el => {
+  el.addEventListener('input', rerender);
+});
+
+// Download manifest
+document.getElementById('downloadBtn').addEventListener('click', () => {
+  const manifest = buildManifest();
+  const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'manifest.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+// Load existing manifest from disk
+const manifestFileInput = document.getElementById('manifestFileInput');
+document.getElementById('loadManifestBtn').addEventListener('click', () => manifestFileInput.click());
+manifestFileInput.addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const json = JSON.parse(text);
+    applyManifestToForm(json);
+    rerender();
+  } catch (err) {
+    alert(`Could not load manifest: ${err.message}`);
+  }
+  // Reset so loading the same file twice still triggers change
+  manifestFileInput.value = '';
+});
+
+// Load example (generates synthetic SVGs so user can try the tool without their own files)
+document.getElementById('loadExampleBtn').addEventListener('click', () => {
+  const makeSvg = (w, h, content) =>
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${content}</svg>`;
+
+  // Primary callout (height 36, cap 18, middle 100)
+  state.files['primary_left-cap'] = parseSvgDimensions(makeSvg(18, 36,
+    `<path d="M18,0 H8 a8,8 0 0 0 -8,8 V28 a8,8 0 0 0 8,8 H18 Z" fill="var(--primary-backplate-fill, #ffffff)"/>`));
+  state.files['primary_middle'] = parseSvgDimensions(makeSvg(100, 36,
+    `<rect width="100" height="36" fill="var(--primary-backplate-fill, #ffffff)"/>`));
+  state.files['primary_right-cap'] = parseSvgDimensions(makeSvg(18, 36,
+    `<path d="M0,0 H10 a8,8 0 0 1 8,8 V28 a8,8 0 0 1 -8,8 H0 Z" fill="var(--primary-backplate-fill, #ffffff)"/>`));
+  state.files['primary_pointer'] = parseSvgDimensions(makeSvg(16, 10,
+    `<path d="M0,0 H16 L9,9 a2,2 0 0 1 -2,0 Z" fill="var(--primary-backplate-fill, #ffffff)"/>`));
+
+  // Secondary backplate (height 18, cap 9, middle 60)
+  state.files['secondary_left-cap'] = parseSvgDimensions(makeSvg(9, 18,
+    `<path d="M9,0 H4 a4,4 0 0 0 -4,4 V14 a4,4 0 0 0 4,4 H9 Z" fill="var(--secondary-backplate-fill, #1a1a1a)"/>`));
+  state.files['secondary_middle'] = parseSvgDimensions(makeSvg(60, 18,
+    `<rect width="60" height="18" fill="var(--secondary-backplate-fill, #1a1a1a)"/>`));
+  state.files['secondary_right-cap'] = parseSvgDimensions(makeSvg(9, 18,
+    `<path d="M0,0 H5 a4,4 0 0 1 4,4 V14 a4,4 0 0 1 -4,4 H0 Z" fill="var(--secondary-backplate-fill, #1a1a1a)"/>`));
+
+  state._primaryDimsAutoSet = false;
+  state._pointerDimsAutoSet = false;
+  state._secondaryDimsAutoSet = false;
+  updatePrimaryFromSvgs();
+  updateFileList();
+  rerender();
+});
+
+// Initial render
+updateFileList();
+rerender();
+</script>
+
+</body>
+</html>

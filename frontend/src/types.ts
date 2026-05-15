@@ -1,3 +1,5 @@
+import type { Theme } from './labels/LabelMarkerManager';
+
 export type ToolType = 'none' | 'label' | 'highlight' | 'paint' | 'polygon' | 'circle' | 'measure' | 'icon' | 'arrow' | 'route';
 export type StrokeType = 'solid' | 'dashed' | 'dotted';
 export type RouteMode = 'driving' | 'walking' | 'train';
@@ -11,6 +13,9 @@ export interface Annotation {
   coordinates?: any;
   polygonGeometry?: any;
   text?: string;
+  secondaryText?: string;
+  template?: string;
+  theme?: Theme;
   radius?: number;
   iconId?: string;
   routeGeometry?: any;
@@ -99,6 +104,12 @@ export interface AppSettings {
   };
   colorPalette: string[];
   icons: IconCategory[];
+  labelTemplates?: {
+    highlightLabelTemplate?: string;
+    regularLabelTemplate?: string;
+    availableTemplates: string[];
+    theme?: Theme;
+  };
   labelDensity?: number;
   layers: MapLayer[];
   openSkyCredentials?: { clientId: string; clientSecret: string };
