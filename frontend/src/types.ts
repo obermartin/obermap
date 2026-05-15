@@ -1,6 +1,6 @@
 import type { Theme } from './labels/LabelMarkerManager';
 
-export type ToolType = 'none' | 'label' | 'highlight' | 'paint' | 'polygon' | 'circle' | 'measure' | 'icon' | 'arrow' | 'route';
+export type ToolType = 'none' | 'label' | 'highlight' | 'paint' | 'polygon' | 'circle' | 'measure' | 'icon' | 'arrow' | 'route' | 'headline';
 export type StrokeType = 'solid' | 'dashed' | 'dotted';
 export type RouteMode = 'driving' | 'walking' | 'train';
 
@@ -23,6 +23,7 @@ export interface Annotation {
   routeLegs?: { distance: number; duration: number }[];
   animationTriggerId?: string;
   hideAnimationTriggerId?: string;
+  screenPosition?: { x: number; y: number };
   view?: {
     center: [number, number];
     zoom: number;
@@ -94,8 +95,8 @@ export interface IconCategory {
 
 export interface AppSettings {
   title?: string;
-  mapboxToken: string;
-  mapboxStyle: string;
+  mapToken: string;
+  mapStyle: string;
   defaultView: {
     center: [number, number];
     zoom: number;

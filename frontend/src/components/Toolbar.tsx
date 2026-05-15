@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Tag, MousePointer2, Paintbrush, Hexagon, Circle as CircleIcon, Ruler, Save, Trash2, X, MapPin, Loader2, ArrowUpRight, ChevronLeft, ChevronRight, Route, Car, Footprints, TrainFront, Download } from 'lucide-react';
+import { Tag, MousePointer2, Paintbrush, Hexagon, Circle as CircleIcon, Ruler, Save, Trash2, X, MapPin, Loader2, ArrowUpRight, ChevronLeft, ChevronRight, Route, Car, Footprints, TrainFront, Download, Type } from 'lucide-react';
 import type { ToolType, AppSettings, StrokeType, RouteMode } from '../types';
 import clsx from 'clsx';
 import { useTranslation } from '../contexts/I18nContext';
@@ -32,6 +32,7 @@ interface ToolbarProps {
 const TOOLS = [
   { id: 'highlight', icon: MousePointer2, label: 'Select Place/Country' },
   { id: 'label', icon: Tag, label: 'Label' },
+  { id: 'headline', icon: Type, label: 'Headline' },
   { id: 'paint', icon: Paintbrush, label: 'Paint (Freehand)' },
   { id: 'polygon', icon: Hexagon, label: 'Polygon' },
   { id: 'circle', icon: CircleIcon, label: 'Circle' },

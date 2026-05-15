@@ -1,4 +1,4 @@
-
+import maplibregl from 'maplibre-gl';
 
 export interface Typography {
   fontFamily: string;
@@ -182,13 +182,13 @@ function normalizeSvg(svgString: string, cssVarName: string): string {
 }
 
 export class LabelMarkerManager {
-  private map: mapboxgl.Map | null;
+  private map: maplibregl.Map | null;
   public templates: Map<string, LoadedTemplate> = new Map();
   private handles: Map<string, LabelHandle> = new Map();
   private offscreenCanvas: HTMLCanvasElement | OffscreenCanvas;
   private ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
-  constructor(map: mapboxgl.Map | null = null) {
+  constructor(map: maplibregl.Map | null = null) {
     this.map = map;
     if (typeof OffscreenCanvas !== 'undefined') {
       this.offscreenCanvas = new OffscreenCanvas(1, 1);
@@ -381,27 +381,13 @@ export class LabelMarkerManager {
         const tpl = this.templates.get(opts.template);
         if (!tpl) throw new Error('Template not found');
         
-        // Render html into a foreignObject
-        const htmlContent = markerEl.innerHTML;
-        const totalWidth = parseFloat(markerEl.dataset.width || '200');
-        const totalHeight = parseFloat(markerEl.dataset.height || '100');
-        const cssVars = markerEl.style.cssText;
+        const { svg: svgString } = LabelMarkerManager.prototype.buildTemplateSvg.call(this, tpl, opts.text, opts.theme);
         
-        const svg = `
-          <svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="${totalHeight}">
-            <foreignObject width="100%" height="100%">
-              <div xmlns="http://www.w3.org/1999/xhtml" class="label-marker" style="width: ${totalWidth}px; height: ${totalHeight}px; position: relative; pointer-events: none; ${cssVars}">
-                ${htmlContent}
-              </div>
-            </foreignObject>
-          </svg>
-        `;
-        const blob = new Blob([svg], { type: 'image/svg+xml' });
-        const url = URL.createObjectURL(blob);
+        const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
         const img = new Image();
         return new Promise<HTMLImageElement>((resolve, reject) => {
-          img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
-          img.onerror = () => { URL.revokeObjectURL(url); reject(); };
+          img.onload = () => resolve(img);
+          img.onerror = () => reject();
           img.src = url;
         });
       }
@@ -588,6 +574,174 @@ export class LabelMarkerManager {
 
     return { html, width: markerWidth, height: finalMarkerHeight, anchorX, anchorY };
   }
+
+  private buildTemplateSvg(tpl: LoadedTemplate, textInput: string | { primary: string; secondary?: string }, theme: Theme | undefined): { svg: string, width: number, height: number, anchorX: number, anchorY: number } {
+    const { manifest } = tpl;
+    
+    let primaryText = '';
+    let secondaryText = '';
+    if (typeof textInput === 'string') {
+      primaryText = textInput;
+    } else {
+      primaryText = textInput.primary;
+      secondaryText = textInput.secondary || '';
+    }
+
+    const { primary, secondary } = manifest;
+
+    // Primary
+    const primaryTextWidth = this.measureWithLetterSpacing(primaryText, primary.typography);
+    const primaryWidth = Math.max(primary.minWidth, primaryTextWidth + 2 * primary.paddingX);
+    const primaryEffectiveCapWidth = Math.min(primary.capWidth, primaryWidth / 2);
+    const primaryMiddleStretched = Math.max(0, primaryWidth - 2 * primaryEffectiveCapWidth);
+
+    // Secondary
+    let secondaryWidth = 0;
+    let secondaryMiddleStretched = 0;
+    let secondaryEffectiveCapWidth = 0;
+    const secondaryVisible = manifest.kind === 'regular' && secondaryText !== '';
+    if (secondaryVisible && secondary) {
+      const secondaryTextWidth = this.measureWithLetterSpacing(secondaryText, secondary.typography);
+      secondaryWidth = Math.max(secondary.minWidth, secondaryTextWidth + 2 * secondary.paddingX);
+      secondaryEffectiveCapWidth = Math.min(secondary.capWidth, secondaryWidth / 2);
+      secondaryMiddleStretched = Math.max(0, secondaryWidth - 2 * secondaryEffectiveCapWidth);
+    }
+
+    const { pointer } = primary;
+    const pointerOverhang = pointer.height;
+
+    // Dimensions
+    const gap = secondaryVisible && secondary ? secondary.gap : 0;
+    const hasAbove = secondaryVisible && secondary?.position === 'above';
+    const hasBelow = secondaryVisible && secondary?.position === 'below';
+    
+    const heightAbove = hasAbove ? secondary!.height + gap : 0;
+    
+    let primaryLeft = 0;
+    let secondaryLeft = 0;
+
+    if (secondaryVisible && secondary) {
+      if (secondary.align === 'left') {
+        primaryLeft = 0;
+        secondaryLeft = 0;
+      } else if (secondary.align === 'right') {
+        const maxW = Math.max(primaryWidth, secondaryWidth);
+        primaryLeft = maxW - primaryWidth;
+        secondaryLeft = maxW - secondaryWidth;
+      } else {
+        const maxW = Math.max(primaryWidth, secondaryWidth);
+        primaryLeft = (maxW - primaryWidth) / 2;
+        secondaryLeft = (maxW - secondaryWidth) / 2;
+      }
+    }
+
+    const primaryTop = hasAbove ? heightAbove + (pointer.attachEdge === 'top' ? pointerOverhang : 0) : (pointer.attachEdge === 'top' ? pointerOverhang : 0);
+    
+    let ptrLeft = 0;
+    let ptrTop = 0;
+
+    if (pointer.attachEdge === 'bottom') {
+      ptrTop = primaryTop + primary.height - 1;
+      if (pointer.attachFrom === 'left') ptrLeft = primaryLeft + pointer.attachOffset - pointer.tipX;
+      else if (pointer.attachFrom === 'right') ptrLeft = primaryLeft + primaryWidth - pointer.attachOffset - pointer.tipX;
+    } else if (pointer.attachEdge === 'top') {
+      ptrTop = primaryTop - pointer.height + 1;
+      if (pointer.attachFrom === 'left') ptrLeft = primaryLeft + pointer.attachOffset - pointer.tipX;
+      else if (pointer.attachFrom === 'right') ptrLeft = primaryLeft + primaryWidth - pointer.attachOffset - pointer.tipX;
+    } else if (pointer.attachEdge === 'left') {
+      ptrLeft = primaryLeft - pointer.width + 1;
+      if (pointer.attachFrom === 'top') ptrTop = primaryTop + pointer.attachOffset - pointer.tipY;
+      else if (pointer.attachFrom === 'bottom') ptrTop = primaryTop + primary.height - pointer.attachOffset - pointer.tipY;
+    } else if (pointer.attachEdge === 'right') {
+      ptrLeft = primaryLeft + primaryWidth - 1;
+      if (pointer.attachFrom === 'top') ptrTop = primaryTop + pointer.attachOffset - pointer.tipY;
+      else if (pointer.attachFrom === 'bottom') ptrTop = primaryTop + primary.height - pointer.attachOffset - pointer.tipY;
+    }
+
+    const minLeft = Math.min(primaryLeft, secondaryLeft, ptrLeft);
+    if (minLeft < 0) {
+      primaryLeft -= minLeft;
+      secondaryLeft -= minLeft;
+      ptrLeft -= minLeft;
+    }
+    
+    const minTop = Math.min(primaryTop, hasAbove ? 0 : 99999, ptrTop);
+    let shiftY = 0;
+    if (minTop < 0) shiftY = -minTop;
+
+    const finalPrimaryTop = primaryTop + shiftY;
+    const finalSecondaryTop = hasAbove ? shiftY : finalPrimaryTop + primary.height + (pointer.attachEdge === 'bottom' ? pointerOverhang : 0) + gap;
+    const finalPtrTop = ptrTop + shiftY;
+
+    const markerWidth = Math.ceil(Math.max(primaryLeft + primaryWidth, secondaryVisible ? secondaryLeft + secondaryWidth : 0, ptrLeft + pointer.width));
+    const finalMarkerHeight = Math.ceil(Math.max(finalPrimaryTop + primary.height, secondaryVisible ? finalSecondaryTop + secondary!.height : 0, finalPtrTop + pointer.height));
+
+    let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${markerWidth}" height="${finalMarkerHeight}">`;
+    
+    svg += `
+      <style>
+        :root {
+          --primary-backplate-fill: ${theme?.primaryBackplateFill || '#ffffff'};
+          --secondary-backplate-fill: ${theme?.secondaryBackplateFill || '#ffffff'};
+          --pointer-fill: ${theme?.pointerFill || theme?.primaryBackplateFill || '#ffffff'};
+          --primary-text-color: ${theme?.primaryTextColor || '#000000'};
+          --secondary-text-color: ${theme?.secondaryTextColor || '#000000'};
+          --accent-fill: ${theme?.accentFill || '#000000'};
+        }
+      </style>
+    `;
+
+    // Secondary Above
+    if (secondaryVisible && hasAbove && secondary) {
+      svg += `
+        <svg x="${secondaryLeft}" y="${finalSecondaryTop}" width="${secondaryWidth}" height="${secondary.height}">
+          <svg x="0" y="0" width="${secondaryEffectiveCapWidth}" height="${secondary.height}" preserveAspectRatio="none">${tpl.secondaryLeftCap}</svg>
+          ${secondaryMiddleStretched > 0 ? `<svg x="${secondaryEffectiveCapWidth}" y="0" width="${secondaryMiddleStretched}" height="${secondary.height}" viewBox="0 0 ${tpl.secondaryMiddleSrcWidth} ${tpl.secondaryMiddleSrcHeight}" preserveAspectRatio="none">${tpl.secondaryMiddleInner}</svg>` : ''}
+          <svg x="${secondaryWidth - secondaryEffectiveCapWidth}" y="0" width="${secondaryEffectiveCapWidth}" height="${secondary.height}" preserveAspectRatio="none">${tpl.secondaryRightCap}</svg>
+          <text x="50%" y="50%" font-family="${secondary.typography.fontFamily}" font-size="${secondary.typography.fontSize}px" font-weight="${secondary.typography.fontWeight}" fill="${secondary.typography.color}" text-anchor="middle" dominant-baseline="central" letter-spacing="${secondary.typography.letterSpacing || 0}">${transformText(secondaryText, secondary.typography.textTransform)}</text>
+        </svg>
+      `;
+    }
+
+    // Primary
+    svg += `
+      <svg x="${primaryLeft}" y="${finalPrimaryTop}" width="${primaryWidth}" height="${primary.height}">
+        <svg x="0" y="0" width="${primaryEffectiveCapWidth}" height="${primary.height}" preserveAspectRatio="none">${tpl.primaryLeftCap}</svg>
+        ${primaryMiddleStretched > 0 ? `<svg x="${primaryEffectiveCapWidth}" y="0" width="${primaryMiddleStretched}" height="${primary.height}" viewBox="0 0 ${tpl.primaryMiddleSrcWidth} ${tpl.primaryMiddleSrcHeight}" preserveAspectRatio="none">${tpl.primaryMiddleInner}</svg>` : ''}
+        <svg x="${primaryWidth - primaryEffectiveCapWidth}" y="0" width="${primaryEffectiveCapWidth}" height="${primary.height}" preserveAspectRatio="none">${tpl.primaryRightCap}</svg>
+        <text x="50%" y="50%" font-family="${primary.typography.fontFamily}" font-size="${primary.typography.fontSize}px" font-weight="${primary.typography.fontWeight}" fill="${primary.typography.color}" text-anchor="middle" dominant-baseline="central" letter-spacing="${primary.typography.letterSpacing || 0}">${transformText(primaryText, primary.typography.textTransform)}</text>
+      </svg>
+    `;
+
+    // Pointer
+    if (pointer.width > 0) {
+      svg += `
+        <svg x="${ptrLeft}" y="${finalPtrTop}" width="${pointer.width}" height="${pointer.height}" preserveAspectRatio="none">
+          ${tpl.primaryPointer}
+        </svg>
+      `;
+    }
+
+    // Secondary Below
+    if (secondaryVisible && hasBelow && secondary) {
+      svg += `
+        <svg x="${secondaryLeft}" y="${finalSecondaryTop}" width="${secondaryWidth}" height="${secondary.height}">
+          <svg x="0" y="0" width="${secondaryEffectiveCapWidth}" height="${secondary.height}" preserveAspectRatio="none">${tpl.secondaryLeftCap}</svg>
+          ${secondaryMiddleStretched > 0 ? `<svg x="${secondaryEffectiveCapWidth}" y="0" width="${secondaryMiddleStretched}" height="${secondary.height}" viewBox="0 0 ${tpl.secondaryMiddleSrcWidth} ${tpl.secondaryMiddleSrcHeight}" preserveAspectRatio="none">${tpl.secondaryMiddleInner}</svg>` : ''}
+          <svg x="${secondaryWidth - secondaryEffectiveCapWidth}" y="0" width="${secondaryEffectiveCapWidth}" height="${secondary.height}" preserveAspectRatio="none">${tpl.secondaryRightCap}</svg>
+          <text x="50%" y="50%" font-family="${secondary.typography.fontFamily}" font-size="${secondary.typography.fontSize}px" font-weight="${secondary.typography.fontWeight}" fill="${secondary.typography.color}" text-anchor="middle" dominant-baseline="central" letter-spacing="${secondary.typography.letterSpacing || 0}">${transformText(secondaryText, secondary.typography.textTransform)}</text>
+        </svg>
+      `;
+    }
+
+    svg += '</svg>';
+
+    const anchorX = ptrLeft + pointer.tipX;
+    const anchorY = finalPtrTop + pointer.tipY;
+
+    return { svg, width: markerWidth, height: finalMarkerHeight, anchorX, anchorY };
+  }
+
 
   getPreviewHtml(templateName: string, text: string | { primary: string; secondary?: string }): string | null {
     const tpl = this.templates.get(templateName);

@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import mapboxgl from 'mapbox-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
-import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder';
-import '@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css';
+import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import MapboxGeocoder from '@maplibre/maplibre-gl-geocoder';
+import '@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css';
 import type { Annotation, ToolType, AppSettings, StrokeType, RouteMode } from '../types';
 import * as turf from '@turf/turf';
 import { useTranslation } from '../contexts/I18nContext';
@@ -12,10 +12,10 @@ import { createCirclePolygon, calculateDistance, simplifyLine, transliterateToGe
 import anyAscii from 'any-ascii';
 import { customAlert } from '../utils/dialogService';
 import * as Mp4Muxer from 'mp4-muxer';
-import { addMapboxProtocolSupport, omProtocol } from '@openmeteo/weather-map-layer';
+import { omProtocol } from '@openmeteo/weather-map-layer';
 import { globalLabelManager } from '../labels/LabelMarkerManager';
 
-let omAdapter: any = null;
+let omProtocolRegistered = false;
 let globalDeepstateHistory: { id: number; createdAt: string }[] | null = null;
 let globalDeepstateHistoryPromise: Promise<void> | null = null;
 
@@ -73,8 +73,10 @@ interface MapContainerProps {
   routeMode?: RouteMode;
   annotations: Annotation[];
   setAnnotations: React.Dispatch<React.SetStateAction<Annotation[]>>;
-  labelPrompt: { lngLat: [number, number] } | null;
-  setLabelPrompt: React.Dispatch<React.SetStateAction<{ lngLat: [number, number] } | null>>;
+  labelPrompt: { lngLat: [number, number], initialText?: string, initialSecondary?: string } | null;
+  setLabelPrompt: React.Dispatch<React.SetStateAction<{ lngLat: [number, number], initialText?: string, initialSecondary?: string } | null>>;
+  headlinePrompt?: { id?: string, initialPrimary?: string, initialSecondary?: string } | null;
+  setHeadlinePrompt?: React.Dispatch<React.SetStateAction<{ id?: string, initialPrimary?: string, initialSecondary?: string } | null>>;
   setActiveDistance: React.Dispatch<React.SetStateAction<number | null>>;
   selectedAnnotationId: string | null;
   setSelectedAnnotationId: React.Dispatch<React.SetStateAction<string | null>>;
@@ -86,7 +88,7 @@ interface MapContainerProps {
   setSelectedGeojsonFeatureId: React.Dispatch<React.SetStateAction<string | number | null>>;
   selectedIconId?: string | null;
   isSidebarOpen?: boolean;
-  markersRef?: React.MutableRefObject<{ [id: string]: mapboxgl.Marker }>;
+  markersRef?: React.MutableRefObject<{ [id: string]: maplibregl.Marker }>;
 }
 
 function getContrastYIQ(hexcolor: string) {
@@ -101,7 +103,7 @@ function getContrastYIQ(hexcolor: string) {
 }
 
 
-export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, clipPath?: string, onMapInit?: (map: mapboxgl.Map) => void }> = ({
+export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, clipPath?: string, onMapInit?: (map: maplibregl.Map) => void }> = ({
   activeTool,
   currentColor,
   currentStrokeType,
@@ -111,6 +113,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   setAnnotations,
   labelPrompt,
   setLabelPrompt,
+  setHeadlinePrompt,
   setActiveDistance,
   selectedAnnotationId,
   setSelectedAnnotationId,
@@ -130,7 +133,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const { t, language } = useTranslation();
   const mapContainer = useRef<HTMLDivElement>(null);
   const windCanvasRef = useRef<HTMLCanvasElement>(null);
-  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [selectedAircraftId, setSelectedAircraftIdState] = useState<string | null>(null);
   const [selectedVesselMmsi, setSelectedVesselMmsi] = useState<string | null>(null);
@@ -215,16 +218,16 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   }, [selectedAircraftId]);
 
   const originalFiltersRef = useRef<{ [layerId: string]: any }>({});
-  const localMarkersRef = useRef<{ [id: string]: mapboxgl.Marker }>({});
+  const localMarkersRef = useRef<{ [id: string]: maplibregl.Marker }>({});
   const markersRef = propsMarkersRef || localMarkersRef;
   const deepstateDatesRef = useRef<{ [layerId: string]: string | undefined }>({});
-  const activeDrawMarkersRef = useRef<{ [id: string]: mapboxgl.Marker }>({});
+  const activeDrawMarkersRef = useRef<{ [id: string]: maplibregl.Marker }>({});
   const openSkyTokenRef = useRef<{ token: string, expires: number } | null>(null);
-  const aircraftPopupRef = useRef<mapboxgl.Popup | null>(null);
+  const aircraftPopupRef = useRef<maplibregl.Popup | null>(null);
   const selectedAircraftMetaRef = useRef<any>(null);
   const vesselsRef = useRef<Map<string, any>>(new Map());
   const wsRef = useRef<WebSocket | null>(null);
-  const vesselPopupRef = useRef<mapboxgl.Popup | null>(null);
+  const vesselPopupRef = useRef<maplibregl.Popup | null>(null);
   const activeVesselMmsiRef = useRef<string | null>(null);
   const routeClickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const windLastFetchRef = useRef<number>(0);
@@ -248,7 +251,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     const geojson = payload?.geojson as GeoJSON.FeatureCollection<GeoJSON.Point> | undefined;
     if (!map || !geojson) return false;
 
-    const source = map.getSource('weather-wind') as mapboxgl.GeoJSONSource;
+    const source = map.getSource('weather-wind') as maplibregl.GeoJSONSource;
     if (!source) return false;
 
     source.setData(geojson);
@@ -345,31 +348,33 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const pendingFetchesRef = useRef<number>(0);
 
   const terrestrialCountriesRef = useRef<any>(null);
+  const cachedTurfDataRef = useRef<{[id: string]: any}>({});
+  const activeFeaturesRef = useRef<GeoJSON.Feature[]>([]);
+  
+  const [animationTick, setAnimationTick] = useState(0);
 
   useEffect(() => {
     if (!mapContainer.current) return;
 
     setMapLoaded(false);
 
-    mapboxgl.accessToken = settings.mapboxToken;
-    if (!omAdapter) {
+    if (!omProtocolRegistered) {
       try {
-        omAdapter = addMapboxProtocolSupport(mapboxgl as any);
-        omAdapter.addProtocol('om', omProtocol);
-        mapboxgl.Style.setSourceType('raster-om', omAdapter.rasterSourceType);
+        maplibregl.addProtocol('om', omProtocol as any);
+        omProtocolRegistered = true;
       } catch (e) {
-        console.error("Failed to add Mapbox Protocol Support for Open-Meteo", e);
+        console.error("Failed to add MapLibre Protocol Support for Open-Meteo", e);
       }
     }
 
-    const map = new mapboxgl.Map({
+    const map = new maplibregl.Map({
       container: mapContainer.current,
-      style: settings.mapboxStyle || 'mapbox://styles/mapbox/satellite-v9',
+      style: settings.mapStyle || 'mapbox://styles/mapbox/satellite-v9',
       center: settings.defaultView.center,
       zoom: settings.defaultView.zoom,
       pitch: settings.defaultView.pitch,
       bearing: settings.defaultView.bearing,
-      preserveDrawingBuffer: true,
+      canvasContextAttributes: { preserveDrawingBuffer: true },
       attributionControl: false
     });
     
@@ -377,20 +382,59 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     onMapInit?.(map);
 
     // Add Orbital controls (NavigationControl)
-    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true, showZoom: false }), 'top-right');
+    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true, showZoom: false }), 'top-right');
     
     // Add Geocoder
-    const geocoder = new MapboxGeocoder({
-      accessToken: mapboxgl.accessToken,
-      mapboxgl: mapboxgl as any,
+    const doNominatimGeocode = async (config: any) => {
+      const features = [];
+      try {
+        const request = `https://nominatim.openstreetmap.org/search?q=${config.query}&format=geojson&polygon_geojson=1&addressdetails=1`;
+        const response = await fetch(request);
+        const geojson = await response.json();
+        for (const feature of geojson.features) {
+          const center = [
+            feature.bbox[0] + (feature.bbox[2] - feature.bbox[0]) / 2,
+            feature.bbox[1] + (feature.bbox[3] - feature.bbox[1]) / 2
+          ];
+          const pointFeature = {
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: center },
+            place_name: feature.properties.display_name,
+            properties: feature.properties,
+            text: feature.properties.display_name,
+            place_type: ['place'],
+            center: center,
+            bbox: feature.bbox,
+            polygonGeometry: feature.geometry
+          };
+          features.push(pointFeature);
+        }
+      } catch (e) {
+        console.error('Failed to geocode with Nominatim', e);
+      }
+      return { type: 'FeatureCollection', features } as any;
+    };
+
+    const geocoderApi = {
+      forwardGeocode: doNominatimGeocode,
+      getSuggestions: doNominatimGeocode,
+      reverseGeocode: async () => { return { type: 'FeatureCollection', features: [] } as any; }
+    };
+    
+    const geocoder = new MapboxGeocoder(geocoderApi, {
+      maplibregl: maplibregl as any,
       collapsed: true,
-      marker: false
+      marker: false,
+      showResultMarkers: false,
+      showResultsWhileTyping: true
     });
 
     geocoder.on('result', (e: any) => {
-      if (!e.result || !e.result.geometry || e.result.geometry.type !== 'Point') return;
-      const coords = e.result.geometry.coordinates as [number, number];
-      const name = e.result.text || e.result.place_name;
+      if (!e.result || !e.result.geometry) return;
+      
+      const coords = e.result.center as [number, number];
+      const rawName = e.result.text || e.result.place_name || '';
+      const name = rawName.split(',')[0].trim();
       const annotationId = Date.now().toString();
       
       if (setAnnotationsRef.current && mapRef.current) {
@@ -421,8 +465,33 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
     map.addControl(geocoder, 'top-right');
     
+    // Auto-select first result on Enter
+    setTimeout(() => {
+      const geocoderContainer = document.querySelector('.maplibregl-ctrl-geocoder');
+      if (geocoderContainer) {
+        geocoderContainer.addEventListener('keydown', (e: any) => {
+          if (e.key === 'Enter') {
+            const active = geocoderContainer.querySelector('.active');
+            if (!active) {
+              const firstSuggestion = geocoderContainer.querySelector('.suggestions li');
+              if (firstSuggestion) {
+                e.preventDefault();
+                e.stopPropagation();
+                const mouseEvent = new MouseEvent('mouseup', {
+                  view: window,
+                  bubbles: true,
+                  cancelable: true
+                });
+                firstSuggestion.dispatchEvent(mouseEvent);
+              }
+            }
+          }
+        }, { capture: true });
+      }
+    }, 1000);
+    
     // Add Scale control
-    map.addControl(new mapboxgl.ScaleControl({ maxWidth: 150, unit: 'metric' }), 'top-right');
+    map.addControl(new maplibregl.ScaleControl({ maxWidth: 150, unit: 'metric' }), 'top-right');
 
     map.on('load', () => {
       if (mapRef.current !== map) return;
@@ -440,7 +509,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         if (styleLayers[i].type === 'symbol') {
           if (!firstSymbolId) firstSymbolId = id;
           if (!id.startsWith('custom-')) {
-            originalFiltersRef.current[id] = styleLayers[i].filter || null;
+            originalFiltersRef.current[id] = (styleLayers[i] as any).filter || null;
           }
         }
       }
@@ -452,7 +521,6 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         data: { type: 'FeatureCollection', features: [] }
       });
 
-      // Polygons & Circles (Filled)
       map.addLayer({
         id: 'custom-polygons',
         type: 'fill',
@@ -534,14 +602,16 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         data: { type: 'FeatureCollection', features: [] }
       });
 
-      map.addLayer({
-        id: 'highlight-clip-layer',
-        type: 'clip',
-        source: 'highlight-clip-source',
-        layout: {
-          'clip-layer-types': ['symbol']
-        }
-      });
+          /* MapLibre does not support the clip layer type yet.
+          map.addLayer({
+            id: 'highlight-clip-layer',
+            type: 'clip',
+            source: 'highlight-clip-source',
+            layout: {
+              'clip-layer-types': ['symbol']
+            }
+          } as any);
+          */
 
       // Add Flight Track source and layer
       map.addSource('selected-flight-track', {
@@ -666,6 +736,29 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           'text-opacity-transition': { duration: 0 }
         }
       }, firstSymbolId);
+
+      // Invisible layer to force Mapbox's collision detection to hide underlying labels
+      map.addLayer({
+        id: 'annotation-collision-layer',
+        type: 'symbol',
+        source: 'custom-annotations',
+        filter: ['==', ['get', 'type'], 'invisible-collision-box'],
+        layout: {
+          'text-field': ['get', 'text'],
+          'text-font': ['Gotham Bold', 'Arial Unicode MS Regular'],
+          'text-size': 14,
+          'text-transform': 'uppercase',
+          'text-allow-overlap': true,
+          'text-ignore-placement': false,
+          'text-anchor': 'left',
+          'text-offset': [1.5, 0]
+        },
+        paint: {
+          'text-color': 'rgba(0,0,0,0)',
+          'text-halo-color': 'rgba(0,0,0,0)',
+          'text-halo-width': 2
+        }
+      });
 
       // WebGL Annotations fallback removed in favor of 2D Canvas Compositor
 
@@ -834,7 +927,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       map.remove();
       mapRef.current = null;
     };
-  }, [settings.mapboxToken, settings.mapboxStyle]);
+  }, [settings.mapToken, settings.mapStyle]);
 
   // Handle dynamic mapbox transitions based on settings
   useEffect(() => {
@@ -955,6 +1048,36 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
   useEffect(() => {
     if (isSecondary) return;
+    const handleSaveHeadline = ((e: CustomEvent<{ text: string, secondaryText?: string, id?: string }>) => {
+      const { text, secondaryText, id } = e.detail;
+      if (id) {
+        setAnnotations(prev => prev.map(a => a.id === id ? { ...a, text, secondaryText } : a));
+      } else {
+        const map = mapRef.current;
+        const newId = Date.now().toString();
+        setAnnotations(prev => [...prev, {
+          id: newId,
+          type: 'headline',
+          color: currentColor,
+          text,
+          secondaryText,
+          screenPosition: { x: window.innerWidth / 2 - 200, y: 100 },
+          view: map ? {
+            center: [map.getCenter().lng, map.getCenter().lat],
+            zoom: map.getZoom(),
+            pitch: map.getPitch(),
+            bearing: map.getBearing()
+          } : undefined
+        }]);
+      }
+      setHeadlinePrompt?.(null);
+    }) as EventListener;
+    window.addEventListener('saveHeadline', handleSaveHeadline);
+    return () => window.removeEventListener('saveHeadline', handleSaveHeadline);
+  }, [currentColor, setAnnotations, setHeadlinePrompt]);
+
+  useEffect(() => {
+    if (isSecondary) return;
     const handleDropIcon = ((e: CustomEvent<{ clientX: number, clientY: number, iconId: string, color: string }>) => {
       if (!mapRef.current) return;
       const lngLat = mapRef.current.unproject([e.detail.clientX, e.detail.clientY]);
@@ -973,7 +1096,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   // Update mapbox features when annotations change
   useEffect(() => {
     if (!mapRef.current || !mapLoaded) return;
-    const source = mapRef.current.getSource('custom-annotations') as mapboxgl.GeoJSONSource;
+    const source = mapRef.current.getSource('custom-annotations') as maplibregl.GeoJSONSource;
     if (!source) return;
 
     const features: GeoJSON.Feature[] = annotations.reduce((acc: GeoJSON.Feature[], ann) => {
@@ -1026,6 +1149,19 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           properties: { color: ann.color, id: ann.id, type: ann.type, strokeType: ann.strokeType || 'solid' }
         });
       }
+
+      // Add invisible collision box to hide underlying mapbox labels
+      if (ann.type === 'highlight' && ann.text && ann.coordinates) {
+        acc.push({
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: ann.coordinates },
+          properties: {
+            id: `${ann.id}-collision`,
+            type: 'invisible-collision-box',
+            text: ann.text
+          }
+        });
+      }
       
       // --- Add WebGL Point Features for DOM Annotations (for video export) ---
       // Removed in favor of 2D Canvas Compositor
@@ -1043,6 +1179,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     // Register SVG icons and labels for video export
     // Removed in favor of 2D Canvas Compositor
     baseFeaturesRef.current = features;
+    activeFeaturesRef.current = JSON.parse(JSON.stringify(features));
+
+    console.log('renderDOMMarkers IS RE-RENDERING THE DOM MARKERS');
 
     // Handle DOM markers for labels, measures, and circles
     const expectedMarkers = new Map<string, { lngLat: [number, number], el: HTMLElement }>();
@@ -1333,7 +1472,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     });
 
     expectedMarkers.forEach((data, id) => {
-      markersRef.current[id] = new mapboxgl.Marker({ element: data.el })
+      markersRef.current[id] = new maplibregl.Marker({ element: data.el })
         .setLngLat(data.lngLat)
         .addTo(mapRef.current!);
     });
@@ -1344,7 +1483,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     if (!mapRef.current || !mapLoaded) return;
     
     let frameId: number;
-    let startTime: number;
+
     const duration = settings.animationDuration ?? 2000;
     const labelDuration = settings.labelAnimationDuration ?? 1000;
     const maxDuration = Math.max(duration, labelDuration);
@@ -1406,6 +1545,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             const el = marker.getElement();
             if (ann.type === 'highlight' || ann.type === 'label') {
               el.style.transition = 'none';
+              el.style.display = isRevealed ? 'block' : 'none';
               
               const isLabel = ann.type === 'label';
               const plateSel = isLabel ? '.custom-marker-plate' : '.custom-highlight-plate, .custom-country-plate';
@@ -1427,13 +1567,11 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                 }
               }
             } else {
-              let dur = duration;
-              if (ann.type === 'icon') {
-                dur = labelDuration;
-              }
-              el.style.transition = `opacity ${dur}ms ease-in-out`;
+              el.style.transition = 'none';
             }
             el.style.opacity = isRevealed ? '1' : '0';
+            el.style.display = isRevealed ? 'flex' : 'none';
+            if (ann.type === 'icon') console.log(`STATIC PASS ICON (${ann.id}) opacity set to:`, el.style.opacity);
             el.style.pointerEvents = isRevealed ? 'auto' : 'none';
           }
         });
@@ -1444,15 +1582,18 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             const el = marker.getElement();
             el.style.transition = 'none';
             el.style.opacity = isRevealed ? '1' : '0';
+            el.style.display = isRevealed ? 'flex' : 'none';
             el.style.pointerEvents = isRevealed ? 'auto' : 'none';
           }
         });
       }
     });
 
+    let startTime: number;
     const animate = (timestamp: number) => {
       if (!startTime) startTime = timestamp;
       const elapsed = timestamp - startTime;
+      
       const progress = Math.min(1, elapsed / duration);
       const labelProgress = Math.min(1, elapsed / labelDuration);
       const loopProgress = Math.min(1, elapsed / maxDuration);
@@ -1460,9 +1601,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       allActiveTriggers.forEach(t => {
         triggerProgressRef.current[t] = loopProgress;
       });
-
-      // Update GeoJSON path coordinates
-      const currentFeatures = JSON.parse(JSON.stringify(baseFeaturesRef.current));
+      
+      // Use the persistent activeFeatures array to avoid GC allocations
+      const currentFeatures = activeFeaturesRef.current;
       
       annotations.forEach(ann => {
         if (!ann.animationTriggerId && !ann.hideAnimationTriggerId) return;
@@ -1498,8 +1639,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
              } else {
                 isRevealed = true;
                 if (activeTriggers.includes(ann.animationTriggerId!)) {
-                   annProgress = progress;
-                   labelAnnProgress = labelProgress;
+                    annProgress = progress;
+                    labelAnnProgress = labelProgress;
                 } else {
                    annProgress = 1;
                    labelAnnProgress = 1;
@@ -1550,14 +1691,14 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         // Apply hidden property to all features of this annotation
         const featureIndices = currentFeatures.map((f: any, i: number) => (f.id === ann.id || f.properties?.id === ann.id || f.properties?.featureId === ann.id) ? i : -1).filter((i: number) => i !== -1);
         featureIndices.forEach((idx: number) => {
-           currentFeatures[idx].properties.hidden = !isRevealed;
+           currentFeatures[idx].properties!.hidden = !isRevealed;
            
            if (ann.type === 'polygon' || ann.type === 'highlight' || ann.type === 'circle') {
-             const targetFillOpacity = currentFeatures[idx].properties.fillOpacity ?? 0.5;
-             currentFeatures[idx].properties.currentOpacity = targetFillOpacity * annProgress;
-             currentFeatures[idx].properties.currentLineOpacity = annProgress;
+             const targetFillOpacity = currentFeatures[idx].properties!.fillOpacity ?? 0.5;
+             currentFeatures[idx].properties!.currentOpacity = targetFillOpacity * annProgress;
+             currentFeatures[idx].properties!.currentLineOpacity = annProgress;
            } else {
-             currentFeatures[idx].properties.currentLineOpacity = 1;
+             currentFeatures[idx].properties!.currentLineOpacity = 1;
            }
         });
         
@@ -1572,11 +1713,17 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                } else if (annProgress < 1) {
                  const baseCoords = baseF.geometry.coordinates;
                  if (baseCoords.length >= 2) {
-                   const line = turf.lineString(baseCoords);
-                   const totalDist = turf.length(line, { units: 'kilometers' });
-                   const targetDist = totalDist * annProgress;
+                   if (!cachedTurfDataRef.current[`${f.id}-line`]) {
+                     const line = turf.lineString(baseCoords as any);
+                     cachedTurfDataRef.current[`${f.id}-line`] = {
+                       line,
+                       dist: turf.length(line, { units: 'kilometers' })
+                     };
+                   }
+                   const cache = cachedTurfDataRef.current[`${f.id}-line`];
+                   const targetDist = cache.dist * annProgress;
                    if (targetDist > 0) {
-                     const sliced = turf.lineSliceAlong(line, 0, targetDist, { units: 'kilometers' });
+                     const sliced = turf.lineSliceAlong(cache.line, 0, targetDist, { units: 'kilometers' });
                      f.geometry.coordinates = sliced.geometry.coordinates;
                    } else {
                      f.geometry.coordinates = [];
@@ -1606,8 +1753,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
            const headIdx = currentFeatures.findIndex((f: any) => f.properties?.featureId === ann.id && f.properties?.$type === 'ArrowHead');
            
            if (annProgress === 0) {
-             if (shaftIdx !== -1) currentFeatures[shaftIdx].geometry.coordinates = [];
-             if (headIdx !== -1) currentFeatures[headIdx].geometry.coordinates = [];
+             if (shaftIdx !== -1) (currentFeatures[shaftIdx].geometry as any).coordinates = [];
+             if (headIdx !== -1) (currentFeatures[headIdx].geometry as any).coordinates = [];
            } else {
              const pCurr = [
                p1[0] + (p2[0] - p1[0]) * annProgress,
@@ -1619,7 +1766,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                if (shaftIdx !== -1) currentFeatures[shaftIdx].geometry = arrowFeats.shaft.geometry;
                if (headIdx !== -1) {
                   currentFeatures[headIdx].geometry = arrowFeats.head.geometry;
-                  currentFeatures[headIdx].properties.bearing = arrowFeats.head.properties?.bearing;
+                  currentFeatures[headIdx].properties!.bearing = arrowFeats.head.properties?.bearing;
                }
              }
            }
@@ -1632,9 +1779,21 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
              if (annProgress === 0) {
                currentFeatures[featureIdx].geometry.coordinates = [];
              } else if (annProgress < 1) {
-               const center = turf.center(turf.polygon(ann.coordinates)).geometry.coordinates as [number, number];
-               const poly = createCirclePolygon(center, ann.radius * annProgress);
-               if (poly) currentFeatures[featureIdx].geometry.coordinates = poly.geometry.coordinates;
+               if (!cachedTurfDataRef.current[`${ann.id}-full-poly`]) {
+                 const center = turf.center(turf.polygon(ann.coordinates)).geometry.coordinates as [number, number];
+                 cachedTurfDataRef.current[`${ann.id}-center`] = center;
+                 cachedTurfDataRef.current[`${ann.id}-full-poly`] = createCirclePolygon(center, ann.radius);
+               }
+               const center = cachedTurfDataRef.current[`${ann.id}-center`];
+               const fullPoly = cachedTurfDataRef.current[`${ann.id}-full-poly`];
+               
+               if (fullPoly && fullPoly.geometry.coordinates[0]) {
+                 const scaledCoords = fullPoly.geometry.coordinates[0].map((coord: [number, number]) => [
+                    center[0] + (coord[0] - center[0]) * annProgress,
+                    center[1] + (coord[1] - center[1]) * annProgress
+                 ]);
+                 currentFeatures[featureIdx].geometry.coordinates = [scaledCoords];
+               }
              }
           }
         }
@@ -1660,6 +1819,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                 const isVisible = isRevealed && p > 0;
                 
                 el.style.opacity = isVisible ? '1' : '0';
+                el.style.display = isVisible ? 'block' : 'none';
                 el.style.pointerEvents = isVisible ? 'auto' : 'none';
                 
                 const isLabel = ann.type === 'label';
@@ -1692,6 +1852,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               } else {
                 el.style.transition = 'none';
                 el.style.opacity = p.toString();
+                el.style.display = p > 0 ? 'flex' : 'none';
                 el.style.pointerEvents = p > 0.5 ? 'auto' : 'none';
               }
             }
@@ -1705,11 +1866,13 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             if (centerMarker) {
                centerMarker.getElement().style.transition = 'none';
                centerMarker.getElement().style.opacity = isVisible ? '1' : '0';
+               centerMarker.getElement().style.display = isVisible ? 'flex' : 'none';
                centerMarker.getElement().style.pointerEvents = isVisible ? 'auto' : 'none';
             }
             if (radiusMarker) {
                radiusMarker.getElement().style.transition = 'none';
                radiusMarker.getElement().style.opacity = isVisible ? '1' : '0';
+               radiusMarker.getElement().style.display = isVisible ? 'flex' : 'none';
                radiusMarker.getElement().style.pointerEvents = isVisible ? 'auto' : 'none';
                
                const featureIdx = currentFeatures.findIndex((f: any) => f.id === ann.id || f.properties?.featureId === ann.id);
@@ -1730,6 +1893,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                   const visible = isRevealed && annProgress > 0 && annProgress >= threshold;
                   marker.getElement().style.transition = 'none';
                   marker.getElement().style.opacity = visible ? '1' : '0';
+                  marker.getElement().style.display = visible ? 'flex' : 'none';
                   marker.getElement().style.pointerEvents = visible ? 'auto' : 'none';
                }
              });
@@ -1743,6 +1907,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                   const visible = isRevealed && annProgress > 0 && annProgress >= threshold;
                   marker.getElement().style.transition = 'none';
                   marker.getElement().style.opacity = visible ? '1' : '0';
+                  marker.getElement().style.display = visible ? 'flex' : 'none';
                   marker.getElement().style.pointerEvents = visible ? 'auto' : 'none';
                }
              });
@@ -1750,31 +1915,41 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         }
       });
       
-      const source = mapRef.current?.getSource('custom-annotations') as mapboxgl.GeoJSONSource;
-      if (source) source.setData({ type: 'FeatureCollection', features: currentFeatures });
+      const source = mapRef.current?.getSource('custom-annotations') as maplibregl.GeoJSONSource;
+      if (source) {
+        source.setData({ type: 'FeatureCollection', features: currentFeatures });
+      }
 
-      if (progress < 1 && allActiveTriggers.length > 0) {
+      if (progress < 1) {
         frameId = requestAnimationFrame(animate);
       } else {
+        
         // Run one last time to ensure exact final positions if needed
         allActiveTriggers.forEach(t => {
           triggerProgressRef.current[t] = 1;
         });
+
+        if (allActiveTriggers.length > 0) {
+          setAnimationTick(prev => prev + 1);
+        }
       }
     };
     
-    // Start animation loop
-    frameId = requestAnimationFrame(animate);
+    // Start animation loop or run static evaluation
+    if (allActiveTriggers.length > 0) {
+      frameId = requestAnimationFrame(animate);
+    } else {
+      animate(performance.now());
+    }
     
     return () => {
       if (frameId) cancelAnimationFrame(frameId);
     };
-  }, [revealedTriggers, hiddenTriggers, annotations, mapLoaded, activeTool]);
+  }, [revealedTriggers, hiddenTriggers, annotations, mapLoaded, activeTool, animationTick, selectedAnnotationId, settings.icons]);
 
-  // Synchronize selected geojson feature
   useEffect(() => {
     if (!mapRef.current || !mapLoaded) return;
-    const source = mapRef.current.getSource('selected-geojson-feature') as mapboxgl.GeoJSONSource;
+    const source = mapRef.current.getSource('selected-geojson-feature') as maplibregl.GeoJSONSource;
     if (!source) return;
 
     if (activeGeojsonLayerId && selectedGeojsonFeatureId) {
@@ -1982,10 +2157,10 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           
           // Add sources
           if (layer.showTemperature && !map.getSource(tempSourceId)) {
-            map.addSource(tempSourceId, { type: 'raster-om', url: tempUrl, maxzoom: 12 } as any);
+            map.addSource(tempSourceId, { type: 'raster', url: tempUrl, maxzoom: 12 } as any);
           }
           if (layer.showPrecipitation && !map.getSource(precipSourceId)) {
-            map.addSource(precipSourceId, { type: 'raster-om', url: precipUrl, maxzoom: 12 } as any);
+            map.addSource(precipSourceId, { type: 'raster', url: precipUrl, maxzoom: 12 } as any);
           }
 
           // Remove sources if toggled off
@@ -2078,7 +2253,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         }
       } else {
         if (layer.type === 'geojson' && layer.data) {
-          (map.getSource(sourceId) as mapboxgl.GeoJSONSource).setData(layer.data);
+          (map.getSource(sourceId) as maplibregl.GeoJSONSource).setData(layer.data);
         }
       }
 
@@ -2170,12 +2345,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                 ? ['case', ['==', ['to-string', ['get', 'icao24']], selectedAircraftId], 1.0, 0.5]
                 : 1.0,
               'icon-color': layer.aircraftColors && Object.keys(layer.aircraftColors).length > 0 
-                ? [
-                    'match', 
-                    ['to-string', ['get', 'icao24']], 
-                    ...Object.entries(layer.aircraftColors).flat(),
-                    layer.globalAircraftColor || '#ffffff'
-                  ] 
+                ? ['match', ['to-string', ['get', 'icao24']], ...Object.entries(layer.aircraftColors).flat(), layer.globalAircraftColor || '#ffffff'] as any
                 : (layer.globalAircraftColor || '#ffffff')
             }
           }, firstSymbolId);
@@ -2460,12 +2630,12 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                   ...geojsonData,
                   features: filteredFeatures
                 };
-                const source = map.getSource(sourceId) as mapboxgl.GeoJSONSource;
+                const source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
                 if (source) source.setData(polygonsOnly);
               }
             } catch (err) {
               console.error(`Error fetching deepstate for date ${targetDate}:`, err);
-              const source = map.getSource(sourceId) as mapboxgl.GeoJSONSource;
+              const source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
               if (source) source.setData({ type: 'FeatureCollection', features: [] });
             }
           })();
@@ -2566,7 +2736,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       if (!force && Date.now() - windLastFetchRef.current < WIND_REFRESH_INTERVAL_MS) return;
       if (windFetchInFlightRef.current) return;
 
-      const source = map.getSource('weather-wind') as mapboxgl.GeoJSONSource;
+      const source = map.getSource('weather-wind') as maplibregl.GeoJSONSource;
       if (!source) return;
 
       windFetchInFlightRef.current = true;
@@ -2953,7 +3123,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             const lastPt = selectedFlightTrackRef.current[selectedFlightTrackRef.current.length - 1];
             if (!lastPt || lastPt[0] !== lon || lastPt[1] !== lat) {
               selectedFlightTrackRef.current = [...selectedFlightTrackRef.current, [lon, lat]];
-              const trackSource = map.getSource('selected-flight-track') as mapboxgl.GeoJSONSource;
+              const trackSource = map.getSource('selected-flight-track') as maplibregl.GeoJSONSource;
               if (trackSource) {
                 trackSource.setData({
                   type: 'FeatureCollection',
@@ -2984,7 +3154,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             }
 
             if (!aircraftPopupRef.current) {
-              aircraftPopupRef.current = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, className: 'flight-popup' })
+              aircraftPopupRef.current = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'flight-popup' })
                 .setLngLat([lon, lat])
                 .addTo(map);
             } else {
@@ -3013,7 +3183,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             `;
             // Add custom style block to override Mapbox default popup padding and background
             const style = document.createElement('style');
-            style.innerHTML = '.flight-popup .mapboxgl-popup-content { padding: 0; background: transparent; box-shadow: none; } .flight-popup .mapboxgl-popup-tip { border-top-color: #09090b; }';
+            style.innerHTML = '.flight-popup .maplibregl-popup-content { padding: 0; background: transparent; box-shadow: none; } .flight-popup .maplibregl-popup-tip { border-top-color: #09090b; }';
             document.head.appendChild(style);
             
             aircraftPopupRef.current.setHTML(popupHtml);
@@ -3036,7 +3206,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
         const geojson = { type: 'FeatureCollection', features };
         const sourceId = `dynamic-source-${flightsLayer.id}`;
-        const source = map.getSource(sourceId) as mapboxgl.GeoJSONSource;
+        const source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
         if (source) source.setData(geojson as GeoJSON.FeatureCollection);
         
         currentInterval = 10000; // Reset backoff on success
@@ -3131,7 +3301,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       // Ensure popup styles are applied
       const style = document.getElementById('flight-popup-style') || document.createElement('style');
       style.id = 'flight-popup-style';
-      style.innerHTML = '.flight-popup .mapboxgl-popup-content { padding: 0; background: transparent; box-shadow: none; } .flight-popup .mapboxgl-popup-tip { border-top-color: #09090b; }';
+      style.innerHTML = '.flight-popup .maplibregl-popup-content { padding: 0; background: transparent; box-shadow: none; } .flight-popup .maplibregl-popup-tip { border-top-color: #09090b; }';
       if (!document.getElementById('flight-popup-style')) document.head.appendChild(style);
       
       vesselPopupRef.current.setHTML(popupHtml);
@@ -3179,11 +3349,11 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         }
         
         const sourceId = `dynamic-source-${vesselsLayer.id}`;
-        const source = map.getSource(sourceId) as mapboxgl.GeoJSONSource;
+        const source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
         if (source) source.setData({ type: 'FeatureCollection', features });
 
         // Update selected vessel track
-        const trackSource = map.getSource('selected-vessel-track') as mapboxgl.GeoJSONSource;
+        const trackSource = map.getSource('selected-vessel-track') as maplibregl.GeoJSONSource;
         if (trackSource) {
           if (activeVesselMmsiRef.current && vesselsRef.current.has(activeVesselMmsiRef.current)) {
             const activeVessel = vesselsRef.current.get(activeVesselMmsiRef.current);
@@ -3300,7 +3470,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     const map = mapRef.current;
     if (!map || !mapLoaded) return;
     
-    const source = map.getSource('selected-flight-track') as mapboxgl.GeoJSONSource;
+    const source = map.getSource('selected-flight-track') as maplibregl.GeoJSONSource;
     if (!source) return;
 
     if (!selectedAircraftId) {
@@ -3395,7 +3565,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     const highlights = annotations.filter(a => a.type === 'highlight' && a.text && a.coordinates);
 
     const updateClipMasks = () => {
-      const source = map.getSource('highlight-clip-source') as mapboxgl.GeoJSONSource;
+      const source = map.getSource('highlight-clip-source') as maplibregl.GeoJSONSource;
       if (!source) return;
 
       if (highlights.length === 0) {
@@ -3509,13 +3679,13 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     clearActiveDrawMarkers();
     isDrawing.current = false;
     mapRef.current.dragPan.enable();
-    const source = mapRef.current.getSource('active-drawing') as mapboxgl.GeoJSONSource;
+    const source = mapRef.current.getSource('active-drawing') as maplibregl.GeoJSONSource;
     if (source) source.setData({ type: 'FeatureCollection', features: [] });
   }, [activeTool, mapLoaded]);
 
   const updateActiveDrawing = (geojson: any) => {
     if (!mapRef.current) return;
-    const source = mapRef.current.getSource('active-drawing') as mapboxgl.GeoJSONSource;
+    const source = mapRef.current.getSource('active-drawing') as maplibregl.GeoJSONSource;
     if (source) {
       source.setData(geojson);
       if (mapRef.current.getLayer('active-drawing-line')) {
@@ -3544,7 +3714,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     const callsign = found.properties?.callsign || '';
     
     if (!aircraftPopupRef.current) {
-      aircraftPopupRef.current = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, className: 'flight-popup' })
+      aircraftPopupRef.current = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'flight-popup' })
         .setLngLat([lon, lat])
         .addTo(mapRef.current);
     } else {
@@ -3573,7 +3743,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     `;
     const style = document.getElementById('flight-popup-style') || document.createElement('style');
     style.id = 'flight-popup-style';
-    style.innerHTML = '.flight-popup .mapboxgl-popup-content { padding: 0; background: transparent; box-shadow: none; } .flight-popup .mapboxgl-popup-tip { border-top-color: #09090b; }';
+    style.innerHTML = '.flight-popup .maplibregl-popup-content { padding: 0; background: transparent; box-shadow: none; } .flight-popup .maplibregl-popup-tip { border-top-color: #09090b; }';
     if (!document.getElementById('flight-popup-style')) document.head.appendChild(style);
     
     aircraftPopupRef.current.setHTML(popupHtml);
@@ -3583,7 +3753,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     const map = mapRef.current;
     if (!map) return;
 
-    const onClick = (e: mapboxgl.MapMouseEvent) => {
+    const onClick = (e: maplibregl.MapMouseEvent) => {
       // Handle GeoJSON Edit Mode first
       const activeLayer = settings.layers.find(l => l.id === activeGeojsonLayerId);
       if (activeGeojsonLayerId && activeLayer?.type === 'geojson') {
@@ -3657,7 +3827,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             vesselPopupRef.current.remove();
             vesselPopupRef.current = null;
           }
-          const trackSource = map.getSource('selected-vessel-track') as mapboxgl.GeoJSONSource;
+          const trackSource = map.getSource('selected-vessel-track') as maplibregl.GeoJSONSource;
           if (trackSource) trackSource.setData({ type: 'FeatureCollection', features: [] });
         } else {
           activeVesselMmsiRef.current = clickedVesselMmsi;
@@ -3665,7 +3835,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           const v = vesselsRef.current.get(clickedVesselMmsi);
           if (v && v.lat != null && v.lon != null) {
             if (!vesselPopupRef.current) {
-              vesselPopupRef.current = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, className: 'flight-popup' })
+              vesselPopupRef.current = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'flight-popup' })
                 .setLngLat([v.lon, v.lat])
                 .addTo(map);
             } else {
@@ -3673,7 +3843,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             }
             const style = document.getElementById('flight-popup-style') || document.createElement('style');
             style.id = 'flight-popup-style';
-            style.innerHTML = '.flight-popup .mapboxgl-popup-content { padding: 0; background: transparent; box-shadow: none; } .flight-popup .mapboxgl-popup-tip { border-top-color: #09090b; }';
+            style.innerHTML = '.flight-popup .maplibregl-popup-content { padding: 0; background: transparent; box-shadow: none; } .flight-popup .maplibregl-popup-tip { border-top-color: #09090b; }';
             if (!document.getElementById('flight-popup-style')) document.head.appendChild(style);
             
             const spd = v.sog != null ? Math.round(v.sog) + 'kn' : 'N/A';
@@ -3696,7 +3866,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             `;
             vesselPopupRef.current.setHTML(popupHtml);
 
-            const trackSource = map.getSource('selected-vessel-track') as mapboxgl.GeoJSONSource;
+            const trackSource = map.getSource('selected-vessel-track') as maplibregl.GeoJSONSource;
             if (trackSource && v.track && v.track.length > 1) {
               trackSource.setData({
                 type: 'FeatureCollection',
@@ -3716,11 +3886,11 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             vesselPopupRef.current.remove();
             vesselPopupRef.current = null;
           }
-          const trackSource = map.getSource('selected-vessel-track') as mapboxgl.GeoJSONSource;
+          const trackSource = map.getSource('selected-vessel-track') as maplibregl.GeoJSONSource;
           if (trackSource) trackSource.setData({ type: 'FeatureCollection', features: [] });
         }
       }
-      let features: mapboxgl.MapboxGeoJSONFeature[] = [];
+      let features: maplibregl.MapGeoJSONFeature[] = [];
       try {
         features = map.queryRenderedFeatures(e.point, { layers: ['custom-polygons', 'custom-lines', 'custom-lines-dashed', 'custom-lines-dotted', 'custom-arrow-heads'] });
       } catch (err) {}
@@ -3755,8 +3925,13 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         return;
       }
 
+      if (activeTool === 'headline') {
+        setHeadlinePrompt?.({});
+        return;
+      }
+
       if (activeTool === 'highlight') {
-        const evaluateExpression = (expr: any, zoom: number, feature: mapboxgl.MapboxGeoJSONFeature): any => {
+        const evaluateExpression = (expr: any, zoom: number, feature: maplibregl.MapGeoJSONFeature): any => {
           if (typeof expr !== 'object' || expr === null) return expr;
           if (!Array.isArray(expr)) return expr;
           const type = expr[0];
@@ -3829,7 +4004,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           return null; // unsupported expression
         };
 
-        const bbox: [mapboxgl.PointLike, mapboxgl.PointLike] = [
+        const bbox: [maplibregl.PointLike, maplibregl.PointLike] = [
           [e.point.x - 5, e.point.y - 5],
           [e.point.x + 5, e.point.y + 5]
         ];
@@ -4047,7 +4222,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         labelEl.style.pointerEvents = 'none';
         labelEl.innerHTML = `${dist.toFixed(2)} km`;
         const markerId = `measure-${currentShapeCoords.current.length - 1}`;
-        activeDrawMarkersRef.current[markerId] = new mapboxgl.Marker({ element: labelEl })
+        activeDrawMarkersRef.current[markerId] = new maplibregl.Marker({ element: labelEl })
           .setLngLat([e.lngLat.lng, e.lngLat.lat])
           .addTo(map);
       }
@@ -4070,7 +4245,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           labelEl.innerHTML = `${totalDist.toFixed(1)} km<br/><span style="font-size:0.75em;opacity:0.9">${timeStr}</span>`;
           
           const markerId = `route-${idx}`;
-          activeDrawMarkersRef.current[markerId] = new mapboxgl.Marker({ element: labelEl })
+          activeDrawMarkersRef.current[markerId] = new maplibregl.Marker({ element: labelEl })
             .setLngLat(lngLat)
             .addTo(map);
         };
@@ -4102,7 +4277,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           labelEl.style.color = getContrastYIQ(currentColor);
           labelEl.style.pointerEvents = 'none';
           labelEl.innerHTML = 'START';
-          activeDrawMarkersRef.current[`route-0`] = new mapboxgl.Marker({ element: labelEl })
+          activeDrawMarkersRef.current[`route-0`] = new maplibregl.Marker({ element: labelEl })
             .setLngLat(point)
             .addTo(map);
         } else {
@@ -4205,7 +4380,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             const profile = routeMode === 'walking' ? 'walking' : 'driving';
             const sessionId = currentDrawSessionRef.current;
             pendingFetchesRef.current += 1;
-            fetch(`https://api.mapbox.com/directions/v5/mapbox/${profile}/${lastPoint[0]},${lastPoint[1]};${point[0]},${point[1]}?geometries=geojson&access_token=${settings.mapboxToken}`)
+            fetch(`https://api.mapbox.com/directions/v5/mapbox/${profile}/${lastPoint[0]},${lastPoint[1]};${point[0]},${point[1]}?geometries=geojson&access_token=${settings.mapToken}`)
               .then(res => res.json())
               .then(data => {
                 pendingFetchesRef.current -= 1;
@@ -4245,11 +4420,11 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       }
     };
 
-    const onMouseDown = (e: mapboxgl.MapMouseEvent) => {
+    const onMouseDown = (e: maplibregl.MapMouseEvent) => {
       if (activeTool === 'none') return;
 
       // Check if we clicked on an existing annotation feature FIRST
-      let features: mapboxgl.MapboxGeoJSONFeature[] = [];
+      let features: maplibregl.MapGeoJSONFeature[] = [];
       try {
         features = map.queryRenderedFeatures(e.point, { layers: ['custom-polygons', 'custom-lines', 'custom-lines-dashed', 'custom-lines-dotted', 'custom-arrow-heads'] });
       } catch (e) {
@@ -4282,7 +4457,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         centerEl.className = 'custom-marker-dot';
         centerEl.style.backgroundColor = currentColor;
         centerEl.style.pointerEvents = 'none';
-        activeDrawMarkersRef.current['circle-center'] = new mapboxgl.Marker({ element: centerEl })
+        activeDrawMarkersRef.current['circle-center'] = new maplibregl.Marker({ element: centerEl })
           .setLngLat(circleCenter.current)
           .addTo(map);
       }
@@ -4296,7 +4471,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       }
     };
 
-    const onMouseMove = (e: mapboxgl.MapMouseEvent) => {
+    const onMouseMove = (e: maplibregl.MapMouseEvent) => {
       if (activeTool === 'highlight') {
         const features = map.queryRenderedFeatures(e.point);
         const hasSymbol = features.some(f => f.layer?.type === 'symbol' && (f.properties?.name || f.properties?.name_en));
@@ -4333,7 +4508,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               labelEl.style.backgroundColor = currentColor;
               labelEl.style.color = getContrastYIQ(currentColor);
               labelEl.style.pointerEvents = 'none';
-              activeDrawMarkersRef.current['circle-radius'] = new mapboxgl.Marker({ element: labelEl })
+              activeDrawMarkersRef.current['circle-radius'] = new maplibregl.Marker({ element: labelEl })
                 .setLngLat(currentPos)
                 .addTo(map);
             } else {
@@ -4388,7 +4563,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             labelEl.style.backgroundColor = currentColor;
             labelEl.style.color = getContrastYIQ(currentColor);
             labelEl.style.pointerEvents = 'none';
-            activeDrawMarkersRef.current['measure-floating'] = new mapboxgl.Marker({ element: labelEl })
+            activeDrawMarkersRef.current['measure-floating'] = new maplibregl.Marker({ element: labelEl })
               .setLngLat([e.lngLat.lng, e.lngLat.lat])
               .addTo(map);
           } else {
@@ -4399,7 +4574,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       }
     };
 
-    const onMouseUp = (e: mapboxgl.MapMouseEvent) => {
+    const onMouseUp = (e: maplibregl.MapMouseEvent) => {
       if (!isDrawing.current) return;
 
       if (activeTool === 'paint') {
@@ -4469,7 +4644,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       }
     };
 
-    const onDblClick = (e: mapboxgl.MapMouseEvent) => {
+    const onDblClick = (e: maplibregl.MapMouseEvent) => {
       if (activeTool === 'polygon' && isDrawing.current) {
         e.preventDefault(); // stop zoom
         isDrawing.current = false;
@@ -4563,36 +4738,36 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       map.doubleClickZoom.enable();
     }
 
-    const onTouchStart = (e: mapboxgl.MapTouchEvent) => {
+    const onTouchStart = (e: maplibregl.MapTouchEvent) => {
       if (e.points.length > 1) return;
       if (activeTool === 'paint' || activeTool === 'circle' || activeTool === 'arrow') {
         e.preventDefault();
-        onMouseDown(e as unknown as mapboxgl.MapMouseEvent);
+        onMouseDown(e as unknown as maplibregl.MapMouseEvent);
       }
     };
 
-    const onTouchMove = (e: mapboxgl.MapTouchEvent) => {
+    const onTouchMove = (e: maplibregl.MapTouchEvent) => {
       if (e.points.length > 1) return;
       if (isDrawing.current && (activeTool === 'paint' || activeTool === 'circle' || activeTool === 'arrow')) {
         e.preventDefault();
-        onMouseMove(e as unknown as mapboxgl.MapMouseEvent);
+        onMouseMove(e as unknown as maplibregl.MapMouseEvent);
       }
     };
 
-    const onTouchEnd = (e: mapboxgl.MapTouchEvent) => {
+    const onTouchEnd = (e: maplibregl.MapTouchEvent) => {
       if (isDrawing.current && (activeTool === 'paint' || activeTool === 'circle' || activeTool === 'arrow')) {
         // In some cases touchend might lack a reliable lngLat, but Mapbox usually provides it based on changedTouches.
         // We ensure it falls back if needed.
-        const fakeEvent = e as unknown as mapboxgl.MapMouseEvent;
+        const fakeEvent = e as unknown as maplibregl.MapMouseEvent;
         if (!fakeEvent.lngLat && currentShapeCoords.current.length > 0) {
            const last = currentShapeCoords.current[currentShapeCoords.current.length - 1];
-           fakeEvent.lngLat = new mapboxgl.LngLat(last[0], last[1]);
+           fakeEvent.lngLat = new maplibregl.LngLat(last[0], last[1]);
         } else if (!fakeEvent.lngLat && activeTool === 'circle' && circleCenter.current) {
            // fallback for circle
-           fakeEvent.lngLat = new mapboxgl.LngLat(circleCenter.current[0], circleCenter.current[1]);
+           fakeEvent.lngLat = new maplibregl.LngLat(circleCenter.current[0], circleCenter.current[1]);
         } else if (!fakeEvent.lngLat && activeTool === 'arrow' && arrowStart.current) {
            // fallback for arrow (draws a dot basically)
-           fakeEvent.lngLat = new mapboxgl.LngLat(arrowStart.current[0], arrowStart.current[1]);
+           fakeEvent.lngLat = new maplibregl.LngLat(arrowStart.current[0], arrowStart.current[1]);
         }
         onMouseUp(fakeEvent);
       }
@@ -4617,7 +4792,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       map.off('touchmove', onTouchMove);
       map.off('touchend', onTouchEnd);
     };
-  }, [activeTool, currentColor, currentStrokeType, currentFillOpacity, annotations, setAnnotations, activeGeojsonLayerId, setActiveGeojsonLayerId, setSelectedGeojsonFeatureId, selectedAircraftId, settings.layers, selectedIconId, routeMode, settings.googleMapsToken, settings.mapboxToken]);
+  }, [activeTool, currentColor, currentStrokeType, currentFillOpacity, annotations, setAnnotations, activeGeojsonLayerId, setActiveGeojsonLayerId, setSelectedGeojsonFeatureId, selectedAircraftId, settings.layers, selectedIconId, routeMode, settings.googleMapsToken, settings.mapToken]);
 
   const activeWindLayer = settings.layers.find(l => l.type === 'wind' && l.visible);
   const windLayerVisible = Boolean(activeWindLayer);
@@ -4808,17 +4983,71 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           </div>
         </>
       )}
+
+      {annotations.filter(a => a.type === 'headline').map((ann) => {
+        const overrideVisible = activeTool !== 'none';
+        const isHidden = !overrideVisible && (hiddenTriggers.has(ann.id) || (ann.hideAnimationTriggerId && hiddenTriggers.has(ann.hideAnimationTriggerId)));
+        const isRevealed = overrideVisible || (!ann.animationTriggerId || revealedTriggers.has(ann.animationTriggerId));
+        const opacity = isRevealed && !isHidden ? 1 : 0;
+        const isSelected = selectedAnnotationId === ann.id;
+        
+        return (
+          <motion.div
+            key={ann.id}
+            data-id={ann.id}
+            drag={activeTool === 'headline' || isSelected}
+            dragMomentum={false}
+            onDragEnd={(_e, info) => {
+              if (activeTool !== 'headline' && !isSelected) return;
+              setAnnotations(prev => prev.map(a => 
+                a.id === ann.id ? { ...a, screenPosition: { x: (a.screenPosition?.x || 0) + info.offset.x, y: (a.screenPosition?.y || 0) + info.offset.y } } : a
+              ));
+            }}
+            initial={false}
+            animate={{ opacity }}
+            transition={{ duration: 0.3 }}
+            onPointerDown={(e) => {
+              if ((activeTool !== 'none' && activeTool !== 'highlight') || isSelected) {
+                e.stopPropagation();
+                setSelectedAnnotationId(ann.id);
+              }
+            }}
+            onDoubleClick={(e) => {
+              if (activeTool === 'headline' || isSelected) {
+                e.stopPropagation();
+                setHeadlinePrompt?.({ id: ann.id, initialPrimary: ann.text, initialSecondary: ann.secondaryText });
+              }
+            }}
+            className={`headline-overlay-element absolute z-[45] flex items-center gap-3 ${activeTool === 'headline' || isSelected ? 'cursor-grab active:cursor-grabbing' : (activeTool !== 'none' && activeTool !== 'highlight' ? 'cursor-pointer' : 'pointer-events-none')} ${isSelected ? 'ring-2 ring-white ring-offset-2 ring-offset-black' : ''}`}
+            style={{
+              left: ann.screenPosition?.x || 0,
+              top: ann.screenPosition?.y || 0,
+            }}
+          >
+            {ann.text && (
+              <div className="font-['Gotham_Condensed'] text-[3em] font-black text-black" style={{ lineHeight: 1 }}>
+                {ann.text}
+              </div>
+            )}
+            {ann.secondaryText && (
+              <div className="bg-[#FF0000] font-['Gotham_Condensed'] text-[3em] font-black text-white px-2 h-[1.1em] flex items-center justify-center" style={{ lineHeight: 1 }}>
+                {ann.secondaryText}
+              </div>
+            )}
+          </motion.div>
+        );
+      })}
     </div>
   );
 };
 
 export const MapContainer: React.FC<MapContainerProps> = (props) => {
   const { t } = useTranslation();
-  const [map1, setMap1] = useState<mapboxgl.Map | null>(null);
-  const [map2, setMap2] = useState<mapboxgl.Map | null>(null);
+  const [map1, setMap1] = useState<maplibregl.Map | null>(null);
+  const [map2, setMap2] = useState<maplibregl.Map | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const map1MarkersRef = useRef<{ [id: string]: mapboxgl.Marker }>({});
+  const map1MarkersRef = useRef<{ [id: string]: maplibregl.Marker }>({});
   
   const splitLayer = props.settings.layers.find(l => l.type === 'split' && l.visible);
   const [splitPos, setSplitPos] = useState(splitLayer?.splitPosition ? splitLayer.splitPosition * 100 : 50);
@@ -4991,16 +5220,34 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
       compositorCanvas.height = targetHeight;
       const ctx = compositorCanvas.getContext('2d', { willReadFrequently: true })!;
 
-      // RENDER LOOP
-      let frameCount = 0;
+      // CAPTURE MAPBOX SYNCHRONOUSLY TO AVOID BUFFER CLEARING
       let isRecording = true;
       const mapCanvas = map1.getCanvas();
+      
+      const offscreenMapCanvas = document.createElement('canvas');
+      offscreenMapCanvas.width = mapCanvas.width;
+      offscreenMapCanvas.height = mapCanvas.height;
+      const offscreenMapCtx = offscreenMapCanvas.getContext('2d', { willReadFrequently: true })!;
+      
+      const renderHandler = () => {
+        if (!isRecording) return;
+        if (offscreenMapCanvas.width !== mapCanvas.width) offscreenMapCanvas.width = mapCanvas.width;
+        if (offscreenMapCanvas.height !== mapCanvas.height) offscreenMapCanvas.height = mapCanvas.height;
+        offscreenMapCtx.clearRect(0, 0, offscreenMapCanvas.width, offscreenMapCanvas.height);
+        offscreenMapCtx.drawImage(mapCanvas, 0, 0);
+      };
+      
+      map1.on('render', renderHandler);
+      map1.triggerRepaint(); // Force initial capture
+
+      // RENDER LOOP
+      let frameCount = 0;
       
       const captureFrame = () => {
         if (!isRecording) return;
         
         ctx.clearRect(0, 0, targetWidth, targetHeight);
-        ctx.drawImage(mapCanvas, 0, 0, targetWidth, targetHeight);
+        ctx.drawImage(offscreenMapCanvas, 0, 0, targetWidth, targetHeight);
         
         Object.entries(map1MarkersRef.current).forEach(([id, markerInfo]) => {
           const el = markerInfo.getElement();
@@ -5020,13 +5267,16 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
             const plate = el.querySelector('.custom-marker-plate') as HTMLElement;
             const textEl = el.querySelector('.custom-marker-text') as HTMLElement;
             if (plate && textEl) {
-              const text = (textEl.textContent?.trim() || '').toUpperCase();
-              ctx.font = '600 12px ui-sans-serif, system-ui, sans-serif';
+              const spans = textEl.querySelectorAll('span');
+              const lines = spans.length > 0 ? Array.from(spans).map(s => s.textContent || '') : [textEl.textContent?.trim() || ''];
+              
+              ctx.font = '600 12px Roboto, sans-serif';
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
               
-              const boxW = ctx.measureText(text).width + 16;
-              const boxH = 20;
+              const textW = Math.max(...lines.map(l => ctx.measureText(l.toUpperCase()).width));
+              const boxW = textW + 16;
+              const boxH = lines.length > 1 ? 32 : 20;
               const pointerH = 6;
               
               const startX = -boxW / 2;
@@ -5063,7 +5313,14 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               ctx.fillRect(startX, startY, boxW, boxH);
               
               ctx.fillStyle = textEl.style.color || '#fff';
-              ctx.fillText(text, 0, startY + boxH / 2 + textOffY);
+              if (lines.length > 1) {
+                ctx.font = '600 14px Roboto, sans-serif';
+                ctx.fillText(lines[0].toUpperCase(), 0, startY + boxH / 2 + textOffY - 6);
+                ctx.font = '400 10px Roboto, sans-serif';
+                ctx.fillText(lines[1].toUpperCase(), 0, startY + boxH / 2 + textOffY + 8);
+              } else {
+                ctx.fillText(lines[0].toUpperCase(), 0, startY + boxH / 2 + textOffY);
+              }
               ctx.restore();
             }
           } 
@@ -5078,13 +5335,13 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
 
             if (plate && textEl) {
               const text = (textEl.textContent?.trim() || '').toUpperCase();
-              ctx.font = '700 14px ui-sans-serif, system-ui, sans-serif';
+              ctx.font = '700 14px Roboto, sans-serif';
               ctx.textAlign = 'left';
               ctx.textBaseline = 'middle';
               
               const boxW = ctx.measureText(text).width + 16;
               const boxH = 22;
-              const startX = 14; 
+              const startX = 22; 
               const startY = -boxH / 2;
               
               let clipLeft = 0;
@@ -5119,7 +5376,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
             const textEl = el.querySelector('.custom-country-text') as HTMLElement;
             if (plate && textEl) {
               const text = (textEl.textContent?.trim() || '').toUpperCase();
-              ctx.font = '700 14px ui-sans-serif, system-ui, sans-serif';
+              ctx.font = '700 14px Roboto, sans-serif';
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
               
@@ -5155,16 +5412,13 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               ctx.restore();
             }
           }
-          else if (el.classList.contains('icon-svg-wrapper')) {
+          else if (el.classList.contains('icon-marker')) {
             const img = preloadedIcons.get(id);
             if (img && img.complete && img.naturalWidth > 0) {
-              const bgStr = el.style.backgroundColor || '#000';
+              const wrapper = el.querySelector('.icon-svg-wrapper') as HTMLElement;
+              const bgStr = wrapper ? wrapper.style.backgroundColor : '#000';
               ctx.beginPath();
-              if (ctx.roundRect) {
-                 ctx.roundRect(-32, -32, 64, 64, 12);
-              } else {
-                 ctx.rect(-32, -32, 64, 64);
-              }
+              ctx.rect(-32, -32, 64, 64);
               ctx.fillStyle = bgStr;
               ctx.fill();
               ctx.drawImage(img, -24, -24, 48, 48);
@@ -5209,6 +5463,45 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
             ctx.arc(0, 0, 12, 0, Math.PI * 2);
             ctx.fillStyle = el.style.backgroundColor || '#000';
             ctx.fill();
+          }
+          
+          ctx.restore();
+        });
+
+        props.annotations.filter(a => a.type === 'headline').forEach(ann => {
+          const el = document.querySelector(`.headline-overlay-element[data-id="${ann.id}"]`) as HTMLElement;
+          if (!el || parseFloat(window.getComputedStyle(el).opacity || '1') === 0) return;
+
+          const x = ann.screenPosition?.x || 0;
+          const y = ann.screenPosition?.y || 0;
+          
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.textBaseline = 'top';
+          ctx.textAlign = 'left';
+          
+          let currentX = 0;
+          const fontSize = 48; // 3em = 48px
+          
+          if (ann.text) {
+            ctx.font = `900 ${fontSize}px "Gotham Condensed"`;
+            ctx.fillStyle = '#000000';
+            const textStr = ann.text;
+            ctx.fillText(textStr, currentX, 0);
+            currentX += ctx.measureText(textStr).width;
+          }
+          if (ann.secondaryText) {
+            if (currentX > 0) currentX += 12; // gap-3 = 12px
+            ctx.font = `900 ${fontSize}px "Gotham Condensed"`;
+            const secStr = ann.secondaryText;
+            const secW = ctx.measureText(secStr).width;
+            
+            ctx.fillStyle = '#FF0000';
+            const bgHeight = fontSize * 1.1;
+            ctx.fillRect(currentX - 8, -2.4, secW + 16, bgHeight);
+            
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillText(secStr, currentX, 0);
           }
           
           ctx.restore();
@@ -5279,6 +5572,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
 
       // STOP AND EXPORT
       isRecording = false;
+      map1!.off('render', renderHandler);
       await videoEncoder.flush();
       videoEncoder.close();
       muxer.finalize();

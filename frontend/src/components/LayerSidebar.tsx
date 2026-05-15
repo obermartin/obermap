@@ -7,7 +7,7 @@ import { customAlert, customConfirm, customPrompt } from '../utils/dialogService
 import { useTranslation } from '../contexts/I18nContext';
 import { LabelMarkerManager, type Theme } from '../labels/LabelMarkerManager';
 
-const TemplatePreview: React.FC<{ templateName: string, isRegular: boolean }> = ({ templateName, isRegular }) => {
+const TemplatePreview: React.FC<{ templateName: string, isRegular: boolean, theme?: Theme }> = ({ templateName, isRegular, theme }) => {
   const [html, setHtml] = useState<string | null>(null);
   
   useEffect(() => {
@@ -19,7 +19,17 @@ const TemplatePreview: React.FC<{ templateName: string, isRegular: boolean }> = 
   }, [templateName, isRegular]);
   
   if (!html) return <div className="text-[10px] text-white/50"><Loader2 size={14} className="animate-spin" /></div>;
-  return <div dangerouslySetInnerHTML={{ __html: html }} className="scale-75 origin-center pointer-events-none" />;
+  
+  const style = theme ? {
+    '--primary-backplate-fill': theme.primaryBackplateFill,
+    '--secondary-backplate-fill': theme.secondaryBackplateFill,
+    '--pointer-fill': theme.pointerFill,
+    '--primary-text-color': theme.primaryTextColor,
+    '--secondary-text-color': theme.secondaryTextColor,
+    '--accent-fill': theme.accentFill
+  } as React.CSSProperties : undefined;
+
+  return <div dangerouslySetInnerHTML={{ __html: html }} className="scale-75 origin-center pointer-events-none" style={style} />;
 };
 
 const DEFAULT_LAYERS: MapLayer[] = [
@@ -226,7 +236,7 @@ export function LayerSidebar({
   // Video Export State
   const [videoFormat, setVideoFormat] = useState<'16x9' | '9x16' | 'both'>('16x9');
   const [videoDuration, setVideoDuration] = useState<number>(3);
-  const [dynamicLabels, setDynamicLabels] = useState<boolean>(true);
+
   const [videoBitrate, setVideoBitrate] = useState<number>(15);
 
   useEffect(() => {
@@ -1031,17 +1041,7 @@ export function LayerSidebar({
                 />
               </div>
 
-              <div className="flex items-center justify-between">
-                <label className="text-xs text-white/60 font-semibold tracking-wider cursor-pointer select-none" onClick={() => setDynamicLabels(!dynamicLabels)}>
-                  {t("DYNAMIC LABELS")}
-                </label>
-                <button
-                  onClick={() => setDynamicLabels(!dynamicLabels)}
-                  className={`w-9 h-5 rounded-full relative transition-colors ${dynamicLabels ? 'bg-white' : 'bg-white/20'}`}
-                >
-                  <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${dynamicLabels ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
-                </button>
-              </div>
+
 
             </div>
           </div>
@@ -1055,7 +1055,7 @@ export function LayerSidebar({
             <button
               disabled={!(annotations?.some(a => (a.type === 'label' || a.type === 'highlight') && a.text && a.view))}
               onClick={() => {
-                const event = new CustomEvent('startVideoExport', { detail: { format: videoFormat, duration: videoDuration, dynamicLabels, bitrate: videoBitrate, showName: settings.title || currentShow } });
+                const event = new CustomEvent('startVideoExport', { detail: { format: videoFormat, duration: videoDuration, dynamicLabels: true, bitrate: videoBitrate, showName: settings.title || currentShow } });
                 window.dispatchEvent(event);
                 setIsOpen(false);
               }}
@@ -1166,7 +1166,7 @@ export function LayerSidebar({
                 </select>
                 <div className="mt-2 flex justify-center bg-zinc-900 border border-white/10 p-2 min-h-[64px] items-center rounded overflow-hidden">
                    {settings.labelTemplates?.highlightLabelTemplate ? (
-                     <TemplatePreview templateName={settings.labelTemplates.highlightLabelTemplate} isRegular={false} />
+                     <TemplatePreview templateName={settings.labelTemplates.highlightLabelTemplate} isRegular={false} theme={settings.labelTemplates?.theme} />
                    ) : (
                      <span className="text-[10px] text-white/30 uppercase font-mono tracking-wider">{t("NO TEMPLATE")}</span>
                    )}
@@ -1198,7 +1198,7 @@ export function LayerSidebar({
                 </select>
                 <div className="mt-2 flex justify-center bg-zinc-900 border border-white/10 p-2 min-h-[64px] items-center rounded overflow-hidden">
                    {settings.labelTemplates?.regularLabelTemplate ? (
-                     <TemplatePreview templateName={settings.labelTemplates.regularLabelTemplate} isRegular={true} />
+                     <TemplatePreview templateName={settings.labelTemplates.regularLabelTemplate} isRegular={true} theme={settings.labelTemplates?.theme} />
                    ) : (
                      <span className="text-[10px] text-white/30 uppercase font-mono tracking-wider">{t("NO TEMPLATE")}</span>
                    )}
@@ -1262,19 +1262,19 @@ export function LayerSidebar({
             </summary>
             <div className="p-3 flex flex-col gap-4 bg-black mt-[2px]">
               <div>
-                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">{t("MAPBOX TOKEN")}</label>
+                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">{t("MAP TOKEN (OPTIONAL)")}</label>
                 <input
                   className="w-full bg-black/60 px-3 py-2 outline-none font-mono text-xs border border-white/10 focus:border-white/50 transition-colors"
-                  value={settings.mapboxToken}
-                  onChange={e => setSettings(prev => ({ ...prev, mapboxToken: e.target.value }))}
+                  value={settings.mapToken}
+                  onChange={e => setSettings(prev => ({ ...prev, mapToken: e.target.value }))}
                 />
               </div>
               <div>
-                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">{t("MAPBOX STYLE")}</label>
+                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">{t("MAP STYLE URL")}</label>
                 <input
                   className="w-full bg-black/60 px-3 py-2 outline-none font-mono text-xs border border-white/10 focus:border-white/50 transition-colors"
-                  value={settings.mapboxStyle}
-                  onChange={e => setSettings(prev => ({ ...prev, mapboxStyle: e.target.value }))}
+                  value={settings.mapStyle}
+                  onChange={e => setSettings(prev => ({ ...prev, mapStyle: e.target.value }))}
                 />
               </div>
             </div>

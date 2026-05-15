@@ -10,8 +10,8 @@ import { createArrowFeatures, calculateDistance } from './utils/mapUtils';
 import { DEFAULT_ICON_CATEGORIES } from './defaultIcons';
 
 const DEFAULT_SETTINGS: AppSettings = {
-  mapboxToken: 'pk.eyJ1Ijoib2Jlcm1hcnRpbiIsImEiOiJja25ybGlpYTgyNDRhMnVwcmo5eml4ZGdzIn0.W_ZjSsvTOlZs-Xd7m72DIQ',
-  mapboxStyle: 'mapbox://styles/obermartin/cmor4oid5000n01qphyjgg4u7',
+  mapToken: '',
+  mapStyle: 'https://tiles.openfreemap.org/styles/liberty',
   defaultView: {
     center: [35.0, 48.5],
     zoom: 5,
@@ -50,10 +50,19 @@ export function App() {
   const [routeMode, setRouteMode] = useState<RouteMode>('driving');
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
-  const [labelPrompt, setLabelPrompt] = useState<{ lngLat: [number, number] } | null>(null);
+  const [labelPrompt, setLabelPrompt] = useState<{ lngLat: [number, number], initialText?: string, initialSecondary?: string } | null>(null);
+  const [headlinePrompt, setHeadlinePrompt] = useState<{ id?: string, initialPrimary?: string, initialSecondary?: string } | null>(null);
+  useEffect(() => {
+    if (headlinePrompt) {
+      setHeadlineInput(headlinePrompt.initialPrimary || '');
+      setHighlightedLineInput(headlinePrompt.initialSecondary || '');
+    }
+  }, [headlinePrompt]);
   const [activeDistance, setActiveDistance] = useState<number | null>(null);
   const [labelInput, setLabelInput] = useState('');
   const [secondaryLabelInput, setSecondaryLabelInput] = useState('');
+  const [headlineInput, setHeadlineInput] = useState('');
+  const [highlightedLineInput, setHighlightedLineInput] = useState('');
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null);
   const [selectedIconId, setSelectedIconId] = useState<string | null>(null);
   const [isLayerSidebarOpen, setIsLayerSidebarOpen] = useState(false);
@@ -484,6 +493,8 @@ export function App() {
         setAnnotations={setAnnotations}
         labelPrompt={labelPrompt}
         setLabelPrompt={setLabelPrompt}
+        headlinePrompt={headlinePrompt}
+        setHeadlinePrompt={setHeadlinePrompt}
         setActiveDistance={setActiveDistance}
         selectedAnnotationId={selectedAnnotationId}
         setSelectedAnnotationId={setSelectedAnnotationId}
@@ -624,6 +635,134 @@ export function App() {
                 className="px-4 py-2 bg-white text-black hover:bg-white/90 text-sm transition-colors rounded-full"
               >
                 Save Label
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {headlinePrompt && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto">
+          <div className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 min-w-[350px] max-w-md shadow-2xl">
+            <h3 className="text-white font-semibold flex items-center gap-2 text-sm uppercase tracking-wider border-b border-white/10 pb-2">
+              {headlinePrompt.id ? "Edit Headline" : "Add Headline"}
+            </h3>
+            <div className="flex flex-col gap-2">
+              <input
+                autoFocus
+                type="text"
+                value={headlineInput}
+                onChange={e => setHeadlineInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && (headlineInput.trim() || highlightedLineInput.trim())) {
+                    const event = new CustomEvent('saveHeadline', { detail: { text: headlineInput, secondaryText: highlightedLineInput, id: headlinePrompt.id } });
+                    window.dispatchEvent(event);
+                  }
+                  if (e.key === 'Escape') setHeadlinePrompt(null);
+                }}
+                placeholder="Headline (e.g. TRAGÖDIE IN BERLIN)..."
+                className="w-full bg-black/60 border border-white/10 px-3 py-2 outline-none font-mono text-sm text-white focus:border-white/50 transition-colors"
+              />
+              <input
+                type="text"
+                value={highlightedLineInput}
+                onChange={e => setHighlightedLineInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && (headlineInput.trim() || highlightedLineInput.trim())) {
+                    const event = new CustomEvent('saveHeadline', { detail: { text: headlineInput, secondaryText: highlightedLineInput, id: headlinePrompt.id } });
+                    window.dispatchEvent(event);
+                  }
+                  if (e.key === 'Escape') setHeadlinePrompt(null);
+                }}
+                placeholder="Highlighted sub-line (optional)..."
+                className="w-full bg-black/60 border border-white/10 px-3 py-2 outline-none font-mono text-sm text-white focus:border-white/50 transition-colors"
+              />
+            </div>
+            <div className="flex justify-end gap-2 mt-2 pt-4 border-t border-white/10">
+              <button 
+                onClick={() => setHeadlinePrompt(null)}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors rounded-full"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  if (headlineInput.trim() || highlightedLineInput.trim()) {
+                    const event = new CustomEvent('saveHeadline', { detail: { text: headlineInput, secondaryText: highlightedLineInput, id: headlinePrompt.id } });
+                    window.dispatchEvent(event);
+                  }
+                }}
+                disabled={!headlineInput.trim() && !highlightedLineInput.trim()}
+                className="px-4 py-2 bg-white text-black hover:bg-white/90 text-sm font-semibold transition-colors rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {headlinePrompt && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto">
+          <div className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 min-w-[350px] max-w-md shadow-2xl">
+            <h3 className="text-white font-semibold flex items-center gap-2 text-sm uppercase tracking-wider border-b border-white/10 pb-2">
+              {headlinePrompt.id ? "Edit Headline" : "Add Headline"}
+            </h3>
+            <div className="flex flex-col gap-2">
+              <input
+                autoFocus
+                type="text"
+                value={headlineInput}
+                onChange={e => setHeadlineInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && (headlineInput.trim() || highlightedLineInput.trim())) {
+                    const event = new CustomEvent('saveHeadline', { detail: { text: headlineInput, secondaryText: highlightedLineInput, id: headlinePrompt.id } });
+                    window.dispatchEvent(event);
+                  }
+                  if (e.key === 'Escape') {
+                    setHeadlinePrompt(null);
+                  }
+                }}
+                placeholder="Headline (e.g. TRAGÖDIE IN BERLIN)..."
+                className="w-full bg-black/60 border border-white/10 px-3 py-2 outline-none font-mono text-sm text-white focus:border-white/50 transition-colors"
+              />
+              <input
+                type="text"
+                value={highlightedLineInput}
+                onChange={e => setHighlightedLineInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && (headlineInput.trim() || highlightedLineInput.trim())) {
+                    const event = new CustomEvent('saveHeadline', { detail: { text: headlineInput, secondaryText: highlightedLineInput, id: headlinePrompt.id } });
+                    window.dispatchEvent(event);
+                  }
+                  if (e.key === 'Escape') {
+                    setHeadlinePrompt(null);
+                  }
+                }}
+                placeholder="Highlighted sub-line (optional)..."
+                className="w-full bg-black/60 border border-white/10 px-3 py-2 outline-none font-mono text-sm text-white focus:border-white/50 transition-colors"
+              />
+            </div>
+            <div className="flex justify-end gap-2 mt-2 pt-4 border-t border-white/10">
+              <button 
+                onClick={() => {
+                  setHeadlinePrompt(null);
+                }}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors rounded-full"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => {
+                  if (headlineInput.trim() || highlightedLineInput.trim()) {
+                    const event = new CustomEvent('saveHeadline', { detail: { text: headlineInput, secondaryText: highlightedLineInput, id: headlinePrompt.id } });
+                    window.dispatchEvent(event);
+                  }
+                }}
+                disabled={!headlineInput.trim() && !highlightedLineInput.trim()}
+                className="px-4 py-2 bg-white text-black hover:bg-white/90 text-sm font-semibold transition-colors rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Save
               </button>
             </div>
           </div>

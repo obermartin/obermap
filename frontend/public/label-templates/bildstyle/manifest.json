@@ -25,7 +25,7 @@
       "attachOffset": 16,
       "tipX": 16,
       "tipY": 16,
-      "independentColor": false
+      "independentColor": true
     }
   },
   "secondary": {

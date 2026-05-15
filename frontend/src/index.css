@@ -1,6 +1,27 @@
 @import "tailwindcss";
 
 @font-face {
+  font-family: 'Gotham Condensed';
+  font-style: normal;
+  font-weight: 500;
+  src: url('/fonts/GothamCond-Medium.otf') format('opentype');
+}
+
+@font-face {
+  font-family: 'Gotham Condensed';
+  font-style: normal;
+  font-weight: 700;
+  src: url('/fonts/GothamCond-Bold.otf') format('opentype');
+}
+
+@font-face {
+  font-family: 'Gotham Condensed';
+  font-style: normal;
+  font-weight: 900;
+  src: url('/fonts/GothamCond-Black.otf') format('opentype');
+}
+
+@font-face {
   font-family: 'Roboto';
   font-style: normal;
   font-weight: 400;
@@ -150,21 +171,21 @@ html, body, #root {
 }
 
 /* Mapbox UI overrides */
-.mapboxgl-ctrl-logo {
+.maplibregl-ctrl-logo {
   display: none !important;
 }
 
-.mapboxgl-ctrl-top-right .mapboxgl-ctrl {
+.maplibregl-ctrl-top-right .maplibregl-ctrl {
   margin-top: 8px !important;
   margin-right: 24px !important;
   margin-bottom: 0 !important;
 }
 
-.mapboxgl-ctrl-top-right .mapboxgl-ctrl:first-child {
+.maplibregl-ctrl-top-right .maplibregl-ctrl:first-child {
   margin-top: 24px !important;
 }
 
-.mapboxgl-ctrl-group {
+.maplibregl-ctrl-group {
   background: #000 !important;
   border-radius: 9999px !important;
   border: none !important;
@@ -175,27 +196,27 @@ html, body, #root {
   overflow: hidden !important;
 }
 
-.mapboxgl-ctrl-group button {
+.maplibregl-ctrl-group button {
   width: 100% !important;
   height: 100% !important;
   margin: 0 !important;
   padding: 0 !important;
 }
 
-.mapboxgl-ctrl-compass {
+.maplibregl-ctrl-compass {
   background-color: #000 !important;
   transition: all 0.2s !important;
 }
 
-.mapboxgl-ctrl-compass .mapboxgl-ctrl-icon {
+.maplibregl-ctrl-compass .maplibregl-ctrl-icon {
   filter: invert(1) !important;
 }
 
-.mapboxgl-ctrl-compass:hover {
+.maplibregl-ctrl-compass:hover {
   background-color: #fff !important;
 }
 
-.mapboxgl-ctrl-compass:hover .mapboxgl-ctrl-icon {
+.maplibregl-ctrl-compass:hover .maplibregl-ctrl-icon {
   filter: none !important;
 }
 
@@ -210,7 +231,7 @@ html, body, #root {
 }
 
 /* Scale Control Styling */
-.mapboxgl-ctrl-top-right .mapboxgl-ctrl.mapboxgl-ctrl-scale {
+.maplibregl-ctrl-top-right .maplibregl-ctrl.maplibregl-ctrl-scale {
   position: absolute !important;
   top: 24px !important;
   right: 80px !important; /* compass right margin (24px) + compass width (48px) + gap (8px) = 80px */
@@ -233,7 +254,7 @@ html, body, #root {
 }
 
 /* Geocoder UI Overrides to match strict design rules */
-.mapboxgl-ctrl-geocoder {
+.maplibregl-ctrl-geocoder {
   background: #000 !important;
   border-radius: 9999px !important;
   border: none !important;
@@ -242,65 +263,65 @@ html, body, #root {
   font-family: 'Inter', sans-serif !important;
 }
 
-.mapboxgl-ctrl-geocoder.mapboxgl-ctrl-geocoder--collapsed {
+.maplibregl-ctrl-geocoder.maplibregl-ctrl-geocoder--collapsed {
   width: 48px !important;
   height: 48px !important;
   transition: all 0.2s !important;
 }
 
-.mapboxgl-ctrl-geocoder--input,
-.mapboxgl-ctrl-geocoder input[type="text"] {
+.maplibregl-ctrl-geocoder--input,
+.maplibregl-ctrl-geocoder input[type="text"] {
   color: #fff !important;
   height: 48px !important;
   padding: 6px 48px !important;
   background-color: transparent !important;
 }
 
-.mapboxgl-ctrl-geocoder--input::placeholder {
+.maplibregl-ctrl-geocoder--input::placeholder {
   color: rgba(255, 255, 255, 0.5) !important;
 }
 
-.mapboxgl-ctrl-geocoder--icon {
+.maplibregl-ctrl-geocoder--icon {
   fill: #fff !important;
 }
 
 /* Adjust search icon position to center in the 48x48 box */
-.mapboxgl-ctrl-geocoder--icon-search {
+.maplibregl-ctrl-geocoder--icon-search {
   top: 12px !important;
   left: 12px !important;
   width: 24px !important;
   height: 24px !important;
 }
 
-.mapboxgl-ctrl-geocoder--clear,
-.mapboxgl-ctrl-geocoder--button {
+.maplibregl-ctrl-geocoder--clear,
+.maplibregl-ctrl-geocoder--button {
   background: transparent !important;
   top: 12px !important;
   right: 12px !important;
 }
 
-.mapboxgl-ctrl-geocoder--button:hover {
+.maplibregl-ctrl-geocoder--button:hover {
   background: transparent !important;
 }
 
 /* Hover effect only for the collapsed button state */
-.mapboxgl-ctrl-geocoder.mapboxgl-ctrl-geocoder--collapsed:hover {
+.maplibregl-ctrl-geocoder.maplibregl-ctrl-geocoder--collapsed:hover {
   background: #fff !important;
   cursor: pointer !important;
 }
 
-.mapboxgl-ctrl-geocoder.mapboxgl-ctrl-geocoder--collapsed:hover .mapboxgl-ctrl-geocoder--icon {
+.maplibregl-ctrl-geocoder.maplibregl-ctrl-geocoder--collapsed:hover .maplibregl-ctrl-geocoder--icon {
   fill: #000 !important;
 }
 
 /* Expanded state width */
-.mapboxgl-ctrl-geocoder:not(.mapboxgl-ctrl-geocoder--collapsed) {
+.maplibregl-ctrl-geocoder:not(.maplibregl-ctrl-geocoder--collapsed) {
   width: 300px !important;
   max-width: 300px !important;
 }
 
 /* Suggestions Dropdown */
-.mapboxgl-ctrl-geocoder .suggestions {
+.maplibregl-ctrl-geocoder .suggestions {
   background-color: #000 !important;
   border-radius: 24px !important;
   box-shadow: none !important;
@@ -308,35 +329,35 @@ html, body, #root {
   border-top: none !important;
 }
 
-.mapboxgl-ctrl-geocoder .suggestions > li > a {
+.maplibregl-ctrl-geocoder .suggestions > li > a {
   color: #fff !important;
   padding: 12px 16px !important;
 }
 
-.mapboxgl-ctrl-geocoder .suggestions > li > a:hover,
-.mapboxgl-ctrl-geocoder .suggestions > .active > a {
+.maplibregl-ctrl-geocoder .suggestions > li > a:hover,
+.maplibregl-ctrl-geocoder .suggestions > .active > a {
   background-color: #fff !important;
   color: #000 !important;
 }
 
-.mapboxgl-ctrl-geocoder .suggestions > li > a:hover .mapboxgl-ctrl-geocoder--suggestion-title,
-.mapboxgl-ctrl-geocoder .suggestions > .active > a .mapboxgl-ctrl-geocoder--suggestion-title,
-.mapboxgl-ctrl-geocoder .suggestions > li > a:hover .mapboxgl-ctrl-geocoder--suggestion-address,
-.mapboxgl-ctrl-geocoder .suggestions > .active > a .mapboxgl-ctrl-geocoder--suggestion-address {
+.maplibregl-ctrl-geocoder .suggestions > li > a:hover .maplibregl-ctrl-geocoder--suggestion-title,
+.maplibregl-ctrl-geocoder .suggestions > .active > a .maplibregl-ctrl-geocoder--suggestion-title,
+.maplibregl-ctrl-geocoder .suggestions > li > a:hover .maplibregl-ctrl-geocoder--suggestion-address,
+.maplibregl-ctrl-geocoder .suggestions > .active > a .maplibregl-ctrl-geocoder--suggestion-address {
   color: #000 !important;
 }
 
-.mapboxgl-ctrl-geocoder--suggestion-title {
+.maplibregl-ctrl-geocoder--suggestion-title {
   color: #fff !important;
   font-weight: 600 !important;
 }
 
-.mapboxgl-ctrl-geocoder--suggestion-address {
+.maplibregl-ctrl-geocoder--suggestion-address {
   color: rgba(255, 255, 255, 0.7) !important;
 }
 
 /* Video Export Hide Rules */
-.is-recording .mapboxgl-control-container,
+.is-recording .maplibregl-control-container,
 .is-recording .react-ui-overlay {
   display: none !important;
 }
