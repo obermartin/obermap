@@ -736,6 +736,14 @@ export class LabelMarkerManager {
 
     svg += '</svg>';
 
+    // Canvas drawImage ignores CSS variables in data URIs, so we explicitly replace them with literal values
+    svg = svg.replace(/var\(--primary-backplate-fill,\s*([^)]+)\)/g, theme?.primaryBackplateFill || '$1');
+    svg = svg.replace(/var\(--secondary-backplate-fill,\s*([^)]+)\)/g, theme?.secondaryBackplateFill || '$1');
+    svg = svg.replace(/var\(--pointer-fill,\s*([^)]+)\)/g, theme?.pointerFill || theme?.primaryBackplateFill || '$1');
+    svg = svg.replace(/var\(--primary-text-color,\s*([^)]+)\)/g, theme?.primaryTextColor || '$1');
+    svg = svg.replace(/var\(--secondary-text-color,\s*([^)]+)\)/g, theme?.secondaryTextColor || '$1');
+    svg = svg.replace(/var\(--accent-fill,\s*([^)]+)\)/g, theme?.accentFill || '$1');
+
     const anchorX = ptrLeft + pointer.tipX;
     const anchorY = finalPtrTop + pointer.tipY;
 
