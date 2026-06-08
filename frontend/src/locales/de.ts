@@ -116,6 +116,7 @@ export const de: Record<string, string> = {
   "Split View Container": "Geteilte-Ansicht-Container",
   "UKRAINE CURRENT": "UKRAINE AKTUELL",
   "Wildfires (EFFIS)": "Waldbrände (EFFIS)",
+  "Floods (GloFAS)": "Überschwemmungen (GloFAS)",
   "Satellite View (Mapbox)": "Satellitenansicht (Mapbox)",
   "Air Traffic (OpenSky)": "Flugverkehr (OpenSky)",
   "Maritime Traffic (AIS)": "Schiffsverkehr (AIS)",

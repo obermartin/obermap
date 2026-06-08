@@ -121,6 +121,9 @@ export function App() {
               if (merged.id === 'copernicus' && merged.name !== 'Wildfires (EFFIS)') {
                 merged.name = 'Wildfires (EFFIS)';
               }
+              if (merged.id === 'floods' && merged.name !== 'Floods (GloFAS)') {
+                merged.name = 'Floods (GloFAS)';
+              }
 
               // Merge default properties if it's a default layer
               const defaultMatch = DEFAULT_SETTINGS.layers.find(l => l.id === merged.id);

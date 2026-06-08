@@ -36,6 +36,7 @@ const DEFAULT_LAYERS: MapLayer[] = [
   { id: 'split-container', name: 'Split View Container', type: 'split', visible: false, splitPosition: 0.5, splitDirection: 'vertical', splitLayers: [] },
   { id: 'deepstate', name: 'UKRAINE CURRENT', type: 'deepstate', visible: false, isLive: true },
   { id: 'copernicus', name: 'Wildfires (EFFIS)', type: 'raster', visible: false, url: 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}' },
+  { id: 'floods', name: 'Floods (GloFAS)', type: 'raster', visible: false, url: 'https://geoserver.gfm.eodc.eu/geoserver/gfm/wms?service=WMS&request=GetMap&layers=observed_flood_extent&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}T00:00:00.000Z/{date-end}T23:59:59.000Z' },
   { id: 'flights', name: 'Air Traffic (OpenSky)', type: 'flights', visible: false },
   { id: 'vessels', name: 'Maritime Traffic (AIS)', type: 'vessels', visible: false },
   { id: 'weather_forecast', name: 'Weather Forecast (Open-Meteo)', type: 'weather_forecast', visible: false, showTemperature: true, showPrecipitation: false, windOpacity: 1, windParticleSize: 1.5, windParticleTrail: 94, showWindParticles: true, showWindLegend: true, windParticleSizeBySpeed: true, windParticleSpeedBySpeed: true, windParticleTrailBySpeed: false, windParticleColorBySpeed: true, showCityTemperatures: true, showCityWeatherIcons: true },
@@ -1681,7 +1682,7 @@ function LayerItem(props: {
                   )}
               </div>
               
-              {layer.id === 'copernicus' && updateLayerDates && (
+              {(layer.id === 'copernicus' || layer.id === 'floods') && updateLayerDates && (
                 <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
                   <div className="flex items-center justify-between">
                     <label className="text-[10px] text-white font-semibold tracking-wider">{t("START DATE")}</label>

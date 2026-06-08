@@ -2457,7 +2457,11 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           processedUrl = processedUrl.replace(/{date-today}/g, '{date-end}').replace(/{date-7d}/g, '{date-start}');
           processedUrl = processedUrl.replace(/{date-start}/g, startVal).replace(/{date-end}/g, endVal);
           
-          map.addSource(sourceId, { type: 'raster', tiles: [processedUrl], tileSize: 256 });
+          const sourceConfig: any = { type: 'raster', tiles: [processedUrl], tileSize: 256 };
+          if (layer.maxZoom !== undefined) {
+            sourceConfig.maxzoom = layer.maxZoom;
+          }
+          map.addSource(sourceId, sourceConfig);
         } else if (layer.type === 'satellite') {
           map.addSource(sourceId, { type: 'raster', url: 'mapbox://mapbox.satellite', tileSize: 256 });
         } else if (layer.type === 'flights' || layer.type === 'vessels') {
