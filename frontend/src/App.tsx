@@ -95,6 +95,7 @@ export function App() {
       .then(data => {
         setIsLayerSidebarOpen(false);
         setIsToolbarOpen(false);
+        setActiveTool('none');
         if (data.annotations) {
           setAnnotations(data.annotations);
         } else {
@@ -214,6 +215,7 @@ export function App() {
           window.history.pushState({}, '', url);
           setCurrentShow(null);
           setCurrentView('overview');
+          setActiveTool('none');
         }
       })
       .catch(async err => {

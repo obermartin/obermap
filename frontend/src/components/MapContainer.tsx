@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import MapboxGeocoder from '@maplibre/maplibre-gl-geocoder';
@@ -143,6 +143,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const [selectedWeatherTime, setSelectedWeatherTime] = useState<string | null>(null);
   const [revealedTriggers, setRevealedTriggers] = useState<Set<string>>(new Set());
   const [hiddenTriggers, setHiddenTriggers] = useState<Set<string>>(new Set());
+  const [isDraggingHeadlineId, setIsDraggingHeadlineId] = useState<string | null>(null);
   const baseFeaturesRef = useRef<GeoJSON.Feature[]>([]);
   const triggerProgressRef = useRef<Record<string, number>>({});
   const triggerTimestampsRef = useRef<Record<string, number>>({});
@@ -896,6 +897,23 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     }) as EventListener;
     window.addEventListener('updateHideAnimationTrigger', handleUpdateHideAnimationTrigger);
 
+    const handleUpdateBothTriggers = ((e: CustomEvent<{ triggerId: string }>) => {
+      const { triggerId } = e.detail;
+      triggerProgressRef.current[triggerId] = 0;
+      triggerTimestampsRef.current[triggerId] = Date.now();
+      setRevealedTriggers(prev => {
+        const next = new Set(prev);
+        next.add(triggerId);
+        return next;
+      });
+      setHiddenTriggers(prev => {
+        const next = new Set(prev);
+        next.add(triggerId);
+        return next;
+      });
+    }) as EventListener;
+    window.addEventListener('updateBothTriggers', handleUpdateBothTriggers);
+
     const handleResetAnimationTriggers = () => {
       triggerProgressRef.current = {};
       triggerTimestampsRef.current = {};
@@ -910,6 +928,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       window.removeEventListener('flyToView', handleFlyTo);
       window.removeEventListener('updateAnimationTrigger', handleUpdateAnimationTrigger);
       window.removeEventListener('updateHideAnimationTrigger', handleUpdateHideAnimationTrigger);
+      window.removeEventListener('updateBothTriggers', handleUpdateBothTriggers);
       window.removeEventListener('resetAnimationTriggers', handleResetAnimationTriggers);
       map.remove();
       mapRef.current = null;
@@ -1435,7 +1454,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         const iconObj = allIcons.find(i => i.id === ann.iconId);
         if (iconObj) {
           const el = document.createElement('div');
-          el.className = 'w-16 h-16 flex items-center justify-center p-2 icon-svg-wrapper';
+          el.className = 'icon-marker w-16 h-16 flex items-center justify-center p-2 icon-svg-wrapper';
           el.style.backgroundColor = ann.color || '#ffffff';
           el.style.color = getContrastYIQ(ann.color || '#ffffff');
           el.innerHTML = iconObj.svg;
@@ -2024,13 +2043,21 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           } else if (id.includes('place') || sourceLayer.includes('place')) {
             if (density < 100) {
               let maxRank = 1;
-              if (density > 0 && density <= 20) {
-                maxRank = 2 + Math.floor(((density - 1) / 19) * 8);
-              } else if (density > 20) {
-                maxRank = 11 + Math.floor(((density - 21) / 79) * 9);
+              if (density > 0) {
+                // Most datasets use ranks from 1 to 20. Scale smoothly up to 30.
+                maxRank = 1 + Math.floor((density / 100) * 29);
               }
 
-              const rankCondition = ['<=', ['coalesce', ['get', 'symbolrank'], ['get', 'scalerank'], 99], maxRank];
+              // If a place has no rank, assign it a virtual rank based on its class
+              const classBasedRank = ['case',
+                ['==', ['get', 'class'], 'city'], 5,
+                ['==', ['get', 'class'], 'town'], 10,
+                ['==', ['get', 'class'], 'village'], 15,
+                ['in', ['get', 'class'], ['literal', ['hamlet', 'suburb', 'neighbourhood', 'isolated_dwelling']]], 20,
+                30
+              ];
+
+              const rankCondition = ['<=', ['coalesce', ['get', 'symbolrank'], ['get', 'scalerank'], ['get', 'rank'], classBasedRank], maxRank];
               
               let capCondition: any[] = ['==', '1', '2'];
               if (density === 0) {
@@ -2049,8 +2076,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             if (density < 15) {
               extraCondition = ['==', 1, 2]; // Hide
             } else if (density < 100) {
-              const maxScaleRank = Math.max(1, Math.ceil(Math.sqrt((density - 15) / 85) * 5));
-              extraCondition = ['<=', ['coalesce', ['get', 'scalerank'], 1], maxScaleRank];
+              const maxScaleRank = 1 + Math.floor(((density - 15) / 85) * 9);
+              extraCondition = ['<=', ['coalesce', ['get', 'scalerank'], ['get', 'rank'], 10], maxScaleRank];
             }
           } else if (id.includes('road') || id.includes('water') || id.includes('natural')) {
             if (density < 5) {
@@ -4198,6 +4225,12 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           isDrawing.current = true;
           currentShapeCoords.current = [[e.lngLat.lng, e.lngLat.lat]];
         } else {
+          const lastPoint = currentShapeCoords.current[currentShapeCoords.current.length - 1];
+          const p1 = map.project(lastPoint);
+          const p2 = e.point;
+          const distPx = Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+          if (distPx < 10) return; // Prevent double-click from adding a micro-segment
+
           currentShapeCoords.current.push([e.lngLat.lng, e.lngLat.lat]);
           updateActiveDrawing({
             type: 'Feature',
@@ -4213,6 +4246,12 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           isDrawing.current = true;
           currentShapeCoords.current = [[e.lngLat.lng, e.lngLat.lat]];
         } else {
+          const lastPoint = currentShapeCoords.current[currentShapeCoords.current.length - 1];
+          const p1 = map.project(lastPoint);
+          const p2 = e.point;
+          const distPx = Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+          if (distPx < 10) return; // Prevent double-click from adding a micro-segment
+
           currentShapeCoords.current.push([e.lngLat.lng, e.lngLat.lat]);
           updateActiveDrawing({
             type: 'Feature',
@@ -4385,10 +4424,12 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               fallbackTrain(lastPoint, point, currentIdx);
             }
           } else {
-            const profile = routeMode === 'walking' ? 'walking' : 'driving';
+            const endpoint = routeMode === 'walking' 
+              ? 'https://routing.openstreetmap.de/routed-foot/route/v1/driving' 
+              : 'https://router.project-osrm.org/route/v1/driving';
             const sessionId = currentDrawSessionRef.current;
             pendingFetchesRef.current += 1;
-            fetch(`https://api.mapbox.com/directions/v5/mapbox/${profile}/${lastPoint[0]},${lastPoint[1]};${point[0]},${point[1]}?geometries=geojson&access_token=${settings.mapToken}`)
+            fetch(`${endpoint}/${lastPoint[0]},${lastPoint[1]};${point[0]},${point[1]}?overview=full&geometries=geojson`)
               .then(res => res.json())
               .then(data => {
                 pendingFetchesRef.current -= 1;
@@ -4658,11 +4699,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         e.preventDefault(); // stop zoom
         isDrawing.current = false;
         
-        // Add final point if it's not a duplicate of the last click
-        const lastPt = currentShapeCoords.current[currentShapeCoords.current.length - 1];
-        if (lastPt[0] !== e.lngLat.lng || lastPt[1] !== e.lngLat.lat) {
-          currentShapeCoords.current.push([e.lngLat.lng, e.lngLat.lat]);
-        }
+        // Kill the point added by the first click of the double-click sequence
+        currentShapeCoords.current.pop();
         
         // Close polygon
         currentShapeCoords.current.push([...currentShapeCoords.current[0]]);
@@ -4685,10 +4723,12 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         e.preventDefault();
         isDrawing.current = false;
         
-        // Add final point if it's not a duplicate
-        const lastPt = currentShapeCoords.current[currentShapeCoords.current.length - 1];
-        if (lastPt[0] !== e.lngLat.lng || lastPt[1] !== e.lngLat.lat) {
-          currentShapeCoords.current.push([e.lngLat.lng, e.lngLat.lat]);
+        // Kill the point added by the first click of the double-click sequence
+        const poppedIdx = currentShapeCoords.current.length - 1;
+        currentShapeCoords.current.pop();
+        if (activeDrawMarkersRef.current[`measure-${poppedIdx}`]) {
+          activeDrawMarkersRef.current[`measure-${poppedIdx}`].remove();
+          delete activeDrawMarkersRef.current[`measure-${poppedIdx}`];
         }
         
         if (currentShapeCoords.current.length >= 2) {
@@ -4926,6 +4966,22 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         </>
       )}
 
+      <AnimatePresence>
+        {isDraggingHeadlineId && (
+          <motion.div
+            initial={{ y: -64, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -64, opacity: 0 }}
+            id="headline-dropzone"
+            className="fixed top-0 left-0 w-full h-20 p-3 z-[100] bg-black/20 backdrop-blur-md transition-colors duration-200 pointer-events-none"
+          >
+            <div id="headline-dropzone-inner" className="w-full h-full flex items-center justify-center border-2 border-dashed border-white/30 rounded-xl transition-colors duration-200">
+              <span className="text-white/80 font-bold tracking-widest uppercase text-sm">Drop here to center horizontally</span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {annotations.filter(a => a.type === 'headline').map((ann) => {
         const overrideVisible = activeTool !== 'none';
         const isHidden = !overrideVisible && (hiddenTriggers.has(ann.id) || (ann.hideAnimationTriggerId && hiddenTriggers.has(ann.hideAnimationTriggerId)));
@@ -4935,15 +4991,49 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         
         return (
           <motion.div
-            key={ann.id}
+            key={`${ann.id}-${ann.screenPosition?.x}-${ann.screenPosition?.y}`}
             data-id={ann.id}
             drag={activeTool === 'headline' || isSelected}
             dragMomentum={false}
-            onDragEnd={(_e, info) => {
+            onDragStart={() => {
+              if (activeTool === 'headline' || isSelected) {
+                setIsDraggingHeadlineId(ann.id);
+              }
+            }}
+            onDrag={(_e, info) => {
               if (activeTool !== 'headline' && !isSelected) return;
-              setAnnotations(prev => prev.map(a => 
-                a.id === ann.id ? { ...a, screenPosition: { x: (a.screenPosition?.x || 0) + info.offset.x, y: (a.screenPosition?.y || 0) + info.offset.y } } : a
-              ));
+              const isHovering = info.point.y < 80;
+              const dzInner = document.getElementById('headline-dropzone-inner');
+              if (dzInner) {
+                if (isHovering) {
+                  dzInner.classList.add('bg-white/20', 'border-white');
+                  dzInner.classList.remove('border-white/30');
+                } else {
+                  dzInner.classList.remove('bg-white/20', 'border-white');
+                  dzInner.classList.add('border-white/30');
+                }
+              }
+            }}
+            onDragEnd={(_e, info) => {
+              setIsDraggingHeadlineId(null);
+              if (activeTool !== 'headline' && !isSelected) return;
+              
+              const isDropZone = info.point.y < 80;
+              
+              setAnnotations(prev => prev.map(a => {
+                if (a.id === ann.id) {
+                  let newX = (a.screenPosition?.x || 0) + info.offset.x;
+                  let newY = (a.screenPosition?.y || 0) + info.offset.y;
+                  if (isDropZone) {
+                    const el = document.querySelector(`.headline-overlay-element[data-id="${ann.id}"]`) as HTMLElement;
+                    if (el) {
+                      newX = window.innerWidth / 2 - el.offsetWidth / 2;
+                    }
+                  }
+                  return { ...a, screenPosition: { x: newX, y: newY } };
+                }
+                return a;
+              }));
             }}
             initial={false}
             animate={{ opacity }}
@@ -5099,24 +5189,38 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
           if (iconObj) {
             const colorHex = ann.color || '#ffffff';
             const contrast = getContrastYIQ(colorHex);
-            const svgContent = iconObj.svg
-              .replace(/<\?xml[^>]*\?>/gi, '')
-              .replace(/<svg[^>]*>/, '')
-              .replace(/<\/svg>/, '')
-              .replace(/currentColor/g, contrast);
-              
-            const svgStr = `<svg width="48" height="48" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="${contrast}" stroke="${contrast}">${svgContent}</svg>`;
             
-            const img = new Image();
-            await new Promise((resolve) => {
-              img.onload = resolve;
-              img.onerror = (e) => {
-                console.error("Failed to load SVG icon:", e, svgStr);
-                resolve(null);
-              };
-              img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgStr)));
-            });
-            preloadedIcons.set(ann.id, img);
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(iconObj.svg, 'image/svg+xml');
+            const svgEl = doc.querySelector('svg');
+            if (svgEl) {
+              svgEl.setAttribute('width', '48');
+              svgEl.setAttribute('height', '48');
+              if (svgEl.getAttribute('fill') === 'currentColor') svgEl.setAttribute('fill', contrast);
+              if (svgEl.getAttribute('stroke') === 'currentColor') svgEl.setAttribute('stroke', contrast);
+              
+              const elements = svgEl.querySelectorAll('*');
+              for (let j = 0; j < elements.length; j++) {
+                const p = elements[j];
+                if (p.getAttribute('fill') === 'currentColor') p.setAttribute('fill', contrast);
+                if (p.getAttribute('stroke') === 'currentColor') p.setAttribute('stroke', contrast);
+                const htmlEl = p as HTMLElement;
+                if (htmlEl.style?.fill === 'currentColor') htmlEl.style.fill = contrast;
+                if (htmlEl.style?.stroke === 'currentColor') htmlEl.style.stroke = contrast;
+              }
+              const finalSvgStr = new XMLSerializer().serializeToString(doc);
+              
+              const img = new Image();
+              await new Promise((resolve) => {
+                img.onload = resolve;
+                img.onerror = (e) => {
+                  console.error("Failed to load SVG icon:", e, finalSvgStr);
+                  resolve(null);
+                };
+                img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(finalSvgStr)));
+              });
+              preloadedIcons.set(ann.id, img);
+            }
           }
         }
       }
@@ -5283,7 +5387,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               
               const boxW = ctx.measureText(text).width + 16;
               const boxH = 22;
-              const startX = 22; 
+              const startX = 15; 
               const startY = -boxH / 2;
               
               let clipLeft = 0;
@@ -5309,7 +5413,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               ctx.fillStyle = plate.style.backgroundColor || '#000';
               ctx.fillRect(startX, startY, boxW, boxH);
               ctx.fillStyle = textEl.style.color || '#fff';
-              ctx.fillText(text, startX + 8, textOffY);
+              ctx.fillText(text, startX + 8, textOffY + 1.5);
               ctx.restore();
             }
           }
@@ -5357,8 +5461,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
           else if (el.classList.contains('icon-marker')) {
             const img = preloadedIcons.get(id);
             if (img && img.complete && img.naturalWidth > 0) {
-              const wrapper = el.querySelector('.icon-svg-wrapper') as HTMLElement;
-              const bgStr = wrapper ? wrapper.style.backgroundColor : '#000';
+              const bgStr = el.style.backgroundColor || '#ffffff';
               ctx.beginPath();
               ctx.rect(-32, -32, 64, 64);
               ctx.fillStyle = bgStr;
@@ -5419,17 +5522,19 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
           
           ctx.save();
           ctx.translate(x, y);
-          ctx.textBaseline = 'top';
+          ctx.textBaseline = 'middle';
           ctx.textAlign = 'left';
           
           let currentX = 0;
           const fontSize = 48; // 3em = 48px
+          const bgHeight = fontSize * 1.1;
+          const centerY = bgHeight / 2;
           
           if (ann.text) {
             ctx.font = `900 ${fontSize}px "Gotham Condensed"`;
             ctx.fillStyle = '#000000';
             const textStr = ann.text;
-            ctx.fillText(textStr, currentX, 0);
+            ctx.fillText(textStr, currentX, centerY + 3);
             currentX += ctx.measureText(textStr).width;
           }
           if (ann.secondaryText) {
@@ -5439,11 +5544,10 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
             const secW = ctx.measureText(secStr).width;
             
             ctx.fillStyle = '#FF0000';
-            const bgHeight = fontSize * 1.1;
-            ctx.fillRect(currentX - 8, -2.4, secW + 16, bgHeight);
+            ctx.fillRect(currentX - 8, 0, secW + 16, bgHeight);
             
             ctx.fillStyle = '#FFFFFF';
-            ctx.fillText(secStr, currentX, 0);
+            ctx.fillText(secStr, currentX, centerY + 3);
           }
           
           ctx.restore();
@@ -5456,6 +5560,54 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
         requestAnimationFrame(captureFrame);
       };
       
+      // PRELOAD TILES BY JUMPING TO ALL VIEWS
+      for (let i = 0; i < viewsToVisit.length; i++) {
+        setVideoExportState(prev => prev ? { ...prev, message: `Preloading map tiles... (${i + 1}/${viewsToVisit.length})` } : null);
+        const { view } = viewsToVisit[i];
+        await new Promise<void>((resolve) => {
+          map1!.jumpTo({
+            center: view.center,
+            zoom: view.zoom,
+            pitch: view.pitch,
+            bearing: view.bearing
+          });
+          
+          let hasResolved = false;
+          const onIdle = () => {
+            if (!hasResolved) {
+              hasResolved = true;
+              map1!.off('idle', onIdle);
+              // Brief delay for vector tiles
+              setTimeout(resolve, 500);
+            }
+          };
+          map1!.on('idle', onIdle);
+          
+          // Fallback
+          setTimeout(() => {
+             if (!hasResolved) {
+                hasResolved = true;
+                map1!.off('idle', onIdle);
+                resolve();
+             }
+          }, 3000);
+        });
+      }
+
+      // Jump back to the start
+      const firstView = viewsToVisit[0].view;
+      await new Promise<void>((resolve) => {
+        map1!.jumpTo({
+          center: firstView.center,
+          zoom: firstView.zoom,
+          pitch: firstView.pitch,
+          bearing: firstView.bearing
+        });
+        setTimeout(resolve, 1000);
+      });
+
+      setVideoExportState(prev => prev ? { ...prev, message: formatsToRender.length > 1 ? `${t("Rendering")} ${currentFmt.toUpperCase()} (${t("Video")} ${fIdx + 1} ${t("of")} 2)...` : t("Rendering Video...") } : null);
+
       requestAnimationFrame(captureFrame);
 
       // FLY TO VIEWS
@@ -5465,23 +5617,14 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
         setVideoExportState(prev => prev ? { ...prev, progress: i + 1, total: viewsToVisit.length } : null);
         
         if (dynamicLabels) {
-          // Trigger actual DOM animation via event bus
-          if (i > 0) {
-            const prevHideId = viewsToVisit[i - 1].hideAnimationTriggerId;
-            if (prevHideId && prevHideId !== 'overview') {
-              window.dispatchEvent(new CustomEvent('updateHideAnimationTrigger', { 
-                detail: { targetId: null, triggerId: prevHideId } 
-              }));
-              // Wait for hide animation to finish before moving map
-              await new Promise(r => setTimeout(r, 600)); 
-            }
-          }
-          
+          const prevHideId = i > 0 ? viewsToVisit[i - 1].hideAnimationTriggerId : undefined;
           const currId = viewsToVisit[i].animationTriggerId || viewsToVisit[i].annotationId;
+          
+          if (prevHideId && prevHideId !== 'overview') {
+            window.dispatchEvent(new CustomEvent('updateBothTriggers', { detail: { triggerId: prevHideId } }));
+          }
           if (currId && currId !== 'overview') {
-            window.dispatchEvent(new CustomEvent('updateAnimationTrigger', { 
-              detail: { targetId: null, triggerId: currId } 
-            }));
+            window.dispatchEvent(new CustomEvent('updateBothTriggers', { detail: { triggerId: currId } }));
           }
         }
 

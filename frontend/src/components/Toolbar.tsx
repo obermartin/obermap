@@ -138,7 +138,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
   const showStrokeControls = ['paint', 'polygon', 'circle', 'arrow', 'highlight'].includes(activeTool);
   const showFillOpacityControl = ['highlight', 'polygon', 'circle'].includes(activeTool);
-  const hideColorSwatches = (activeTool === 'label' && settings.labelTemplates?.regularLabelTemplate) || 
+  const hideColorSwatches = activeTool === 'headline' || 
+                            (activeTool === 'label' && settings.labelTemplates?.regularLabelTemplate) || 
                             (activeTool === 'highlight' && settings.labelTemplates?.highlightLabelTemplate);
 
   return (
