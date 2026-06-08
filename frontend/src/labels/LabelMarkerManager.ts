@@ -788,7 +788,6 @@ export class LabelMarkerManager {
           e.stopPropagation();
           onClick(handle.id);
         });
-        primaryBackplate.addEventListener('mousedown', (e) => e.stopPropagation());
       }
     }
 

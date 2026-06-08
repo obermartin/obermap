@@ -124,6 +124,7 @@ export const de: Record<string, string> = {
   "weather_forecast": "Wettervorhersage",
   "Temperature": "Temperatur",
   "Precipitation": "Niederschlag",
+  "Today": "Heute",
   "Live Temperature (OWM)": "Live-Temperatur (OWM)",
   "Live Rain (OWM)": "Live-Regen (OWM)",
   "Satellite View (Google)": "Satellitenansicht (Google)",

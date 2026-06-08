@@ -35,7 +35,7 @@ export interface Annotation {
 export interface MapLayer {
   id: string;
   name: string;
-  type: 'geojson' | 'raster' | 'satellite' | 'split' | 'deepstate' | 'empty-slot' | 'flights' | 'vessels' | 'wind' | 'weather_forecast';
+  type: 'geojson' | 'raster' | 'satellite' | 'split' | 'deepstate' | 'empty-slot' | 'flights' | 'vessels' | 'weather_forecast';
   visible: boolean;
   data?: any; // For GeoJSON
   url?: string; // For XYZ/WMTS

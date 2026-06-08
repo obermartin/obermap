@@ -38,10 +38,7 @@ const DEFAULT_LAYERS: MapLayer[] = [
   { id: 'copernicus', name: 'Wildfires (EFFIS)', type: 'raster', visible: false, url: 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}' },
   { id: 'flights', name: 'Air Traffic (OpenSky)', type: 'flights', visible: false },
   { id: 'vessels', name: 'Maritime Traffic (AIS)', type: 'vessels', visible: false },
-  { id: 'wind', name: 'Wind (Open-Meteo)', type: 'wind', visible: true, windOpacity: 1, windParticleSize: 1.5, windParticleTrail: 94, showWindParticles: true, showWindArrows: false, showWindLegend: true, windParticleSizeBySpeed: true, windParticleSpeedBySpeed: true, windParticleTrailBySpeed: false, windParticleColorBySpeed: true },
-  { id: 'weather_forecast', name: 'Weather Forecast (Open-Meteo)', type: 'weather_forecast', visible: false, showTemperature: true, showPrecipitation: false },
-  { id: 'google_satellite', name: 'Satellite View (Google)', type: 'raster', visible: false, url: 'https://mt0.google.com/vt/lyrs=s&x={x}&y={y}&z={z}' },
-  { id: 'bing_satellite', name: 'Satellite View (Bing)', type: 'raster', visible: false, url: 'https://ecn.t0.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=685&mkt=en-us&n=z' },
+  { id: 'weather_forecast', name: 'Weather Forecast (Open-Meteo)', type: 'weather_forecast', visible: false, showTemperature: true, showPrecipitation: false, windOpacity: 1, windParticleSize: 1.5, windParticleTrail: 94, showWindParticles: true, showWindLegend: true, windParticleSizeBySpeed: true, windParticleSpeedBySpeed: true, windParticleTrailBySpeed: false, windParticleColorBySpeed: true },
   { id: 'satellite', name: 'Satellite View (Mapbox)', type: 'satellite', visible: false },
   { id: 'population_density', name: 'Population Density', type: 'raster', visible: false, url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GPW_Population_Density_2020/default/default/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png' }
 ];
@@ -1624,20 +1621,20 @@ function LayerItem(props: {
               )}
             </div>
 
-            {layer.type !== 'split' && (layer.type === 'geojson' || layer.type === 'raster' || layer.type === 'satellite' || layer.type === 'deepstate' || layer.type === 'flights' || layer.type === 'vessels' || layer.type === 'wind' || layer.type === 'weather_forecast') && (
+            {layer.type !== 'split' && (layer.type === 'geojson' || layer.type === 'raster' || layer.type === 'satellite' || layer.type === 'deepstate' || layer.type === 'flights' || layer.type === 'vessels' || layer.type === 'weather_forecast') && (
               <button
                 onClick={() => {
                   if (!layer.visible) toggleVisibility(layer.id);
                   setActiveEdit();
                 }}
                 className={`transition-colors ${isActiveEdit ? 'text-white' : iconColorFaded}`}
-                title={`Toggle ${layer.type === 'geojson' ? 'GeoJSON' : layer.type === 'flights' ? 'Air Traffic' : layer.type === 'vessels' ? 'Maritime Traffic' : layer.type === 'wind' ? 'Wind' : layer.type === 'weather_forecast' ? 'Weather Forecast' : 'Layer'} Edit Mode`}
+                title={`Toggle ${layer.type === 'geojson' ? 'GeoJSON' : layer.type === 'flights' ? 'Air Traffic' : layer.type === 'vessels' ? 'Maritime Traffic' : layer.type === 'weather_forecast' ? 'Weather Forecast' : 'Layer'} Edit Mode`}
               >
                 <Edit2 size={16} />
               </button>
             )}
 
-            {layer.type !== 'split' && layer.id !== 'satellite' && layer.id !== 'deepstate' && layer.id !== 'copernicus' && layer.id !== 'flights' && layer.type !== 'vessels' && layer.type !== 'wind' && !isNestedChild && (
+            {layer.type !== 'split' && layer.id !== 'satellite' && layer.id !== 'deepstate' && layer.id !== 'copernicus' && layer.id !== 'flights' && layer.type !== 'vessels' && !isNestedChild && (
               <button onClick={() => removeLayer(layer.id)} className={`transition-colors ml-1 ${iconColor} rounded-full`}>
                 <Trash2 size={16} />
               </button>
@@ -1931,161 +1928,6 @@ function LayerItem(props: {
                 </div>
               </div>
             </div>
-          ) : layer.type === 'wind' ? (
-            <div className="flex flex-col gap-4 pb-2">
-              <button
-                onClick={() => window.dispatchEvent(new CustomEvent('refreshWindLayer'))}
-                className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors"
-              >
-                <RefreshCcw size={16} /> Refresh Wind
-              </button>
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => updateLayerProperty(layer.id, 'showWindParticles', layer.showWindParticles === false)}
-                  className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-xs font-semibold tracking-wider uppercase text-left"
-                >
-                  Particles
-                  <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.showWindParticles !== false ? 'bg-white' : 'bg-white/20'}`}>
-                    <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.showWindParticles !== false ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
-                  </div>
-                </button>
-                <button
-                  onClick={() => updateLayerProperty(layer.id, 'showWindArrows', layer.showWindArrows !== true)}
-                  className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-xs font-semibold tracking-wider uppercase text-left"
-                >
-                  Arrows
-                  <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.showWindArrows === true ? 'bg-white' : 'bg-white/20'}`}>
-                    <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.showWindArrows === true ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
-                  </div>
-                </button>
-                <button
-                  onClick={() => updateLayerProperty(layer.id, 'showWindLegend', layer.showWindLegend === false)}
-                  className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-xs font-semibold tracking-wider uppercase text-left"
-                >
-                  Legend
-                  <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.showWindLegend !== false ? 'bg-white' : 'bg-white/20'}`}>
-                    <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.showWindLegend !== false ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
-                  </div>
-                </button>
-                <button
-                  onClick={() => updateLayerProperty(layer.id, 'showWindTimeline', layer.showWindTimeline === false)}
-                  className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-xs font-semibold tracking-wider uppercase text-left"
-                >
-                  Timeline
-                  <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.showWindTimeline !== false ? 'bg-white' : 'bg-white/20'}`}>
-                    <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.showWindTimeline !== false ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
-                  </div>
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => updateLayerProperty(layer.id, 'windParticleSizeBySpeed', layer.windParticleSizeBySpeed !== true)}
-                  className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-[10px] font-semibold tracking-wider uppercase text-left"
-                >
-                  Size by speed
-                  <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.windParticleSizeBySpeed === true ? 'bg-white' : 'bg-white/20'}`}>
-                    <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.windParticleSizeBySpeed === true ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
-                  </div>
-                </button>
-                <button
-                  onClick={() => updateLayerProperty(layer.id, 'windParticleSpeedBySpeed', layer.windParticleSpeedBySpeed === false)}
-                  className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-[10px] font-semibold tracking-wider uppercase text-left"
-                >
-                  Motion by speed
-                  <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.windParticleSpeedBySpeed !== false ? 'bg-white' : 'bg-white/20'}`}>
-                    <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.windParticleSpeedBySpeed !== false ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
-                  </div>
-                </button>
-                <button
-                  onClick={() => updateLayerProperty(layer.id, 'windParticleTrailBySpeed', layer.windParticleTrailBySpeed !== true)}
-                  className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-[10px] font-semibold tracking-wider uppercase text-left"
-                >
-                  Trail by speed
-                  <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.windParticleTrailBySpeed === true ? 'bg-white' : 'bg-white/20'}`}>
-                    <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.windParticleTrailBySpeed === true ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
-                  </div>
-                </button>
-                <button
-                  onClick={() => updateLayerProperty(layer.id, 'windParticleColorBySpeed', layer.windParticleColorBySpeed !== true)}
-                  className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-[10px] font-semibold tracking-wider uppercase text-left"
-                >
-                  Color by speed
-                  <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.windParticleColorBySpeed === true ? 'bg-white' : 'bg-white/20'}`}>
-                    <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.windParticleColorBySpeed === true ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
-                  </div>
-                </button>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <label className="text-[10px] text-white/50 font-semibold tracking-wider uppercase">{t("ARROW COLOR")}</label>
-                <div className="flex flex-wrap gap-1">
-                  {colorPalette.map(color => (
-                    <button
-                      key={color}
-                      onClick={() => updateLayerProperty(layer.id, 'windColor', color)}
-                      className="w-6 h-6 flex-shrink-0 transition-colors relative"
-                      style={{ backgroundColor: color }}
-                      title={color}
-                    >
-                      {layer.windColor === color && (
-                        <div className="absolute inset-0 flex items-center justify-center mix-blend-difference text-white text-xs">✓</div>
-                      )}
-                    </button>
-                  ))}
-                  <button
-                    key="transparent"
-                    onClick={() => updateLayerProperty(layer.id, 'windColor', undefined)}
-                    className="w-6 h-6 relative overflow-hidden flex-shrink-0 transition-colors"
-                    title={t("Reset to Default White")}
-                  >
-                    <div className="absolute inset-0 bg-white/10 flex items-center justify-center">
-                      <div className="w-full h-0 border-t border-red-500 transform rotate-45"></div>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1 mt-2 border-t border-white/10 pt-3">
-                <div className="flex justify-between items-end">
-                  <label className="text-[10px] text-white/50 font-semibold tracking-wider">{t("WIND OPACITY")}</label>
-                  <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.windOpacity ?? 1) * 100)}%</span>
-                </div>
-                <input
-                  type="range" min="0" max="100"
-                  value={(layer.windOpacity ?? 1) * 100}
-                  onChange={e => updateLayerProperty(layer.id, 'windOpacity', Number(e.target.value) / 100)}
-                  className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <div className="flex justify-between items-end">
-                  <label className="text-[10px] text-white/50 font-semibold tracking-wider">{t("PARTICLE SIZE")}</label>
-                  <span className="text-[10px] text-white/70 font-mono">{(layer.windParticleSize ?? 1.2).toFixed(1)}px</span>
-                </div>
-                <input
-                  type="range" min="0.5" max="3" step="0.1"
-                  value={layer.windParticleSize ?? 1.2}
-                  onChange={e => updateLayerProperty(layer.id, 'windParticleSize', Number(e.target.value))}
-                  className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
-                />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <div className="flex justify-between items-end">
-                  <label className="text-[10px] text-white/50 font-semibold tracking-wider">{t("PARTICLE TRAIL")}</label>
-                  <span className="text-[10px] text-white/70 font-mono">{Math.round(layer.windParticleTrail ?? 90)}%</span>
-                </div>
-                <input
-                  type="range" min="0" max="100" step="1"
-                  value={layer.windParticleTrail ?? 90}
-                  onChange={e => updateLayerProperty(layer.id, 'windParticleTrail', Number(e.target.value))}
-                  className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
-                />
-              </div>
-            </div>
           ) : layer.type === 'weather_forecast' ? (
             <div className="flex flex-col gap-4 pb-2">
               <div className="flex items-center justify-between">
@@ -2145,6 +1987,96 @@ function LayerItem(props: {
                   {t("Precipitation")}
                 </button>
               </div>
+
+              <button
+                onClick={() => updateLayerProperty(layer.id, 'showWindParticles', !layer.showWindParticles)}
+                className={`w-full py-2 flex items-center justify-center gap-2 text-sm transition-colors border border-white/20 rounded-full mt-2 ${layer.showWindParticles ? 'bg-white text-black font-semibold' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
+              >
+                {t("Wind Overlay")}
+              </button>
+
+              {layer.showWindParticles && (
+                <div className="flex flex-col gap-4 mt-2 pt-4 border-t border-white/10">
+                  <div className="grid grid-cols-2 gap-2">
+
+                    <button
+                      onClick={() => updateLayerProperty(layer.id, 'windParticleSizeBySpeed', layer.windParticleSizeBySpeed !== true)}
+                      className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-[10px] font-semibold tracking-wider uppercase text-left"
+                    >
+                      Size by speed
+                      <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.windParticleSizeBySpeed === true ? 'bg-white' : 'bg-white/20'}`}>
+                        <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.windParticleSizeBySpeed === true ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => updateLayerProperty(layer.id, 'windParticleSpeedBySpeed', layer.windParticleSpeedBySpeed === false)}
+                      className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-[10px] font-semibold tracking-wider uppercase text-left"
+                    >
+                      Motion by speed
+                      <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.windParticleSpeedBySpeed !== false ? 'bg-white' : 'bg-white/20'}`}>
+                        <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.windParticleSpeedBySpeed !== false ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => updateLayerProperty(layer.id, 'windParticleTrailBySpeed', layer.windParticleTrailBySpeed !== true)}
+                      className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-[10px] font-semibold tracking-wider uppercase text-left"
+                    >
+                      Trail by speed
+                      <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.windParticleTrailBySpeed === true ? 'bg-white' : 'bg-white/20'}`}>
+                        <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.windParticleTrailBySpeed === true ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => updateLayerProperty(layer.id, 'windParticleColorBySpeed', layer.windParticleColorBySpeed !== true)}
+                      className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-[10px] font-semibold tracking-wider uppercase text-left"
+                    >
+                      Color by speed
+                      <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.windParticleColorBySpeed === true ? 'bg-white' : 'bg-white/20'}`}>
+                        <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.windParticleColorBySpeed === true ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
+                      </div>
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col gap-1 mt-2 border-t border-white/10 pt-3">
+                    <div className="flex justify-between items-end">
+                      <label className="text-[10px] text-white/50 font-semibold tracking-wider">{t("WIND OPACITY")}</label>
+                      <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.windOpacity ?? 1) * 100)}%</span>
+                    </div>
+                    <input
+                      type="range" min="0" max="100"
+                      value={(layer.windOpacity ?? 1) * 100}
+                      onChange={e => updateLayerProperty(layer.id, 'windOpacity', Number(e.target.value) / 100)}
+                      className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between items-end">
+                      <label className="text-[10px] text-white/50 font-semibold tracking-wider">{t("PARTICLE SIZE")}</label>
+                      <span className="text-[10px] text-white/70 font-mono">{(layer.windParticleSize ?? 1.2).toFixed(1)}px</span>
+                    </div>
+                    <input
+                      type="range" min="0.5" max="3" step="0.1"
+                      value={layer.windParticleSize ?? 1.2}
+                      onChange={e => updateLayerProperty(layer.id, 'windParticleSize', Number(e.target.value))}
+                      className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <div className="flex justify-between items-end">
+                      <label className="text-[10px] text-white/50 font-semibold tracking-wider">{t("PARTICLE TRAIL")}</label>
+                      <span className="text-[10px] text-white/70 font-mono">{Math.round(layer.windParticleTrail ?? 90)}%</span>
+                    </div>
+                    <input
+                      type="range" min="0" max="100" step="1"
+                      value={layer.windParticleTrail ?? 90}
+                      onChange={e => updateLayerProperty(layer.id, 'windParticleTrail', Number(e.target.value))}
+                      className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <>

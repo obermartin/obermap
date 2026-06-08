@@ -20,7 +20,7 @@ let globalDeepstateHistory: { id: number; createdAt: string }[] | null = null;
 let globalDeepstateHistoryPromise: Promise<void> | null = null;
 
 type WindPoint = { id: string; lat: number; lon: number };
-type WindSnapshot = { cacheId: string; createdAt: string; path: string };
+
 
 const buildWindPoints = (): WindPoint[] => {
   const points: WindPoint[] = [];
@@ -61,7 +61,7 @@ const buildWindPoints = (): WindPoint[] => {
 
 const WIND_POINTS = buildWindPoints();
 const WIND_BATCH_SIZE = 100;
-const WIND_BATCH_DELAY_MS = 15000;
+const WIND_BATCH_DELAY_MS = 1000;
 const WIND_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 const WIND_MIN_OPEN_REFRESH_DELAY_MS = 30 * 60 * 1000;
 
@@ -138,8 +138,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const [selectedAircraftId, setSelectedAircraftIdState] = useState<string | null>(null);
   const [selectedVesselMmsi, setSelectedVesselMmsi] = useState<string | null>(null);
   const [windGeojson, setWindGeojsonState] = useState<GeoJSON.FeatureCollection<GeoJSON.Point> | null>(null);
-  const [windSnapshots, setWindSnapshots] = useState<WindSnapshot[]>([]);
-  const [selectedWindCacheId, setSelectedWindCacheId] = useState<string | null>(null);
+
   const [weatherValidTimes, setWeatherValidTimes] = useState<string[]>([]);
   const [selectedWeatherTime, setSelectedWeatherTime] = useState<string | null>(null);
   const [revealedTriggers, setRevealedTriggers] = useState<Set<string>>(new Set());
@@ -232,19 +231,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const routeClickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const windLastFetchRef = useRef<number>(0);
   const windFetchInFlightRef = useRef(false);
-  const windTimelineScrollRef = useRef<HTMLDivElement>(null);
 
-  const refreshWindSnapshots = useCallback(async () => {
-    try {
-      const res = await fetch('./api.php?action=weather_wind_cache&list=1');
-      if (!res.ok) throw new Error(`Weather cache index failed: ${res.statusText}`);
-      const data = await res.json();
-      setWindSnapshots(Array.isArray(data.snapshots) ? data.snapshots : []);
-    } catch (err) {
-      console.warn('Failed to read weather wind cache index:', err);
-      setWindSnapshots([]);
-    }
-  }, []);
 
   const applyWindGeojson = useCallback((payload: any, sourceLabel: 'project-cache' | 'api') => {
     const map = mapRef.current;
@@ -257,7 +244,6 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     source.setData(geojson);
     windLastFetchRef.current = payload.createdAt ? new Date(payload.createdAt).getTime() : Date.now();
     setWindGeojsonState(geojson);
-    setSelectedWindCacheId(payload.cacheId || null);
     (window as any).__windGeojson = geojson;
     console.table(geojson.features.map(feature => feature.properties));
     console.log(`Open-Meteo wind ${sourceLabel} read`, {
@@ -277,7 +263,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       const res = await fetch(url);
       if (res.status === 404) return false;
       if (!res.ok) throw new Error(`Weather cache read failed: ${res.statusText}`);
-      return applyWindGeojson(await res.json(), 'project-cache');
+      const data = await res.json();
+      return applyWindGeojson(data, 'project-cache');
     } catch (err) {
       console.warn('Failed to read project Open-Meteo wind cache:', err);
       return false;
@@ -1184,7 +1171,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     console.log('renderDOMMarkers IS RE-RENDERING THE DOM MARKERS');
 
     // Handle DOM markers for labels, measures, and circles
-    const expectedMarkers = new Map<string, { lngLat: [number, number], el: HTMLElement }>();
+    const expectedMarkers = new Map<string, { lngLat: [number, number], el: HTMLElement, draggable?: boolean, onDragEnd?: (lngLat: [number, number]) => void }>();
 
     annotations.forEach(ann => {
       if (ann.type === 'label' && ann.coordinates) {
@@ -1230,7 +1217,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             e.stopPropagation();
             onClick();
           });
-          el.addEventListener('mousedown', (e) => e.stopPropagation());
+
         }
 
         if (ann.id === selectedAnnotationId) {
@@ -1242,7 +1229,15 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             (content as HTMLElement).style.outlineOffset = '2px';
           }
         }
-        expectedMarkers.set(ann.id, { lngLat: ann.coordinates, el });
+        const isSelected = ann.id === selectedAnnotationId;
+        expectedMarkers.set(ann.id, {
+          lngLat: ann.coordinates,
+          el,
+          draggable: isSelected && activeTool !== 'none',
+          onDragEnd: (lngLat) => {
+            setAnnotations(prev => prev.map(a => a.id === ann.id ? { ...a, coordinates: lngLat } : a));
+          }
+        });
       } else if (ann.type === 'highlight') {
         const onClick = () => {
           if (activeTool !== 'none') {
@@ -1299,7 +1294,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             e.stopPropagation();
             onClick();
           });
-          el.addEventListener('mousedown', (e) => e.stopPropagation());
+
         }
 
         if (ann.id === selectedAnnotationId) {
@@ -1336,7 +1331,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               setSelectedAnnotationId(ann.id);
             }
           });
-          el.addEventListener('mousedown', (e) => e.stopPropagation());
+
           if (ann.id === selectedAnnotationId) {
             el.style.filter = 'drop-shadow(0 0 6px rgba(255,255,255,1)) drop-shadow(0 0 12px rgba(255,255,255,0.8))';
             el.style.zIndex = '1000';
@@ -1379,7 +1374,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               setSelectedAnnotationId(ann.id);
             }
           });
-          el.addEventListener('mousedown', (e) => e.stopPropagation());
+
           if (ann.id === selectedAnnotationId) {
             el.style.filter = 'drop-shadow(0 0 6px rgba(255,255,255,1)) drop-shadow(0 0 12px rgba(255,255,255,0.8))';
             el.style.zIndex = '1000';
@@ -1452,7 +1447,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               setSelectedAnnotationId(ann.id);
             }
           });
-          el.addEventListener('mousedown', (e) => e.stopPropagation());
+
           
           if (ann.id === selectedAnnotationId) {
             el.style.filter = 'drop-shadow(0 0 6px rgba(255,255,255,1)) drop-shadow(0 0 12px rgba(255,255,255,0.8))';
@@ -1460,7 +1455,15 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             el.style.outline = '2px dashed #ffffff';
             el.style.outlineOffset = '2px';
           }
-          expectedMarkers.set(ann.id, { lngLat: ann.coordinates, el });
+          const isSelected = ann.id === selectedAnnotationId;
+          expectedMarkers.set(ann.id, {
+            lngLat: ann.coordinates,
+            el,
+            draggable: isSelected && activeTool !== 'none',
+            onDragEnd: (lngLat) => {
+              setAnnotations(prev => prev.map(a => a.id === ann.id ? { ...a, coordinates: lngLat } : a));
+            }
+          });
         }
       }
     });
@@ -1472,9 +1475,20 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     });
 
     expectedMarkers.forEach((data, id) => {
-      markersRef.current[id] = new maplibregl.Marker({ element: data.el })
+      const marker = new maplibregl.Marker({ element: data.el })
         .setLngLat(data.lngLat)
         .addTo(mapRef.current!);
+      
+      if (data.draggable) {
+        marker.setDraggable(true);
+        if (data.onDragEnd) {
+          marker.on('dragend', () => {
+            const lngLat = marker.getLngLat();
+            data.onDragEnd!([lngLat.lng, lngLat.lat]);
+          });
+        }
+      }
+      markersRef.current[id] = marker;
     });
   }, [annotations, activeTool, mapLoaded, selectedAnnotationId, settings.icons]);
 
@@ -2109,17 +2123,24 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       }
     });
 
-    if (!layers.find(l => l.type === 'wind')) {
-      if (map.getLayer('weather-wind-arrows')) map.removeLayer('weather-wind-arrows');
-      if (map.getSource('weather-wind')) map.removeSource('weather-wind');
+    const wantsWind = layers.find(l => l.type === 'weather_forecast' && l.showWindParticles !== false);
+    if (!wantsWind) {
+      if (map.getSource('weather-wind')) {
+        if (map.getLayer('weather-wind-arrows')) map.removeLayer('weather-wind-arrows');
+        map.removeSource('weather-wind');
+      }
       windLastFetchRef.current = 0;
+    } else {
+      if (!map.getSource('weather-wind')) {
+        map.addSource('weather-wind', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      }
     }
 
 
     // Add / Update layers
     layers.forEach((layer) => {
-      const sourceId = layer.type === 'wind' ? 'weather-wind' : `dynamic-source-${layer.id}`;
-      const layerId = layer.type === 'wind' ? 'weather-wind-arrows' : `dynamic-layer-${layer.id}`;
+      const sourceId = `dynamic-source-${layer.id}`;
+      const layerId = `dynamic-layer-${layer.id}`;
       const lineId = `dynamic-line-${layer.id}`;
 
       // Re-initialize raster sources if they are dirty (e.g. date changed)
@@ -2248,7 +2269,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           map.addSource(sourceId, { type: 'raster', tiles: [processedUrl], tileSize: 256 });
         } else if (layer.type === 'satellite') {
           map.addSource(sourceId, { type: 'raster', url: 'mapbox://mapbox.satellite', tileSize: 256 });
-        } else if (layer.type === 'flights' || layer.type === 'vessels' || layer.type === 'wind') {
+        } else if (layer.type === 'flights' || layer.type === 'vessels') {
           map.addSource(sourceId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         }
       } else {
@@ -2412,35 +2433,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               'text-opacity': ['interpolate', ['linear'], ['zoom'], 9, 0, 10, 1]
             }
           }, firstSymbolId);
-        } else if (layer.type === 'wind') {
-          map.addLayer({
-            id: layerId,
-            type: 'symbol',
-            source: sourceId,
-            layout: {
-              visibility: layer.visible && layer.showWindArrows === true ? 'visible' : 'none',
-              'icon-image': 'wind-arrow',
-              'icon-size': [
-                'interpolate',
-                ['linear'],
-                ['get', 'windSpeed'],
-                0, 0.3,
-                30, 1.0,
-                80, 1.8
-              ],
-              'icon-rotate': ['get', 'arrowRotation'],
-              'icon-rotation-alignment': 'map',
-              'icon-allow-overlap': true,
-              'icon-ignore-placement': true
-            },
-            paint: {
-              'icon-opacity': layer.windOpacity ?? 1,
-              'icon-color': layer.windColor || '#ffffff'
-            }
-          }, firstSymbolId);
         }
       } else if (map.getLayer(layerId)) {
-        map.setLayoutProperty(layerId, 'visibility', layer.type === 'wind' ? (layer.visible && layer.showWindArrows === true ? 'visible' : 'none') : (layer.visible ? 'visible' : 'none'));
+        map.setLayoutProperty(layerId, 'visibility', layer.visible ? 'visible' : 'none');
         if (layer.type === 'raster' || layer.type === 'satellite') {
           const bMin = layer.brightness !== undefined && layer.brightness > 0 ? layer.brightness : 0;
           const bMax = layer.brightness !== undefined && layer.brightness < 0 ? 1 + layer.brightness : 1;
@@ -2540,10 +2535,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               
             map.setPaintProperty('selected-vessel-track-layer', 'line-color', trackColorExp as any);
           }
-        } else if (layer.type === 'wind') {
-          map.setPaintProperty(layerId, 'icon-opacity', layer.windOpacity ?? 1);
-          map.setPaintProperty(layerId, 'icon-color', layer.windColor || '#ffffff');
-        } else if (map.getLayer(lineId)) {
+        }
+        
+        if (map.getLayer(lineId)) {
           map.setLayoutProperty(lineId, 'visibility', layer.visible ? 'visible' : 'none');
         }
       }
@@ -2647,11 +2641,15 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     // Reorder layers dynamically. Iterate backwards to place the bottom-most layer right before firstAdminId.
     for (let i = layers.length - 1; i >= 0; i--) {
       const layer = layers[i];
-      const idsToMove = [];
+      const idsToMove: string[] = [];
       
-      idsToMove.push(layer.type === 'wind' ? 'weather-wind-arrows' : `dynamic-layer-${layer.id}`);
-      if (map.getLayer(`dynamic-line-${layer.id}`)) {
-        idsToMove.push(`dynamic-line-${layer.id}`);
+      if (layer.type === 'weather_forecast') {
+        idsToMove.push(...weatherForecastLayerIdsRef.current);
+      } else {
+        idsToMove.push(`dynamic-layer-${layer.id}`);
+        if (map.getLayer(`dynamic-line-${layer.id}`)) {
+          idsToMove.push(`dynamic-line-${layer.id}`);
+        }
       }
       
       idsToMove.forEach(id => {
@@ -2674,41 +2672,14 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     const map = mapRef.current;
     if (!map || !mapLoaded) return;
 
-    const windLayer = settings.layers.find(l => l.type === 'wind');
+    const windLayer = settings.layers.find(l => l.type === 'weather_forecast');
     if (!windLayer || !windLayer.visible) return;
 
     let isActive = true;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     const openedAt = Date.now();
 
-    const getNearestHourlyIndex = (hourly: any) => {
-      const times = hourly?.time;
-      if (!Array.isArray(times) || times.length === 0) return 0;
-      const now = Date.now();
-      let bestIndex = 0;
-      let bestDelta = Infinity;
-      times.forEach((time: string, index: number) => {
-        const delta = Math.abs(new Date(time).getTime() - now);
-        if (delta < bestDelta) {
-          bestDelta = delta;
-          bestIndex = index;
-        }
-      });
-      return bestIndex;
-    };
 
-    const getWeatherValue = (response: any, key: string) => {
-      if (response?.current?.[key] !== undefined && response?.current?.[key] !== null) {
-        return response.current[key];
-      }
-      const hourly = response?.hourly;
-      const value = hourly?.[key];
-      if (Array.isArray(value)) {
-        const first = value[getNearestHourlyIndex(hourly)];
-        return Array.isArray(first) ? first[0] : first;
-      }
-      return null;
-    };
 
     const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -2723,8 +2694,6 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         });
         if (!res.ok) throw new Error(`Weather cache write failed: ${res.statusText}`);
         const result = await res.json();
-        console.log('Open-Meteo wind project cache written', result);
-        await refreshWindSnapshots();
         return result;
       } catch (err) {
         console.warn('Failed to write project Open-Meteo wind cache:', err);
@@ -2755,8 +2724,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           const params = new URLSearchParams({
             latitude,
             longitude,
-            current: 'wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl,surface_pressure',
-            forecast_days: '1',
+            daily: 'wind_speed_10m_max,wind_direction_10m_dominant,wind_gusts_10m_max',
+            forecast_days: '8',
             timezone: 'UTC',
             wind_speed_unit: 'kmh'
           });
@@ -2768,11 +2737,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           const responses = Array.isArray(data) ? data : batch.map(() => data);
           batch.forEach((point, index) => {
             const response = responses[index];
-            const windSpeed = Number(getWeatherValue(response, 'wind_speed_10m') ?? 0);
-            const windDirection = Number(getWeatherValue(response, 'wind_direction_10m') ?? 0);
-            const windGust = Number(getWeatherValue(response, 'wind_gusts_10m') ?? windSpeed);
-            const seaLevelPressure = Number(getWeatherValue(response, 'pressure_msl') ?? 0);
-            const surfacePressure = Number(getWeatherValue(response, 'surface_pressure') ?? 0);
+            const daily = response.daily || {};
             features.push({
               type: 'Feature',
               geometry: {
@@ -2781,15 +2746,21 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               },
               properties: {
                 id: point.id,
-                windSpeed,
-                windDirection,
-                windGust,
-                seaLevelPressure,
-                surfacePressure,
-                arrowRotation: (windDirection + 180) % 360
+                dailyTime: JSON.stringify(daily.time || []),
+                windSpeedDaily: JSON.stringify(daily.wind_speed_10m_max || []),
+                windDirectionDaily: JSON.stringify(daily.wind_direction_10m_dominant || []),
+                windGustDaily: JSON.stringify(daily.wind_gusts_10m_max || [])
               }
             });
           });
+          
+          if (features.length > 0) {
+            applyWindGeojson({
+              cacheId: null,
+              createdAt: new Date().toISOString(),
+              geojson: { type: 'FeatureCollection', features: [...features] }
+            }, 'api');
+          }
         }
 
         const geojson: GeoJSON.FeatureCollection<GeoJSON.Point> = {
@@ -2833,7 +2804,6 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
     const handleManualRefresh = () => fetchWind(false);
     window.addEventListener('refreshWindLayer', handleManualRefresh);
-    refreshWindSnapshots();
     loadWindCache().then(hasCache => {
       if (!isActive) return;
       if (!hasCache) {
@@ -2848,26 +2818,64 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       window.removeEventListener('refreshWindLayer', handleManualRefresh);
       if (refreshTimer) clearTimeout(refreshTimer);
     };
-  }, [settings.layers, mapLoaded, applyWindGeojson, loadWindCache, refreshWindSnapshots]);
+  }, [settings.layers, mapLoaded, applyWindGeojson, loadWindCache]);
 
   useEffect(() => {
     const map = mapRef.current;
     const canvas = windCanvasRef.current;
-    const windLayer = settings.layers.find(l => l.type === 'wind');
+    const windLayer = settings.layers.find(l => l.type === 'weather_forecast');
     if (!map || !canvas || !mapLoaded || !windLayer?.visible || !windGeojson || isSecondary) return;
-    if (windLayer.showWindParticles === false) return;
+    if (windLayer.showWindParticles === false) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    const currentSelectedTime = selectedWeatherTime;
+
     const vectors = windGeojson.features
       .map(feature => {
         const [lon, lat] = feature.geometry.coordinates;
-        const speed = Number(feature.properties?.windSpeed || 0);
-        const gust = Number(feature.properties?.windGust || speed);
+        
+        let times = feature.properties?.dailyTime || [];
+        if (typeof times === 'string') {
+          try { times = JSON.parse(times); } catch (e) { times = []; }
+        }
+        
+        let timeIndex = 0;
+        if (currentSelectedTime) {
+           const targetDate = currentSelectedTime.substring(0, 10);
+           const foundIdx = times.findIndex((t: string) => t.startsWith(targetDate));
+           if (foundIdx !== -1) timeIndex = foundIdx;
+        }
+
+        let speeds = feature.properties?.windSpeedDaily;
+        if (!speeds) speeds = [feature.properties?.windSpeed ?? 0];
+        else if (typeof speeds === 'string') {
+          try { speeds = JSON.parse(speeds); } catch (e) { speeds = [feature.properties?.windSpeed ?? 0]; }
+        }
+        
+        let gusts = feature.properties?.windGustDaily;
+        if (!gusts) gusts = [feature.properties?.windGust ?? speeds[timeIndex] ?? 0];
+        else if (typeof gusts === 'string') {
+          try { gusts = JSON.parse(gusts); } catch (e) { gusts = [feature.properties?.windGust ?? speeds[timeIndex] ?? 0]; }
+        }
+        
+        let directions = feature.properties?.windDirectionDaily;
+        if (!directions) directions = [feature.properties?.arrowRotation ?? 0];
+        else if (typeof directions === 'string') {
+          try { directions = JSON.parse(directions); } catch (e) { directions = [feature.properties?.arrowRotation ?? 0]; }
+        }
+
+        const speed = Number(speeds[timeIndex] ?? speeds[0] ?? 0);
+        const gust = Number(gusts[timeIndex] ?? gusts[0] ?? 0);
         const intensity = Math.max(speed, gust * 0.78);
-        const rotation = Number(feature.properties?.arrowRotation || 0);
-        const radians = rotation * Math.PI / 180;
+        const rotation = Number(directions[timeIndex] ?? directions[0] ?? 0);
+        const arrowRotation = (rotation + 180) % 360;
+        const radians = arrowRotation * Math.PI / 180;
         return {
           lon,
           lat,
@@ -3055,7 +3063,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       map.off('pitchend', refreshParticles);
       ctx.clearRect(0, 0, width, height);
     };
-  }, [settings.layers, mapLoaded, windGeojson, isSecondary]);
+  }, [settings.layers, mapLoaded, windGeojson, isSecondary, selectedWeatherTime]);
 
   // Polling for flights
   useEffect(() => {
@@ -4422,6 +4430,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
     const onMouseDown = (e: maplibregl.MapMouseEvent) => {
       if (activeTool === 'none') return;
+      if ((e.originalEvent?.target as HTMLElement)?.closest('.maplibregl-marker')) return;
 
       // Check if we clicked on an existing annotation feature FIRST
       let features: maplibregl.MapGeoJSONFeature[] = [];
@@ -4794,10 +4803,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     };
   }, [activeTool, currentColor, currentStrokeType, currentFillOpacity, annotations, setAnnotations, activeGeojsonLayerId, setActiveGeojsonLayerId, setSelectedGeojsonFeatureId, selectedAircraftId, settings.layers, selectedIconId, routeMode, settings.googleMapsToken, settings.mapToken]);
 
-  const activeWindLayer = settings.layers.find(l => l.type === 'wind' && l.visible);
+  const activeWindLayer = settings.layers.find(l => l.type === 'weather_forecast' && l.visible && l.showWindParticles !== false);
   const windLayerVisible = Boolean(activeWindLayer);
-  const showWindLegend = Boolean(activeWindLayer && activeWindLayer.windParticleColorBySpeed === true && activeWindLayer.showWindLegend !== false);
-  const showWindTimeline = Boolean(activeWindLayer && activeWindLayer.showWindTimeline !== false);
+  const showWindLegend = Boolean(activeWindLayer && activeWindLayer.windParticleColorBySpeed === true);
   const windLegendStops = [
     { label: '0-8', color: '#334155' },
     { label: '8-18', color: '#2563eb' },
@@ -4809,27 +4817,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     { label: '105-130', color: '#a855f7' },
     { label: '130+', color: '#ffffff' }
   ];
-  const formatWindSnapshotTime = (createdAt: string) => {
-    const date = new Date(createdAt);
-    if (Number.isNaN(date.getTime())) return createdAt;
-    return date.toLocaleString([], { weekday: 'short', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-  };
-  const selectAdjacentWindSnapshot = (direction: -1 | 1) => {
-    if (windSnapshots.length === 0) return;
 
-    const currentIndex = selectedWindCacheId
-      ? windSnapshots.findIndex(snapshot => snapshot.cacheId === selectedWindCacheId)
-      : -1;
-    const fallbackIndex = direction > 0 ? -1 : windSnapshots.length;
-    const nextIndex = Math.max(0, Math.min(windSnapshots.length - 1, (currentIndex >= 0 ? currentIndex : fallbackIndex) + direction));
-    const nextSnapshot = windSnapshots[nextIndex];
-    if (nextSnapshot) loadWindCache(nextSnapshot.cacheId);
-  };
-  const scrollWindTimeline = (direction: -1 | 1) => {
-    const scroller = windTimelineScrollRef.current;
-    if (!scroller) return;
-    scroller.scrollBy({ left: direction * Math.max(160, scroller.clientWidth * 0.8), behavior: 'smooth' });
-  };
 
   const activeWeatherLayer = settings.layers.find(l => l.type === 'weather_forecast' && l.visible);
   const weatherLayerVisible = Boolean(activeWeatherLayer);
@@ -4837,8 +4825,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
 
   return (
-    <div className={`absolute inset-0 w-full h-full ${isSecondary ? 'pointer-events-none' : ''}`} style={{ clipPath, WebkitClipPath: clipPath, zIndex: isSecondary ? 10 : 0 }}>
-      <div ref={mapContainer} className="w-full h-full" />
+    <div className={`absolute inset-0 w-full h-full touch-none ${isSecondary ? 'pointer-events-none' : ''}`} style={{ clipPath, WebkitClipPath: clipPath, zIndex: isSecondary ? 10 : 0 }}>
+      <div ref={mapContainer} className="w-full h-full touch-none" />
       {!isSecondary && (windLayerVisible || weatherLayerVisible) && (
         <>
           {windLayerVisible && <canvas ref={windCanvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-[2]" />}
@@ -4888,7 +4876,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                 {weatherValidTimes.length === 0 ? (
                   <span className="text-sm text-white/50 whitespace-nowrap px-4 py-2">Loading...</span>
                 ) : (
-                  weatherValidTimes.map(time => {
+                  weatherValidTimes.map((time, index) => {
                     const actualActiveTime = selectedWeatherTime || weatherValidTimes[0];
                     const isActive = actualActiveTime === time;
                     return (
@@ -4906,7 +4894,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                             transition={{ type: "spring", stiffness: 400, damping: 30 }}
                           />
                         )}
-                        {new Date(time).toLocaleDateString(language, { weekday: 'long' })}
+                        {index === 0 ? t("Today") : new Date(time).toLocaleDateString(language, { weekday: 'long' })}
                       </button>
                     );
                   })
@@ -4916,52 +4904,6 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           )}
 
           <div className={`absolute bottom-20 left-6 z-30 max-w-[calc(100vw-3rem)] flex flex-col gap-2 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-[20rem]' : 'translate-x-0'}`}>
-            
-            {showWindTimeline && windLayerVisible && (
-              <div className="bg-black border border-white/20 text-white flex items-center gap-2 px-3 h-12 w-fit max-w-full">
-                <span className="text-[10px] text-white/50 font-semibold tracking-wider uppercase shrink-0">Wind Timeline</span>
-                <button
-                  onClick={() => {
-                    scrollWindTimeline(-1);
-                    selectAdjacentWindSnapshot(-1);
-                  }}
-                  disabled={windSnapshots.length === 0}
-                  className="shrink-0 w-7 h-7 flex items-center justify-center hover:bg-white hover:text-black disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-white transition-colors"
-                  title={t("Previous wind snapshot")}
-                >
-                  ‹
-                </button>
-                <div ref={windTimelineScrollRef} className="min-w-0 max-w-[36vw] overflow-x-auto no-scrollbar">
-                  <div className="flex items-center gap-2">
-                    {windSnapshots.length === 0 ? (
-                      <span className="text-xs text-white/50 whitespace-nowrap">No cached snapshots yet</span>
-                    ) : (
-                      windSnapshots.map(snapshot => (
-                        <button
-                          key={snapshot.cacheId}
-                          onClick={() => loadWindCache(snapshot.cacheId)}
-                          className={`px-3 py-1 text-xs font-semibold whitespace-nowrap transition-colors ${selectedWindCacheId === snapshot.cacheId ? 'bg-white text-black' : 'text-white hover:bg-white hover:text-black'}`}
-                          title={snapshot.cacheId}
-                        >
-                          {formatWindSnapshotTime(snapshot.createdAt)}
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    scrollWindTimeline(1);
-                    selectAdjacentWindSnapshot(1);
-                  }}
-                  disabled={windSnapshots.length === 0}
-                  className="shrink-0 w-7 h-7 flex items-center justify-center hover:bg-white hover:text-black disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-white transition-colors"
-                  title={t("Next wind snapshot")}
-                >
-                  ›
-                </button>
-              </div>
-            )}
 
             {showWindLegend && (
               <div className="bg-black border border-white/20 text-white flex items-center gap-1.5 px-3 h-12 w-fit max-w-full overflow-x-auto no-scrollbar">
@@ -5741,9 +5683,11 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
              }}
              onMouseDown={(e) => { e.preventDefault(); setIsDragging(true); }}
              onTouchStart={() => { setIsDragging(true); }}
-             className={`absolute bg-white shadow-[0_0_10px_rgba(0,0,0,0.5)] z-20 transition-colors hover:bg-white ${splitVertical ? 'w-1 h-full cursor-col-resize -ml-[2px]' : 'h-1 w-full cursor-row-resize -mt-[2px]'}`}
+             className={`absolute flex items-center justify-center z-20 touch-none ${splitVertical ? 'w-8 h-full cursor-col-resize -ml-4' : 'h-8 w-full cursor-row-resize -mt-4'}`}
              style={splitVertical ? { left: `${splitPos}%`, top: 0 } : { top: `${splitPos}%`, left: 0 }}
-          />
+          >
+             <div className={`bg-white shadow-[0_0_10px_rgba(0,0,0,0.5)] pointer-events-none transition-colors ${splitVertical ? 'w-[2px] h-full' : 'h-[2px] w-full'}`} />
+          </div>
           {splitVertical ? (
             <>
               <div 
