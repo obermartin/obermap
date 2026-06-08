@@ -84,6 +84,9 @@ export interface MapLayer {
   // Weather forecast layer specific
   showTemperature?: boolean;
   showPrecipitation?: boolean;
+  showCityTemperatures?: boolean;
+  showCityWeatherIcons?: boolean;
+  limitCityWeatherToGermany?: boolean;
   weatherForecastTime?: string; // the time step to fetch
 }
 

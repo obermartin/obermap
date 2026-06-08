@@ -38,7 +38,7 @@ const DEFAULT_LAYERS: MapLayer[] = [
   { id: 'copernicus', name: 'Wildfires (EFFIS)', type: 'raster', visible: false, url: 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}' },
   { id: 'flights', name: 'Air Traffic (OpenSky)', type: 'flights', visible: false },
   { id: 'vessels', name: 'Maritime Traffic (AIS)', type: 'vessels', visible: false },
-  { id: 'weather_forecast', name: 'Weather Forecast (Open-Meteo)', type: 'weather_forecast', visible: false, showTemperature: true, showPrecipitation: false, windOpacity: 1, windParticleSize: 1.5, windParticleTrail: 94, showWindParticles: true, showWindLegend: true, windParticleSizeBySpeed: true, windParticleSpeedBySpeed: true, windParticleTrailBySpeed: false, windParticleColorBySpeed: true },
+  { id: 'weather_forecast', name: 'Weather Forecast (Open-Meteo)', type: 'weather_forecast', visible: false, showTemperature: true, showPrecipitation: false, windOpacity: 1, windParticleSize: 1.5, windParticleTrail: 94, showWindParticles: true, showWindLegend: true, windParticleSizeBySpeed: true, windParticleSpeedBySpeed: true, windParticleTrailBySpeed: false, windParticleColorBySpeed: true, showCityTemperatures: true, showCityWeatherIcons: true },
   { id: 'satellite', name: 'Satellite View (Mapbox)', type: 'satellite', visible: false },
   { id: 'population_density', name: 'Population Density', type: 'raster', visible: false, url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GPW_Population_Density_2020/default/default/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png' }
 ];
@@ -1987,6 +1987,39 @@ function LayerItem(props: {
                   {t("Precipitation")}
                 </button>
               </div>
+
+              <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-white/10">
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => updateLayerProperty(layer.id, 'showCityTemperatures', layer.showCityTemperatures !== false)}
+                    className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-[10px] font-semibold tracking-wider uppercase text-left"
+                  >
+                    {t("City Temp.")}
+                    <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.showCityTemperatures !== false ? 'bg-white' : 'bg-white/20'}`}>
+                      <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.showCityTemperatures !== false ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => updateLayerProperty(layer.id, 'showCityWeatherIcons', layer.showCityWeatherIcons !== false)}
+                    className={`flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-[10px] font-semibold tracking-wider uppercase text-left ${layer.showCityTemperatures === false && layer.showCityWeatherIcons === false ? 'opacity-50' : ''}`}
+                  >
+                    {t("City Icons")}
+                    <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.showCityWeatherIcons !== false ? 'bg-white' : 'bg-white/20'}`}>
+                      <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.showCityWeatherIcons !== false ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => updateLayerProperty(layer.id, 'limitCityWeatherToGermany', !layer.limitCityWeatherToGermany)}
+                    className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-[10px] font-semibold tracking-wider uppercase text-left col-span-2"
+                  >
+                    {t("Limit to Germany")}
+                    <div className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.limitCityWeatherToGermany ? 'bg-white' : 'bg-white/20'}`}>
+                      <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.limitCityWeatherToGermany ? 'left-5 bg-black' : 'left-1 bg-white'}`} />
+                    </div>
+                  </button>
+                </div>
+              </div>
+
 
               <button
                 onClick={() => updateLayerProperty(layer.id, 'showWindParticles', !layer.showWindParticles)}
