@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import type { AppSettings, MapLayer } from '../types';
 import { Reorder, useDragControls, motion, AnimatePresence } from 'framer-motion';
-import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2, Edit2, Square, RefreshCcw, RotateCcw, Copy, Radio, Settings, Save, Loader2, Image as ImageIcon, ChevronDown, ChevronRight, Video, BookmarkPlus } from 'lucide-react';
+import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2, Edit2, Square, RefreshCcw, RotateCcw, Copy, Radio, Settings, Save, Loader2, Image as ImageIcon, ChevronDown, ChevronRight, Video, BookmarkPlus, Home } from 'lucide-react';
 import { parseMapFileWithIds } from '../utils/fileUtils';
 import { customAlert, customConfirm, customPrompt } from '../utils/dialogService';
 import { useTranslation } from '../contexts/I18nContext';
@@ -34,14 +34,20 @@ const TemplatePreview: React.FC<{ templateName: string, isRegular: boolean, them
 
 const DEFAULT_LAYERS: MapLayer[] = [
   { id: 'split-container', name: 'Split View Container', type: 'split', visible: false, splitPosition: 0.5, splitDirection: 'vertical', splitLayers: [] },
-  { id: 'deepstate', name: 'UKRAINE CURRENT', type: 'deepstate', visible: false, isLive: true },
-  { id: 'copernicus', name: 'Wildfires (EFFIS)', type: 'raster', visible: false, url: 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}' },
-  { id: 'floods', name: 'Floods (GloFAS)', type: 'raster', visible: false, url: 'https://geoserver.gfm.eodc.eu/geoserver/gfm/wms?service=WMS&request=GetMap&layers=observed_flood_extent&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}T00:00:00.000Z/{date-end}T23:59:59.000Z' },
-  { id: 'flights', name: 'Air Traffic (OpenSky)', type: 'flights', visible: false },
-  { id: 'vessels', name: 'Maritime Traffic (AIS)', type: 'vessels', visible: false },
-  { id: 'weather_forecast', name: 'Weather Forecast (Open-Meteo)', type: 'weather_forecast', visible: false, showTemperature: true, showPrecipitation: false, windOpacity: 1, windParticleSize: 1.5, windParticleTrail: 94, showWindParticles: true, showWindLegend: true, windParticleSizeBySpeed: true, windParticleSpeedBySpeed: true, windParticleTrailBySpeed: false, windParticleColorBySpeed: true, showCityTemperatures: true, showCityWeatherIcons: true },
+  { id: 'deepstate', name: 'Ukraine', type: 'deepstate', visible: false, isLive: true },
+  { id: 'flights', name: 'Air Traffic', type: 'flights', visible: false },
+  { id: 'vessels', name: 'Maritime Traffic', type: 'vessels', visible: false },
+  { id: 'nighttime', name: 'Nighttime Overlay', type: 'nighttime', visible: false, opacity: 0.5 },
   { id: 'satellite', name: 'Satellite View (Mapbox)', type: 'satellite', visible: false },
-  { id: 'population_density', name: 'Population Density', type: 'raster', visible: false, url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GPW_Population_Density_2020/default/default/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png' }
+  { id: 'population_density', name: 'Population Density', type: 'raster', visible: false, url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GPW_Population_Density_2020/default/default/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png' },
+  { id: 'weather_forecast', name: 'Weather', type: 'weather_forecast', visible: false, showTemperature: true, showPrecipitation: false, windOpacity: 1, windParticleSize: 1.5, windParticleTrail: 94, showWindParticles: true, showWindLegend: true, windParticleSizeBySpeed: true, windParticleSpeedBySpeed: true, windParticleTrailBySpeed: false, windParticleColorBySpeed: true, showCityTemperatures: true, showCityWeatherIcons: true },
+  { id: 'gdacs_cyclones', name: 'Tropical Cyclones', type: 'gdacs_cyclones', visible: false },
+  { id: 'wildfires', name: 'Wildfires', type: 'wildfires', visible: false, wildfireMode: 'effis', url: 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}' },
+  { id: 'floods', name: 'Floods', type: 'raster', visible: false, url: 'https://geoserver.gfm.eodc.eu/geoserver/gfm/wms?service=WMS&request=GetMap&layers=observed_flood_extent&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}T00:00:00.000Z/{date-end}T23:59:59.000Z' },
+  { id: 'gdacs_earthquakes', name: 'Earthquakes (Points)', type: 'gdacs_earthquakes', visible: false },
+  { id: 'gdacs_shakemap', name: 'Earthquakes (Shakemaps)', type: 'gdacs_shakemap', visible: false },
+  { id: 'gdacs_volcanoes', name: 'Volcanoes (Points)', type: 'gdacs_volcanoes', visible: false },
+  { id: 'gdacs_volcano_polygons', name: 'Volcanoes (Danger Zone)', type: 'gdacs_volcano_polygons', visible: false },
 ];
 
 const CategoryItem = ({ category, catIndex, expandedCategories, setExpandedCategories, setSettings }: any) => {
@@ -252,7 +258,7 @@ export function LayerSidebar({
 
   // Fetch available templates
   useEffect(() => {
-    fetch('http://localhost:3001/api/templates')
+    fetch('/api/templates')
       .then(r => r.json())
       .then(list => {
         setSettings(prev => ({
@@ -272,14 +278,14 @@ export function LayerSidebar({
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const res = await fetch('http://localhost:3001/api/upload-template', {
+      const res = await fetch('/api/upload-template', {
         method: 'POST',
         body: formData
       });
       const data = await res.json();
       if (data.success) {
         customAlert(t("Template uploaded successfully"));
-        fetch('http://localhost:3001/api/templates')
+        fetch('/api/templates')
           .then(r => r.json())
           .then(list => {
             setSettings(prev => ({
@@ -633,10 +639,9 @@ export function LayerSidebar({
     <div
       className={`absolute top-0 left-0 h-full w-80 bg-zinc-900 border-r border-white/10 flex flex-col shadow-2xl z-40 text-white transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
     >
-      <div className="p-4 flex justify-between items-center bg-black/20">
-        <h2 className="font-semibold flex items-center gap-2 text-sm"><Layers size={18} /> {t('Map Settings')}</h2>
+      <div className="p-4 flex justify-start items-center bg-black/20">
         <button onClick={onSaveAndExit || (() => setIsOpen(false))} className="text-white/50 hover:text-white transition-colors" title={onSaveAndExit ? t("Save & Exit to Overview") : t("Close")}>
-          <X size={18} />
+          <Home size={18} />
         </button>
       </div>
 
@@ -856,7 +861,7 @@ export function LayerSidebar({
 
           <div className="p-4 border-t border-white/10 flex flex-col gap-3 relative z-30">
             <button
-              onClick={() => setShowPresetLayers(true)}
+              onClick={() => setShowPresetLayers(prev => !prev)}
               className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors rounded-full"
             >
               <Layers size={16} /> {t("Preset layers")}
@@ -1429,7 +1434,7 @@ function LayerItem(props: {
 
   let defaultStartDate = '';
   let defaultEndDate = '';
-  if (layer.id === 'copernicus') {
+  if (layer.type === 'wildfires') {
     const today = new Date();
     defaultEndDate = today.toISOString().split('T')[0];
     const past7d = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -1439,7 +1444,7 @@ function LayerItem(props: {
   const [editTarget, setEditTarget] = useState<'fill' | 'outline'>('fill');
 
   const handleDoubleClick = () => {
-    if (['deepstate', 'satellite', 'copernicus'].includes(layer.id)) return;
+    if (['deepstate', 'satellite', 'wildfires'].includes(layer.type) || ['deepstate', 'satellite'].includes(layer.id)) return;
     setIsEditing(true);
     setEditName(layer.name);
     setTimeout(() => inputRef.current?.focus(), 50);
@@ -1622,7 +1627,7 @@ function LayerItem(props: {
               )}
             </div>
 
-            {layer.type !== 'split' && (layer.type === 'geojson' || layer.type === 'raster' || layer.type === 'satellite' || layer.type === 'deepstate' || layer.type === 'flights' || layer.type === 'vessels' || layer.type === 'weather_forecast') && (
+            {layer.type !== 'split' && (layer.type === 'geojson' || layer.type === 'raster' || layer.type === 'satellite' || layer.type === 'deepstate' || layer.type === 'flights' || layer.type === 'vessels' || layer.type === 'weather_forecast' || layer.type === 'gdacs_earthquakes' || layer.type === 'gdacs_shakemap' || layer.type === 'gdacs_volcanoes' || layer.type === 'gdacs_volcano_polygons' || layer.type === 'wildfires' || layer.type === 'gdacs_cyclones' || layer.type === 'nighttime') && (
               <button
                 onClick={() => {
                   if (!layer.visible) toggleVisibility(layer.id);
@@ -1635,7 +1640,7 @@ function LayerItem(props: {
               </button>
             )}
 
-            {layer.type !== 'split' && layer.id !== 'satellite' && layer.id !== 'deepstate' && layer.id !== 'copernicus' && layer.id !== 'flights' && layer.type !== 'vessels' && !isNestedChild && (
+            {layer.type !== 'split' && layer.id !== 'satellite' && layer.id !== 'deepstate' && layer.type !== 'wildfires' && layer.id !== 'flights' && layer.type !== 'vessels' && !isNestedChild && (
               <button onClick={() => removeLayer(layer.id)} className={`transition-colors ml-1 ${iconColor} rounded-full`}>
                 <Trash2 size={16} />
               </button>
@@ -1644,7 +1649,7 @@ function LayerItem(props: {
 
           {isActiveEdit && (
             <div className={`bg-black p-3 pt-2 flex flex-col gap-4 text-sm animate-in slide-in-from-top-2 relative z-0 transition-opacity duration-200 ${!layer.visible ? 'opacity-40' : 'opacity-100'} ${isNestedChild ? 'ml-6' : ''}`}>
-          {layer.type === 'raster' || layer.type === 'satellite' || layer.type === 'deepstate' ? (
+          {layer.type === 'raster' || layer.type === 'satellite' || layer.type === 'deepstate' || layer.type === 'gdacs_earthquakes' || layer.type === 'gdacs_shakemap' || layer.type === 'gdacs_volcanoes' || layer.type === 'gdacs_volcano_polygons' || layer.type === 'wildfires' || layer.type === 'gdacs_cyclones' || layer.type === 'nighttime' ? (
             <div className="flex flex-col gap-3 pb-2">
               <div className="flex items-center gap-3">
                 {layer.type === 'raster' && saveAsPreset && (
@@ -1652,7 +1657,7 @@ function LayerItem(props: {
                     <BookmarkPlus size={16} />
                   </button>
                 )}
-                {layer.type === 'deepstate' && duplicateLayer && (
+                {(layer.type === 'deepstate' || layer.type === 'gdacs_earthquakes' || layer.type === 'gdacs_shakemap' || layer.type === 'gdacs_volcanoes' || layer.type === 'gdacs_volcano_polygons' || layer.type === 'wildfires') && duplicateLayer && (
                     <button onClick={() => duplicateLayer(layer.id)} className="text-white/50 hover:text-white transition-colors flex items-center shrink-0" title={t("Duplicate Layer")}>
                       <Copy size={16} />
                     </button>
@@ -1666,23 +1671,68 @@ function LayerItem(props: {
                       <Radio size={16} />
                     </button>
                   )}
-                  {layer.type === 'deepstate' && updateLayerDates && (
+                  {(layer.type === 'deepstate' || layer.type === 'gdacs_shakemap' || layer.type === 'gdacs_volcano_polygons' || (layer.type === 'wildfires' && layer.wildfireMode === 'gdacs')) && updateLayerDates && (
                     <div className="flex-1 flex justify-end">
                       <input 
                         type="date" 
-                        min="2024-07-08"
                         max={new Date().toISOString().split('T')[0]}
                         value={layer.startDate || new Date().toISOString().split('T')[0]} 
                         onChange={e => updateLayerDates(layer.id, e.target.value)}
                         className="bg-black border border-white/20 px-2 py-1 text-xs text-white outline-none focus:border-white/50 w-full max-w-[140px]"
                         style={{ colorScheme: 'dark' }}
-                        title="Fetch historical data from Github"
                       />
                     </div>
                   )}
+                  {(layer.type === 'gdacs_earthquakes' || layer.type === 'gdacs_volcanoes' || layer.type === 'gdacs_cyclones' || (layer.type === 'wildfires' && layer.wildfireMode === 'effis')) && updateLayerDates && (
+                    <div className="flex-1 flex flex-col items-end gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-white/50 w-8">FROM</span>
+                        <input 
+                          type="date" 
+                          max={new Date().toISOString().split('T')[0]}
+                          value={layer.startDate || new Date().toISOString().split('T')[0]} 
+                          onChange={e => updateLayerDates(layer.id, e.target.value, layer.endDate)}
+                          className="bg-black border border-white/20 px-2 py-1 text-xs text-white outline-none focus:border-white/50 w-full max-w-[110px]"
+                          style={{ colorScheme: 'dark' }}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-white/50 w-8">TO</span>
+                        <input 
+                          type="date" 
+                          max={new Date().toISOString().split('T')[0]}
+                          value={layer.endDate || new Date().toISOString().split('T')[0]} 
+                          onChange={e => updateLayerDates(layer.id, layer.startDate, e.target.value)}
+                          className="bg-black border border-white/20 px-2 py-1 text-xs text-white outline-none focus:border-white/50 w-full max-w-[110px]"
+                          style={{ colorScheme: 'dark' }}
+                        />
+                      </div>
+                    </div>
+                  )}
               </div>
+              {(layer.type === 'wildfires') && updateLayerProperty && (
+                <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] text-white font-semibold tracking-wider">{t("DATA SOURCE")}</label>
+                    <div className="flex bg-white/10 rounded-full p-0.5">
+                      <button 
+                        onClick={() => updateLayerProperty(layer.id, 'wildfireMode', 'effis')}
+                        className={`text-[10px] px-3 py-1 rounded-full transition-colors ${layer.wildfireMode !== 'gdacs' ? 'bg-white text-black font-medium' : 'text-white/60 hover:text-white'}`}
+                      >
+                        All (EFFIS)
+                      </button>
+                      <button 
+                        onClick={() => updateLayerProperty(layer.id, 'wildfireMode', 'gdacs')}
+                        className={`text-[10px] px-3 py-1 rounded-full transition-colors ${layer.wildfireMode === 'gdacs' ? 'bg-white text-black font-medium' : 'text-white/60 hover:text-white'}`}
+                      >
+                        Catastrophic (GDACS)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               
-              {(layer.id === 'copernicus' || layer.id === 'floods') && updateLayerDates && (
+              {(layer.id === 'floods') && updateLayerDates && (
                 <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
                   <div className="flex items-center justify-between">
                     <label className="text-[10px] text-white font-semibold tracking-wider">{t("START DATE")}</label>
@@ -1707,14 +1757,29 @@ function LayerItem(props: {
                 </div>
               )}
 
+              {layer.type === 'nighttime' && (
+                <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] text-white font-semibold tracking-wider">{t("DATE")}</label>
+                    <input 
+                      type="date" 
+                      value={layer.nighttimeDate || new Date().toISOString().split('T')[0]} 
+                      onChange={e => updateLayerProperty(layer.id, 'nighttimeDate', e.target.value)}
+                      className="bg-black border border-white/20 px-2 py-1 text-xs text-white outline-none focus:border-white/50 rounded"
+                      style={{ colorScheme: 'dark' }}
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className={`flex flex-col gap-1 mt-1 ${layer.type === 'deepstate' ? '' : 'pt-2 border-t border-white/10'}`}>
                 <div className="flex justify-between items-end">
                   <label className="text-[10px] text-white font-semibold tracking-wider">{t("OPACITY")}</label>
-                  <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.opacity ?? (layer.type === 'deepstate' ? 0.5 : 1.0)) * 100)}%</span>
+                  <span className="text-[10px] text-white/70 font-mono">{Math.round((layer.opacity ?? (layer.type === 'deepstate' || layer.type === 'nighttime' ? 0.5 : 1.0)) * 100)}%</span>
                 </div>
                 <input
                   type="range" min="0" max="100"
-                  value={(layer.opacity ?? (layer.type === 'deepstate' ? 0.5 : 1.0)) * 100}
+                  value={(layer.opacity ?? (layer.type === 'deepstate' || layer.type === 'nighttime' ? 0.5 : 1.0)) * 100}
                   onChange={e => updateLayerProperty(layer.id, 'opacity', Number(e.target.value) / 100)}
                   className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
                 />

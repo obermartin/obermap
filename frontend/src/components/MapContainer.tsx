@@ -3,12 +3,14 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { length, along, lineSlice } from '@turf/turf';
 import MapboxGeocoder from '@maplibre/maplibre-gl-geocoder';
 import '@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css';
 import type { Annotation, ToolType, AppSettings, StrokeType, RouteMode } from '../types';
 import * as turf from '@turf/turf';
 import { useTranslation } from '../contexts/I18nContext';
 import { createCirclePolygon, calculateDistance, simplifyLine, transliterateToGerman, createArrowFeatures, decodePolyline } from '../utils/mapUtils';
+import { getTerminatorPolygon } from '../utils/terminatorUtils';
 import anyAscii from 'any-ascii';
 import { customAlert } from '../utils/dialogService';
 import * as Mp4Muxer from 'mp4-muxer';
@@ -88,6 +90,7 @@ interface MapContainerProps {
   setSelectedGeojsonFeatureId: React.Dispatch<React.SetStateAction<string | number | null>>;
   selectedIconId?: string | null;
   isSidebarOpen?: boolean;
+  isToolbarOpen?: boolean;
   markersRef?: React.MutableRefObject<{ [id: string]: maplibregl.Marker }>;
 }
 
@@ -140,6 +143,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   clipPath,
   onMapInit,
   isSidebarOpen,
+  isToolbarOpen,
   markersRef: propsMarkersRef
 }) => {
   const { t, language } = useTranslation();
@@ -149,7 +153,12 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const [mapLoaded, setMapLoaded] = useState(false);
   const [selectedAircraftId, setSelectedAircraftIdState] = useState<string | null>(null);
   const [selectedVesselMmsi, setSelectedVesselMmsi] = useState<string | null>(null);
+  const [selectedCycloneId, setSelectedCycloneIdState] = useState<{ id: string, ep: string } | null>(null);
+  const selectedCycloneIdRef = useRef<{ id: string, ep: string } | null>(null);
+  const [cycloneTimelinePercent, setCycloneTimelinePercent] = useState<number>(100);
+  const [cycloneRawData, setCycloneRawData] = useState<any>(null);
   const [windGeojson, setWindGeojsonState] = useState<GeoJSON.FeatureCollection<GeoJSON.Point> | null>(null);
+  
 
   const [weatherValidTimes, setWeatherValidTimes] = useState<string[]>([]);
   const [weatherCityData, setWeatherCityData] = useState<{ [name: string]: { temps: number[], codes: number[], times: string[], x: number, y: number, name: string } }>({});
@@ -233,10 +242,15 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     selectedAircraftIdRef.current = selectedAircraftId;
   }, [selectedAircraftId]);
 
+  useEffect(() => {
+    selectedCycloneIdRef.current = selectedCycloneId;
+  }, [selectedCycloneId]);
+
   const originalFiltersRef = useRef<{ [layerId: string]: any }>({});
   const localMarkersRef = useRef<{ [id: string]: maplibregl.Marker }>({});
   const markersRef = propsMarkersRef || localMarkersRef;
   const deepstateDatesRef = useRef<{ [layerId: string]: string | undefined }>({});
+  const gdacsDatesRef = useRef<{ [layerId: string]: string | undefined }>({});
   const activeDrawMarkersRef = useRef<{ [id: string]: maplibregl.Marker }>({});
   const openSkyTokenRef = useRef<{ token: string, expires: number } | null>(null);
   const aircraftPopupRef = useRef<maplibregl.Popup | null>(null);
@@ -634,6 +648,65 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           'line-color': '#ffffff',
           'line-width': 4,
           'line-opacity': 0.5
+        }
+      });
+
+      // Add Cyclone Geometry source and layers
+      map.addSource('selected-cyclone-geometry', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+      });
+      
+      map.addLayer({
+        id: 'selected-cyclone-cone',
+        type: 'fill',
+        source: 'selected-cyclone-geometry',
+        filter: ['==', '$type', 'Polygon'],
+        paint: {
+          'fill-color': '#ffffff',
+          'fill-opacity': ['*', 0.15, ['coalesce', ['get', '_dynamicOpacity'], 1.0]]
+        }
+      });
+
+      map.addLayer({
+        id: 'selected-cyclone-track',
+        type: 'line',
+        source: 'selected-cyclone-geometry',
+        filter: ['==', '$type', 'LineString'],
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round'
+        },
+        paint: {
+          'line-color': '#ffffff',
+          'line-width': 2,
+          'line-opacity': 0.8,
+          'line-dasharray': [2, 2]
+        }
+      });
+
+      map.addLayer({
+        id: 'selected-cyclone-point',
+        type: 'circle',
+        source: 'selected-cyclone-geometry',
+        filter: ['==', '$type', 'Point'],
+        paint: {
+          'circle-radius': [
+            'interpolate', ['linear'], ['coalesce', ['get', 'severity'], 5],
+            4, 4,
+            9, 16
+          ],
+          'circle-color': [
+            'match',
+            ['get', 'alertlevel'],
+            'Red', '#ff0000',
+            'Orange', '#ff9900',
+            'Green', '#00ff00',
+            '#ffffff'
+          ],
+          'circle-opacity': 1.0,
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#ffffff'
         }
       });
 
@@ -2315,10 +2388,15 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       const lineId = `dynamic-line-${layer.id}`;
 
       // Re-initialize raster sources if they are dirty (e.g. date changed)
-      if (map.getSource(sourceId) && layer.type === 'raster' && layer._isDirty) {
-        if (map.getLayer(layerId)) map.removeLayer(layerId);
-        if (map.getLayer(lineId)) map.removeLayer(lineId);
-        map.removeSource(sourceId);
+      if ((layer.type === 'raster' || layer.type === 'wildfires') && layer._isDirty) {
+        if (layer.type === 'raster' && map.getSource(sourceId)) {
+          if (map.getLayer(layerId)) map.removeLayer(layerId);
+          if (map.getLayer(lineId)) map.removeLayer(lineId);
+          map.removeSource(sourceId);
+        } else if (layer.type === 'wildfires' && map.getSource(`${sourceId}-effis`)) {
+          if (map.getLayer(`${layerId}-effis`)) map.removeLayer(`${layerId}-effis`);
+          map.removeSource(`${sourceId}-effis`);
+        }
       }
 
       if (layer.type === 'weather_forecast') {
@@ -2440,8 +2518,32 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       if (!map.getSource(sourceId)) {
         if (layer.type === 'geojson' && layer.data) {
           map.addSource(sourceId, { type: 'geojson', data: layer.data });
-        } else if (layer.type === 'deepstate') {
+        } else if (layer.type === 'deepstate' || layer.type === 'gdacs_earthquakes' || layer.type === 'gdacs_shakemap' || layer.type === 'gdacs_volcanoes' || layer.type === 'gdacs_volcano_polygons' || layer.type === 'gdacs_cyclones' || layer.type === 'nighttime') {
           map.addSource(sourceId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+        } else if (layer.type === 'wildfires') {
+          // Add both sources, we will toggle visibility
+          if (!map.getSource(`${sourceId}-effis`)) {
+            let processedUrl = layer.url || 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}';
+            const today = new Date();
+            const past7d = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+            processedUrl = processedUrl.replace(/{date-start}/g, layer.startDate || past7d.toISOString().split('T')[0]).replace(/{date-end}/g, layer.endDate || today.toISOString().split('T')[0]);
+            map.addSource(`${sourceId}-effis`, { type: 'raster', tiles: [processedUrl], tileSize: 256 });
+          } else {
+             // update url
+            let processedUrl = layer.url || 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}';
+            const today = new Date();
+            const past7d = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+            processedUrl = processedUrl.replace(/{date-start}/g, layer.startDate || past7d.toISOString().split('T')[0]).replace(/{date-end}/g, layer.endDate || today.toISOString().split('T')[0]);
+            
+            // Mapbox GL JS doesn't allow updating raster source tiles directly without removing/adding, but we can do it if we remove layer/source in cleanup. Let's rely on that or recreate.
+            // Wait, actually, the easiest way to force tile reload in mapbox without removing is not supported.
+            // But we can just append a timestamp or change source ID if dates change. 
+            // For now, let's remove and re-add if dates change (handled in a separate effect).
+            // But here we are just adding.
+          }
+          if (!map.getSource(`${sourceId}-gdacs`)) {
+            map.addSource(`${sourceId}-gdacs`, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+          }
         } else if (layer.type === 'raster' && layer.url) {
           let processedUrl = layer.url;
           
@@ -2473,7 +2575,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         }
       }
 
-      if (!map.getLayer(layerId) && map.getSource(sourceId)) {
+      if ((!map.getLayer(layerId) && map.getSource(sourceId)) || (layer.type === 'wildfires' && !map.getLayer(`${layerId}-effis`))) {
         if (layer.type === 'geojson') {
           map.addLayer({
             id: layerId,
@@ -2496,6 +2598,93 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               'line-opacity': ['coalesce', ['get', 'outlineOpacity'], 1.0]
             }
           }, firstAdminId);
+        } else if (layer.type === 'gdacs_earthquakes' || layer.type === 'gdacs_volcanoes' || layer.type === 'gdacs_cyclones') {
+          map.addLayer({
+            id: layerId,
+            type: 'circle',
+            source: sourceId,
+            layout: { visibility: layer.visible ? 'visible' : 'none' },
+            paint: {
+              'circle-radius': [
+                'interpolate', ['linear'], ['coalesce', ['get', 'severity'], 5],
+                4, 4,
+                9, 16
+              ],
+              'circle-color': [
+                'match',
+                ['get', 'alertlevel'],
+                'Red', '#ff0000',
+                'Orange', '#ff9900',
+                'Green', '#00ff00',
+                '#ffffff'
+              ],
+              'circle-opacity': layer.opacity ?? 0.8,
+              'circle-stroke-width': 0
+            }
+          }, firstSymbolId);
+        } else if (layer.type === 'gdacs_shakemap' || layer.type === 'gdacs_volcano_polygons') {
+          map.addLayer({
+            id: layerId,
+            type: 'fill',
+            source: sourceId,
+            layout: { visibility: layer.visible ? 'visible' : 'none' },
+            paint: {
+              'fill-color': ['coalesce', ['get', 'fillColor'], '#ff0000'],
+              'fill-opacity': layer.opacity ?? 0.3
+            }
+          }, firstAdminId);
+          map.addLayer({
+            id: lineId,
+            type: 'line',
+            source: sourceId,
+            layout: { visibility: layer.visible ? 'visible' : 'none' },
+            paint: {
+              'line-color': ['coalesce', ['get', 'strokeColor'], '#ff0000'],
+              'line-width': 2,
+              'line-opacity': layer.opacity ?? 0.8
+            }
+          }, firstAdminId);
+        } else if (layer.type === 'nighttime') {
+          map.addLayer({
+            id: layerId,
+            type: 'fill',
+            source: sourceId,
+            layout: { visibility: layer.visible ? 'visible' : 'none' },
+            paint: {
+              'fill-color': '#000000',
+              'fill-opacity': layer.opacity ?? 0.5
+            }
+          }, firstAdminId);
+        } else if (layer.type === 'wildfires') {
+          if (!map.getLayer(`${layerId}-effis`)) {
+            map.addLayer({
+              id: `${layerId}-effis`,
+              type: 'raster',
+              source: `${sourceId}-effis`,
+              layout: { visibility: layer.visible && layer.wildfireMode !== 'gdacs' ? 'visible' : 'none' },
+              paint: { 'raster-opacity': layer.opacity ?? 0.75 }
+            }, firstAdminId);
+          }
+
+          if (!map.getLayer(`${layerId}-gdacs-fill`)) {
+            map.addLayer({
+              id: `${layerId}-gdacs-fill`,
+              type: 'fill',
+              source: `${sourceId}-gdacs`,
+              layout: { visibility: layer.visible && layer.wildfireMode === 'gdacs' ? 'visible' : 'none' },
+              paint: { 'fill-color': '#ff0000', 'fill-opacity': layer.opacity ?? 0.3 }
+            }, firstAdminId);
+          }
+
+          if (!map.getLayer(`${layerId}-gdacs-line`)) {
+            map.addLayer({
+              id: `${layerId}-gdacs-line`,
+              type: 'line',
+              source: `${sourceId}-gdacs`,
+              layout: { visibility: layer.visible && layer.wildfireMode === 'gdacs' ? 'visible' : 'none' },
+              paint: { 'line-color': '#ff0000', 'line-width': 2, 'line-opacity': layer.opacity ?? 0.8 }
+            }, firstAdminId);
+          }
         } else if (layer.type === 'deepstate') {
           map.addLayer({
             id: layerId,
@@ -2631,7 +2820,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         }
       } else if (map.getLayer(layerId)) {
         map.setLayoutProperty(layerId, 'visibility', layer.visible ? 'visible' : 'none');
-        if (layer.type === 'raster' || layer.type === 'satellite') {
+        if (layer.type === 'nighttime') {
+          map.setPaintProperty(layerId, 'fill-opacity', layer.opacity ?? 0.5);
+        } else if (layer.type === 'raster' || layer.type === 'satellite') {
           const bMin = layer.brightness !== undefined && layer.brightness > 0 ? layer.brightness : 0;
           const bMax = layer.brightness !== undefined && layer.brightness < 0 ? 1 + layer.brightness : 1;
           map.setPaintProperty(layerId, 'raster-opacity', layer.opacity ?? 1.0);
@@ -2684,6 +2875,24 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               }
             }, firstSymbolId);
           }
+        } else if (layer.type === 'wildfires') {
+          if (map.getLayer(`${layerId}-effis`)) {
+            map.setPaintProperty(`${layerId}-effis`, 'raster-opacity', layer.opacity ?? 0.75);
+            map.setLayoutProperty(`${layerId}-effis`, 'visibility', layer.visible && layer.wildfireMode !== 'gdacs' ? 'visible' : 'none');
+          }
+          if (map.getLayer(`${layerId}-gdacs-fill`)) {
+            map.setPaintProperty(`${layerId}-gdacs-fill`, 'fill-opacity', layer.opacity ?? 0.3);
+            map.setLayoutProperty(`${layerId}-gdacs-fill`, 'visibility', layer.visible && layer.wildfireMode === 'gdacs' ? 'visible' : 'none');
+          }
+          if (map.getLayer(`${layerId}-gdacs-line`)) {
+            map.setPaintProperty(`${layerId}-gdacs-line`, 'line-opacity', layer.opacity ?? 0.8);
+            map.setLayoutProperty(`${layerId}-gdacs-line`, 'visibility', layer.visible && layer.wildfireMode === 'gdacs' ? 'visible' : 'none');
+          }
+        } else if (layer.type === 'gdacs_earthquakes' || layer.type === 'gdacs_volcanoes') {
+          map.setPaintProperty(layerId, 'circle-opacity', layer.opacity ?? 0.8);
+        } else if (layer.type === 'gdacs_shakemap' || layer.type === 'gdacs_volcano_polygons') {
+          map.setPaintProperty(layerId, 'fill-opacity', layer.opacity ?? 0.3);
+          if (map.getLayer(lineId)) map.setPaintProperty(lineId, 'line-opacity', layer.opacity ?? 0.8);
         } else if (layer.type === 'deepstate') {
           map.setPaintProperty(layerId, 'fill-opacity', layer.opacity ?? 0.5);
         }
@@ -2833,6 +3042,67 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
     });
 
+    // Fetch data for GDACS if needed
+    for (const layer of settings.layers) {
+      if (!layer.visible) continue;
+      if (layer.type.startsWith('gdacs_') || (layer.type === 'wildfires' && layer.wildfireMode === 'gdacs')) {
+        const sourceId = layer.type === 'wildfires' ? `dynamic-source-${layer.id}-gdacs` : `dynamic-source-${layer.id}`;
+        const todayDateStr = new Date().toISOString().split('T')[0];
+        const startDate = layer.startDate || todayDateStr;
+        const isPolygonLayer = layer.type === 'gdacs_shakemap' || layer.type === 'gdacs_volcano_polygons' || (layer.type === 'wildfires' && layer.wildfireMode === 'gdacs');
+        const endDate = isPolygonLayer ? startDate : (layer.endDate || todayDateStr);
+        
+        const cacheKey = `${layer.type}-${startDate}-${endDate}`;
+        if (gdacsDatesRef.current[layer.id] !== cacheKey) {
+          gdacsDatesRef.current[layer.id] = cacheKey;
+          
+          (async () => {
+            try {
+              const eventlist = layer.type.includes('earthquake') || layer.type.includes('shakemap') ? 'EQ' : layer.type.includes('wildfires') ? 'WF' : layer.type === 'gdacs_cyclones' ? 'TC' : 'VO';
+              const url = `https://www.gdacs.org/gdacsapi/api/Events/geteventlist/search?eventlist=${eventlist}&fromDate=${startDate}&toDate=${endDate}`;
+              const res = await fetch(url);
+              if (!res.ok) throw new Error(`Failed to fetch GDACS data: ${res.statusText}`);
+              const text = await res.text();
+              const data = text ? JSON.parse(text) : { type: 'FeatureCollection', features: [] };
+              let geojsonData = data;
+
+              if (isPolygonLayer && data && data.features) {
+                 const polygonFeatures = [];
+                 for (const feature of data.features) {
+                   const geomUrl = feature.properties?.url?.geometry;
+                   if (geomUrl) {
+                     try {
+                        const polyRes = await fetch(geomUrl.replace('http:', 'https:'));
+                        if (polyRes.ok) {
+                           const polyData = await polyRes.json();
+                           if (polyData && polyData.features) {
+                             polygonFeatures.push(...polyData.features);
+                           }
+                        }
+                     } catch(e) {
+                        console.error('Failed to fetch shakemap polygon', e);
+                     }
+                   }
+                 }
+                 geojsonData = { type: 'FeatureCollection', features: polygonFeatures };
+              }
+
+              const map = mapRef.current;
+              if (map && map.getSource(sourceId)) {
+                (map.getSource(sourceId) as maplibregl.GeoJSONSource).setData(geojsonData);
+              }
+            } catch (err) {
+              console.error(`Error fetching GDACS for dates ${startDate}-${endDate}:`, err);
+              const map = mapRef.current;
+              if (map && map.getSource(sourceId)) {
+                (map.getSource(sourceId) as maplibregl.GeoJSONSource).setData({ type: 'FeatureCollection', features: [] });
+              }
+            }
+          })();
+        }
+      }
+    }
+
     // Reorder layers dynamically. Iterate backwards to place the bottom-most layer right before firstAdminId.
     for (let i = layers.length - 1; i >= 0; i--) {
       const layer = layers[i];
@@ -2840,6 +3110,10 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       
       if (layer.type === 'weather_forecast') {
         idsToMove.push(...weatherForecastLayerIdsRef.current);
+      } else if (layer.type === 'wildfires') {
+        idsToMove.push(`dynamic-layer-${layer.id}-effis`);
+        idsToMove.push(`dynamic-layer-${layer.id}-gdacs-fill`);
+        idsToMove.push(`dynamic-layer-${layer.id}-gdacs-line`);
       } else {
         idsToMove.push(`dynamic-layer-${layer.id}`);
         if (map.getLayer(`dynamic-line-${layer.id}`)) {
@@ -3870,6 +4144,175 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     fetchTrack();
   }, [selectedAircraftId, mapLoaded, settings.openSkyCredentials]);
 
+  // Fetch geometry when selectedCycloneId changes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+    
+    const source = map.getSource('selected-cyclone-geometry') as maplibregl.GeoJSONSource;
+    if (!source) return;
+
+    if (!selectedCycloneId) {
+      source.setData({ type: 'FeatureCollection', features: [] });
+      return;
+    }
+
+    const fetchGeometry = async () => {
+      try {
+        const cycloneLayer = settings.layers.find(l => l.type === 'gdacs_cyclones');
+        if (!cycloneLayer || !cycloneLayer.visible) {
+          source.setData({ type: 'FeatureCollection', features: [] });
+          return;
+        }
+
+        const url = `https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=TC&eventid=${selectedCycloneId.id}&episodeid=${selectedCycloneId.ep}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Failed to fetch cyclone geometry');
+        
+        const data = await res.json();
+        if (data && data.features) {
+          setCycloneRawData(data);
+          setCycloneTimelinePercent(100);
+        } else {
+          setCycloneRawData(null);
+          source.setData({ type: 'FeatureCollection', features: [] });
+        }
+      } catch (err) {
+        console.error('Error fetching cyclone geometry:', err);
+        setCycloneRawData(null);
+        source.setData({ type: 'FeatureCollection', features: [] });
+      }
+    };
+
+    fetchGeometry();
+  }, [selectedCycloneId, mapLoaded, settings.layers]);
+
+  // Effect to process and render the cyclone track based on the timeline slider
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded || !selectedCycloneId || !cycloneRawData) return;
+    
+    const source = map.getSource('selected-cyclone-geometry') as maplibregl.GeoJSONSource;
+    if (!source) return;
+
+    try {
+      // 1. Extract and combine all LineString segments into one continuous track
+      const lineFeatures = cycloneRawData.features.filter((f: any) => f.geometry.type === 'LineString');
+      // Sort them by their Class to ensure chronological order: Line_Line_0, Line_Line_1, etc.
+      lineFeatures.sort((a: any, b: any) => {
+        const aNum = parseInt(a.properties?.Class?.replace('Line_Line_', '') || '0');
+        const bNum = parseInt(b.properties?.Class?.replace('Line_Line_', '') || '0');
+        return aNum - bNum;
+      });
+
+      const allCoordinates: number[][] = [];
+      lineFeatures.forEach((f: any) => {
+        f.geometry.coordinates.forEach((coord: number[]) => {
+          // Avoid duplicate adjacent coordinates
+          if (allCoordinates.length === 0) {
+            allCoordinates.push(coord);
+          } else {
+            const last = allCoordinates[allCoordinates.length - 1];
+            if (last[0] !== coord[0] || last[1] !== coord[1]) {
+              allCoordinates.push(coord);
+            }
+          }
+        });
+      });
+
+      if (allCoordinates.length < 2) {
+        // Not enough data for a track, just render whatever we have
+        source.setData(cycloneRawData);
+        return;
+      }
+
+      const masterTrack = {
+        type: 'Feature' as const,
+        geometry: {
+          type: 'LineString' as const,
+          coordinates: allCoordinates
+        },
+        properties: lineFeatures[0]?.properties || {}
+      };
+
+      const trackLength = length(masterTrack, { units: 'kilometers' });
+      const currentDistance = trackLength * (cycloneTimelinePercent / 100);
+
+      // 2. Interpolate current point
+      const currentPoint = along(masterTrack, currentDistance, { units: 'kilometers' });
+      // Change its class to Point_Centroid so it matches the layer filter for rendering the circle
+      currentPoint.properties = { ...masterTrack.properties, Class: 'Point_Centroid' };
+
+      // 3. Slice the track from start to current point
+      let currentTrack;
+      if (cycloneTimelinePercent <= 0) {
+        // At 0%, track is just a point or very short line, so don't render a track
+        currentTrack = { ...masterTrack, geometry: { type: 'LineString', coordinates: [] } };
+      } else if (cycloneTimelinePercent >= 100) {
+        currentTrack = masterTrack;
+      } else {
+        const startPoint = { type: 'Feature', geometry: { type: 'Point', coordinates: allCoordinates[0] } };
+        currentTrack = lineSlice(startPoint as any, currentPoint, masterTrack);
+      }
+
+      // Restore class for the track
+      currentTrack.properties = { ...currentTrack.properties, Class: 'Line_Line_1' };
+
+      // 4. Handle the Cone of Uncertainty
+      const coneFeature = cycloneRawData.features.find((f: any) => f.properties?.Class === 'Poly_Cones');
+      
+      const featuresToRender: any[] = [currentPoint, currentTrack];
+      if (coneFeature) {
+        // We render the cone and adjust its opacity in paint properties dynamically,
+        // but since we can't easily animate layer properties here without creating a new layer,
+        // we'll inject a dynamic property into the GeoJSON feature!
+        const coneOpacity = Math.max(0, (cycloneTimelinePercent - 80) / 20); // fade in from 80% to 100%
+        coneFeature.properties = { ...coneFeature.properties, _dynamicOpacity: coneOpacity };
+        featuresToRender.push(coneFeature);
+      }
+
+      source.setData({
+        type: 'FeatureCollection',
+        features: featuresToRender
+      });
+    } catch (e) {
+      console.error('Error processing cyclone timeline:', e);
+      source.setData(cycloneRawData);
+    }
+  }, [cycloneTimelinePercent, cycloneRawData, selectedCycloneId, mapLoaded]);
+
+  // Nighttime layer update
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+    
+    const nighttimeLayer = settings.layers.find(l => l.type === 'nighttime' && l.visible);
+    if (!nighttimeLayer) return;
+    
+    const sourceId = `dynamic-source-${nighttimeLayer.id}`;
+    const source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
+    if (!source) return;
+
+    try {
+      const dateStr = nighttimeLayer.nighttimeDate || new Date().toISOString().split('T')[0];
+      const hr = nighttimeLayer.nighttimeHour ?? 12;
+      const hours = Math.floor(hr).toString().padStart(2, '0');
+      const minutes = Math.floor((hr % 1) * 60).toString().padStart(2, '0');
+      
+      const dateString = `${dateStr}T${hours}:${minutes}:00`;
+      
+      const month = parseInt(dateStr.split('-')[1], 10);
+      const isSummer = month >= 4 && month <= 10;
+      const offsetStr = isSummer ? '+02:00' : '+01:00';
+      const exactDate = new Date(`${dateString}${offsetStr}`);
+      
+      const geojson = getTerminatorPolygon(exactDate);
+      source.setData(geojson);
+    } catch (e) {
+      console.error('Error updating nighttime layer:', e);
+    }
+  }, [settings.layers, mapLoaded]);
+
   // Dynamically update clip polygons to match screen-space of highlight DOM labels
   useEffect(() => {
     const map = mapRef.current;
@@ -4117,6 +4560,34 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       } else {
         if (selectedAircraftId) {
           setSelectedAircraftId(null);
+        }
+      }
+
+      // Handle cyclone click
+      let clickedCycloneId: { id: string, ep: string } | null = null;
+      try {
+        const cycloneLayers = settings.layers.filter(l => l.type === 'gdacs_cyclones').map(l => `dynamic-layer-${l.id}`);
+        if (cycloneLayers.length > 0) {
+          const cycloneFeatures = map.queryRenderedFeatures(e.point, { layers: cycloneLayers });
+          if (cycloneFeatures.length > 0) {
+            const props = cycloneFeatures[0].properties;
+            if (props && props.eventid && props.episodeid) {
+              clickedCycloneId = { id: props.eventid.toString(), ep: props.episodeid.toString() };
+            }
+          }
+        }
+      } catch (err) {}
+
+      if (clickedCycloneId) {
+        if (selectedCycloneIdRef.current?.id === clickedCycloneId.id) {
+          setSelectedCycloneIdState(null);
+        } else {
+          setSelectedCycloneIdState(clickedCycloneId);
+        }
+        return; // Prevent drawing
+      } else {
+        if (selectedCycloneIdRef.current) {
+          setSelectedCycloneIdState(null);
         }
       }
 
@@ -5140,7 +5611,10 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const activeWeatherLayer = settings.layers.find(l => l.type === 'weather_forecast' && l.visible);
   const weatherLayerVisible = Boolean(activeWeatherLayer);
 
-
+  const isCycloneLayerVisible = settings.layers.some(l => l.type === 'gdacs_cyclones' && l.visible);
+  const activeNighttimeLayer = settings.layers.find(l => l.type === 'nighttime' && l.visible);
+  const isNighttimeLayerVisible = Boolean(activeNighttimeLayer);
+  const nighttimeHour = activeNighttimeLayer?.nighttimeHour ?? 12;
 
   return (
     <div className={`absolute inset-0 w-full h-full touch-none ${isSecondary ? 'pointer-events-none' : ''}`} style={{ clipPath, WebkitClipPath: clipPath, zIndex: isSecondary ? 10 : 0 }}>
@@ -5149,8 +5623,14 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         <>
           {windLayerVisible && <canvas ref={windCanvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-[2]" />}
           {weatherLayerVisible && (
-            <div className={`absolute top-6 left-1/2 -translate-x-1/2 z-30 transition-transform duration-300 ease-in-out flex gap-2 items-center`}>
-              <div className="flex border border-white/20 rounded-full p-1 relative bg-black shadow-xl shrink-0">
+            <div 
+              className={`absolute z-30 transition-all duration-300 ease-in-out flex gap-2 items-center justify-center pointer-events-none ${(selectedCycloneId && isCycloneLayerVisible) && isNighttimeLayerVisible ? 'bottom-[7.5rem]' : (selectedCycloneId && isCycloneLayerVisible) || isNighttimeLayerVisible ? 'bottom-[4.5rem]' : 'bottom-6'}`}
+              style={{
+                left: `calc(104px + ${isSidebarOpen ? '320px' : '0px'} + ${isToolbarOpen ? '640px' : '48px'})`,
+                right: '160px',
+              }}
+            >
+              <div className="flex border border-white/20 rounded-full p-1 relative bg-black shadow-xl shrink-0 pointer-events-auto">
                 <button
                   onClick={() => {
                     if (!activeWeatherLayer || !setSettings) return;
@@ -5190,13 +5670,17 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                   {t("Precipitation")}
                 </button>
               </div>
-              <div className="flex border border-white/20 rounded-full p-1 relative bg-black shadow-xl">
+              <div className="flex border border-white/20 rounded-full p-1 relative bg-black shadow-xl pointer-events-auto overflow-x-auto no-scrollbar shrink">
                 {weatherValidTimes.length === 0 ? (
                   <span className="text-sm text-white/50 whitespace-nowrap px-4 py-2">Loading...</span>
                 ) : (
                   weatherValidTimes.map((time, index) => {
                     const actualActiveTime = selectedWeatherTime || weatherValidTimes[0];
                     const isActive = actualActiveTime === time;
+                    const isConstrained = isSidebarOpen && isToolbarOpen;
+                    let weekdayLabel = new Date(time).toLocaleDateString(language, { weekday: isConstrained ? 'short' : 'long' });
+                    if (isConstrained) weekdayLabel = weekdayLabel.toUpperCase().replace(/\.$/, '');
+
                     return (
                       <button
                         key={time}
@@ -5212,7 +5696,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                             transition={{ type: "spring", stiffness: 400, damping: 30 }}
                           />
                         )}
-                        {index === 0 ? t("Today") : new Date(time).toLocaleDateString(language, { weekday: 'long' })}
+                        {index === 0 ? t("Today") : weekdayLabel}
                       </button>
                     );
                   })
@@ -5347,6 +5831,99 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           </motion.div>
         );
       })}
+
+      {(selectedCycloneId && isCycloneLayerVisible) && (
+        <div 
+          className="absolute bottom-6 h-12 z-40 flex justify-center items-center transition-all duration-300 ease-in-out pointer-events-none"
+          style={{
+            left: `calc(104px + ${isSidebarOpen ? '320px' : '0px'} + ${isToolbarOpen ? '640px' : '48px'})`,
+            right: '160px',
+          }}
+        >
+          <div className="w-[75%] h-full bg-black rounded-full px-6 shadow-lg flex items-center justify-between pointer-events-auto relative">
+            <span className="text-white/50 font-mono text-[10px] font-bold z-10 w-10 select-none">START</span>
+            
+            <div className="flex-1 relative h-6 flex items-center mx-4 group">
+              <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1 bg-white/30 rounded-lg pointer-events-none z-0" />
+              
+              <div 
+                className="absolute top-1/2 -translate-y-1/2 bg-white rounded-full flex items-center justify-center pointer-events-none z-10 font-bold text-black shadow-md transition-transform group-hover:scale-105"
+                style={{
+                  left: `calc(${cycloneTimelinePercent}% + (${0.5 - (cycloneTimelinePercent / 100)} * 48px))`,
+                  width: '48px',
+                  height: '20px',
+                  fontFamily: 'Roboto, sans-serif',
+                  fontSize: '11px',
+                }}
+              >
+                {Math.round(cycloneTimelinePercent)}%
+              </div>
+
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                value={cycloneTimelinePercent}
+                onChange={(e) => setCycloneTimelinePercent(Number(e.target.value))}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 m-0 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-[48px] [&::-webkit-slider-thumb]:h-[20px]"
+              />
+            </div>
+            
+            <span className="text-white/50 font-mono text-[10px] font-bold z-10 w-10 text-right select-none">END</span>
+          </div>
+        </div>
+      )}
+
+      {isNighttimeLayerVisible && (
+        <div 
+          className={`absolute h-12 z-40 flex justify-center items-center transition-all duration-300 ease-in-out pointer-events-none ${(selectedCycloneId && isCycloneLayerVisible) ? 'bottom-[4.5rem]' : 'bottom-6'}`}
+          style={{
+            left: `calc(104px + ${isSidebarOpen ? '320px' : '0px'} + ${isToolbarOpen ? '640px' : '48px'})`,
+            right: '160px',
+          }}
+        >
+          <div className="w-[75%] h-full bg-black rounded-full px-6 shadow-lg flex items-center justify-between pointer-events-auto relative">
+            <span className="text-white/50 font-mono text-[10px] font-bold z-10 w-8 select-none">00:00</span>
+            
+            <div className="flex-1 relative h-6 flex items-center mx-4 group">
+              <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1 bg-white/30 rounded-lg pointer-events-none z-0" />
+              
+              <div 
+                className="absolute top-1/2 -translate-y-1/2 bg-white rounded-full flex items-center justify-center pointer-events-none z-10 font-bold text-black shadow-md transition-transform group-hover:scale-105"
+                style={{
+                  left: `calc(${(nighttimeHour / 24) * 100}% + (${0.5 - (nighttimeHour / 24)} * 48px))`,
+                  width: '48px',
+                  height: '20px',
+                  fontFamily: 'Roboto, sans-serif',
+                  fontSize: '11px',
+                }}
+              >
+                {Math.floor(nighttimeHour).toString().padStart(2, '0')}:{Math.floor((nighttimeHour % 1) * 60).toString().padStart(2, '0')}
+              </div>
+
+              <input
+                type="range"
+                min="0"
+                max="24"
+                step="0.1"
+                value={nighttimeHour}
+                onChange={(e) => {
+                  if (setSettings && activeNighttimeLayer) {
+                    setSettings(prev => ({
+                      ...prev,
+                      layers: prev.layers.map(l => l.id === activeNighttimeLayer.id ? { ...l, nighttimeHour: Number(e.target.value) } : l)
+                    }));
+                  }
+                }}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 m-0 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-[48px] [&::-webkit-slider-thumb]:h-[20px]"
+              />
+            </div>
+            
+            <span className="text-white/50 font-mono text-[10px] font-bold z-10 w-8 text-right select-none">24:00</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

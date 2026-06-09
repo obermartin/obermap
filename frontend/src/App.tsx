@@ -511,6 +511,7 @@ export function App() {
         selectedIconId={selectedIconId}
         routeMode={routeMode}
         isSidebarOpen={isLayerSidebarOpen}
+        isToolbarOpen={isToolbarOpen}
       />
       <SavedViews 
         annotations={annotations}

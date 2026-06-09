@@ -420,6 +420,37 @@ function mockPhpBackend() {
             return;
           }
         }
+
+        if (urlObj.pathname === '/api/templates' && req.method === 'GET') {
+          try {
+            const templatesDir = path.resolve(__dirname, 'public/label-templates');
+            if (!fs.existsSync(templatesDir)) {
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify([]));
+              return;
+            }
+            const templates = fs.readdirSync(templatesDir, { withFileTypes: true })
+              .filter(dirent => dirent.isDirectory())
+              .map(dirent => dirent.name);
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(templates));
+          } catch (e: any) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: e.message }));
+          }
+          return;
+        }
+
+        if (urlObj.pathname === '/api/upload-template') {
+           // Mock upload template response if backend is not running
+           res.statusCode = 200;
+           res.setHeader('Content-Type', 'application/json');
+           res.end(JSON.stringify({ success: false, error: 'Upload requires running the Node backend.' }));
+           return;
+        }
+
         next();
       });
     }
