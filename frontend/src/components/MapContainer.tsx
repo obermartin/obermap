@@ -5956,17 +5956,117 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
 
   useEffect(() => {
     const handleStartVideoExport = (e: any) => {
-      const { format, duration, dynamicLabels, bitrate, showName } = e.detail;
-      startExportSequence(format, duration, dynamicLabels, bitrate, showName);
+      const { format, fileType, duration, dynamicLabels, bitrate, showName } = e.detail;
+      startExportSequence(format, fileType || 'mp4', duration, dynamicLabels, bitrate, showName);
     };
     window.addEventListener('startVideoExport', handleStartVideoExport);
     return () => window.removeEventListener('startVideoExport', handleStartVideoExport);
   }, [map1, props.annotations, props.settings]);
 
-  const startExportSequence = async (format: '16x9' | '9x16' | 'both', duration: number, dynamicLabels: boolean = true, bitrate: number = 15, showName?: string | null) => {
+  const generateAEJSX = (viewsToVisit: any[], duration: number) => {
+    let script = `(function() {
+  app.beginUndoGroup("Import OBERMAP Animation");
+
+  var comp = app.project.activeItem;
+  if (!comp || !(comp instanceof CompItem)) {
+    alert("Please select the containing comp or Map Comp in the Project panel/Timeline before running this script.");
+    return;
+  }
+
+  var layer = comp.selectedLayers.length > 0 ? comp.selectedLayers[0] : null;
+  if (!layer) {
+    for (var i = 1; i <= comp.numLayers; i++) {
+      if (comp.layer(i).property("Effects").property("Latitude") != null) {
+        layer = comp.layer(i);
+        break;
+      }
+    }
+  }
+
+  if (!layer || layer.property("Effects").property("Latitude") == null) {
+    alert("Could not find a layer with Geolayers effects (Latitude, Longitude, Zoom). Please select the Map Comp layer and try again.");
+    return;
+  }
+
+  function getParam(effectName) {
+    var eff = layer.property("Effects").property(effectName);
+    if (!eff) return null;
+    return eff.property(1); // Get slider/angle value
+  }
+
+  var latProp = getParam("Latitude");
+  var lonProp = getParam("Longitude");
+  var zoomProp = getParam("Zoom");
+  var bearingProp = getParam("Bearing");
+  var pitchProp = getParam("Pitch");
+  
+  if (!latProp || !lonProp || !zoomProp) {
+      alert("Geolayers properties missing on layer.");
+      return;
+  }
+
+  // Clear existing keyframes
+  while (latProp.numKeys > 0) latProp.removeKey(1);
+  while (lonProp.numKeys > 0) lonProp.removeKey(1);
+  while (zoomProp.numKeys > 0) zoomProp.removeKey(1);
+  if (bearingProp) while (bearingProp.numKeys > 0) bearingProp.removeKey(1);
+  if (pitchProp) while (pitchProp.numKeys > 0) pitchProp.removeKey(1);
+
+  var easeIn = new KeyframeEase(0, 33);
+  var easeOut = new KeyframeEase(0, 33);
+
+  function addKey(prop, time, value) {
+      if (!prop) return;
+      var k = prop.addKey(time);
+      prop.setValueAtKey(k, value);
+      prop.setTemporalEaseAtKey(k, [easeIn], [easeOut]);
+  }
+`;
+
+    let currentTime = 0;
+
+    for (let i = 0; i < viewsToVisit.length; i++) {
+      const v = viewsToVisit[i].view;
+      
+      if (i > 0) {
+        currentTime += duration;
+      }
+      
+      script += `
+  addKey(latProp, ${currentTime}, ${v.center[1]});
+  addKey(lonProp, ${currentTime}, ${v.center[0]});
+  addKey(zoomProp, ${currentTime}, ${v.zoom});
+  addKey(bearingProp, ${currentTime}, ${v.bearing || 0});
+  addKey(pitchProp, ${currentTime}, ${v.pitch || 0});
+`;
+      
+      // Add hold frame
+      if (i === 0) {
+        currentTime += 2; // Pause 2s at the start
+      } else {
+        currentTime += 1; // Pause 1s at each stop
+      }
+      
+      script += `
+  addKey(latProp, ${currentTime}, ${v.center[1]});
+  addKey(lonProp, ${currentTime}, ${v.center[0]});
+  addKey(zoomProp, ${currentTime}, ${v.zoom});
+  addKey(bearingProp, ${currentTime}, ${v.bearing || 0});
+  addKey(pitchProp, ${currentTime}, ${v.pitch || 0});
+`;
+    }
+
+    script += `
+  app.endUndoGroup();
+})();`;
+
+    return script;
+  };
+
+  const startExportSequence = async (format: '16x9' | '9x16' | 'both', fileType: 'mp4' | 'jsx' | 'both', duration: number, dynamicLabels: boolean = true, bitrate: number = 15, showName?: string | null) => {
     if (!map1) return;
     
-    if (typeof window.VideoEncoder === 'undefined') {
+    if ((fileType === 'mp4' || fileType === 'both') && typeof window.VideoEncoder === 'undefined') {
       await customAlert(t('Video export requires a modern browser and a secure context (HTTPS). WebCodecs API is not available on this server.'));
       return;
     }
@@ -5995,6 +6095,38 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
       ...labelAnnotations.map(a => ({ view: a.view!, annotationId: a.id, animationTriggerId: a.animationTriggerId, hideAnimationTriggerId: a.hideAnimationTriggerId }))
     ];
     const totalViews = viewsToVisit.length;
+
+    // Generate JSX if requested
+    if (fileType === 'jsx' || fileType === 'both') {
+      const jsxContent = generateAEJSX(viewsToVisit, duration);
+      const blob = new Blob([jsxContent], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safeShowName = (showName || 'obermap_tour').replace(/\s+/g, '_');
+      a.download = `${safeShowName}.jsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      if (fileType === 'jsx') {
+        // Exit early since we don't need the MP4
+        setVideoExportState(null);
+        document.body.classList.remove('is-recording');
+        window.dispatchEvent(new CustomEvent('resetAnimationTriggers'));
+        
+        // Restore dynamic labels
+        if (dynamicLabels) {
+          props.annotations.forEach(ann => {
+            if (ann.type === 'label' || ann.type === 'highlight') {
+              map1!.setFeatureState({ source: 'custom-annotations', id: ann.id }, { visible: true });
+            }
+          });
+        }
+        return;
+      }
+    }
 
     try {
       if (viewsToVisit.length > 0) {

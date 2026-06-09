@@ -239,6 +239,7 @@ export function LayerSidebar({
   
   // Video Export State
   const [videoFormat, setVideoFormat] = useState<'16x9' | '9x16' | 'both'>('16x9');
+  const [videoFileType, setVideoFileType] = useState<'mp4' | 'jsx' | 'both'>('mp4');
   const [videoDuration, setVideoDuration] = useState<number>(3);
 
   const [videoBitrate, setVideoBitrate] = useState<number>(15);
@@ -1011,6 +1012,30 @@ export function LayerSidebar({
                   ))}
                 </div>
               </div>
+
+              <div>
+                <label className="text-xs text-white/60 mb-2 block font-semibold tracking-wider">{t("FILE TYPE")}</label>
+                <div className="flex border border-white/20 rounded-full p-1 relative bg-transparent">
+                  {(['mp4', 'jsx', 'both'] as const).map(fmt => (
+                    <button
+                      key={fmt}
+                      onClick={() => setVideoFileType(fmt)}
+                      className={`flex-1 px-4 py-2 text-sm relative z-10 transition-colors ${
+                        videoFileType === fmt ? 'text-black' : 'text-white/60 hover:text-white/80'
+                      }`}
+                    >
+                      {videoFileType === fmt && (
+                        <motion.div
+                          layoutId="filetype-active-bg"
+                          className="absolute inset-0 bg-white rounded-full -z-10"
+                          transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                        />
+                      )}
+                      {fmt === 'both' ? 'Both' : fmt.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
               
               <div>
                 <label className="text-xs text-white/60 mb-2 flex justify-between font-semibold tracking-wider">
@@ -1058,7 +1083,7 @@ export function LayerSidebar({
             <button
               disabled={!(annotations?.some(a => (a.type === 'label' || a.type === 'highlight') && a.text && a.view))}
               onClick={() => {
-                const event = new CustomEvent('startVideoExport', { detail: { format: videoFormat, duration: videoDuration, dynamicLabels: true, bitrate: videoBitrate, showName: settings.title || currentShow } });
+                const event = new CustomEvent('startVideoExport', { detail: { format: videoFormat, fileType: videoFileType, duration: videoDuration, dynamicLabels: true, bitrate: videoBitrate, showName: settings.title || currentShow } });
                 window.dispatchEvent(event);
                 setIsOpen(false);
               }}
