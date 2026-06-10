@@ -313,6 +313,7 @@ export function LayerSidebar({
     fetch('/api/templates')
       .then(r => r.json())
       .then(list => {
+        if (!Array.isArray(list)) list = [];
         setSettings(prev => ({
           ...prev,
           labelTemplates: {
@@ -1091,7 +1092,7 @@ export function LayerSidebar({
               <div className="flex flex-col gap-3">
                 {(() => {
                   const currentTemplate = activeLabelTab === 'regular' ? settings.labelTemplates?.regularLabelTemplate : settings.labelTemplates?.highlightLabelTemplate;
-                  const availableRaw = settings.labelTemplates?.availableTemplates || [];
+                  const availableRaw = Array.isArray(settings.labelTemplates?.availableTemplates) ? settings.labelTemplates.availableTemplates : [];
                   const variations = settings.labelTemplates?.variations || [];
                   
                   // Normalize availableTemplates and filter by activeLabelTab and hiddenTemplates

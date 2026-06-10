@@ -334,6 +334,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
     exit;
 }
 
+// Handle Template Upload proxy
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && strpos($_SERVER['REQUEST_URI'], '/api/upload-template') !== false) {
+    if (!isset($_FILES['file'])) {
+        http_response_code(400);
+        echo json_encode(['error' => 'No file uploaded']);
+        exit;
+    }
+
+    $file = $_FILES['file'];
+    if ($file['error'] !== UPLOAD_ERR_OK) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Upload failed with error code ' . $file['error']]);
+        exit;
+    }
+
+    $templateName = pathinfo($file['name'], PATHINFO_FILENAME);
+    $targetDir = __DIR__ . '/label-templates/' . $templateName;
+
+    if (!is_dir(__DIR__ . '/label-templates')) {
+        mkdir(__DIR__ . '/label-templates', 0777, true);
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($file['tmp_name']) === TRUE) {
+        $zip->extractTo($targetDir);
+        $zip->close();
+        
+        // Clean up __MACOSX if it exists
+        $macosxPath = $targetDir . '/__MACOSX';
+        if (is_dir($macosxPath)) {
+            $files = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($macosxPath, RecursiveDirectoryIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::CHILD_FIRST
+            );
+            foreach ($files as $fileinfo) {
+                $todo = ($fileinfo->isDir() ? 'rmdir' : 'unlink');
+                $todo($fileinfo->getRealPath());
+            }
+            rmdir($macosxPath);
+        }
+
+        // Check if it extracted a single folder
+        $contents = array_values(array_diff(scandir($targetDir), ['.', '..']));
+        if (count($contents) === 1 && is_dir($targetDir . '/' . $contents[0])) {
+            $innerDir = $targetDir . '/' . $contents[0];
+            $innerContents = array_diff(scandir($innerDir), ['.', '..']);
+            foreach ($innerContents as $item) {
+                rename($innerDir . '/' . $item, $targetDir . '/' . $item);
+            }
+            rmdir($innerDir);
+        }
+
+        echo json_encode(['success' => true]);
+    } else {
+        http_response_code(500);
+        echo json_encode(['error' => 'Failed to extract zip file']);
+    }
+    exit;
+}
+
+// Handle Template Listing
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && strpos($_SERVER['REQUEST_URI'], '/api/templates') !== false) {
+    $templatesDir = __DIR__ . '/label-templates';
+    $templates = [];
+    if (is_dir($templatesDir)) {
+        $dirs = array_filter(glob($templatesDir . '/*'), 'is_dir');
+        foreach ($dirs as $dir) {
+            $id = basename($dir);
+            $kind = 'regular';
+            $manifestPath = $dir . '/manifest.json';
+            if (file_exists($manifestPath)) {
+                $manifest = json_decode(file_get_contents($manifestPath), true);
+                if (isset($manifest['kind'])) {
+                    $kind = $manifest['kind'];
+                }
+            }
+            $templates[] = ['id' => $id, 'kind' => $kind];
+        }
+    }
+    echo json_encode($templates);
+    exit;
+}
+
 // Handle GET request
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $show_id = $_GET['show'] ?? '';
