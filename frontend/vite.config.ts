@@ -295,9 +295,8 @@ function mockPhpBackend() {
             }
           }
 
-          const show_id = urlObj.searchParams.get('show') || 'default';
-          const safe_show_id = show_id.replace(/[^a-zA-Z0-9_-]/g, '') || 'default';
-
+          const show_id = urlObj.searchParams.get('show') || '';
+          
           if (action === 'list_shows' && req.method === 'GET') {
             try {
               const [rows]: any = await pool.query('SELECT id, title, updated_at FROM shows ORDER BY updated_at DESC');
@@ -318,7 +317,7 @@ function mockPhpBackend() {
 
           if (action === 'delete_show' && req.method === 'POST') {
              try {
-               const [result]: any = await pool.execute('DELETE FROM shows WHERE id = ?', [safe_show_id]);
+               const [result]: any = await pool.execute('DELETE FROM shows WHERE id = ?', [show_id]);
                res.setHeader('Content-Type', 'application/json');
                if (result.affectedRows > 0) {
                  res.statusCode = 200;
@@ -342,6 +341,15 @@ function mockPhpBackend() {
             res.end();
             return;
           }
+
+          if (!show_id || !/^[a-zA-Z0-9_-]+$/.test(show_id)) {
+            res.setHeader('Content-Type', 'application/json');
+            res.statusCode = 400;
+            res.end(JSON.stringify({ error: 'Missing or invalid show ID' }));
+            return;
+          }
+          
+          const safe_show_id = show_id;
 
           res.setHeader('Content-Type', 'application/json');
 
@@ -432,7 +440,20 @@ function mockPhpBackend() {
             }
             const templates = fs.readdirSync(templatesDir, { withFileTypes: true })
               .filter(dirent => dirent.isDirectory())
-              .map(dirent => dirent.name);
+              .map(dirent => {
+                const id = dirent.name;
+                let kind = 'regular'; // fallback
+                try {
+                  const manifestStr = fs.readFileSync(path.join(templatesDir, id, 'manifest.json'), 'utf8');
+                  const manifest = JSON.parse(manifestStr);
+                  if (manifest.kind) {
+                    kind = manifest.kind;
+                  }
+                } catch (e) {
+                  // ignore
+                }
+                return { id, kind };
+              });
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify(templates));
@@ -444,10 +465,27 @@ function mockPhpBackend() {
         }
 
         if (urlObj.pathname === '/api/upload-template') {
-           // Mock upload template response if backend is not running
-           res.statusCode = 200;
-           res.setHeader('Content-Type', 'application/json');
-           res.end(JSON.stringify({ success: false, error: 'Upload requires running the Node backend.' }));
+           const options = {
+             hostname: 'localhost',
+             port: 3001,
+             path: '/api/upload-template',
+             method: req.method,
+             headers: req.headers
+           };
+           
+           const http = require('node:http');
+           const proxyReqHttp = http.request(options, (proxyRes: any) => {
+             res.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
+             proxyRes.pipe(res);
+           });
+
+           proxyReqHttp.on('error', () => {
+             res.statusCode = 200;
+             res.setHeader('Content-Type', 'application/json');
+             res.end(JSON.stringify({ success: false, error: 'Upload requires running the Node backend on port 3001 (cd backend && node server.js). Connection refused.' }));
+           });
+
+           req.pipe(proxyReqHttp);
            return;
         }
 

@@ -336,9 +336,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
 
 // Handle GET request
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    $show_id = $_GET['show'] ?? 'default';
-    if (!preg_match('/^[a-zA-Z0-9_-]+$/', $show_id)) {
-        $show_id = 'default';
+    $show_id = $_GET['show'] ?? '';
+    if (!$show_id || !preg_match('/^[a-zA-Z0-9_-]+$/', $show_id)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Missing or invalid show ID']);
+        exit;
     }
     
     $stmt = $pdo->prepare("SELECT data FROM shows WHERE id = ?");
@@ -372,9 +374,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
 // Handle POST request
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $show_id = $_GET['show'] ?? 'default';
-    if (!preg_match('/^[a-zA-Z0-9_-]+$/', $show_id)) {
-        $show_id = 'default';
+    $show_id = $_GET['show'] ?? '';
+    if (!$show_id || !preg_match('/^[a-zA-Z0-9_-]+$/', $show_id)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Missing or invalid show ID']);
+        exit;
     }
     
     $json = file_get_contents('php://input');

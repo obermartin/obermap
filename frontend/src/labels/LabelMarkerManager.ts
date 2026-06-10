@@ -206,7 +206,8 @@ export class LabelMarkerManager {
       if (this.templates.has(name)) return;
       try {
         const base = `/label-templates/${name}`;
-        const manifestRes = await fetch(`${base}/manifest.json`);
+        const cb = `?t=${Date.now()}`;
+        const manifestRes = await fetch(`${base}/manifest.json${cb}`);
         if (!manifestRes.ok) throw new Error(`Template not found: ${name}`);
         const manifest: TemplateManifest = await manifestRes.json();
 
@@ -224,13 +225,13 @@ export class LabelMarkerManager {
           required.push('secondary_left-cap.svg', 'secondary_middle.svg', 'secondary_right-cap.svg');
         }
 
-        const fetches = await Promise.all(required.map(f => fetch(`${base}/${f}`).then(r => {
+        const fetches = await Promise.all(required.map(f => fetch(`${base}/${f}${cb}`).then(r => {
           if (!r.ok) throw new Error(`Missing required asset: ${f}`);
           return r.text();
         })));
 
         if (manifest.kind === 'regular') {
-          const stray = await fetch(`${base}/secondary_pointer.svg`);
+          const stray = await fetch(`${base}/secondary_pointer.svg${cb}`);
           if (stray.ok) console.warn(`Template "${name}" contains secondary_pointer.svg. Secondary backplates never have pointers. This file is ignored.`);
         }
 
@@ -513,7 +514,7 @@ export class LabelMarkerManager {
     const finalMarkerHeight = Math.ceil(Math.max(finalPrimaryTop + primary.height, secondaryVisible ? finalSecondaryTop + secondary!.height : 0, finalPtrTop + pointer.height));
 
     const buildTypographyCss = (typo: Typography) => `
-      font-family: ${typo.fontFamily};
+      font-family: '${typo.fontFamily}';
       font-size: ${typo.fontSize}px;
       font-weight: ${typo.fontWeight};
       color: ${typo.color};

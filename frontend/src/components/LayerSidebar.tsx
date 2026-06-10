@@ -1,22 +1,72 @@
 import React, { useRef, useState, useEffect } from 'react';
 import type { AppSettings, MapLayer } from '../types';
 import { Reorder, useDragControls, motion, AnimatePresence } from 'framer-motion';
-import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2, Edit2, Square, RefreshCcw, RotateCcw, Copy, Radio, Settings, Save, Loader2, Image as ImageIcon, ChevronDown, ChevronRight, Video, BookmarkPlus, Home } from 'lucide-react';
+import { GripVertical, Eye, EyeOff, Upload, Link, X, Layers, Trash2, Edit2, Square, RefreshCcw, RotateCcw, Copy, Radio, Settings, Save, Loader2, Image as ImageIcon, ChevronDown, ChevronRight, Video, BookmarkPlus, Home, Tag } from 'lucide-react';
 import { parseMapFileWithIds } from '../utils/fileUtils';
 import { customAlert, customConfirm, customPrompt } from '../utils/dialogService';
 import { useTranslation } from '../contexts/I18nContext';
 import { LabelMarkerManager, type Theme } from '../labels/LabelMarkerManager';
 
-const TemplatePreview: React.FC<{ templateName: string, isRegular: boolean, theme?: Theme }> = ({ templateName, isRegular, theme }) => {
+const TemplatePreview: React.FC<{ templateName?: string, isRegular: boolean, theme?: Theme }> = ({ templateName, isRegular, theme }) => {
   const [html, setHtml] = useState<string | null>(null);
   
   useEffect(() => {
+    if (!templateName) {
+      const getContrastYIQ = (hexcolor: string) => {
+        if (!hexcolor) return '#ffffff';
+        let hex = hexcolor;
+        if (hex.startsWith('#')) hex = hex.slice(1);
+        if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+        const r = parseInt(hex.substr(0, 2), 16) || 0;
+        const g = parseInt(hex.substr(2, 2), 16) || 0;
+        const b = parseInt(hex.substr(4, 2), 16) || 0;
+        const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+        return yiq >= 128 ? '#000000' : '#ffffff';
+      };
+
+      const primaryColor = theme?.primaryBackplateFill || '#ffffff';
+      const contrastColor = getContrastYIQ(primaryColor);
+      
+      let defaultHtml = '';
+      if (isRegular) {
+        defaultHtml = `
+          <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <div class="custom-marker" style="pointer-events: none;">
+              <div class="custom-marker-plate" style="background-color: ${primaryColor}; border-color: ${primaryColor === '#000000' || primaryColor === '#000' ? 'rgba(255,255,255,0.1)' : primaryColor}">
+                <div class="custom-marker-text" style="color: ${contrastColor}; display: flex; flex-direction: column; align-items: flex-start;">
+                  <span style="font-size: 1.6em; line-height: 1;">Preview</span>
+                  <span style="font-size: 1em; line-height: 1; margin-top: 2px;">Label</span>
+                </div>
+              </div>
+              <div class="custom-marker-pointer" style="border-top-color: ${primaryColor}"></div>
+            </div>
+          </div>
+        `;
+      } else {
+        defaultHtml = `
+          <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <div style="position: relative; display: flex; align-items: center; width: 100px; height: 32px; pointer-events: none; margin-left: -20px;">
+              <div class="custom-highlight-marker" style="background-color: ${primaryColor};">
+                <div class="custom-highlight-plate" style="background-color: ${primaryColor};">
+                  <div class="custom-highlight-text" style="color: ${contrastColor}">
+                    Preview
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+      setHtml(defaultHtml);
+      return;
+    }
+
     const manager = new LabelMarkerManager(null);
     manager.loadTemplates([templateName]).then(() => {
-      const p = manager.getPreviewHtml(templateName, isRegular ? { primary: "PREVIEW", secondary: "Label" } : "PREVIEW");
+      const p = manager.getPreviewHtml(templateName, isRegular ? { primary: "Preview", secondary: "Label" } : "Preview");
       setHtml(p);
     }).catch(e => console.error(e));
-  }, [templateName, isRegular]);
+  }, [templateName, isRegular, theme]);
   
   if (!html) return <div className="text-[10px] text-white/50"><Loader2 size={14} className="animate-spin" /></div>;
   
@@ -38,16 +88,15 @@ const DEFAULT_LAYERS: MapLayer[] = [
   { id: 'flights', name: 'Air Traffic', type: 'flights', visible: false },
   { id: 'vessels', name: 'Maritime Traffic', type: 'vessels', visible: false },
   { id: 'nighttime', name: 'Nighttime Overlay', type: 'nighttime', visible: false, opacity: 0.5 },
-  { id: 'satellite', name: 'Satellite View (Mapbox)', type: 'satellite', visible: false },
+  { id: 'satellite', name: 'Satellite View (Bing)', type: 'satellite', visible: false },
   { id: 'population_density', name: 'Population Density', type: 'raster', visible: false, url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GPW_Population_Density_2020/default/default/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png' },
   { id: 'weather_forecast', name: 'Weather', type: 'weather_forecast', visible: false, showTemperature: true, showPrecipitation: false, windOpacity: 1, windParticleSize: 1.5, windParticleTrail: 94, showWindParticles: true, showWindLegend: true, windParticleSizeBySpeed: true, windParticleSpeedBySpeed: true, windParticleTrailBySpeed: false, windParticleColorBySpeed: true, showCityTemperatures: true, showCityWeatherIcons: true },
   { id: 'gdacs_cyclones', name: 'Tropical Cyclones', type: 'gdacs_cyclones', visible: false },
   { id: 'wildfires', name: 'Wildfires', type: 'wildfires', visible: false, wildfireMode: 'effis', url: 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}' },
   { id: 'floods', name: 'Floods', type: 'raster', visible: false, url: 'https://geoserver.gfm.eodc.eu/geoserver/gfm/wms?service=WMS&request=GetMap&layers=observed_flood_extent&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}T00:00:00.000Z/{date-end}T23:59:59.000Z' },
-  { id: 'gdacs_earthquakes', name: 'Earthquakes (Points)', type: 'gdacs_earthquakes', visible: false },
-  { id: 'gdacs_shakemap', name: 'Earthquakes (Shakemaps)', type: 'gdacs_shakemap', visible: false },
-  { id: 'gdacs_volcanoes', name: 'Volcanoes (Points)', type: 'gdacs_volcanoes', visible: false },
-  { id: 'gdacs_volcano_polygons', name: 'Volcanoes (Danger Zone)', type: 'gdacs_volcano_polygons', visible: false },
+  { id: 'gdacs_earthquakes', name: 'Earthquakes', type: 'gdacs_earthquakes', visible: false },
+  { id: 'gdacs_volcanoes', name: 'Volcanoes', type: 'gdacs_volcanoes', visible: false },
+
 ];
 
 const CategoryItem = ({ category, catIndex, expandedCategories, setExpandedCategories, setSettings }: any) => {
@@ -230,12 +279,14 @@ export function LayerSidebar({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [urlInput, setUrlInput] = useState('');
   const [showUrlInput, setShowUrlInput] = useState(false);
-  const [activeTab, setActiveTab] = useState<'layers' | 'icons' | 'basemap' | 'video'>('layers');
+  const [activeTab, setActiveTab] = useState<'layers' | 'icons' | 'labels' | 'basemap' | 'video'>('layers');
+  const [activeLabelTab, setActiveLabelTab] = useState<'regular' | 'highlight'>('regular');
   const [isDraggingLayer, setIsDraggingLayer] = useState(false);
   const [showPresetLayers, setShowPresetLayers] = useState(false);
   const [selectedAircraftId, setSelectedAircraftId] = useState<string | null>(null);
   const [selectedVesselMmsi, setSelectedVesselMmsi] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  const [expandedLabelSettings, setExpandedLabelSettings] = useState<Record<string, boolean>>({});
   
   // Video Export State
   const [videoFormat, setVideoFormat] = useState<'16x9' | '9x16' | 'both'>('16x9');
@@ -677,6 +728,20 @@ export function LayerSidebar({
             <ImageIcon size={18} />
           </button>
           <button
+            onClick={() => setActiveTab('labels')}
+            className={`flex-1 py-2 flex items-center justify-center relative z-10 transition-colors ${activeTab === 'labels' ? 'text-black' : 'text-white/50 hover:text-white/80'}`}
+            title={t("Label Templates")}
+          >
+            {activeTab === 'labels' && (
+              <motion.div
+                layoutId="tab-active-bg"
+                className="absolute inset-0 bg-white rounded-full -z-10"
+                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              />
+            )}
+            <Tag size={18} />
+          </button>
+          <button
             onClick={() => setActiveTab('basemap')}
             className={`flex-1 py-2 flex items-center justify-center relative z-10 transition-colors ${activeTab === 'basemap' ? 'text-black' : 'text-white/50 hover:text-white/80'}`}
             title={t("Base Map & Settings")}
@@ -981,6 +1046,274 @@ export function LayerSidebar({
           </label>
           </div>
         </>
+      ) : activeTab === 'labels' ? (
+        <>
+          <div className="p-4 pb-2 border-b border-white/20">
+            <div className="text-xs font-semibold tracking-wider text-white">{t("LABEL TEMPLATES")}</div>
+          </div>
+          
+          <div className="p-4 flex flex-col gap-6 flex-1 overflow-y-auto custom-scrollbar">
+            <div className="flex border border-white/20 rounded-full p-1 relative bg-transparent">
+              <button
+                onClick={() => setActiveLabelTab('regular')}
+                className={`flex-1 px-4 py-2 text-sm relative z-10 transition-colors ${
+                  activeLabelTab === 'regular' ? 'text-black' : 'text-white/60 hover:text-white/80'
+                }`}
+              >
+                {activeLabelTab === 'regular' && (
+                  <motion.div
+                    layoutId="labeltab-active-bg"
+                    className="absolute inset-0 bg-white rounded-full -z-10"
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  />
+                )}
+                {t("Label")}
+              </button>
+              <button
+                onClick={() => setActiveLabelTab('highlight')}
+                className={`flex-1 px-4 py-2 text-sm relative z-10 transition-colors ${
+                  activeLabelTab === 'highlight' ? 'text-black' : 'text-white/60 hover:text-white/80'
+                }`}
+              >
+                {activeLabelTab === 'highlight' && (
+                  <motion.div
+                    layoutId="labeltab-active-bg"
+                    className="absolute inset-0 bg-white rounded-full -z-10"
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  />
+                )}
+                {t("Highlight")}
+              </button>
+            </div>
+
+            <div>
+              <label className="text-[10px] text-white mb-2 block font-semibold tracking-wider">{t("AVAILABLE TEMPLATES")}</label>
+              <div className="flex flex-col gap-3">
+                {(() => {
+                  const currentTemplate = activeLabelTab === 'regular' ? settings.labelTemplates?.regularLabelTemplate : settings.labelTemplates?.highlightLabelTemplate;
+                  const availableRaw = settings.labelTemplates?.availableTemplates || [];
+                  const variations = settings.labelTemplates?.variations || [];
+                  
+                  // Normalize availableTemplates and filter by activeLabelTab and hiddenTemplates
+                  const hidden = settings.labelTemplates?.hiddenTemplates || [];
+                  const available = availableRaw.map(t => typeof t === 'string' ? { id: t, kind: 'regular' } : t)
+                    .filter(t => t.kind === activeLabelTab && !hidden.includes(t.id));
+
+                  const allItems = [
+                    { id: '', baseTemplate: '', name: 'Default (HTML)', isVariation: false },
+                    ...available.map(t => ({ id: t.id, baseTemplate: t.id, name: t.id, isVariation: false })),
+                    ...variations.filter(v => available.some(a => a.id === v.baseTemplate)).map(v => ({ ...v, isVariation: true }))
+                  ];
+                  
+                  const sorted = allItems.sort((a, b) => {
+                    const isACurrent = a.id === currentTemplate || (!a.id && !currentTemplate);
+                    const isBCurrent = b.id === currentTemplate || (!b.id && !currentTemplate);
+                    if (isACurrent && !isBCurrent) return -1;
+                    if (!isACurrent && isBCurrent) return 1;
+                    return a.name.localeCompare(b.name);
+                  });
+
+                  return sorted.map(item => {
+                    const tName = item.baseTemplate;
+                    const isSelected = item.id === currentTemplate || (!item.id && !currentTemplate);
+                    const isExpanded = expandedLabelSettings[item.id || 'default'];
+                    const currentTheme = settings.labelTemplates?.savedThemes?.[item.id] || settings.labelTemplates?.theme || {};
+
+                    return (
+                      <div 
+                        key={item.id || 'default'}
+                        className={`flex flex-col bg-zinc-900 border min-h-[64px] rounded overflow-hidden transition-colors ${
+                          isSelected ? 'border-white' : 'border-white/10 hover:border-white/30'
+                        }`}
+                      >
+                        <div 
+                          className="relative p-2 flex justify-center items-center cursor-pointer w-full"
+                          onClick={() => {
+                            const val = item.id === '' ? undefined : item.id;
+                            const key = activeLabelTab === 'regular' ? 'regularLabelTemplate' : 'highlightLabelTemplate';
+                            setSettings(prev => ({
+                              ...prev,
+                              labelTemplates: {
+                                ...prev.labelTemplates,
+                                availableTemplates: prev.labelTemplates?.availableTemplates || [],
+                                [key]: val
+                              }
+                            }));
+                            window.dispatchEvent(new CustomEvent('updateSelectedLabelTemplate', { detail: { type: activeLabelTab, template: val } }));
+                          }}
+                        >
+                          <TemplatePreview templateName={item.baseTemplate} isRegular={activeLabelTab === 'regular'} theme={currentTheme} />
+                          <div className="absolute top-2 right-2 flex gap-1">
+                            {item.id !== '' && (
+                              <button
+                                className="p-1 rounded text-white/40 hover:text-white/80 transition-colors"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const newId = `var-${Date.now()}`;
+                                  setSettings(prev => ({
+                                    ...prev,
+                                    labelTemplates: {
+                                      ...prev.labelTemplates,
+                                      availableTemplates: prev.labelTemplates?.availableTemplates || [],
+                                      variations: [...(prev.labelTemplates?.variations || []), { id: newId, baseTemplate: item.baseTemplate, name: `${item.name} (Copy)` }],
+                                      savedThemes: {
+                                        ...(prev.labelTemplates?.savedThemes || {}),
+                                        [newId]: { ...currentTheme }
+                                      }
+                                    }
+                                  }));
+                                }}
+                                title={t("Duplicate")}
+                              >
+                                <Copy size={14} />
+                              </button>
+                            )}
+                            {item.isVariation && (
+                              <button
+                                className="p-1 rounded text-white/40 hover:text-white/80 transition-colors"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSettings(prev => {
+                                    const newVars = (prev.labelTemplates?.variations || []).filter(v => v.id !== item.id);
+                                    const newThemes = { ...(prev.labelTemplates?.savedThemes || {}) };
+                                    delete newThemes[item.id];
+                                    return {
+                                      ...prev,
+                                      labelTemplates: {
+                                        ...prev.labelTemplates,
+                                        availableTemplates: prev.labelTemplates?.availableTemplates || [],
+                                        variations: newVars,
+                                        savedThemes: newThemes
+                                      }
+                                    };
+                                  });
+                                }}
+                                title={t("Delete Variation")}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                            {!item.isVariation && item.id !== '' && (
+                              <button
+                                className="p-1 rounded text-white/40 hover:text-white/80 transition-colors"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSettings(prev => ({
+                                    ...prev,
+                                    labelTemplates: {
+                                      ...prev.labelTemplates,
+                                      availableTemplates: prev.labelTemplates?.availableTemplates || [],
+                                      hiddenTemplates: [...(prev.labelTemplates?.hiddenTemplates || []), item.id]
+                                    }
+                                  }));
+                                }}
+                                title={t("Hide from Show")}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                            <button 
+                              className={`p-1 rounded transition-colors ${isExpanded ? 'bg-white/20 text-white' : 'text-white/40 hover:text-white/80'}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedLabelSettings(prev => ({ ...prev, [item.id || 'default']: !prev[item.id || 'default'] }));
+                              }}
+                              title={t("Settings")}
+                            >
+                              <Settings size={14} />
+                            </button>
+                          </div>
+                        </div>
+                        {isExpanded && (
+                          <div className="p-3 pt-0 mt-2 border-t border-white/10 flex flex-wrap gap-2 items-start justify-center bg-black/20">
+                            {tName === '' ? (
+                              <input
+                                type="color"
+                                value={currentTheme.primaryBackplateFill || '#ffffff'}
+                                onChange={(e) => {
+                                  const newColor = e.target.value;
+                                  setSettings(prev => ({
+                                    ...prev,
+                                    labelTemplates: {
+                                      ...prev.labelTemplates,
+                                      availableTemplates: prev.labelTemplates?.availableTemplates || [],
+                                      savedThemes: {
+                                        ...(prev.labelTemplates?.savedThemes || {}),
+                                        [item.id]: { ...currentTheme, primaryBackplateFill: newColor }
+                                      }
+                                    }
+                                  }));
+                                  if (isSelected) window.dispatchEvent(new CustomEvent('updateSelectedLabelTheme', { detail: { key: 'primaryBackplateFill', value: newColor } }));
+                                }}
+                                className="w-6 h-6 mt-3 p-0 border-0 bg-transparent cursor-pointer rounded-full overflow-hidden [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:rounded-full"
+                                title={t("Primary Fill")}
+                              />
+                            ) : (
+                              (() => {
+                                const updateColor = (key: keyof Theme, val: string) => {
+                                  setSettings(prev => ({
+                                    ...prev,
+                                    labelTemplates: {
+                                      ...prev.labelTemplates,
+                                      availableTemplates: prev.labelTemplates?.availableTemplates || [],
+                                      savedThemes: {
+                                        ...(prev.labelTemplates?.savedThemes || {}),
+                                        [item.id]: { ...currentTheme, [key]: val }
+                                      }
+                                    }
+                                  }));
+                                  if (isSelected) window.dispatchEvent(new CustomEvent('updateSelectedLabelTheme', { detail: { key, value: val } }));
+                                };
+
+                                return (
+                                  <>
+                                    <div className="flex flex-col items-center gap-1 mt-3">
+                                      <div className="flex w-12 h-6 rounded-full overflow-hidden border border-white/20">
+                                        <input type="color" value={currentTheme.primaryBackplateFill || '#ffffff'} onChange={e => updateColor('primaryBackplateFill', e.target.value)} className="w-1/2 h-full p-0 border-0 bg-transparent cursor-pointer [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:rounded-none" title={t("Primary Fill")} />
+                                        <input type="color" value={currentTheme.primaryTextColor || '#000000'} onChange={e => updateColor('primaryTextColor', e.target.value)} className="w-1/2 h-full p-0 border-0 bg-transparent cursor-pointer [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:rounded-none" title={t("Primary Text")} />
+                                      </div>
+                                      <span className="text-[9px] text-white/50 text-center leading-tight">{t("Primary")}</span>
+                                    </div>
+                                    
+                                    {activeLabelTab === 'regular' && (
+                                      <div className="flex flex-col items-center gap-1 mt-3">
+                                        <div className="flex w-12 h-6 rounded-full overflow-hidden border border-white/20">
+                                          <input type="color" value={currentTheme.secondaryBackplateFill || '#ffffff'} onChange={e => updateColor('secondaryBackplateFill', e.target.value)} className="w-1/2 h-full p-0 border-0 bg-transparent cursor-pointer [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:rounded-none" title={t("Secondary Fill")} />
+                                          <input type="color" value={currentTheme.secondaryTextColor || '#000000'} onChange={e => updateColor('secondaryTextColor', e.target.value)} className="w-1/2 h-full p-0 border-0 bg-transparent cursor-pointer [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:rounded-none" title={t("Secondary Text")} />
+                                        </div>
+                                        <span className="text-[9px] text-white/50 text-center leading-tight">{t("Secondary")}</span>
+                                      </div>
+                                    )}
+
+                                    <div className="flex flex-col items-center gap-1 mt-3">
+                                      <input type="color" value={currentTheme.pointerFill || '#ffffff'} onChange={e => updateColor('pointerFill', e.target.value)} className="w-6 h-6 p-0 border-0 bg-transparent cursor-pointer rounded-full overflow-hidden [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:rounded-full" title={t("Pointer Fill")} />
+                                      <span className="text-[9px] text-white/50 text-center leading-tight max-w-[40px]">{t("Pointer")}</span>
+                                    </div>
+
+                                    <div className="flex flex-col items-center gap-1 mt-3">
+                                      <input type="color" value={currentTheme.accentFill || '#ffffff'} onChange={e => updateColor('accentFill', e.target.value)} className="w-6 h-6 p-0 border-0 bg-transparent cursor-pointer rounded-full overflow-hidden [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:rounded-full" title={t("Accent Fill")} />
+                                      <span className="text-[9px] text-white/50 text-center leading-tight max-w-[40px]">{t("Accent")}</span>
+                                    </div>
+                                  </>
+                                );
+                              })()
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          </div>
+          <div className="p-4 border-t border-white/10 flex flex-col gap-3 relative z-30">
+            <label className="w-full py-2 bg-white/5 hover:bg-white/10 flex items-center justify-center gap-2 text-sm transition-colors rounded-full cursor-pointer">
+              <Upload size={16} /> {t("Upload .ZIP template")}
+              <input type="file" accept=".zip" className="hidden" onChange={handleZipUpload} />
+            </label>
+          </div>
+        </>
       ) : activeTab === 'video' ? (
         <>
           <div className="p-4 pb-2 border-b border-white/20">
@@ -1159,127 +1492,7 @@ export function LayerSidebar({
             </div>
           </div>
           
-          <div className="border-b border-white/20 -mx-4" />
 
-          {/* LABEL TEMPLATES */}
-          <details className="group flex flex-col gap-[2px] w-full">
-            <summary className="relative p-3 flex items-center gap-2 bg-black text-xs text-white font-semibold tracking-wider cursor-pointer list-none outline-none [&::-webkit-details-marker]:hidden">
-              <ChevronRight size={14} className="text-white/50 group-hover:text-white transition-colors group-open:hidden shrink-0" />
-              <ChevronDown size={14} className="text-white/50 group-hover:text-white transition-colors hidden group-open:block shrink-0" />
-              <span>{t("LABEL TEMPLATES")}</span>
-            </summary>
-            <div className="p-3 flex flex-col gap-4 bg-black mt-[2px]">
-              <div>
-                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">{t("HIGHLIGHT LABEL")}</label>
-                <select 
-                  className="w-full bg-black/60 px-3 py-2 outline-none text-xs border border-white/10 focus:border-white/50 transition-colors"
-                  value={settings.labelTemplates?.highlightLabelTemplate || ''}
-                  onChange={(e) => {
-                    const val = e.target.value === '' ? undefined : e.target.value;
-                    setSettings(prev => ({
-                      ...prev,
-                      labelTemplates: {
-                        ...prev.labelTemplates,
-                        availableTemplates: prev.labelTemplates?.availableTemplates || [],
-                        highlightLabelTemplate: val
-                      }
-                    }));
-                    window.dispatchEvent(new CustomEvent('updateSelectedLabelTemplate', { detail: { type: 'highlight', template: val } }));
-                  }}
-                >
-                  <option value="">{t("Default (HTML)")}</option>
-                  {settings.labelTemplates?.availableTemplates.map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-                <div className="mt-2 flex justify-center bg-zinc-900 border border-white/10 p-2 min-h-[64px] items-center rounded overflow-hidden">
-                   {settings.labelTemplates?.highlightLabelTemplate ? (
-                     <TemplatePreview templateName={settings.labelTemplates.highlightLabelTemplate} isRegular={false} theme={settings.labelTemplates?.theme} />
-                   ) : (
-                     <span className="text-[10px] text-white/30 uppercase font-mono tracking-wider">{t("NO TEMPLATE")}</span>
-                   )}
-                </div>
-              </div>
-              
-              <div>
-                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">{t("REGULAR LABEL")}</label>
-                <select 
-                  className="w-full bg-black/60 px-3 py-2 outline-none text-xs border border-white/10 focus:border-white/50 transition-colors"
-                  value={settings.labelTemplates?.regularLabelTemplate || ''}
-                  onChange={(e) => {
-                    const val = e.target.value === '' ? undefined : e.target.value;
-                    setSettings(prev => ({
-                      ...prev,
-                      labelTemplates: {
-                        ...prev.labelTemplates,
-                        availableTemplates: prev.labelTemplates?.availableTemplates || [],
-                        regularLabelTemplate: val
-                      }
-                    }));
-                    window.dispatchEvent(new CustomEvent('updateSelectedLabelTemplate', { detail: { type: 'regular', template: val } }));
-                  }}
-                >
-                  <option value="">{t("Default (HTML)")}</option>
-                  {settings.labelTemplates?.availableTemplates.map(t => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-                <div className="mt-2 flex justify-center bg-zinc-900 border border-white/10 p-2 min-h-[64px] items-center rounded overflow-hidden">
-                   {settings.labelTemplates?.regularLabelTemplate ? (
-                     <TemplatePreview templateName={settings.labelTemplates.regularLabelTemplate} isRegular={true} theme={settings.labelTemplates?.theme} />
-                   ) : (
-                     <span className="text-[10px] text-white/30 uppercase font-mono tracking-wider">{t("NO TEMPLATE")}</span>
-                   )}
-                </div>
-              </div>
-              
-              <div className="pt-2 border-t border-white/10 flex flex-col gap-2">
-                <label className="text-[10px] text-white font-semibold tracking-wider">{t("TEMPLATE THEME")}</label>
-                {[
-                  { key: 'primaryBackplateFill', label: 'Primary Fill' },
-                  { key: 'secondaryBackplateFill', label: 'Secondary Fill' },
-                  { key: 'primaryTextColor', label: 'Primary Text' },
-                  { key: 'secondaryTextColor', label: 'Secondary Text' },
-                  { key: 'pointerFill', label: 'Pointer Fill' },
-                  { key: 'accentFill', label: 'Accent Fill' }
-                ].map(({ key, label }) => (
-                  <div key={key} className="flex justify-between items-center">
-                    <span className="text-[10px] text-white/70">{t(label)}</span>
-                    <input
-                      type="color"
-                      value={settings.labelTemplates?.theme?.[key as keyof Theme] || '#ffffff'}
-                      onChange={(e) => {
-                        const newColor = e.target.value;
-                        setSettings(prev => ({
-                          ...prev,
-                          labelTemplates: {
-                            ...prev.labelTemplates,
-                            availableTemplates: prev.labelTemplates?.availableTemplates || [],
-                            theme: {
-                              ...(prev.labelTemplates?.theme || {}),
-                              [key]: newColor
-                            }
-                          }
-                        }));
-                        window.dispatchEvent(new CustomEvent('updateSelectedLabelTheme', { detail: { key, value: newColor } }));
-                      }}
-                      className="w-6 h-6 p-0 border-0 bg-transparent cursor-pointer"
-                    />
-                  </div>
-                ))}
-              </div>
-
-              <div className="pt-2 border-t border-white/10">
-                <label className="flex items-center justify-center gap-2 w-full bg-white text-black py-2 cursor-pointer font-bold tracking-wider text-xs hover:bg-white/90 transition-colors">
-                  <Upload size={14} />
-                  {t("UPLOAD .ZIP TEMPLATE")}
-                  <input type="file" accept=".zip" className="hidden" onChange={handleZipUpload} />
-                </label>
-              </div>
-            </div>
-          </details>
-
-          <div className="border-b border-white/20 -mx-4" />
 
           {/* 5. BASE MAP */}
           <details className="group flex flex-col gap-[2px] w-full">
@@ -1652,7 +1865,7 @@ function LayerItem(props: {
               )}
             </div>
 
-            {layer.type !== 'split' && (layer.type === 'geojson' || layer.type === 'raster' || layer.type === 'satellite' || layer.type === 'deepstate' || layer.type === 'flights' || layer.type === 'vessels' || layer.type === 'weather_forecast' || layer.type === 'gdacs_earthquakes' || layer.type === 'gdacs_shakemap' || layer.type === 'gdacs_volcanoes' || layer.type === 'gdacs_volcano_polygons' || layer.type === 'wildfires' || layer.type === 'gdacs_cyclones' || layer.type === 'nighttime') && (
+            {layer.type !== 'split' && (layer.type === 'geojson' || layer.type === 'raster' || layer.type === 'satellite' || layer.type === 'deepstate' || layer.type === 'flights' || layer.type === 'vessels' || layer.type === 'weather_forecast' || layer.type === 'gdacs_earthquakes' || layer.type === 'gdacs_volcanoes' || layer.type === 'wildfires' || layer.type === 'gdacs_cyclones' || layer.type === 'nighttime') && (
               <button
                 onClick={() => {
                   if (!layer.visible) toggleVisibility(layer.id);
@@ -1674,7 +1887,7 @@ function LayerItem(props: {
 
           {isActiveEdit && (
             <div className={`bg-black p-3 pt-2 flex flex-col gap-4 text-sm animate-in slide-in-from-top-2 relative z-0 transition-opacity duration-200 ${!layer.visible ? 'opacity-40' : 'opacity-100'} ${isNestedChild ? 'ml-6' : ''}`}>
-          {layer.type === 'raster' || layer.type === 'satellite' || layer.type === 'deepstate' || layer.type === 'gdacs_earthquakes' || layer.type === 'gdacs_shakemap' || layer.type === 'gdacs_volcanoes' || layer.type === 'gdacs_volcano_polygons' || layer.type === 'wildfires' || layer.type === 'gdacs_cyclones' || layer.type === 'nighttime' ? (
+          {layer.type === 'raster' || layer.type === 'satellite' || layer.type === 'deepstate' || layer.type === 'gdacs_earthquakes' || layer.type === 'gdacs_volcanoes' || layer.type === 'wildfires' || layer.type === 'gdacs_cyclones' || layer.type === 'nighttime' ? (
             <div className="flex flex-col gap-3 pb-2">
               <div className="flex items-center gap-3">
                 {layer.type === 'raster' && saveAsPreset && (
@@ -1682,7 +1895,7 @@ function LayerItem(props: {
                     <BookmarkPlus size={16} />
                   </button>
                 )}
-                {(layer.type === 'deepstate' || layer.type === 'gdacs_earthquakes' || layer.type === 'gdacs_shakemap' || layer.type === 'gdacs_volcanoes' || layer.type === 'gdacs_volcano_polygons' || layer.type === 'wildfires') && duplicateLayer && (
+                {(layer.type === 'deepstate' || layer.type === 'gdacs_earthquakes' || layer.type === 'gdacs_volcanoes' || layer.type === 'wildfires') && duplicateLayer && (
                     <button onClick={() => duplicateLayer(layer.id)} className="text-white/50 hover:text-white transition-colors flex items-center shrink-0" title={t("Duplicate Layer")}>
                       <Copy size={16} />
                     </button>
@@ -1696,7 +1909,7 @@ function LayerItem(props: {
                       <Radio size={16} />
                     </button>
                   )}
-                  {(layer.type === 'deepstate' || layer.type === 'gdacs_shakemap' || layer.type === 'gdacs_volcano_polygons' || (layer.type === 'wildfires' && layer.wildfireMode === 'gdacs')) && updateLayerDates && (
+                  {(layer.type === 'deepstate' || (layer.type === 'wildfires' && layer.wildfireMode === 'gdacs')) && updateLayerDates && (
                     <div className="flex-1 flex justify-end">
                       <input 
                         type="date" 

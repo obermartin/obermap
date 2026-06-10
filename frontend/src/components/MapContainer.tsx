@@ -112,7 +112,15 @@ const fetchOpenMeteo = async (url: string) => {
     res = await fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
   }
   if (res.status === 429 || res.status === 403) {
-    console.warn(`corsproxy.io ${res.status} hit, using allorigins.win fallback...`);
+    console.warn(`corsproxy.io ${res.status} hit, using codetabs fallback...`);
+    res = await fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`);
+  }
+  if (res.status === 429 || res.status === 403 || res.status === 502) {
+    console.warn(`codetabs ${res.status} hit, using thingproxy fallback...`);
+    res = await fetch(`https://thingproxy.freeboard.io/fetch/${url}`);
+  }
+  if (res.status === 429 || res.status === 403 || res.status === 502) {
+    console.warn(`thingproxy ${res.status} hit, using allorigins fallback...`);
     res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`);
   }
   return res;
@@ -159,6 +167,22 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const [cycloneRawData, setCycloneRawData] = useState<any>(null);
   const [windGeojson, setWindGeojsonState] = useState<GeoJSON.FeatureCollection<GeoJSON.Point> | null>(null);
   
+  const [selectedEarthquake, setSelectedEarthquakeState] = useState<{ id: string, ep: string, geomUrl: string, coordinates: [number, number], properties: any } | null>(null);
+  const selectedEarthquakeRef = useRef<{ id: string, ep: string, geomUrl: string, coordinates: [number, number], properties: any } | null>(null);
+  const [selectedEarthquakeShakemap, setSelectedEarthquakeShakemap] = useState<any>(null);
+
+  const [selectedVolcano, setSelectedVolcanoState] = useState<{ id: string, ep: string, geomUrl: string, coordinates: [number, number], properties: any } | null>(null);
+  const selectedVolcanoRef = useRef<{ id: string, ep: string, geomUrl: string, coordinates: [number, number], properties: any } | null>(null);
+  const [selectedVolcanoPolygon, setSelectedVolcanoPolygon] = useState<any>(null);
+
+  useEffect(() => {
+    selectedEarthquakeRef.current = selectedEarthquake;
+  }, [selectedEarthquake]);
+
+  useEffect(() => {
+    selectedVolcanoRef.current = selectedVolcano;
+  }, [selectedVolcano]);
+  
 
   const [weatherValidTimes, setWeatherValidTimes] = useState<string[]>([]);
   const [weatherCityData, setWeatherCityData] = useState<{ [name: string]: { temps: number[], codes: number[], times: string[], x: number, y: number, name: string } }>({});
@@ -185,8 +209,15 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   useEffect(() => {
     if (settings.labelTemplates) {
       const templatesToLoad: string[] = [];
-      if (settings.labelTemplates.highlightLabelTemplate) templatesToLoad.push(settings.labelTemplates.highlightLabelTemplate);
-      if (settings.labelTemplates.regularLabelTemplate) templatesToLoad.push(settings.labelTemplates.regularLabelTemplate);
+      const getBaseTemplate = (id?: string) => {
+        if (!id) return null;
+        const v = settings.labelTemplates?.variations?.find(v => v.id === id);
+        return v ? v.baseTemplate : id;
+      };
+      const regBase = getBaseTemplate(settings.labelTemplates.regularLabelTemplate);
+      const highBase = getBaseTemplate(settings.labelTemplates.highlightLabelTemplate);
+      if (regBase) templatesToLoad.push(regBase);
+      if (highBase) templatesToLoad.push(highBase);
       if (templatesToLoad.length > 0) {
         globalLabelManager.loadTemplates(templatesToLoad).then(() => {
           setAnnotations(prev => [...prev]);
@@ -513,6 +544,18 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     map.on('load', () => {
       if (mapRef.current !== map) return;
 
+      // Add a 1x1 solid white pixel for text backplates
+      const canvas = document.createElement('canvas');
+      canvas.width = 1; canvas.height = 1;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, 1, 1);
+        const data = ctx.getImageData(0, 0, 1, 1).data;
+        if (!map.hasImage('solid-square')) {
+          map.addImage('solid-square', { width: 1, height: 1, data: new Uint8Array(data) } as any);
+        }
+      }
 
       // Find first symbol layer to render deepstate below labels
       const styleLayers = map.getStyle().layers || [];
@@ -1114,6 +1157,11 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       const { text, secondaryText } = e.detail;
       const map = mapRef.current;
       if (text && labelPrompt && map) {
+        const selectedId = settingsRef.current?.labelTemplates?.regularLabelTemplate;
+        const variation = settingsRef.current?.labelTemplates?.variations?.find(v => v.id === selectedId);
+        const actualTemplate = variation ? variation.baseTemplate : selectedId;
+        const actualTheme = settingsRef.current?.labelTemplates?.savedThemes?.[selectedId || ''] || settingsRef.current?.labelTemplates?.theme;
+
         const newId = Date.now().toString();
         const newLabel: Annotation = {
           id: newId,
@@ -1121,8 +1169,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           color: currentColor,
           text,
           secondaryText,
-          template: settingsRef.current?.labelTemplates?.regularLabelTemplate,
-          theme: settingsRef.current?.labelTemplates?.theme,
+          template: actualTemplate,
+          theme: actualTheme,
           coordinates: labelPrompt.lngLat,
           animationTriggerId: newId,
           view: {
@@ -1582,7 +1630,15 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     });
 
     expectedMarkers.forEach((data, id) => {
-      const marker = new maplibregl.Marker({ element: data.el })
+      let anchor: any = 'center';
+      let offset: [number, number] = [0, 0];
+      
+      if (data.el.dataset.anchorX && data.el.dataset.anchorY) {
+        anchor = 'top-left';
+        offset = [-parseFloat(data.el.dataset.anchorX), -parseFloat(data.el.dataset.anchorY)];
+      }
+
+      const marker = new maplibregl.Marker({ element: data.el, anchor, offset })
         .setLngLat(data.lngLat)
         .addTo(mapRef.current!);
       
@@ -2518,7 +2574,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       if (!map.getSource(sourceId)) {
         if (layer.type === 'geojson' && layer.data) {
           map.addSource(sourceId, { type: 'geojson', data: layer.data });
-        } else if (layer.type === 'deepstate' || layer.type === 'gdacs_earthquakes' || layer.type === 'gdacs_shakemap' || layer.type === 'gdacs_volcanoes' || layer.type === 'gdacs_volcano_polygons' || layer.type === 'gdacs_cyclones' || layer.type === 'nighttime') {
+        } else if (layer.type === 'deepstate' || layer.type === 'gdacs_earthquakes' || layer.type === 'gdacs_volcanoes' || layer.type === 'gdacs_cyclones' || layer.type === 'nighttime') {
           map.addSource(sourceId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         } else if (layer.type === 'wildfires') {
           // Add both sources, we will toggle visibility
@@ -2565,7 +2621,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           }
           map.addSource(sourceId, sourceConfig);
         } else if (layer.type === 'satellite') {
-          map.addSource(sourceId, { type: 'raster', url: 'mapbox://mapbox.satellite', tileSize: 256 });
+          map.addSource(sourceId, { type: 'raster', tiles: ['https://ecn.t0.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=129'], tileSize: 256, maxzoom: 19 });
         } else if (layer.type === 'flights' || layer.type === 'vessels') {
           map.addSource(sourceId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         }
@@ -2606,7 +2662,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             layout: { visibility: layer.visible ? 'visible' : 'none' },
             paint: {
               'circle-radius': [
-                'interpolate', ['linear'], ['coalesce', ['get', 'severity'], 5],
+                'interpolate', ['linear'], ['coalesce', ['get', 'severity', ['get', 'severitydata']], ['get', 'severity'], 5],
                 4, 4,
                 9, 16
               ],
@@ -2622,28 +2678,25 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               'circle-stroke-width': 0
             }
           }, firstSymbolId);
-        } else if (layer.type === 'gdacs_shakemap' || layer.type === 'gdacs_volcano_polygons') {
-          map.addLayer({
-            id: layerId,
-            type: 'fill',
-            source: sourceId,
-            layout: { visibility: layer.visible ? 'visible' : 'none' },
-            paint: {
-              'fill-color': ['coalesce', ['get', 'fillColor'], '#ff0000'],
-              'fill-opacity': layer.opacity ?? 0.3
-            }
-          }, firstAdminId);
-          map.addLayer({
-            id: lineId,
-            type: 'line',
-            source: sourceId,
-            layout: { visibility: layer.visible ? 'visible' : 'none' },
-            paint: {
-              'line-color': ['coalesce', ['get', 'strokeColor'], '#ff0000'],
-              'line-width': 2,
-              'line-opacity': layer.opacity ?? 0.8
-            }
-          }, firstAdminId);
+
+          if (layer.type === 'gdacs_earthquakes') {
+            map.addLayer({
+              id: `${layerId}-label`,
+              type: 'symbol',
+              source: sourceId,
+              layout: {
+                visibility: layer.visible ? 'visible' : 'none',
+                'text-field': ['to-string', ['coalesce', ['get', 'severity', ['get', 'severitydata']], ['get', 'severity'], '0']],
+                'text-font': ['Gotham Bold', 'Arial Unicode MS Regular'],
+                'text-size': 11,
+                'text-anchor': 'center',
+                'symbol-sort-key': ['-', 0, ['coalesce', ['get', 'severity', ['get', 'severitydata']], ['get', 'severity'], 0]]
+              },
+              paint: {
+                'text-color': '#ffffff'
+              }
+            });
+          }
         } else if (layer.type === 'nighttime') {
           map.addLayer({
             id: layerId,
@@ -2890,9 +2943,6 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           }
         } else if (layer.type === 'gdacs_earthquakes' || layer.type === 'gdacs_volcanoes') {
           map.setPaintProperty(layerId, 'circle-opacity', layer.opacity ?? 0.8);
-        } else if (layer.type === 'gdacs_shakemap' || layer.type === 'gdacs_volcano_polygons') {
-          map.setPaintProperty(layerId, 'fill-opacity', layer.opacity ?? 0.3);
-          if (map.getLayer(lineId)) map.setPaintProperty(lineId, 'line-opacity', layer.opacity ?? 0.8);
         } else if (layer.type === 'deepstate') {
           map.setPaintProperty(layerId, 'fill-opacity', layer.opacity ?? 0.5);
         }
@@ -3049,7 +3099,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         const sourceId = layer.type === 'wildfires' ? `dynamic-source-${layer.id}-gdacs` : `dynamic-source-${layer.id}`;
         const todayDateStr = new Date().toISOString().split('T')[0];
         const startDate = layer.startDate || todayDateStr;
-        const isPolygonLayer = layer.type === 'gdacs_shakemap' || layer.type === 'gdacs_volcano_polygons' || (layer.type === 'wildfires' && layer.wildfireMode === 'gdacs');
+        const isPolygonLayer = layer.type === 'wildfires' && layer.wildfireMode === 'gdacs';
         const endDate = isPolygonLayer ? startDate : (layer.endDate || todayDateStr);
         
         const cacheKey = `${layer.type}-${startDate}-${endDate}`;
@@ -4313,6 +4363,269 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     }
   }, [settings.layers, mapLoaded]);
 
+  // Fetch shakemap when selectedEarthquake changes
+  useEffect(() => {
+    if (!selectedEarthquake) {
+      setSelectedEarthquakeShakemap(null);
+      return;
+    }
+
+    let isSubscribed = true;
+    (async () => {
+      try {
+        const polyRes = await fetch(selectedEarthquake.geomUrl.replace('http:', 'https:'));
+        if (!polyRes.ok) throw new Error('Failed to fetch shakemap');
+        const polyData = await polyRes.json();
+        if (isSubscribed) {
+          setSelectedEarthquakeShakemap(polyData);
+        }
+      } catch (err) {
+        console.error('Error fetching shakemap for selected earthquake:', err);
+        if (isSubscribed) {
+          setSelectedEarthquakeShakemap(null);
+        }
+      }
+    })();
+
+    return () => { isSubscribed = false; };
+  }, [selectedEarthquake]);
+
+  // Fetch danger zone polygon when selectedVolcano changes
+  useEffect(() => {
+    if (!selectedVolcano) {
+      setSelectedVolcanoPolygon(null);
+      return;
+    }
+
+    let isSubscribed = true;
+    (async () => {
+      try {
+        const polyRes = await fetch(selectedVolcano.geomUrl.replace('http:', 'https:'));
+        if (!polyRes.ok) throw new Error('Failed to fetch volcano polygon');
+        const polyData = await polyRes.json();
+        if (isSubscribed) {
+          setSelectedVolcanoPolygon(polyData);
+        }
+      } catch (err) {
+        console.error('Error fetching danger zone polygon for selected volcano:', err);
+        if (isSubscribed) {
+          setSelectedVolcanoPolygon(null);
+        }
+      }
+    })();
+
+    return () => { isSubscribed = false; };
+  }, [selectedVolcano]);
+
+  // Update earthquake labels filter
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+    
+    settings.layers.forEach(layer => {
+      if (layer.type === 'gdacs_earthquakes') {
+        const layerId = `dynamic-layer-${layer.id}-label`;
+        if (map.getLayer(layerId)) {
+          if (selectedEarthquake) {
+             map.setFilter(layerId, ['!=', ['to-string', ['get', 'eventid']], selectedEarthquake.id]);
+          } else {
+             map.setFilter(layerId, null);
+          }
+        }
+      }
+    });
+  }, [selectedEarthquake, mapLoaded, settings.layers]);
+
+  // Render selected earthquake DOM label
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded || !selectedEarthquake) {
+      if (activeDrawMarkersRef.current['selected-eq-label']) {
+        activeDrawMarkersRef.current['selected-eq-label'].remove();
+        delete activeDrawMarkersRef.current['selected-eq-label'];
+      }
+      return;
+    }
+
+    const { coordinates, properties } = selectedEarthquake;
+    const alertLevel = properties.alertlevel;
+    const bgColor = alertLevel === 'Red' ? '#ff0000' : alertLevel === 'Orange' ? '#ff9900' : alertLevel === 'Green' ? '#00ff00' : '#6b7280';
+    
+    const fromDate = properties.fromdate || '';
+    let dateStr = '';
+    if (fromDate.length >= 10) {
+       dateStr = `${fromDate.substring(8, 10)}.${fromDate.substring(5, 7)}.${fromDate.substring(0, 4)}`;
+    }
+
+    const el = document.createElement('div');
+    el.className = 'flex flex-col items-center justify-center pointer-events-none';
+    el.style.backgroundColor = bgColor;
+    el.style.color = '#ffffff';
+    el.style.padding = '4px 8px';
+    el.style.fontFamily = 'Gotham Bold, Arial Unicode MS Regular, sans-serif';
+    el.style.fontSize = '12px';
+    el.style.fontWeight = 'bold';
+    el.style.lineHeight = '1.2';
+    el.style.textAlign = 'center';
+    el.style.whiteSpace = 'nowrap';
+    el.style.zIndex = '50';
+    
+    el.innerHTML = `<div>${dateStr}</div>`;
+
+    if (activeDrawMarkersRef.current['selected-eq-label']) {
+      activeDrawMarkersRef.current['selected-eq-label'].remove();
+    }
+    
+    const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+      .setLngLat(coordinates)
+      .addTo(map);
+
+    activeDrawMarkersRef.current['selected-eq-label'] = marker;
+
+    return () => {
+      if (activeDrawMarkersRef.current['selected-eq-label']) {
+        activeDrawMarkersRef.current['selected-eq-label'].remove();
+        delete activeDrawMarkersRef.current['selected-eq-label'];
+      }
+    };
+  }, [selectedEarthquake, mapLoaded]);
+
+  // Render selected earthquake shakemap
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    if (!map.getSource('selected-earthquake-shakemap-source')) {
+      map.addSource('selected-earthquake-shakemap-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+      });
+      
+      map.addLayer({
+        id: 'selected-earthquake-shakemap-fill',
+        type: 'fill',
+        source: 'selected-earthquake-shakemap-source',
+        paint: {
+          'fill-color': ['coalesce', ['get', 'fill'], '#ff9900'],
+          'fill-opacity': 0.3
+        }
+      }, 'custom-polygons');
+
+      map.addLayer({
+        id: 'selected-earthquake-shakemap-line',
+        type: 'line',
+        source: 'selected-earthquake-shakemap-source',
+        paint: {
+          'line-color': ['coalesce', ['get', 'stroke'], '#ff0000'],
+          'line-width': 1,
+          'line-opacity': 0.8
+        }
+      }, 'custom-polygons');
+    }
+
+    const source = map.getSource('selected-earthquake-shakemap-source') as maplibregl.GeoJSONSource;
+    if (source) {
+      source.setData(selectedEarthquakeShakemap || { type: 'FeatureCollection', features: [] });
+    }
+  }, [selectedEarthquakeShakemap, mapLoaded]);
+
+  // Render selected volcano DOM label
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded || !selectedVolcano) {
+      if (activeDrawMarkersRef.current['selected-volcano-label']) {
+        activeDrawMarkersRef.current['selected-volcano-label'].remove();
+        delete activeDrawMarkersRef.current['selected-volcano-label'];
+      }
+      return;
+    }
+
+    const { coordinates, properties } = selectedVolcano;
+    const alertLevel = properties.alertlevel;
+    const bgColor = alertLevel === 'Red' ? '#ff0000' : alertLevel === 'Orange' ? '#ff9900' : alertLevel === 'Green' ? '#00ff00' : '#6b7280';
+    
+    const eventName = properties.eventname || properties.name || 'Volcano';
+    const fromDate = properties.fromdate || '';
+    let dateStr = '';
+    if (fromDate.length >= 10) {
+       dateStr = `${fromDate.substring(8, 10)}.${fromDate.substring(5, 7)}.${fromDate.substring(0, 4)}`;
+    }
+
+    const el = document.createElement('div');
+    el.className = 'flex flex-col items-center justify-center pointer-events-none';
+    el.style.backgroundColor = bgColor;
+    el.style.color = '#ffffff';
+    el.style.padding = '4px 8px';
+    el.style.fontFamily = 'Gotham Bold, Arial Unicode MS Regular, sans-serif';
+    el.style.fontSize = '12px';
+    el.style.fontWeight = 'bold';
+    el.style.lineHeight = '1.2';
+    el.style.textAlign = 'center';
+    el.style.whiteSpace = 'nowrap';
+    el.style.zIndex = '50';
+    
+    el.innerHTML = `
+      <div>${eventName}</div>
+      ${dateStr ? `<div>${dateStr}</div>` : ''}
+    `;
+
+    if (activeDrawMarkersRef.current['selected-volcano-label']) {
+      activeDrawMarkersRef.current['selected-volcano-label'].remove();
+    }
+    
+    const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+      .setLngLat(coordinates)
+      .addTo(map);
+
+    activeDrawMarkersRef.current['selected-volcano-label'] = marker;
+
+    return () => {
+      if (activeDrawMarkersRef.current['selected-volcano-label']) {
+        activeDrawMarkersRef.current['selected-volcano-label'].remove();
+        delete activeDrawMarkersRef.current['selected-volcano-label'];
+      }
+    };
+  }, [selectedVolcano, mapLoaded]);
+
+  // Render selected volcano danger zone polygon
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    if (!map.getSource('selected-volcano-polygon-source')) {
+      map.addSource('selected-volcano-polygon-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+      });
+      
+      map.addLayer({
+        id: 'selected-volcano-polygon-fill',
+        type: 'fill',
+        source: 'selected-volcano-polygon-source',
+        paint: {
+          'fill-color': ['coalesce', ['get', 'fillColor'], '#ff0000'],
+          'fill-opacity': 0.3
+        }
+      }, 'custom-polygons');
+
+      map.addLayer({
+        id: 'selected-volcano-polygon-line',
+        type: 'line',
+        source: 'selected-volcano-polygon-source',
+        paint: {
+          'line-color': ['coalesce', ['get', 'color'], '#ff0000'],
+          'line-width': 1,
+          'line-opacity': 0.8
+        }
+      }, 'custom-polygons');
+    }
+
+    const source = map.getSource('selected-volcano-polygon-source') as maplibregl.GeoJSONSource;
+    if (source) {
+      source.setData(selectedVolcanoPolygon || { type: 'FeatureCollection', features: [] });
+    }
+  }, [selectedVolcanoPolygon, mapLoaded]);
+
   // Dynamically update clip polygons to match screen-space of highlight DOM labels
   useEffect(() => {
     const map = mapRef.current;
@@ -4591,6 +4904,82 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         }
       }
 
+      // Handle earthquake click
+      let clickedEarthquake: { id: string, ep: string, geomUrl: string, coordinates: [number, number], properties: any } | null = null;
+      try {
+        const earthquakeLayers = settings.layers.filter(l => l.type === 'gdacs_earthquakes').map(l => `dynamic-layer-${l.id}`);
+        if (earthquakeLayers.length > 0) {
+          const eqFeatures = map.queryRenderedFeatures(e.point, { layers: earthquakeLayers });
+          if (eqFeatures.length > 0) {
+            const props = eqFeatures[0].properties;
+            const geom = eqFeatures[0].geometry as GeoJSON.Point;
+            if (props && props.eventid && props.episodeid && props.url && geom && geom.type === 'Point') {
+              const urlObj = typeof props.url === 'string' ? JSON.parse(props.url) : props.url;
+              if (urlObj && urlObj.geometry) {
+                clickedEarthquake = { 
+                  id: props.eventid.toString(), 
+                  ep: props.episodeid.toString(), 
+                  geomUrl: urlObj.geometry,
+                  coordinates: geom.coordinates as [number, number],
+                  properties: props
+                };
+              }
+            }
+          }
+        }
+      } catch (err) {}
+
+      if (clickedEarthquake) {
+        if (selectedEarthquakeRef.current?.id === clickedEarthquake.id) {
+          setSelectedEarthquakeState(null);
+        } else {
+          setSelectedEarthquakeState(clickedEarthquake);
+        }
+        return; // Prevent drawing
+      } else {
+        if (selectedEarthquakeRef.current) {
+          setSelectedEarthquakeState(null);
+        }
+      }
+
+      // Handle volcano click
+      let clickedVolcano: { id: string, ep: string, geomUrl: string, coordinates: [number, number], properties: any } | null = null;
+      try {
+        const volcanoLayers = settings.layers.filter(l => l.type === 'gdacs_volcanoes').map(l => `dynamic-layer-${l.id}`);
+        if (volcanoLayers.length > 0) {
+          const volFeatures = map.queryRenderedFeatures(e.point, { layers: volcanoLayers });
+          if (volFeatures.length > 0) {
+            const props = volFeatures[0].properties;
+            const geom = volFeatures[0].geometry as GeoJSON.Point;
+            if (props && props.eventid && props.episodeid && props.url && geom && geom.type === 'Point') {
+              const urlObj = typeof props.url === 'string' ? JSON.parse(props.url) : props.url;
+              if (urlObj && urlObj.geometry) {
+                clickedVolcano = { 
+                  id: props.eventid.toString(), 
+                  ep: props.episodeid.toString(), 
+                  geomUrl: urlObj.geometry,
+                  coordinates: geom.coordinates as [number, number],
+                  properties: props
+                };
+              }
+            }
+          }
+        }
+      } catch (err) {}
+
+      if (clickedVolcano) {
+        if (selectedVolcanoRef.current?.id === clickedVolcano.id) {
+          setSelectedVolcanoState(null);
+        } else {
+          setSelectedVolcanoState(clickedVolcano);
+        }
+        return; // Prevent drawing
+      } else {
+        if (selectedVolcanoRef.current) {
+          setSelectedVolcanoState(null);
+        }
+      }
+
       // Handle vessel click
       let clickedVesselMmsi: string | null = null;
       try {
@@ -4715,6 +5104,10 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       }
 
       if (activeTool === 'highlight') {
+        const selectedId = settings.labelTemplates?.highlightLabelTemplate;
+        const variation = settings.labelTemplates?.variations?.find(v => v.id === selectedId);
+        const actualTemplate = variation ? variation.baseTemplate : selectedId;
+        const actualTheme = settings.labelTemplates?.savedThemes?.[selectedId || ''] || settings.labelTemplates?.theme;
         const evaluateExpression = (expr: any, zoom: number, feature: maplibregl.MapGeoJSONFeature): any => {
           if (typeof expr !== 'object' || expr === null) return expr;
           if (!Array.isArray(expr)) return expr;
@@ -4884,8 +5277,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             id: newId,
             type: 'highlight',
             color: currentColor,
-            template: settings.labelTemplates?.highlightLabelTemplate,
-            theme: settings.labelTemplates?.theme,
+            template: actualTemplate,
+            theme: actualTheme,
             coordinates: coords,
             text: name,
             animationTriggerId: newId,
@@ -4948,8 +5341,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                   id: newId,
                   type: 'highlight',
                   color: currentColor,
-                  template: settings.labelTemplates?.highlightLabelTemplate,
-                  theme: settings.labelTemplates?.theme,
+                  template: actualTemplate,
+                  theme: actualTheme,
                   strokeType: currentStrokeType || 'solid',
                   fillOpacity: currentFillOpacity ?? 0.5,
                   coordinates: [centerLng, centerLat],

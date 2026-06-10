@@ -55,7 +55,20 @@ app.get('/api/templates', (req, res) => {
     }
     const templates = fs.readdirSync(templatesDir, { withFileTypes: true })
       .filter(dirent => dirent.isDirectory())
-      .map(dirent => dirent.name);
+      .map(dirent => {
+        const id = dirent.name;
+        let kind = 'regular'; // fallback
+        try {
+          const manifestStr = fs.readFileSync(path.join(templatesDir, id, 'manifest.json'), 'utf8');
+          const manifest = JSON.parse(manifestStr);
+          if (manifest.kind) {
+            kind = manifest.kind;
+          }
+        } catch (e) {
+          // ignore parsing errors and use fallback
+        }
+        return { id, kind };
+      });
     res.json(templates);
   } catch (error) {
     console.error('Error reading templates:', error);

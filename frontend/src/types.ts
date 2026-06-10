@@ -35,7 +35,7 @@ export interface Annotation {
 export interface MapLayer {
   id: string;
   name: string;
-  type: 'geojson' | 'raster' | 'satellite' | 'split' | 'deepstate' | 'empty-slot' | 'flights' | 'vessels' | 'weather_forecast' | 'gdacs_earthquakes' | 'gdacs_shakemap' | 'gdacs_volcanoes' | 'gdacs_volcano_polygons' | 'wildfires' | 'gdacs_cyclones' | 'nighttime';
+  type: 'geojson' | 'raster' | 'satellite' | 'split' | 'deepstate' | 'empty-slot' | 'flights' | 'vessels' | 'weather_forecast' | 'gdacs_earthquakes' | 'gdacs_volcanoes' | 'wildfires' | 'gdacs_cyclones' | 'nighttime';
   visible: boolean;
   data?: any; // For GeoJSON
   url?: string; // For XYZ/WMTS
@@ -100,6 +100,12 @@ export interface IconCategory {
   icons: { id: string; svg: string }[];
 }
 
+export interface LabelTemplateVariation {
+  id: string;
+  name: string;
+  baseTemplate: string;
+}
+
 export interface AppSettings {
   title?: string;
   mapToken: string;
@@ -115,8 +121,11 @@ export interface AppSettings {
   labelTemplates?: {
     highlightLabelTemplate?: string;
     regularLabelTemplate?: string;
-    availableTemplates: string[];
-    theme?: Theme;
+    availableTemplates: Array<string | { id: string; kind: 'regular' | 'highlight' }>;
+    hiddenTemplates?: string[];
+    theme?: Theme; // Kept for legacy/global fallback
+    variations?: LabelTemplateVariation[];
+    savedThemes?: Record<string, Theme>;
   };
   labelDensity?: number;
   layers: MapLayer[];

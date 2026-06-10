@@ -6,20 +6,20 @@
 <title>Label Template Manifest Builder</title>
 <style>
   :root {
-    --bg: #0f1115;
-    --panel: #15181f;
-    --panel-2: #1c2029;
-    --border: #2a2f3a;
-    --border-strong: #3a4150;
-    --text: #e6e9ef;
-    --text-dim: #8a93a4;
-    --text-faint: #5a6275;
-    --accent: #d4ff3f;
-    --accent-dim: #9bc02e;
-    --warn: #ff9b3f;
-    --error: #ff4f6f;
-    --map-bg: #2a3340;
-    --map-line: #3a4555;
+    --bg: #000000;
+    --panel: #0a0a0a;
+    --panel-2: #141414;
+    --border: #222222;
+    --border-strong: #333333;
+    --text: #ffffff;
+    --text-dim: #a3a3a3;
+    --text-faint: #737373;
+    --accent: #ffffff;
+    --accent-dim: #e5e5e5;
+    --warn: #f59e0b;
+    --error: #ef4444;
+    --map-bg: #111111;
+    --map-line: #222222;
 
     /* Defaults used by the live preview */
     --primary-backplate-fill: #ffffff;
@@ -93,12 +93,13 @@
     padding: 6px 14px;
     cursor: pointer;
     transition: all 0.12s ease;
+    border-radius: 9999px;
   }
-  button:hover { background: var(--border); border-color: var(--accent-dim); }
+  button:hover { background: var(--border); border-color: var(--accent); color: var(--text); }
   button.primary {
     background: var(--accent);
     border-color: var(--accent);
-    color: #0f1115;
+    color: #000000;
     font-weight: 600;
   }
   button.primary:hover { background: var(--accent-dim); border-color: var(--accent-dim); }
@@ -107,6 +108,7 @@
     cursor: not-allowed;
     background: var(--panel-2);
     border-color: var(--border);
+    color: var(--text-faint);
   }
 
   /* Layout columns */
@@ -132,10 +134,11 @@
     text-align: center;
     transition: all 0.15s ease;
     cursor: pointer;
+    border-radius: 16px;
   }
   .dropzone.drag-over {
     border-color: var(--accent);
-    background: rgba(212, 255, 63, 0.06);
+    background: rgba(255, 255, 255, 0.06);
   }
   .dropzone .icon {
     font-size: 24px;
@@ -227,9 +230,10 @@
     font-size: 9px;
     background: var(--panel-2);
     color: var(--text-dim);
-    padding: 2px 6px;
+    padding: 2px 8px;
     border: 1px solid var(--border-strong);
     letter-spacing: 0.5px;
+    border-radius: 9999px;
   }
 
   .subgroup-header {
@@ -262,15 +266,17 @@
     background: var(--bg);
     border: 1px solid var(--border);
     color: var(--text);
-    padding: 4px 8px;
+    padding: 4px 10px;
     font: inherit;
     font-size: 11px;
     width: 80px;
     text-align: right;
     outline: none;
+    border-radius: 9999px;
+    appearance: none;
   }
   .field input[type="text"] { text-align: left; width: 120px; }
-  .field select { text-align: left; width: 100px; padding-right: 4px; }
+  .field select { text-align: left; width: 100px; padding-right: 12px; }
   .field input:focus, .field select:focus {
     border-color: var(--accent);
   }
@@ -306,6 +312,8 @@
     display: flex;
     border: 1px solid var(--border-strong);
     margin-bottom: 4px;
+    border-radius: 9999px;
+    overflow: hidden;
   }
   .kind-toggle button {
     flex: 1;
@@ -316,10 +324,11 @@
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--text-dim);
+    border-radius: 0;
   }
   .kind-toggle button.active {
     background: var(--accent);
-    color: #0f1115;
+    color: #000000;
     font-weight: 600;
   }
 
@@ -342,11 +351,12 @@
     background: var(--bg);
     border: 1px solid var(--border);
     color: var(--text);
-    padding: 4px 8px;
+    padding: 6px 12px;
     font: inherit;
     font-size: 11px;
     outline: none;
     width: 200px;
+    border-radius: 9999px;
   }
   .preview-header input:focus { border-color: var(--accent); }
 
@@ -380,13 +390,14 @@
     text-transform: uppercase;
     letter-spacing: 1px;
     color: var(--text-faint);
-    padding: 4px 8px;
-    background: rgba(15, 17, 21, 0.6);
+    padding: 6px 10px;
+    background: rgba(10, 10, 10, 0.6);
     backdrop-filter: blur(8px);
     border: 1px solid var(--border);
     white-space: nowrap;
     align-self: flex-start;
     margin-top: 4px;
+    border-radius: 9999px;
   }
 
   .preview-canvas {
@@ -405,7 +416,7 @@
     content: "";
     position: absolute;
     background: var(--accent);
-    box-shadow: 0 0 4px rgba(212, 255, 63, 0.6);
+    box-shadow: 0 0 4px rgba(255, 255, 255, 0.6);
   }
   .anchor-mark::before {
     left: 50%; top: 0; bottom: 0;
@@ -448,6 +459,7 @@
     white-space: pre;
     overflow-x: auto;
     min-height: 400px;
+    border-radius: 12px;
   }
 
   .json-output .key { color: var(--accent); }
@@ -458,11 +470,12 @@
 
   .validation {
     margin-top: 12px;
-    padding: 10px 12px;
+    padding: 12px 14px;
     border: 1px solid var(--border);
     background: var(--bg);
     font-size: 11px;
     line-height: 1.5;
+    border-radius: 12px;
   }
   .validation.empty { color: var(--text-faint); }
   .validation .error { color: var(--error); display: block; margin-bottom: 4px; }
@@ -491,9 +504,11 @@
     border: 1px solid var(--border-strong);
     cursor: pointer;
     padding: 0;
+    border-radius: 50%;
+    overflow: hidden;
   }
-  .color-mini input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
-  .color-mini input[type="color"]::-webkit-color-swatch { border: none; }
+  .color-mini input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+  .color-mini input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
 
   /* Empty state */
   .empty-preview {
@@ -811,10 +826,16 @@ async function handleFiles(fileList) {
     if (lower.endsWith('.svg')) {
       const baseName = fileBaseName(file.name);
       const validKey = [...REQUIRED_PRIMARY, ...REQUIRED_SECONDARY].find(k => k === baseName);
-      if (!validKey) continue;
+      if (!validKey) {
+        console.warn(`Ignored SVG file: "${file.name}". Name must match one of the required template parts (e.g., primary_left-cap.svg, primary_middle.svg).`);
+        continue;
+      }
       const text = await file.text();
       const dims = parseSvgDimensions(text);
-      if (!dims) continue;
+      if (!dims) {
+        console.warn(`Ignored SVG file: "${file.name}". Could not parse valid SVG dimensions.`);
+        continue;
+      }
       state.files[validKey] = dims;
     } else if (lower.endsWith('.json')) {
       try {

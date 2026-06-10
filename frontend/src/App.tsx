@@ -428,10 +428,13 @@ export function App() {
 
     const handleUpdateTemplate = ((e: Event) => {
       const { type, template } = (e as CustomEvent).detail;
+      const variation = settings.labelTemplates?.variations?.find(v => v.id === template);
+      const actualTemplate = variation ? variation.baseTemplate : template;
+      const actualTheme = settings.labelTemplates?.savedThemes?.[template || ''] || settings.labelTemplates?.theme;
       setAnnotations(prev => prev.map(a => {
         if (a.id === selectedAnnotationId) {
           if ((type === 'regular' && a.type === 'label') || (type === 'highlight' && a.type === 'highlight')) {
-            return { ...a, template };
+            return { ...a, template: actualTemplate, theme: { ...(a.theme || {}), ...actualTheme } };
           }
         }
         return a;
