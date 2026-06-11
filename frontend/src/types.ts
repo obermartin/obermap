@@ -39,6 +39,7 @@ export interface MapLayer {
   visible: boolean;
   data?: any; // For GeoJSON
   url?: string; // For XYZ/WMTS
+  dataSource?: string; // For custom accreditation
   maxZoom?: number;
   opacity?: number;
   startDate?: string;

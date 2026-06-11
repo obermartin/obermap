@@ -3003,6 +3003,24 @@ function LayerItem(props: {
                   <div
                     className={`flex flex-col gap-1 mt-1 ${layer.type === "deepstate" ? "" : "pt-2 border-t border-white/10"}`}
                   >
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="text-[10px] text-white font-semibold tracking-wider">
+                        {t("DATA SOURCE")}
+                      </label>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder={t("e.g. Mapbox, NASA, custom...")}
+                      value={layer.dataSource || ""}
+                      onChange={(e) =>
+                        updateLayerProperty(
+                          layer.id,
+                          "dataSource",
+                          e.target.value,
+                        )
+                      }
+                      className="w-full bg-black border border-white/20 px-2 py-1 text-xs text-white outline-none focus:border-white/50 mb-3"
+                    />
                     <div className="flex justify-between items-end">
                       <label className="text-[10px] text-white font-semibold tracking-wider">
                         {t("OPACITY")}
