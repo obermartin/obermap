@@ -206,25 +206,35 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     settingsRef.current = settings;
   }, [currentColor, setAnnotations, settings]);
 
+  const getBaseTemplate = useCallback((id?: string) => {
+    if (!id) return null;
+    const v = settings.labelTemplates?.variations?.find(v => v.id === id);
+    return v ? v.baseTemplate : id;
+  }, [settings.labelTemplates?.variations]);
+
   useEffect(() => {
     if (settings.labelTemplates) {
-      const templatesToLoad: string[] = [];
-      const getBaseTemplate = (id?: string) => {
-        if (!id) return null;
-        const v = settings.labelTemplates?.variations?.find(v => v.id === id);
-        return v ? v.baseTemplate : id;
-      };
+      const templatesToLoad = new Set<string>();
       const regBase = getBaseTemplate(settings.labelTemplates.regularLabelTemplate);
       const highBase = getBaseTemplate(settings.labelTemplates.highlightLabelTemplate);
-      if (regBase) templatesToLoad.push(regBase);
-      if (highBase) templatesToLoad.push(highBase);
-      if (templatesToLoad.length > 0) {
-        globalLabelManager.loadTemplates(templatesToLoad).then(() => {
+      if (regBase) templatesToLoad.add(regBase);
+      if (highBase) templatesToLoad.add(highBase);
+      
+      annotations.forEach(a => {
+        if (a.template) {
+          const base = getBaseTemplate(a.template);
+          if (base) templatesToLoad.add(base);
+        }
+      });
+      
+      const missingTemplates = Array.from(templatesToLoad).filter(t => !globalLabelManager.templates.has(t));
+      if (missingTemplates.length > 0) {
+        globalLabelManager.loadTemplates(missingTemplates).then(() => {
           setAnnotations(prev => [...prev]);
         });
       }
     }
-  }, [settings.labelTemplates, setAnnotations]);
+  }, [settings.labelTemplates, annotations, setAnnotations, getBaseTemplate]);
 
   useEffect(() => {
     const weatherLayer = settings.layers.find(l => l.type === 'weather_forecast');
@@ -1342,12 +1352,18 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         
         if (ann.template) {
           try {
+            const baseTemplateName = getBaseTemplate(ann.template) || '';
             const handle = globalLabelManager.createLabel({
               id: ann.id,
               lngLat: ann.coordinates,
               text: ann.secondaryText ? { primary: ann.text || '', secondary: ann.secondaryText } : (ann.text || ''),
-              template: ann.template,
-              theme: ann.theme || { primaryBackplateFill: ann.color, primaryTextColor: contrastColor },
+              template: baseTemplateName,
+              theme: ann.theme || { 
+                primaryBackplateFill: globalLabelManager.templates.get(baseTemplateName)?.manifest?.primary?.color || ann.color,
+                primaryTextColor: globalLabelManager.templates.get(baseTemplateName)?.manifest?.primary?.typography?.color || contrastColor,
+                pointerFill: globalLabelManager.templates.get(baseTemplateName)?.manifest?.primary?.pointer?.color,
+                secondaryBackplateFill: globalLabelManager.templates.get(baseTemplateName)?.manifest?.secondary?.color
+              },
               onClick
             });
             el = handle.getElement();
@@ -1407,12 +1423,18 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         
         if (ann.template && !ann.polygonGeometry) {
           try {
+            const baseTemplateName = getBaseTemplate(ann.template) || '';
             const handle = globalLabelManager.createLabel({
               id: ann.id,
               lngLat: ann.coordinates,
               text: ann.text || '',
-              template: ann.template,
-              theme: ann.theme || { primaryBackplateFill: ann.color, primaryTextColor: contrastColor },
+              template: baseTemplateName,
+              theme: ann.theme || { 
+                primaryBackplateFill: globalLabelManager.templates.get(baseTemplateName)?.manifest?.primary?.color || ann.color,
+                primaryTextColor: globalLabelManager.templates.get(baseTemplateName)?.manifest?.primary?.typography?.color || contrastColor,
+                pointerFill: globalLabelManager.templates.get(baseTemplateName)?.manifest?.primary?.pointer?.color,
+                secondaryBackplateFill: globalLabelManager.templates.get(baseTemplateName)?.manifest?.secondary?.color
+              },
               onClick
             });
             el = handle.getElement();
@@ -1636,6 +1658,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       if (data.el.dataset.anchorX && data.el.dataset.anchorY) {
         anchor = 'top-left';
         offset = [-parseFloat(data.el.dataset.anchorX), -parseFloat(data.el.dataset.anchorY)];
+      } else if (data.el.classList.contains('custom-marker')) {
+        anchor = 'bottom';
       }
 
       const marker = new maplibregl.Marker({ element: data.el, anchor, offset })

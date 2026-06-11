@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { MapContainer } from './components/MapContainer';
 import { Toolbar } from './components/Toolbar';
 import { SavedViews } from './components/SavedViews';
@@ -39,6 +39,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 import { LayerSidebar } from './components/LayerSidebar';
 import { Loader2, Menu } from 'lucide-react';
 import { useTranslation } from './contexts/I18nContext';
+import { globalLabelManager } from './labels/LabelMarkerManager';
 
 export function App() {
   const { t } = useTranslation();
@@ -49,6 +50,10 @@ export function App() {
   const [routeMode, setRouteMode] = useState<RouteMode>('driving');
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
+  const settingsRef = useRef(settings);
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
   const [labelPrompt, setLabelPrompt] = useState<{ lngLat: [number, number], initialText?: string, initialSecondary?: string } | null>(null);
   const [headlinePrompt, setHeadlinePrompt] = useState<{ id?: string, initialPrimary?: string, initialSecondary?: string } | null>(null);
   useEffect(() => {
@@ -428,9 +433,20 @@ export function App() {
 
     const handleUpdateTemplate = ((e: Event) => {
       const { type, template } = (e as CustomEvent).detail;
-      const variation = settings.labelTemplates?.variations?.find(v => v.id === template);
+      const currentSettings = settingsRef.current;
+      const variation = currentSettings.labelTemplates?.variations?.find(v => v.id === template);
       const actualTemplate = variation ? variation.baseTemplate : template;
-      const actualTheme = settings.labelTemplates?.savedThemes?.[template || ''] || settings.labelTemplates?.theme;
+      const tplDefForTheme = currentSettings.labelTemplates?.availableTemplates?.find((t: any) => t.id === actualTemplate);
+      const manForTheme = (tplDefForTheme as any)?.manifest || globalLabelManager.templates.get(actualTemplate || '')?.manifest;
+      const actualTheme = {
+        ...(currentSettings.labelTemplates?.theme || {}),
+        ...(manForTheme?.primary?.color ? { primaryBackplateFill: manForTheme.primary.color } : {}),
+        ...(manForTheme?.primary?.pointer?.color ? { pointerFill: manForTheme.primary.pointer.color } : {}),
+        ...(manForTheme?.primary?.typography?.color ? { primaryTextColor: manForTheme.primary.typography.color } : {}),
+        ...(manForTheme?.secondary?.color ? { secondaryBackplateFill: manForTheme.secondary.color } : {}),
+        ...(manForTheme?.secondary?.typography?.color ? { secondaryTextColor: manForTheme.secondary.typography.color } : {}),
+        ...(currentSettings.labelTemplates?.savedThemes?.[template || ''] || {})
+      };
       setAnnotations(prev => prev.map(a => {
         if (a.id === selectedAnnotationId) {
           if ((type === 'regular' && a.type === 'label') || (type === 'highlight' && a.type === 'highlight')) {

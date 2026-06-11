@@ -404,13 +404,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && strpos($_SERVER['REQUEST_URI'], '/ap
             $id = basename($dir);
             $kind = 'regular';
             $manifestPath = $dir . '/manifest.json';
+            $manifest = null;
             if (file_exists($manifestPath)) {
                 $manifest = json_decode(file_get_contents($manifestPath), true);
                 if (isset($manifest['kind'])) {
                     $kind = $manifest['kind'];
                 }
             }
-            $templates[] = ['id' => $id, 'kind' => $kind];
+            $templates[] = ['id' => $id, 'kind' => $kind, 'manifest' => $manifest];
         }
     }
     echo json_encode($templates);

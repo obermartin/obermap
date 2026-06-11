@@ -1,4 +1,4 @@
-import maplibregl from 'maplibre-gl';
+import maplibregl from "maplibre-gl";
 
 export interface Typography {
   fontFamily: string;
@@ -7,16 +7,18 @@ export interface Typography {
   color: string;
   letterSpacing?: number;
   lineHeight?: number | string;
-  textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
-  textAlign?: 'left' | 'center' | 'right';
+  textTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
+  textAlign?: "left" | "center" | "right";
   maxWidth?: number;
 }
 
 export interface Pointer {
+  overrideColor?: boolean;
+  color?: string;
   width: number;
   height: number;
-  attachEdge: 'top' | 'bottom' | 'left' | 'right';
-  attachFrom: 'left' | 'right' | 'top' | 'bottom';
+  attachEdge: "top" | "bottom" | "left" | "right";
+  attachFrom: "left" | "right" | "top" | "bottom";
   attachOffset: number;
   tipX: number;
   tipY: number;
@@ -24,6 +26,8 @@ export interface Pointer {
 }
 
 export interface PrimaryBackplate {
+  overrideColor?: boolean;
+  color?: string;
   height: number;
   capWidth: number;
   minWidth: number;
@@ -34,20 +38,22 @@ export interface PrimaryBackplate {
 }
 
 export interface SecondaryBackplate {
+  overrideColor?: boolean;
+  color?: string;
   height: number;
   capWidth: number;
   minWidth: number;
   paddingX: number;
   paddingY: number;
   typography: Typography;
-  position: 'above' | 'below';
-  align: 'left' | 'center' | 'right';
+  position: "above" | "below";
+  align: "left" | "center" | "right";
   gap: number;
 }
 
 export interface TemplateManifest {
   name: string;
-  kind: 'highlight' | 'regular';
+  kind: "highlight" | "regular" | "both";
   primary: PrimaryBackplate;
   secondary?: SecondaryBackplate;
 }
@@ -92,8 +98,12 @@ function extractSvgInner(svgString: string): string {
   return match ? match[1] : svgString;
 }
 
-function parseMiddleSourceDimensions(svgString: string): { sourceWidth: number, sourceHeight: number } {
-  let sourceWidth = 1, sourceHeight = 1;
+function parseMiddleSourceDimensions(svgString: string): {
+  sourceWidth: number;
+  sourceHeight: number;
+} {
+  let sourceWidth = 1,
+    sourceHeight = 1;
   const viewBoxMatch = svgString.match(/viewBox="([^"]+)"/);
   if (viewBoxMatch) {
     const parts = viewBoxMatch[1].split(/[ ,]+/).map(parseFloat);
@@ -111,71 +121,84 @@ function parseMiddleSourceDimensions(svgString: string): { sourceWidth: number, 
 }
 
 function transformText(text: string, transform?: string): string {
-  if (!text) return '';
+  if (!text) return "";
   switch (transform) {
-    case 'uppercase': return text.toUpperCase();
-    case 'lowercase': return text.toLowerCase();
-    case 'capitalize': return text.replace(/\b\w/g, c => c.toUpperCase());
-    default: return text;
+    case "uppercase":
+      return text.toUpperCase();
+    case "lowercase":
+      return text.toLowerCase();
+    case "capitalize":
+      return text.replace(/\b\w/g, (c) => c.toUpperCase());
+    default:
+      return text;
   }
 }
 
-function normalizeSvg(svgString: string, cssVarName: string): string {
+function normalizeSvg(svgString: string, cssVarName: string | null): string {
   const parser = new DOMParser();
   const doc = parser.parseFromString(svgString, "image/svg+xml");
-  const svg = doc.querySelector('svg');
+  const svg = doc.querySelector("svg");
   if (!svg) return svgString;
 
-  const styles = doc.querySelectorAll('style');
+  const styles = doc.querySelectorAll("style");
   const rules: Record<string, Record<string, string>> = {};
 
-  styles.forEach(style => {
-    const text = style.textContent || '';
+  styles.forEach((style) => {
+    const text = style.textContent || "";
     const regex = /\.([a-zA-Z0-9_-]+)\s*{([^}]+)}/g;
     let match;
     while ((match = regex.exec(text)) !== null) {
       const className = match[1];
       const declarations = match[2];
       const props: Record<string, string> = {};
-      declarations.split(';').forEach(decl => {
-        const [prop, val] = decl.split(':').map(s => s.trim());
+      declarations.split(";").forEach((decl) => {
+        const [prop, val] = decl.split(":").map((s) => s.trim());
         if (prop && val) props[prop] = val;
       });
       rules[className] = props;
     }
   });
 
-  const allEls = svg.querySelectorAll('*');
-  allEls.forEach(el => {
-    if (el.hasAttribute('class')) {
-      const classes = el.getAttribute('class')?.split(/\s+/) || [];
-      classes.forEach(cls => {
+  const allEls = svg.querySelectorAll("*");
+  allEls.forEach((el) => {
+    if (el.hasAttribute("class")) {
+      const classes = el.getAttribute("class")?.split(/\s+/) || [];
+      classes.forEach((cls) => {
         if (rules[cls]) {
-          ['fill', 'stroke', 'opacity', 'stroke-width'].forEach(attr => {
+          ["fill", "stroke", "opacity", "stroke-width"].forEach((attr) => {
             if (rules[cls][attr] && !el.hasAttribute(attr)) {
               el.setAttribute(attr, rules[cls][attr]);
             }
           });
         }
       });
-      el.removeAttribute('class');
+      el.removeAttribute("class");
     }
 
-    if (el.hasAttribute('fill')) {
-      const fillVal = el.getAttribute('fill');
-      if (fillVal && fillVal !== 'none' && !fillVal.startsWith('url(')) {
-        el.setAttribute('fill', `var(${cssVarName}, ${fillVal})`);
+    let fillVal = el.getAttribute("fill");
+    const elAny = el as any;
+    if (elAny.style && elAny.style.fill) {
+      fillVal = elAny.style.fill;
+      elAny.style.removeProperty("fill");
+    }
+    if (fillVal && fillVal !== "none" && !fillVal.startsWith("url(")) {
+      if (cssVarName) {
+        el.setAttribute("fill", `var(${cssVarName}, ${fillVal})`);
+      } else {
+        el.setAttribute("fill", fillVal);
       }
     }
   });
 
-  styles.forEach(style => style.remove());
-  doc.querySelectorAll('defs').forEach(def => {
+  styles.forEach((style) => style.remove());
+  doc.querySelectorAll("defs").forEach((def) => {
     if (def.children.length === 0) def.remove();
   });
 
-  if (doc.querySelector('style')) {
-    console.warn('SVG still contains a <style> block after normalization. Rendering may be incorrect.');
+  if (doc.querySelector("style")) {
+    console.warn(
+      "SVG still contains a <style> block after normalization. Rendering may be incorrect.",
+    );
   }
 
   return svg.outerHTML;
@@ -190,14 +213,18 @@ export class LabelMarkerManager {
 
   constructor(map: maplibregl.Map | null = null) {
     this.map = map;
-    if (typeof OffscreenCanvas !== 'undefined') {
+    if (typeof OffscreenCanvas !== "undefined") {
       this.offscreenCanvas = new OffscreenCanvas(1, 1);
-      this.ctx = this.offscreenCanvas.getContext('2d') as OffscreenCanvasRenderingContext2D;
+      this.ctx = this.offscreenCanvas.getContext(
+        "2d",
+      ) as OffscreenCanvasRenderingContext2D;
     } else {
-      this.offscreenCanvas = document.createElement('canvas');
+      this.offscreenCanvas = document.createElement("canvas");
       this.offscreenCanvas.width = 1;
       this.offscreenCanvas.height = 1;
-      this.ctx = this.offscreenCanvas.getContext('2d') as CanvasRenderingContext2D;
+      this.ctx = this.offscreenCanvas.getContext(
+        "2d",
+      ) as CanvasRenderingContext2D;
     }
   }
 
@@ -212,35 +239,52 @@ export class LabelMarkerManager {
         const manifest: TemplateManifest = await manifestRes.json();
 
         // Validate
-        if (manifest.kind === 'highlight' && manifest.secondary) throw new Error(`highlight template ${name} cannot have secondary`);
-        if (manifest.kind === 'regular' && !manifest.secondary) throw new Error(`regular template ${name} must have secondary`);
+        if (manifest.kind === "highlight" && manifest.secondary)
+          throw new Error(`highlight template ${name} cannot have secondary`);
+        if (manifest.kind !== "highlight" && !manifest.secondary)
+          throw new Error(
+            `${manifest.kind} template ${name} must have secondary`,
+          );
 
         const required = [
-          'primary_left-cap.svg',
-          'primary_middle.svg',
-          'primary_right-cap.svg',
-          'primary_pointer.svg'
+          "primary_left-cap.svg",
+          "primary_middle.svg",
+          "primary_right-cap.svg",
+          "primary_pointer.svg",
         ];
-        if (manifest.kind === 'regular') {
-          required.push('secondary_left-cap.svg', 'secondary_middle.svg', 'secondary_right-cap.svg');
+        if (manifest.kind !== "highlight") {
+          required.push(
+            "secondary_left-cap.svg",
+            "secondary_middle.svg",
+            "secondary_right-cap.svg",
+          );
         }
 
-        const fetches = await Promise.all(required.map(f => fetch(`${base}/${f}${cb}`).then(r => {
-          if (!r.ok) throw new Error(`Missing required asset: ${f}`);
-          return r.text();
-        })));
+        const fetches = await Promise.all(
+          required.map((f) =>
+            fetch(`${base}/${f}${cb}`).then((r) => {
+              if (!r.ok) throw new Error(`Missing required asset: ${f}`);
+              return r.text();
+            }),
+          ),
+        );
 
-        if (manifest.kind === 'regular') {
+        if (manifest.kind !== "highlight") {
           const stray = await fetch(`${base}/secondary_pointer.svg${cb}`);
-          if (stray.ok) console.warn(`Template "${name}" contains secondary_pointer.svg. Secondary backplates never have pointers. This file is ignored.`);
+          if (stray.ok && stray.headers.get("content-type")?.includes("svg"))
+            console.warn(
+              `Template "${name}" contains secondary_pointer.svg. Secondary backplates never have pointers. This file is ignored.`,
+            );
         }
 
         const normalizedFetches = fetches.map((svgString, idx) => {
-          let cssVar = '--primary-backplate-fill';
-          if (manifest.kind === 'regular' && idx >= 4) {
-            cssVar = '--secondary-backplate-fill';
+          let cssVar: string | null = "--primary-backplate-fill";
+          if (manifest.kind !== "highlight" && idx >= 4) {
+            cssVar = manifest.secondary?.overrideColor ? "--secondary-backplate-fill" : null;
           } else if (idx === 3) {
-            cssVar = manifest.primary.pointer.independentColor ? '--pointer-fill' : '--primary-backplate-fill';
+            cssVar = manifest.primary.pointer?.overrideColor ? "--pointer-fill" : null;
+          } else {
+            cssVar = manifest.primary?.overrideColor ? "--primary-backplate-fill" : null;
           }
           return normalizeSvg(svgString, cssVar);
         });
@@ -256,7 +300,7 @@ export class LabelMarkerManager {
           primaryPointer: normalizedFetches[3],
         };
 
-        if (manifest.kind === 'regular') {
+        if (manifest.kind !== "highlight") {
           const smDim = parseMiddleSourceDimensions(normalizedFetches[5]);
           template.secondaryLeftCap = normalizedFetches[4];
           template.secondaryMiddleInner = extractSvgInner(normalizedFetches[5]);
@@ -275,7 +319,7 @@ export class LabelMarkerManager {
 
     // Preload fonts
     const fontsToLoad = new Set<string>();
-    this.templates.forEach(tpl => {
+    this.templates.forEach((tpl) => {
       const { typography: pt } = tpl.manifest.primary;
       fontsToLoad.add(`${pt.fontWeight} ${pt.fontSize}px ${pt.fontFamily}`);
       if (tpl.manifest.secondary) {
@@ -284,8 +328,10 @@ export class LabelMarkerManager {
       }
     });
 
-    const fontPromises = Array.from(fontsToLoad).map(font => {
-      return document.fonts.load(font).catch(e => console.warn(`Failed to load font ${font}`, e));
+    const fontPromises = Array.from(fontsToLoad).map((font) => {
+      return document.fonts
+        .load(font)
+        .catch((e) => console.warn(`Failed to load font ${font}`, e));
     });
     await Promise.all(fontPromises);
   }
@@ -294,30 +340,41 @@ export class LabelMarkerManager {
     this.ctx.font = `${typo.fontWeight} ${typo.fontSize}px ${typo.fontFamily}`;
     const transformed = transformText(text, typo.textTransform);
     let width = 0;
-    
+
     if (typo.maxWidth && typo.maxWidth > 0) {
-      const words = transformed.split(' ');
-      let currentLine = '';
+      const words = transformed.split(" ");
+      let currentLine = "";
       let maxWidthFound = 0;
-      
+
       for (let i = 0; i < words.length; i++) {
-        const testLine = currentLine + words[i] + ' ';
+        const testLine = currentLine + words[i] + " ";
         const metrics = this.ctx.measureText(testLine);
         const ls = typo.letterSpacing || 0;
         const testWidth = metrics.width + ls * Math.max(0, testLine.length - 1);
-        
+
         if (testWidth > typo.maxWidth && i > 0) {
-          maxWidthFound = Math.max(maxWidthFound, this.ctx.measureText(currentLine).width + ls * Math.max(0, currentLine.length - 1));
-          currentLine = words[i] + ' ';
+          maxWidthFound = Math.max(
+            maxWidthFound,
+            this.ctx.measureText(currentLine).width +
+              ls * Math.max(0, currentLine.length - 1),
+          );
+          currentLine = words[i] + " ";
         } else {
           currentLine = testLine;
         }
       }
-      maxWidthFound = Math.max(maxWidthFound, this.ctx.measureText(currentLine.trim()).width + (typo.letterSpacing || 0) * Math.max(0, currentLine.trim().length - 1));
+      maxWidthFound = Math.max(
+        maxWidthFound,
+        this.ctx.measureText(currentLine.trim()).width +
+          (typo.letterSpacing || 0) *
+            Math.max(0, currentLine.trim().length - 1),
+      );
       width = maxWidthFound;
     } else {
       const metrics = this.ctx.measureText(transformed);
-      width = metrics.width + (typo.letterSpacing || 0) * Math.max(0, transformed.length - 1);
+      width =
+        metrics.width +
+        (typo.letterSpacing || 0) * Math.max(0, transformed.length - 1);
     }
     return Math.ceil(width);
   }
@@ -334,23 +391,53 @@ export class LabelMarkerManager {
       throw new Error(`Template ${opts.template} not preloaded`);
     }
 
-    const markerEl = document.createElement('div');
+    if (!this.templates.has(opts.template)) {
+      throw new Error(`Template ${opts.template} not found`);
+    }
+    const tpl = this.templates.get(opts.template)!;
+    const man = tpl.manifest;
+
+    const markerEl = document.createElement("div");
     markerEl.className = `label-marker label-marker-${opts.id}`;
     markerEl.dataset.template = opts.template;
 
-    if (opts.theme?.primaryBackplateFill) markerEl.style.setProperty('--primary-backplate-fill', opts.theme.primaryBackplateFill);
-    if (opts.theme?.secondaryBackplateFill) markerEl.style.setProperty('--secondary-backplate-fill', opts.theme.secondaryBackplateFill);
-    if (opts.theme?.primaryTextColor) markerEl.style.setProperty('--primary-text-color', opts.theme.primaryTextColor);
-    if (opts.theme?.secondaryTextColor) markerEl.style.setProperty('--secondary-text-color', opts.theme.secondaryTextColor);
-    if (opts.theme?.accentFill) markerEl.style.setProperty('--accent-fill', opts.theme.accentFill);
-    
-    // Default pointer fill to primary backplate fill
-    markerEl.style.setProperty('--pointer-fill', opts.theme?.pointerFill || opts.theme?.primaryBackplateFill || '#ffffff');
-    if (!opts.theme?.pointerFill && !opts.theme?.primaryBackplateFill) {
-       markerEl.style.setProperty('--pointer-fill', 'var(--primary-backplate-fill, #ffffff)');
-    } else if (opts.theme?.pointerFill) {
-       markerEl.style.setProperty('--pointer-fill', opts.theme.pointerFill);
+    // Apply colors:
+    // 1. If overrideColor is true, use theme overrides or manifest default color.
+    // 2. Text colors use theme overrides or manifest default typography color.
+    if (man.primary.overrideColor) {
+      markerEl.style.setProperty(
+        "--primary-backplate-fill",
+        opts.theme?.primaryBackplateFill || man.primary.color || "#ffffff",
+      );
     }
+    if (man.secondary?.overrideColor) {
+      markerEl.style.setProperty(
+        "--secondary-backplate-fill",
+        opts.theme?.secondaryBackplateFill || man.secondary.color || "#ffffff",
+      );
+    }
+    if (man.primary.pointer?.overrideColor) {
+      markerEl.style.setProperty(
+        "--pointer-fill",
+        opts.theme?.pointerFill || man.primary.pointer.color || "#ffffff",
+      );
+    }
+
+    markerEl.style.setProperty(
+      "--primary-text-color",
+      opts.theme?.primaryTextColor || man.primary.typography.color || "#000000",
+    );
+    if (man.secondary) {
+      markerEl.style.setProperty(
+        "--secondary-text-color",
+        opts.theme?.secondaryTextColor ||
+          man.secondary.typography.color ||
+          "#ffffff",
+      );
+    }
+
+    if (opts.theme?.accentFill)
+      markerEl.style.setProperty("--accent-fill", opts.theme.accentFill);
 
     const handle: LabelHandle = {
       id: opts.id,
@@ -366,12 +453,40 @@ export class LabelMarkerManager {
       },
       setTheme: (theme: Partial<Theme>) => {
         opts.theme = { ...opts.theme, ...theme };
-        if (theme.primaryBackplateFill) markerEl.style.setProperty('--primary-backplate-fill', theme.primaryBackplateFill);
-        if (theme.secondaryBackplateFill) markerEl.style.setProperty('--secondary-backplate-fill', theme.secondaryBackplateFill);
-        if (theme.primaryTextColor) markerEl.style.setProperty('--primary-text-color', theme.primaryTextColor);
-        if (theme.secondaryTextColor) markerEl.style.setProperty('--secondary-text-color', theme.secondaryTextColor);
-        if (theme.accentFill) markerEl.style.setProperty('--accent-fill', theme.accentFill);
-        if (theme.pointerFill) markerEl.style.setProperty('--pointer-fill', theme.pointerFill);
+        const currentTpl = this.templates.get(markerEl.dataset.template || "");
+        const man = currentTpl?.manifest;
+        if (man) {
+          if (man.primary.overrideColor)
+            markerEl.style.setProperty(
+              "--primary-backplate-fill",
+              theme.primaryBackplateFill || man.primary.color || "#ffffff"
+            );
+          if (man.secondary?.overrideColor)
+            markerEl.style.setProperty(
+              "--secondary-backplate-fill",
+              theme.secondaryBackplateFill || man.secondary.color || "#ffffff"
+            );
+          if (man.primary.pointer?.overrideColor)
+            markerEl.style.setProperty(
+              "--pointer-fill",
+              theme.pointerFill || man.primary.pointer.color || "#ffffff"
+            );
+          
+          markerEl.style.setProperty(
+            "--primary-text-color",
+            theme.primaryTextColor || man.primary.typography.color || "#000000"
+          );
+          
+          if (man.secondary) {
+            markerEl.style.setProperty(
+              "--secondary-text-color",
+              theme.secondaryTextColor || man.secondary.typography.color || "#000000"
+            );
+          }
+          
+          if (theme.accentFill)
+            markerEl.style.setProperty("--accent-fill", theme.accentFill);
+        }
       },
       remove: () => {
         this.handles.delete(opts.id);
@@ -380,18 +495,25 @@ export class LabelMarkerManager {
       getLngLat: () => opts.lngLat,
       getRasterizedImage: async () => {
         const tpl = this.templates.get(opts.template);
-        if (!tpl) throw new Error('Template not found');
-        
-        const { svg: svgString } = LabelMarkerManager.prototype.buildTemplateSvg.call(this, tpl, opts.text, opts.theme);
-        
-        const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
+        if (!tpl) throw new Error("Template not found");
+
+        const { svg: svgString } =
+          LabelMarkerManager.prototype.buildTemplateSvg.call(
+            this,
+            tpl,
+            opts.text,
+            opts.theme,
+          );
+
+        const url =
+          "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgString);
         const img = new Image();
         return new Promise<HTMLImageElement>((resolve, reject) => {
           img.onload = () => resolve(img);
           img.onerror = () => reject();
           img.src = url;
         });
-      }
+      },
     };
 
     this.render(handle, opts.template, opts.text, opts.onClick);
@@ -399,40 +521,74 @@ export class LabelMarkerManager {
     return handle;
   }
 
-  private buildTemplateHtml(tpl: LoadedTemplate, textInput: string | { primary: string; secondary?: string }): { html: string, width: number, height: number, anchorX: number, anchorY: number } {
+  private buildTemplateHtml(
+    tpl: LoadedTemplate,
+    textInput: string | { primary: string; secondary?: string },
+  ): {
+    html: string;
+    width: number;
+    height: number;
+    anchorX: number;
+    anchorY: number;
+  } {
     const { manifest } = tpl;
-    
-    let primaryText = '';
-    let secondaryText = '';
-    if (typeof textInput === 'string') {
+
+    let primaryText = "";
+    let secondaryText = "";
+    if (typeof textInput === "string") {
       primaryText = textInput;
     } else {
       primaryText = textInput.primary;
-      secondaryText = textInput.secondary || '';
+      secondaryText = textInput.secondary || "";
     }
 
-    if (manifest.kind === 'highlight' && secondaryText !== '') {
+    if (manifest.kind === "highlight" && secondaryText !== "") {
       throw new Error("Highlight templates cannot have secondary text");
     }
 
     const { primary, secondary } = manifest;
 
     // Primary
-    const primaryTextWidth = this.measureWithLetterSpacing(primaryText, primary.typography);
-    const primaryWidth = Math.max(primary.minWidth, primaryTextWidth + 2 * primary.paddingX);
-    const primaryEffectiveCapWidth = Math.min(primary.capWidth, primaryWidth / 2);
-    const primaryMiddleStretched = Math.max(0, primaryWidth - 2 * primaryEffectiveCapWidth);
+    const primaryTextWidth = this.measureWithLetterSpacing(
+      primaryText,
+      primary.typography,
+    );
+    const primaryWidth = Math.max(
+      primary.minWidth,
+      primaryTextWidth + 2 * primary.paddingX,
+    );
+    const primaryEffectiveCapWidth = Math.min(
+      primary.capWidth,
+      primaryWidth / 2,
+    );
+    const primaryMiddleStretched = Math.max(
+      0,
+      primaryWidth - 2 * primaryEffectiveCapWidth,
+    );
 
     // Secondary
     let secondaryWidth = 0;
     let secondaryMiddleStretched = 0;
     let secondaryEffectiveCapWidth = 0;
-    const secondaryVisible = manifest.kind === 'regular' && secondaryText !== '';
+    const secondaryVisible =
+      manifest.kind !== "highlight" && secondaryText !== "";
     if (secondaryVisible && secondary) {
-      const secondaryTextWidth = this.measureWithLetterSpacing(secondaryText, secondary.typography);
-      secondaryWidth = Math.max(secondary.minWidth, secondaryTextWidth + 2 * secondary.paddingX);
-      secondaryEffectiveCapWidth = Math.min(secondary.capWidth, secondaryWidth / 2);
-      secondaryMiddleStretched = Math.max(0, secondaryWidth - 2 * secondaryEffectiveCapWidth);
+      const secondaryTextWidth = this.measureWithLetterSpacing(
+        secondaryText,
+        secondary.typography,
+      );
+      secondaryWidth = Math.max(
+        secondary.minWidth,
+        secondaryTextWidth + 2 * secondary.paddingX,
+      );
+      secondaryEffectiveCapWidth = Math.min(
+        secondary.capWidth,
+        secondaryWidth / 2,
+      );
+      secondaryMiddleStretched = Math.max(
+        0,
+        secondaryWidth - 2 * secondaryEffectiveCapWidth,
+      );
     }
 
     const { pointer } = primary;
@@ -440,12 +596,12 @@ export class LabelMarkerManager {
 
     // Dimensions
     const gap = secondaryVisible && secondary ? secondary.gap : 0;
-    const hasAbove = secondaryVisible && secondary?.position === 'above';
-    const hasBelow = secondaryVisible && secondary?.position === 'below';
-    
+    const hasAbove = secondaryVisible && secondary?.position === "above";
+    const hasBelow = secondaryVisible && secondary?.position === "below";
+
     const heightAbove = hasAbove ? secondary!.height + gap : 0;
     // Removed unused heightBelow
-    
+
     // The final marker height is returned below
 
     // We compute max width including overhang later.
@@ -454,14 +610,15 @@ export class LabelMarkerManager {
     let secondaryLeft = 0;
 
     if (secondaryVisible && secondary) {
-      if (secondary.align === 'left') {
+      if (secondary.align === "left") {
         primaryLeft = 0;
         secondaryLeft = 0;
-      } else if (secondary.align === 'right') {
+      } else if (secondary.align === "right") {
         const maxW = Math.max(primaryWidth, secondaryWidth);
         primaryLeft = maxW - primaryWidth;
         secondaryLeft = maxW - secondaryWidth;
-      } else { // center
+      } else {
+        // center
         const maxW = Math.max(primaryWidth, secondaryWidth);
         primaryLeft = (maxW - primaryWidth) / 2;
         secondaryLeft = (maxW - secondaryWidth) / 2;
@@ -469,27 +626,43 @@ export class LabelMarkerManager {
     }
 
     // Now compute pointer position relative to primaryLeft/primaryTop
-    const primaryTop = hasAbove ? heightAbove + (pointer.attachEdge === 'top' ? pointerOverhang : 0) : (pointer.attachEdge === 'top' ? pointerOverhang : 0);
-    
+    const primaryTop = hasAbove
+      ? heightAbove + (pointer.attachEdge === "top" ? pointerOverhang : 0)
+      : pointer.attachEdge === "top"
+        ? pointerOverhang
+        : 0;
+
     let ptrLeft = 0;
     let ptrTop = 0;
 
-    if (pointer.attachEdge === 'bottom') {
+    if (pointer.attachEdge === "bottom") {
       ptrTop = primaryTop + primary.height - 1;
-      if (pointer.attachFrom === 'left') ptrLeft = primaryLeft + pointer.attachOffset - pointer.tipX;
-      else if (pointer.attachFrom === 'right') ptrLeft = primaryLeft + primaryWidth - pointer.attachOffset - pointer.tipX;
-    } else if (pointer.attachEdge === 'top') {
+      if (pointer.attachFrom === "left")
+        ptrLeft = primaryLeft + pointer.attachOffset - pointer.tipX;
+      else if (pointer.attachFrom === "right")
+        ptrLeft =
+          primaryLeft + primaryWidth - pointer.attachOffset - pointer.tipX;
+    } else if (pointer.attachEdge === "top") {
       ptrTop = primaryTop - pointer.height + 1;
-      if (pointer.attachFrom === 'left') ptrLeft = primaryLeft + pointer.attachOffset - pointer.tipX;
-      else if (pointer.attachFrom === 'right') ptrLeft = primaryLeft + primaryWidth - pointer.attachOffset - pointer.tipX;
-    } else if (pointer.attachEdge === 'left') {
+      if (pointer.attachFrom === "left")
+        ptrLeft = primaryLeft + pointer.attachOffset - pointer.tipX;
+      else if (pointer.attachFrom === "right")
+        ptrLeft =
+          primaryLeft + primaryWidth - pointer.attachOffset - pointer.tipX;
+    } else if (pointer.attachEdge === "left") {
       ptrLeft = primaryLeft - pointer.width + 1;
-      if (pointer.attachFrom === 'top') ptrTop = primaryTop + pointer.attachOffset - pointer.tipY;
-      else if (pointer.attachFrom === 'bottom') ptrTop = primaryTop + primary.height - pointer.attachOffset - pointer.tipY;
-    } else if (pointer.attachEdge === 'right') {
+      if (pointer.attachFrom === "top")
+        ptrTop = primaryTop + pointer.attachOffset - pointer.tipY;
+      else if (pointer.attachFrom === "bottom")
+        ptrTop =
+          primaryTop + primary.height - pointer.attachOffset - pointer.tipY;
+    } else if (pointer.attachEdge === "right") {
       ptrLeft = primaryLeft + primaryWidth - 1;
-      if (pointer.attachFrom === 'top') ptrTop = primaryTop + pointer.attachOffset - pointer.tipY;
-      else if (pointer.attachFrom === 'bottom') ptrTop = primaryTop + primary.height - pointer.attachOffset - pointer.tipY;
+      if (pointer.attachFrom === "top")
+        ptrTop = primaryTop + pointer.attachOffset - pointer.tipY;
+      else if (pointer.attachFrom === "bottom")
+        ptrTop =
+          primaryTop + primary.height - pointer.attachOffset - pointer.tipY;
     }
 
     // Shift everything if pointer goes negative
@@ -499,7 +672,7 @@ export class LabelMarkerManager {
       secondaryLeft -= minLeft;
       ptrLeft -= minLeft;
     }
-    
+
     const minTop = Math.min(primaryTop, hasAbove ? 0 : 99999, ptrTop);
     let shiftY = 0;
     if (minTop < 0) {
@@ -507,33 +680,50 @@ export class LabelMarkerManager {
     }
 
     const finalPrimaryTop = primaryTop + shiftY;
-    const finalSecondaryTop = hasAbove ? shiftY : finalPrimaryTop + primary.height + (pointer.attachEdge === 'bottom' ? pointerOverhang : 0) + gap;
+    const finalSecondaryTop = hasAbove
+      ? shiftY
+      : finalPrimaryTop +
+        primary.height +
+        (pointer.attachEdge === "bottom" ? pointerOverhang : 0) +
+        gap;
     const finalPtrTop = ptrTop + shiftY;
 
-    const markerWidth = Math.ceil(Math.max(primaryLeft + primaryWidth, secondaryVisible ? secondaryLeft + secondaryWidth : 0, ptrLeft + pointer.width));
-    const finalMarkerHeight = Math.ceil(Math.max(finalPrimaryTop + primary.height, secondaryVisible ? finalSecondaryTop + secondary!.height : 0, finalPtrTop + pointer.height));
+    const markerWidth = Math.ceil(
+      Math.max(
+        primaryLeft + primaryWidth,
+        secondaryVisible ? secondaryLeft + secondaryWidth : 0,
+        ptrLeft + pointer.width,
+      ),
+    );
+    const finalMarkerHeight = Math.ceil(
+      Math.max(
+        finalPrimaryTop + primary.height,
+        secondaryVisible ? finalSecondaryTop + secondary!.height : 0,
+        finalPtrTop + pointer.height,
+      ),
+    );
 
-    const buildTypographyCss = (typo: Typography) => `
+    const buildTypographyCss = (typo: Typography, textColorVar?: string) => `
       font-family: '${typo.fontFamily}';
       font-size: ${typo.fontSize}px;
       font-weight: ${typo.fontWeight};
-      color: ${typo.color};
+      color: ${textColorVar ? `var(${textColorVar}, ${typo.color})` : typo.color};
       letter-spacing: ${typo.letterSpacing || 0}px;
       line-height: ${typo.lineHeight || 1.2};
-      text-transform: ${typo.textTransform || 'none'};
-      text-align: ${typo.textAlign || 'center'};
+      text-transform: ${typo.textTransform || "none"};
+      text-align: ${typo.textAlign || "center"};
     `;
 
-    let html = '';
+    let html = "";
 
     // Secondary Above
     if (secondaryVisible && hasAbove && secondary) {
       html += `
-        <div class="backplate secondary" style="position: absolute; left: ${secondaryLeft}px; top: ${finalSecondaryTop}px; width: ${secondaryWidth}px; height: ${secondary.height}px; display: flex; flex-direction: row; pointer-events: none;">
+        <div class="backplate secondary" style="position: absolute; z-index: 2; left: ${secondaryLeft}px; top: ${finalSecondaryTop}px; width: ${secondaryWidth}px; height: ${secondary.height}px; display: flex; flex-direction: row; pointer-events: none;">
           <div class="cap left" style="width: ${secondaryEffectiveCapWidth}px; height: ${secondary.height}px; flex-shrink: 0; overflow: hidden; pointer-events: none;">${tpl.secondaryLeftCap}</div>
-          ${secondaryMiddleStretched > 0 ? `<svg class="middle" width="${secondaryMiddleStretched}" height="${secondary.height}" viewBox="0 0 ${tpl.secondaryMiddleSrcWidth} ${tpl.secondaryMiddleSrcHeight}" preserveAspectRatio="none" style="display: block; flex-shrink: 0; pointer-events: none;">${tpl.secondaryMiddleInner}</svg>` : ''}
+          ${secondaryMiddleStretched > 0 ? `<svg class="middle" width="${secondaryMiddleStretched}" height="${secondary.height}" viewBox="0 0 ${tpl.secondaryMiddleSrcWidth} ${tpl.secondaryMiddleSrcHeight}" preserveAspectRatio="none" style="display: block; flex-shrink: 0; pointer-events: none;">${tpl.secondaryMiddleInner}</svg>` : ""}
           <div class="cap right" style="width: ${secondaryEffectiveCapWidth}px; height: ${secondary.height}px; flex-shrink: 0; overflow: hidden; pointer-events: none; display: flex; justify-content: flex-end;">${tpl.secondaryRightCap}</div>
-          <span class="text" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; user-select: none; ${buildTypographyCss(secondary.typography)}">${transformText(secondaryText, secondary.typography.textTransform)}</span>
+          <span class="text" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; user-select: none; ${buildTypographyCss(secondary.typography, "--secondary-text-color")}">${transformText(secondaryText, secondary.typography.textTransform)}</span>
         </div>
       `;
     }
@@ -542,16 +732,16 @@ export class LabelMarkerManager {
     html += `
       <div class="backplate primary" style="position: absolute; left: ${primaryLeft}px; top: ${finalPrimaryTop}px; width: ${primaryWidth}px; height: ${primary.height}px; display: flex; flex-direction: row; pointer-events: auto;">
         <div class="cap left" style="width: ${primaryEffectiveCapWidth}px; height: ${primary.height}px; flex-shrink: 0; overflow: hidden; pointer-events: none;">${tpl.primaryLeftCap}</div>
-        ${primaryMiddleStretched > 0 ? `<svg class="middle" width="${primaryMiddleStretched}" height="${primary.height}" viewBox="0 0 ${tpl.primaryMiddleSrcWidth} ${tpl.primaryMiddleSrcHeight}" preserveAspectRatio="none" style="display: block; flex-shrink: 0; pointer-events: none;">${tpl.primaryMiddleInner}</svg>` : ''}
+        ${primaryMiddleStretched > 0 ? `<svg class="middle" width="${primaryMiddleStretched}" height="${primary.height}" viewBox="0 0 ${tpl.primaryMiddleSrcWidth} ${tpl.primaryMiddleSrcHeight}" preserveAspectRatio="none" style="display: block; flex-shrink: 0; pointer-events: none;">${tpl.primaryMiddleInner}</svg>` : ""}
         <div class="cap right" style="width: ${primaryEffectiveCapWidth}px; height: ${primary.height}px; flex-shrink: 0; overflow: hidden; pointer-events: none; display: flex; justify-content: flex-end;">${tpl.primaryRightCap}</div>
-        <span class="text" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; user-select: none; ${buildTypographyCss(primary.typography)}">${transformText(primaryText, primary.typography.textTransform)}</span>
+        <span class="text" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; user-select: none; ${buildTypographyCss(primary.typography, "--primary-text-color")}">${transformText(primaryText, primary.typography.textTransform)}</span>
       </div>
     `;
 
     // Pointer
     if (pointer.width > 0) {
       html += `
-        <div class="pointer" data-independent-color="${pointer.independentColor ? 'true' : 'false'}" style="position: absolute; left: ${ptrLeft}px; top: ${finalPtrTop}px; width: ${pointer.width}px; height: ${pointer.height}px; pointer-events: none;">
+        <div class="pointer" data-independent-color="${pointer.independentColor ? "true" : "false"}" style="position: absolute; left: ${ptrLeft}px; top: ${finalPtrTop}px; width: ${pointer.width}px; height: ${pointer.height}px; pointer-events: none;">
           ${tpl.primaryPointer}
         </div>
       `;
@@ -560,11 +750,11 @@ export class LabelMarkerManager {
     // Secondary Below
     if (secondaryVisible && hasBelow && secondary) {
       html += `
-        <div class="backplate secondary" style="position: absolute; left: ${secondaryLeft}px; top: ${finalSecondaryTop}px; width: ${secondaryWidth}px; height: ${secondary.height}px; display: flex; flex-direction: row; pointer-events: none;">
+        <div class="backplate secondary" style="position: absolute; z-index: 2; left: ${secondaryLeft}px; top: ${finalSecondaryTop}px; width: ${secondaryWidth}px; height: ${secondary.height}px; display: flex; flex-direction: row; pointer-events: none;">
           <div class="cap left" style="width: ${secondaryEffectiveCapWidth}px; height: ${secondary.height}px; flex-shrink: 0; overflow: hidden; pointer-events: none;">${tpl.secondaryLeftCap}</div>
-          ${secondaryMiddleStretched > 0 ? `<svg class="middle" width="${secondaryMiddleStretched}" height="${secondary.height}" viewBox="0 0 ${tpl.secondaryMiddleSrcWidth} ${tpl.secondaryMiddleSrcHeight}" preserveAspectRatio="none" style="display: block; flex-shrink: 0; pointer-events: none;">${tpl.secondaryMiddleInner}</svg>` : ''}
+          ${secondaryMiddleStretched > 0 ? `<svg class="middle" width="${secondaryMiddleStretched}" height="${secondary.height}" viewBox="0 0 ${tpl.secondaryMiddleSrcWidth} ${tpl.secondaryMiddleSrcHeight}" preserveAspectRatio="none" style="display: block; flex-shrink: 0; pointer-events: none;">${tpl.secondaryMiddleInner}</svg>` : ""}
           <div class="cap right" style="width: ${secondaryEffectiveCapWidth}px; height: ${secondary.height}px; flex-shrink: 0; overflow: hidden; pointer-events: none; display: flex; justify-content: flex-end;">${tpl.secondaryRightCap}</div>
-          <span class="text" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; user-select: none; ${buildTypographyCss(secondary.typography)}">${transformText(secondaryText, secondary.typography.textTransform)}</span>
+          <span class="text" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; user-select: none; ${buildTypographyCss(secondary.typography, "--secondary-text-color")}">${transformText(secondaryText, secondary.typography.textTransform)}</span>
         </div>
       `;
     }
@@ -573,39 +763,80 @@ export class LabelMarkerManager {
     const anchorX = ptrLeft + pointer.tipX;
     const anchorY = finalPtrTop + pointer.tipY;
 
-    return { html, width: markerWidth, height: finalMarkerHeight, anchorX, anchorY };
+    return {
+      html,
+      width: markerWidth,
+      height: finalMarkerHeight,
+      anchorX,
+      anchorY,
+    };
   }
 
-  private buildTemplateSvg(tpl: LoadedTemplate, textInput: string | { primary: string; secondary?: string }, theme: Theme | undefined): { svg: string, width: number, height: number, anchorX: number, anchorY: number } {
+  private buildTemplateSvg(
+    tpl: LoadedTemplate,
+    textInput: string | { primary: string; secondary?: string },
+    theme: Theme | undefined,
+  ): {
+    svg: string;
+    width: number;
+    height: number;
+    anchorX: number;
+    anchorY: number;
+  } {
     const { manifest } = tpl;
-    
-    let primaryText = '';
-    let secondaryText = '';
-    if (typeof textInput === 'string') {
+
+    let primaryText = "";
+    let secondaryText = "";
+    if (typeof textInput === "string") {
       primaryText = textInput;
     } else {
       primaryText = textInput.primary;
-      secondaryText = textInput.secondary || '';
+      secondaryText = textInput.secondary || "";
     }
 
     const { primary, secondary } = manifest;
 
     // Primary
-    const primaryTextWidth = this.measureWithLetterSpacing(primaryText, primary.typography);
-    const primaryWidth = Math.max(primary.minWidth, primaryTextWidth + 2 * primary.paddingX);
-    const primaryEffectiveCapWidth = Math.min(primary.capWidth, primaryWidth / 2);
-    const primaryMiddleStretched = Math.max(0, primaryWidth - 2 * primaryEffectiveCapWidth);
+    const primaryTextWidth = this.measureWithLetterSpacing(
+      primaryText,
+      primary.typography,
+    );
+    const primaryWidth = Math.max(
+      primary.minWidth,
+      primaryTextWidth + 2 * primary.paddingX,
+    );
+    const primaryEffectiveCapWidth = Math.min(
+      primary.capWidth,
+      primaryWidth / 2,
+    );
+    const primaryMiddleStretched = Math.max(
+      0,
+      primaryWidth - 2 * primaryEffectiveCapWidth,
+    );
 
     // Secondary
     let secondaryWidth = 0;
     let secondaryMiddleStretched = 0;
     let secondaryEffectiveCapWidth = 0;
-    const secondaryVisible = manifest.kind === 'regular' && secondaryText !== '';
+    const secondaryVisible =
+      manifest.kind !== "highlight" && secondaryText !== "";
     if (secondaryVisible && secondary) {
-      const secondaryTextWidth = this.measureWithLetterSpacing(secondaryText, secondary.typography);
-      secondaryWidth = Math.max(secondary.minWidth, secondaryTextWidth + 2 * secondary.paddingX);
-      secondaryEffectiveCapWidth = Math.min(secondary.capWidth, secondaryWidth / 2);
-      secondaryMiddleStretched = Math.max(0, secondaryWidth - 2 * secondaryEffectiveCapWidth);
+      const secondaryTextWidth = this.measureWithLetterSpacing(
+        secondaryText,
+        secondary.typography,
+      );
+      secondaryWidth = Math.max(
+        secondary.minWidth,
+        secondaryTextWidth + 2 * secondary.paddingX,
+      );
+      secondaryEffectiveCapWidth = Math.min(
+        secondary.capWidth,
+        secondaryWidth / 2,
+      );
+      secondaryMiddleStretched = Math.max(
+        0,
+        secondaryWidth - 2 * secondaryEffectiveCapWidth,
+      );
     }
 
     const { pointer } = primary;
@@ -613,19 +844,19 @@ export class LabelMarkerManager {
 
     // Dimensions
     const gap = secondaryVisible && secondary ? secondary.gap : 0;
-    const hasAbove = secondaryVisible && secondary?.position === 'above';
-    const hasBelow = secondaryVisible && secondary?.position === 'below';
-    
+    const hasAbove = secondaryVisible && secondary?.position === "above";
+    const hasBelow = secondaryVisible && secondary?.position === "below";
+
     const heightAbove = hasAbove ? secondary!.height + gap : 0;
-    
+
     let primaryLeft = 0;
     let secondaryLeft = 0;
 
     if (secondaryVisible && secondary) {
-      if (secondary.align === 'left') {
+      if (secondary.align === "left") {
         primaryLeft = 0;
         secondaryLeft = 0;
-      } else if (secondary.align === 'right') {
+      } else if (secondary.align === "right") {
         const maxW = Math.max(primaryWidth, secondaryWidth);
         primaryLeft = maxW - primaryWidth;
         secondaryLeft = maxW - secondaryWidth;
@@ -636,27 +867,43 @@ export class LabelMarkerManager {
       }
     }
 
-    const primaryTop = hasAbove ? heightAbove + (pointer.attachEdge === 'top' ? pointerOverhang : 0) : (pointer.attachEdge === 'top' ? pointerOverhang : 0);
-    
+    const primaryTop = hasAbove
+      ? heightAbove + (pointer.attachEdge === "top" ? pointerOverhang : 0)
+      : pointer.attachEdge === "top"
+        ? pointerOverhang
+        : 0;
+
     let ptrLeft = 0;
     let ptrTop = 0;
 
-    if (pointer.attachEdge === 'bottom') {
+    if (pointer.attachEdge === "bottom") {
       ptrTop = primaryTop + primary.height - 1;
-      if (pointer.attachFrom === 'left') ptrLeft = primaryLeft + pointer.attachOffset - pointer.tipX;
-      else if (pointer.attachFrom === 'right') ptrLeft = primaryLeft + primaryWidth - pointer.attachOffset - pointer.tipX;
-    } else if (pointer.attachEdge === 'top') {
+      if (pointer.attachFrom === "left")
+        ptrLeft = primaryLeft + pointer.attachOffset - pointer.tipX;
+      else if (pointer.attachFrom === "right")
+        ptrLeft =
+          primaryLeft + primaryWidth - pointer.attachOffset - pointer.tipX;
+    } else if (pointer.attachEdge === "top") {
       ptrTop = primaryTop - pointer.height + 1;
-      if (pointer.attachFrom === 'left') ptrLeft = primaryLeft + pointer.attachOffset - pointer.tipX;
-      else if (pointer.attachFrom === 'right') ptrLeft = primaryLeft + primaryWidth - pointer.attachOffset - pointer.tipX;
-    } else if (pointer.attachEdge === 'left') {
+      if (pointer.attachFrom === "left")
+        ptrLeft = primaryLeft + pointer.attachOffset - pointer.tipX;
+      else if (pointer.attachFrom === "right")
+        ptrLeft =
+          primaryLeft + primaryWidth - pointer.attachOffset - pointer.tipX;
+    } else if (pointer.attachEdge === "left") {
       ptrLeft = primaryLeft - pointer.width + 1;
-      if (pointer.attachFrom === 'top') ptrTop = primaryTop + pointer.attachOffset - pointer.tipY;
-      else if (pointer.attachFrom === 'bottom') ptrTop = primaryTop + primary.height - pointer.attachOffset - pointer.tipY;
-    } else if (pointer.attachEdge === 'right') {
+      if (pointer.attachFrom === "top")
+        ptrTop = primaryTop + pointer.attachOffset - pointer.tipY;
+      else if (pointer.attachFrom === "bottom")
+        ptrTop =
+          primaryTop + primary.height - pointer.attachOffset - pointer.tipY;
+    } else if (pointer.attachEdge === "right") {
       ptrLeft = primaryLeft + primaryWidth - 1;
-      if (pointer.attachFrom === 'top') ptrTop = primaryTop + pointer.attachOffset - pointer.tipY;
-      else if (pointer.attachFrom === 'bottom') ptrTop = primaryTop + primary.height - pointer.attachOffset - pointer.tipY;
+      if (pointer.attachFrom === "top")
+        ptrTop = primaryTop + pointer.attachOffset - pointer.tipY;
+      else if (pointer.attachFrom === "bottom")
+        ptrTop =
+          primaryTop + primary.height - pointer.attachOffset - pointer.tipY;
     }
 
     const minLeft = Math.min(primaryLeft, secondaryLeft, ptrLeft);
@@ -665,29 +912,46 @@ export class LabelMarkerManager {
       secondaryLeft -= minLeft;
       ptrLeft -= minLeft;
     }
-    
+
     const minTop = Math.min(primaryTop, hasAbove ? 0 : 99999, ptrTop);
     let shiftY = 0;
     if (minTop < 0) shiftY = -minTop;
 
     const finalPrimaryTop = primaryTop + shiftY;
-    const finalSecondaryTop = hasAbove ? shiftY : finalPrimaryTop + primary.height + (pointer.attachEdge === 'bottom' ? pointerOverhang : 0) + gap;
+    const finalSecondaryTop = hasAbove
+      ? shiftY
+      : finalPrimaryTop +
+        primary.height +
+        (pointer.attachEdge === "bottom" ? pointerOverhang : 0) +
+        gap;
     const finalPtrTop = ptrTop + shiftY;
 
-    const markerWidth = Math.ceil(Math.max(primaryLeft + primaryWidth, secondaryVisible ? secondaryLeft + secondaryWidth : 0, ptrLeft + pointer.width));
-    const finalMarkerHeight = Math.ceil(Math.max(finalPrimaryTop + primary.height, secondaryVisible ? finalSecondaryTop + secondary!.height : 0, finalPtrTop + pointer.height));
+    const markerWidth = Math.ceil(
+      Math.max(
+        primaryLeft + primaryWidth,
+        secondaryVisible ? secondaryLeft + secondaryWidth : 0,
+        ptrLeft + pointer.width,
+      ),
+    );
+    const finalMarkerHeight = Math.ceil(
+      Math.max(
+        finalPrimaryTop + primary.height,
+        secondaryVisible ? finalSecondaryTop + secondary!.height : 0,
+        finalPtrTop + pointer.height,
+      ),
+    );
 
     let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${markerWidth}" height="${finalMarkerHeight}">`;
-    
+
     svg += `
       <style>
         :root {
-          --primary-backplate-fill: ${theme?.primaryBackplateFill || '#ffffff'};
-          --secondary-backplate-fill: ${theme?.secondaryBackplateFill || '#ffffff'};
-          --pointer-fill: ${theme?.pointerFill || theme?.primaryBackplateFill || '#ffffff'};
-          --primary-text-color: ${theme?.primaryTextColor || '#000000'};
-          --secondary-text-color: ${theme?.secondaryTextColor || '#000000'};
-          --accent-fill: ${theme?.accentFill || '#000000'};
+          --primary-backplate-fill: ${theme?.primaryBackplateFill || manifest?.primary?.color || "#ffffff"};
+          --secondary-backplate-fill: ${theme?.secondaryBackplateFill || manifest?.secondary?.color || "#ffffff"};
+          --pointer-fill: ${theme?.pointerFill || manifest?.primary?.pointer?.color || "#ffffff"};
+          --primary-text-color: ${theme?.primaryTextColor || manifest?.primary?.typography?.color || "#000000"};
+          --secondary-text-color: ${theme?.secondaryTextColor || manifest?.secondary?.typography?.color || "#000000"};
+          --accent-fill: ${theme?.accentFill || "#000000"};
         }
       </style>
     `;
@@ -697,9 +961,9 @@ export class LabelMarkerManager {
       svg += `
         <svg x="${secondaryLeft}" y="${finalSecondaryTop}" width="${secondaryWidth}" height="${secondary.height}">
           <svg x="0" y="0" width="${secondaryEffectiveCapWidth}" height="${secondary.height}" preserveAspectRatio="none">${tpl.secondaryLeftCap}</svg>
-          ${secondaryMiddleStretched > 0 ? `<svg x="${secondaryEffectiveCapWidth}" y="0" width="${secondaryMiddleStretched}" height="${secondary.height}" viewBox="0 0 ${tpl.secondaryMiddleSrcWidth} ${tpl.secondaryMiddleSrcHeight}" preserveAspectRatio="none">${tpl.secondaryMiddleInner}</svg>` : ''}
+          ${secondaryMiddleStretched > 0 ? `<svg x="${secondaryEffectiveCapWidth}" y="0" width="${secondaryMiddleStretched}" height="${secondary.height}" viewBox="0 0 ${tpl.secondaryMiddleSrcWidth} ${tpl.secondaryMiddleSrcHeight}" preserveAspectRatio="none">${tpl.secondaryMiddleInner}</svg>` : ""}
           <svg x="${secondaryWidth - secondaryEffectiveCapWidth}" y="0" width="${secondaryEffectiveCapWidth}" height="${secondary.height}" preserveAspectRatio="none">${tpl.secondaryRightCap}</svg>
-          <text x="50%" y="50%" font-family="${secondary.typography.fontFamily}" font-size="${secondary.typography.fontSize}px" font-weight="${secondary.typography.fontWeight}" fill="${secondary.typography.color}" text-anchor="middle" dominant-baseline="central" letter-spacing="${secondary.typography.letterSpacing || 0}">${transformText(secondaryText, secondary.typography.textTransform)}</text>
+          <text x="50%" y="50%" font-family="${secondary.typography.fontFamily}" font-size="${secondary.typography.fontSize}px" font-weight="${secondary.typography.fontWeight}" fill="var(--secondary-text-color, ${secondary.typography.color})" text-anchor="middle" dominant-baseline="central" letter-spacing="${secondary.typography.letterSpacing || 0}">${transformText(secondaryText, secondary.typography.textTransform)}</text>
         </svg>
       `;
     }
@@ -708,9 +972,9 @@ export class LabelMarkerManager {
     svg += `
       <svg x="${primaryLeft}" y="${finalPrimaryTop}" width="${primaryWidth}" height="${primary.height}">
         <svg x="0" y="0" width="${primaryEffectiveCapWidth}" height="${primary.height}" preserveAspectRatio="none">${tpl.primaryLeftCap}</svg>
-        ${primaryMiddleStretched > 0 ? `<svg x="${primaryEffectiveCapWidth}" y="0" width="${primaryMiddleStretched}" height="${primary.height}" viewBox="0 0 ${tpl.primaryMiddleSrcWidth} ${tpl.primaryMiddleSrcHeight}" preserveAspectRatio="none">${tpl.primaryMiddleInner}</svg>` : ''}
+        ${primaryMiddleStretched > 0 ? `<svg x="${primaryEffectiveCapWidth}" y="0" width="${primaryMiddleStretched}" height="${primary.height}" viewBox="0 0 ${tpl.primaryMiddleSrcWidth} ${tpl.primaryMiddleSrcHeight}" preserveAspectRatio="none">${tpl.primaryMiddleInner}</svg>` : ""}
         <svg x="${primaryWidth - primaryEffectiveCapWidth}" y="0" width="${primaryEffectiveCapWidth}" height="${primary.height}" preserveAspectRatio="none">${tpl.primaryRightCap}</svg>
-        <text x="50%" y="50%" font-family="${primary.typography.fontFamily}" font-size="${primary.typography.fontSize}px" font-weight="${primary.typography.fontWeight}" fill="${primary.typography.color}" text-anchor="middle" dominant-baseline="central" letter-spacing="${primary.typography.letterSpacing || 0}">${transformText(primaryText, primary.typography.textTransform)}</text>
+        <text x="50%" y="50%" font-family="${primary.typography.fontFamily}" font-size="${primary.typography.fontSize}px" font-weight="${primary.typography.fontWeight}" fill="var(--primary-text-color, ${primary.typography.color})" text-anchor="middle" dominant-baseline="central" letter-spacing="${primary.typography.letterSpacing || 0}">${transformText(primaryText, primary.typography.textTransform)}</text>
       </svg>
     `;
 
@@ -728,35 +992,63 @@ export class LabelMarkerManager {
       svg += `
         <svg x="${secondaryLeft}" y="${finalSecondaryTop}" width="${secondaryWidth}" height="${secondary.height}">
           <svg x="0" y="0" width="${secondaryEffectiveCapWidth}" height="${secondary.height}" preserveAspectRatio="none">${tpl.secondaryLeftCap}</svg>
-          ${secondaryMiddleStretched > 0 ? `<svg x="${secondaryEffectiveCapWidth}" y="0" width="${secondaryMiddleStretched}" height="${secondary.height}" viewBox="0 0 ${tpl.secondaryMiddleSrcWidth} ${tpl.secondaryMiddleSrcHeight}" preserveAspectRatio="none">${tpl.secondaryMiddleInner}</svg>` : ''}
+          ${secondaryMiddleStretched > 0 ? `<svg x="${secondaryEffectiveCapWidth}" y="0" width="${secondaryMiddleStretched}" height="${secondary.height}" viewBox="0 0 ${tpl.secondaryMiddleSrcWidth} ${tpl.secondaryMiddleSrcHeight}" preserveAspectRatio="none">${tpl.secondaryMiddleInner}</svg>` : ""}
           <svg x="${secondaryWidth - secondaryEffectiveCapWidth}" y="0" width="${secondaryEffectiveCapWidth}" height="${secondary.height}" preserveAspectRatio="none">${tpl.secondaryRightCap}</svg>
-          <text x="50%" y="50%" font-family="${secondary.typography.fontFamily}" font-size="${secondary.typography.fontSize}px" font-weight="${secondary.typography.fontWeight}" fill="${secondary.typography.color}" text-anchor="middle" dominant-baseline="central" letter-spacing="${secondary.typography.letterSpacing || 0}">${transformText(secondaryText, secondary.typography.textTransform)}</text>
+          <text x="50%" y="50%" font-family="${secondary.typography.fontFamily}" font-size="${secondary.typography.fontSize}px" font-weight="${secondary.typography.fontWeight}" fill="var(--secondary-text-color, ${secondary.typography.color})" text-anchor="middle" dominant-baseline="central" letter-spacing="${secondary.typography.letterSpacing || 0}">${transformText(secondaryText, secondary.typography.textTransform)}</text>
         </svg>
       `;
     }
 
-    svg += '</svg>';
+    svg += "</svg>";
 
     // Canvas drawImage ignores CSS variables in data URIs, so we explicitly replace them with literal values
-    svg = svg.replace(/var\(--primary-backplate-fill,\s*([^)]+)\)/g, theme?.primaryBackplateFill || '$1');
-    svg = svg.replace(/var\(--secondary-backplate-fill,\s*([^)]+)\)/g, theme?.secondaryBackplateFill || '$1');
-    svg = svg.replace(/var\(--pointer-fill,\s*([^)]+)\)/g, theme?.pointerFill || theme?.primaryBackplateFill || '$1');
-    svg = svg.replace(/var\(--primary-text-color,\s*([^)]+)\)/g, theme?.primaryTextColor || '$1');
-    svg = svg.replace(/var\(--secondary-text-color,\s*([^)]+)\)/g, theme?.secondaryTextColor || '$1');
-    svg = svg.replace(/var\(--accent-fill,\s*([^)]+)\)/g, theme?.accentFill || '$1');
+    svg = svg.replace(
+      /var\(--primary-backplate-fill,\s*([^)]+)\)/g,
+      theme?.primaryBackplateFill || manifest.primary.color || "$1",
+    );
+    svg = svg.replace(
+      /var\(--secondary-backplate-fill,\s*([^)]+)\)/g,
+      theme?.secondaryBackplateFill || manifest.secondary?.color || "$1",
+    );
+    svg = svg.replace(
+      /var\(--pointer-fill,\s*([^)]+)\)/g,
+      theme?.pointerFill || manifest.primary.pointer.color || "$1",
+    );
+    svg = svg.replace(
+      /var\(--primary-text-color,\s*([^)]+)\)/g,
+      theme?.primaryTextColor || manifest.primary.typography.color || "$1",
+    );
+    svg = svg.replace(
+      /var\(--secondary-text-color,\s*([^)]+)\)/g,
+      theme?.secondaryTextColor ||
+        manifest.secondary?.typography?.color ||
+        "$1",
+    );
+    svg = svg.replace(
+      /var\(--accent-fill,\s*([^)]+)\)/g,
+      theme?.accentFill || "$1",
+    );
 
     const anchorX = ptrLeft + pointer.tipX;
     const anchorY = finalPtrTop + pointer.tipY;
 
-    return { svg, width: markerWidth, height: finalMarkerHeight, anchorX, anchorY };
+    return {
+      svg,
+      width: markerWidth,
+      height: finalMarkerHeight,
+      anchorX,
+      anchorY,
+    };
   }
 
-
-  getPreviewHtml(templateName: string, text: string | { primary: string; secondary?: string }): string | null {
+  getPreviewHtml(
+    templateName: string,
+    text: string | { primary: string; secondary?: string },
+  ): string | null {
     const tpl = this.templates.get(templateName);
     if (!tpl) return null;
     const data = this.buildTemplateHtml(tpl, text);
-    
+
     // Wrap in a relative container so the absolute positioning works in preview
     return `
       <div class="label-marker" style="position: relative; width: ${data.width}px; height: ${data.height}px; pointer-events: none;">
@@ -765,13 +1057,18 @@ export class LabelMarkerManager {
     `;
   }
 
-  private render(handle: LabelHandle, templateName: string, text: string | { primary: string; secondary?: string }, onClick?: (id: string) => void) {
+  private render(
+    handle: LabelHandle,
+    templateName: string,
+    text: string | { primary: string; secondary?: string },
+    onClick?: (id: string) => void,
+  ) {
     const tpl = this.templates.get(templateName);
     if (!tpl) return;
     const markerEl = handle.getElement();
-    
+
     const data = this.buildTemplateHtml(tpl, text);
-    
+
     markerEl.style.width = `${data.width}px`;
     markerEl.style.height = `${data.height}px`;
     markerEl.dataset.width = data.width.toString();
@@ -782,17 +1079,21 @@ export class LabelMarkerManager {
     markerEl.innerHTML = data.html;
 
     if (onClick) {
-      const primaryBackplate = markerEl.querySelector('.backplate.primary') as HTMLElement;
+      const primaryBackplate = markerEl.querySelector(
+        ".backplate.primary",
+      ) as HTMLElement;
       if (primaryBackplate) {
-        primaryBackplate.style.cursor = 'pointer';
-        primaryBackplate.addEventListener('click', (e) => {
+        primaryBackplate.style.cursor = "pointer";
+        primaryBackplate.addEventListener("click", (e) => {
           e.stopPropagation();
           onClick(handle.id);
         });
       }
     }
 
-    const markerObj = (this.map as any)?._markers?.find((m: any) => m.getElement() === markerEl);
+    const markerObj = (this.map as any)?._markers?.find(
+      (m: any) => m.getElement() === markerEl,
+    );
     if (markerObj) {
       markerObj.setOffset([-data.anchorX, -data.anchorY]);
     } else {
@@ -806,13 +1107,13 @@ export class LabelMarkerManager {
     return handle.getRasterizedImage();
   }
 
-  getAnchorOffset(id: string): { x: number, y: number } | null {
+  getAnchorOffset(id: string): { x: number; y: number } | null {
     const handle = this.handles.get(id);
     if (!handle) return null;
     const el = handle.getElement();
     return {
-      x: parseFloat(el.dataset.anchorX || '0'),
-      y: parseFloat(el.dataset.anchorY || '0')
+      x: parseFloat(el.dataset.anchorX || "0"),
+      y: parseFloat(el.dataset.anchorY || "0"),
     };
   }
 
