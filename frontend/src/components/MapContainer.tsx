@@ -16,6 +16,7 @@ import { customAlert } from '../utils/dialogService';
 import * as Mp4Muxer from 'mp4-muxer';
 import { omProtocol } from '@openmeteo/weather-map-layer';
 import { globalLabelManager } from '../labels/LabelMarkerManager';
+import excludedCitiesData from '../assets/excluded-cities.json';
 
 let omProtocolRegistered = false;
 let globalDeepstateHistory: { id: number; createdAt: string }[] | null = null;
@@ -433,7 +434,23 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       pitch: settings.defaultView.pitch,
       bearing: settings.defaultView.bearing,
       canvasContextAttributes: { preserveDrawingBuffer: true },
-      attributionControl: false
+      attributionControl: false,
+      transformRequest: (url, resourceType) => {
+        if (resourceType === 'Glyphs' && decodeURIComponent(url).includes('Gotham Condensed')) {
+          try {
+            const urlObj = new URL(url);
+            const parts = urlObj.pathname.split('/');
+            const range = parts.pop();
+            const fontstack = decodeURIComponent(parts.pop() || '');
+            if (fontstack.startsWith('Gotham Condensed')) {
+              return { url: `${window.location.origin}/fonts/PBF/${fontstack}/${range}` };
+            }
+          } catch (e) {
+            console.warn("Failed to rewrite local glyph URL", e);
+          }
+        }
+        return { url };
+      }
     });
     
     mapRef.current = map;
@@ -504,7 +521,6 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           theme: settingsRef.current?.labelTemplates?.theme,
           coordinates: coords,
           text: name,
-          animationTriggerId: annotationId,
           view: {
             center: coords,
             zoom: mapRef.current!.getZoom(),
@@ -580,6 +596,67 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           if (!firstSymbolId) firstSymbolId = id;
           if (!id.startsWith('custom-')) {
             originalFiltersRef.current[id] = (styleLayers[i] as any).filter || null;
+            
+            // Apply language overrides
+            const layout = (styleLayers[i] as any).layout;
+            if (layout && layout['text-field']) {
+              // Ensure we don't accidentally overwrite icon-only layers that don't have text
+              if (typeof layout['text-field'] === 'string' || Array.isArray(layout['text-field'])) {
+                const isCountry = id.toLowerCase().includes('country') || id.toLowerCase().includes('admin-0');
+                
+                // Add any other historically sensitive German names to src/assets/excluded-cities.json
+                const excludedCities = excludedCitiesData;
+
+                let textFieldExp: any[];
+                
+                if (isCountry) {
+                  textFieldExp = [
+                    'coalesce', ['get', 'name:de'], ['get', 'name:en'], ['get', 'name:latin'], ['get', 'name']
+                  ];
+                } else {
+                  textFieldExp = [
+                    'case',
+                    ['in', ['coalesce', ['get', 'name:de'], ''], ['literal', excludedCities]],
+                    ['coalesce', ['get', 'name:latin'], ['get', 'name:en'], ['get', 'name']],
+                    
+                    ['coalesce', ['get', 'name:de'], ['get', 'name:en'], ['get', 'name:latin'], ['get', 'name']]
+                  ];
+                }
+
+                map.setLayoutProperty(id, 'text-field', textFieldExp);
+                
+                // Map font weights dynamically based on layer type
+                let newFont = 'Gotham Condensed Book';
+                const lowerId = id.toLowerCase();
+                
+                if (lowerId.includes('country') || lowerId.includes('admin-0')) {
+                  newFont = 'Gotham Condensed Bold';
+                } else if (lowerId.includes('state') || lowerId.includes('admin-1')) {
+                  newFont = 'Gotham Condensed Medium';
+                } else if (lowerId.includes('water') || lowerId.includes('marine') || lowerId.includes('ocean')) {
+                  newFont = 'Gotham Condensed Book Italic';
+                } else if (lowerId.includes('city') || lowerId.includes('town')) {
+                  newFont = 'Gotham Condensed Medium';
+                } else if (lowerId.includes('road') || lowerId.includes('street') || lowerId.includes('path')) {
+                  newFont = 'Gotham Condensed Light';
+                } else {
+                  // Attempt to preserve original weight if possible
+                  try {
+                    const currentFonts = JSON.stringify(layout['text-font']).toLowerCase();
+                    if (currentFonts.includes('black') || currentFonts.includes('heavy')) newFont = 'Gotham Condensed Black';
+                    else if (currentFonts.includes('bold') || currentFonts.includes('strong')) newFont = 'Gotham Condensed Bold';
+                    else if (currentFonts.includes('medium')) newFont = 'Gotham Condensed Medium';
+                    else if (currentFonts.includes('light') || currentFonts.includes('thin')) newFont = 'Gotham Condensed Light';
+                    
+                    if (currentFonts.includes('italic')) newFont += ' Italic';
+                  } catch (e) {
+                    // Fallback to book
+                  }
+                }
+                
+                map.setLayoutProperty(id, 'text-font', [newFont]);
+              }
+            }
           }
         }
       }
@@ -1697,15 +1774,17 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     
     // First, sync feature-state and static opacities
     annotations.forEach(ann => {
-      if (!ann.animationTriggerId && !ann.hideAnimationTriggerId) return;
-      
       const hasRevealTrigger = !!ann.animationTriggerId;
       const hasHideTrigger = !!ann.hideAnimationTriggerId;
+      const hasTriggers = hasRevealTrigger || hasHideTrigger;
+      
       const isRevealTriggered = hasRevealTrigger && revealedTriggers.has(ann.animationTriggerId!);
       const isHideTriggered = hasHideTrigger && hiddenTriggers.has(ann.hideAnimationTriggerId!);
       
       let isRevealed = false;
       if (overrideVisible) {
+        isRevealed = true;
+      } else if (!hasTriggers) {
         isRevealed = true;
       } else {
         const revealTime = hasRevealTrigger ? (triggerTimestampsRef.current[ann.animationTriggerId!] || 0) : -1;
@@ -1807,10 +1886,10 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       const currentFeatures = activeFeaturesRef.current;
       
       annotations.forEach(ann => {
-        if (!ann.animationTriggerId && !ann.hideAnimationTriggerId) return;
-        
         const hasRevealTrigger = !!ann.animationTriggerId;
         const hasHideTrigger = !!ann.hideAnimationTriggerId;
+        const hasTriggers = hasRevealTrigger || hasHideTrigger;
+        
         const isRevealTriggered = hasRevealTrigger && revealedTriggers.has(ann.animationTriggerId!);
         const isHideTriggered = hasHideTrigger && hiddenTriggers.has(ann.hideAnimationTriggerId!);
         const revealTime = hasRevealTrigger ? (triggerTimestampsRef.current[ann.animationTriggerId!] || 0) : -1;
@@ -1821,6 +1900,10 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         let labelAnnProgress = 0;
         
         if (overrideVisible) {
+          isRevealed = true;
+          annProgress = 1;
+          labelAnnProgress = 1;
+        } else if (!hasTriggers) {
           isRevealed = true;
           annProgress = 1;
           labelAnnProgress = 1;
@@ -5305,7 +5388,6 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             theme: actualTheme,
             coordinates: coords,
             text: name,
-            animationTriggerId: newId,
             view: {
               center: coords,
               zoom: mapRef.current!.getZoom(),
@@ -5371,8 +5453,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                   fillOpacity: currentFillOpacity ?? 0.5,
                   coordinates: [centerLng, centerLat],
                   polygonGeometry: terrestrialGeometry || data.geojson,
-                  text: name,
-                  animationTriggerId: newId
+                  text: name
                 }]);
               }
             } catch (err) {
