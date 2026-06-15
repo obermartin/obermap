@@ -176,5 +176,46 @@ export const de: Record<string, string> = {
   "of": "von",
   "Rendering Video...": "Video wird gerendert...",
   "View": "Ansicht",
-  "DO NOT INTERACT WITH THE BROWSER": "BITTE NICHT MIT DEM BROWSER INTERAGIEREN"
+  "DO NOT INTERACT WITH THE BROWSER": "BITTE NICHT MIT DEM BROWSER INTERAGIEREN",
+
+  // Preset layer names
+  "Air Traffic": "Flugverkehr",
+  "Maritime Traffic": "Schiffsverkehr",
+  "Nighttime Overlay": "Nacht",
+  "Weather": "Wetter",
+  "Tropical Cyclones": "Wirbelstürme",
+  "Wildfires": "Waldbrände",
+  "Floods": "Überschwemmungen",
+  "Earthquakes": "Erdbeben",
+  "Volcanoes": "Vulkanausbrüche",
+
+  // Items in various layer settings
+  "from": "Startdatum",
+  "to": "Enddatum",
+  "tail labels": "Rufzeichen",
+  "global aircraft color": "Flugzeugfarbe",
+  "global vessel color": "Schiffsfarbe",
+  "date": "Datum",
+  "DATE": "Datum",
+  "Adjustments": "Einstellungen",
+  "City Temp.": "Beschriftung",
+  "City Icons": "Icons",
+  "Limit to Germany": "nur Deutschland",
+  "Wind Overlay": "Wind",
+  "Size by speed": "Grösse",
+  "Size by Speed": "Grösse",
+  "Motion by speed": "Bewegung",
+  "Motion by Speed": "Bewegung",
+  "Trail by speed": "Spur",
+  "Trail by Speed": "Spur",
+  "Color by speed": "Farbe",
+  "Color by Speed": "Farbe",
+  "DATA SOURCE": "Datenquelle",
+  "Data Source": "Datenquelle",
+  "All": "Alle",
+  "Catastrophic": "Katastrophal",
+
+  // Video export panel
+  "FILE TYPE": "Dateiformat",
+  "File type": "Dateiformat"
 };

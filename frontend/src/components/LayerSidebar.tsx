@@ -2034,7 +2034,7 @@ export function LayerSidebar({
                           }}
                         />
                       )}
-                      {fmt === "both" ? "Both" : fmt.toUpperCase()}
+                      {fmt === "both" ? t("Both") : fmt.toUpperCase()}
                     </button>
                   ))}
                 </div>
@@ -2856,8 +2856,8 @@ function LayerItem(props: {
                       updateLayerDates && (
                         <div className="flex-1 flex flex-col items-end gap-2">
                           <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-white/50 w-8">
-                              FROM
+                            <span className="text-[10px] text-white/50 min-w-[70px] text-right uppercase">
+                              {t("from")}
                             </span>
                             <input
                               type="date"
@@ -2878,8 +2878,8 @@ function LayerItem(props: {
                             />
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-white/50 w-8">
-                              TO
+                            <span className="text-[10px] text-white/50 min-w-[70px] text-right uppercase">
+                              {t("to")}
                             </span>
                             <input
                               type="date"
@@ -2919,7 +2919,7 @@ function LayerItem(props: {
                             }
                             className={`text-[10px] px-3 py-1 rounded-full transition-colors ${layer.wildfireMode !== "gdacs" ? "bg-white text-black font-medium" : "text-white/60 hover:text-white"}`}
                           >
-                            All (EFFIS)
+                            {t("All")} (EFFIS)
                           </button>
                           <button
                             onClick={() =>
@@ -2931,7 +2931,7 @@ function LayerItem(props: {
                             }
                             className={`text-[10px] px-3 py-1 rounded-full transition-colors ${layer.wildfireMode === "gdacs" ? "bg-white text-black font-medium" : "text-white/60 hover:text-white"}`}
                           >
-                            Catastrophic (GDACS)
+                            {t("Catastrophic")} (GDACS)
                           </button>
                         </div>
                       </div>
@@ -3070,8 +3070,8 @@ function LayerItem(props: {
 
                   {(layer.type === "raster" || layer.type === "satellite") && (
                     <details className="mt-3 group">
-                      <summary className="text-[10px] text-white font-semibold tracking-wider cursor-pointer select-none hover:text-white transition-colors flex items-center justify-between">
-                        ADJUSTMENTS
+                      <summary className="text-[10px] text-white font-semibold tracking-wider cursor-pointer select-none hover:text-white transition-colors flex items-center justify-between uppercase">
+                        {t("Adjustments")}
                         <span className="group-open:rotate-180 transition-transform text-xs">
                           ▼
                         </span>
@@ -3196,8 +3196,8 @@ function LayerItem(props: {
               ) : layer.type === "flights" ? (
                 <div className="flex flex-col gap-4 pb-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-white font-semibold tracking-wider">
-                      TAIL LABELS
+                    <span className="text-[10px] text-white font-semibold tracking-wider uppercase">
+                      {t("tail labels")}
                     </span>
                     <button
                       onClick={() =>
@@ -3251,8 +3251,8 @@ function LayerItem(props: {
                   <div className="flex flex-col gap-2">
                     <label className="text-[10px] text-white font-semibold tracking-wider uppercase">
                       {selectedAircraftId
-                        ? `COLOR (AIRCRAFT ${selectedAircraftId})`
-                        : "GLOBAL AIRCRAFT COLOR"}
+                        ? `${t("color")} (AIRCRAFT ${selectedAircraftId})`
+                        : t("global aircraft color")}
                     </label>
                     <div className="flex flex-wrap gap-1">
                       {colorPalette.map((color) => (
@@ -3348,8 +3348,8 @@ function LayerItem(props: {
                   <div className="flex flex-col gap-2">
                     <label className="text-[10px] text-white font-semibold tracking-wider uppercase">
                       {selectedVesselMmsi
-                        ? `COLOR (VESSEL MMSI: ${selectedVesselMmsi})`
-                        : "GLOBAL VESSEL COLOR"}
+                        ? `${t("color")} (VESSEL MMSI: ${selectedVesselMmsi})`
+                        : t("global vessel color")}
                     </label>
                     <div className="flex flex-wrap gap-1">
                       {colorPalette.map((color) => (
@@ -3595,7 +3595,7 @@ function LayerItem(props: {
                           }
                           className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-[10px] font-semibold tracking-wider uppercase text-left"
                         >
-                          Size by speed
+                          {t("Size by speed")}
                           <div
                             className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.windParticleSizeBySpeed === true ? "bg-white" : "bg-white/20"}`}
                           >
@@ -3614,7 +3614,7 @@ function LayerItem(props: {
                           }
                           className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-[10px] font-semibold tracking-wider uppercase text-left"
                         >
-                          Motion by speed
+                          {t("Motion by speed")}
                           <div
                             className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.windParticleSpeedBySpeed !== false ? "bg-white" : "bg-white/20"}`}
                           >
@@ -3633,7 +3633,7 @@ function LayerItem(props: {
                           }
                           className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-[10px] font-semibold tracking-wider uppercase text-left"
                         >
-                          Trail by speed
+                          {t("Trail by speed")}
                           <div
                             className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.windParticleTrailBySpeed === true ? "bg-white" : "bg-white/20"}`}
                           >
@@ -3652,7 +3652,7 @@ function LayerItem(props: {
                           }
                           className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-[10px] font-semibold tracking-wider uppercase text-left"
                         >
-                          Color by speed
+                          {t("Color by speed")}
                           <div
                             className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.windParticleColorBySpeed === true ? "bg-white" : "bg-white/20"}`}
                           >
