@@ -3271,6 +3271,17 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         idsToMove.push(`dynamic-layer-${layer.id}-effis`);
         idsToMove.push(`dynamic-layer-${layer.id}-gdacs-fill`);
         idsToMove.push(`dynamic-layer-${layer.id}-gdacs-line`);
+      } else if (layer.type === 'gdacs_earthquakes') {
+        idsToMove.push('selected-earthquake-shakemap-fill');
+        idsToMove.push('selected-earthquake-shakemap-line');
+        idsToMove.push(`dynamic-layer-${layer.id}`);
+        if (map.getLayer(`dynamic-layer-${layer.id}-label`)) {
+          idsToMove.push(`dynamic-layer-${layer.id}-label`);
+        }
+      } else if (layer.type === 'gdacs_volcanoes') {
+        idsToMove.push('selected-volcano-polygon-fill');
+        idsToMove.push('selected-volcano-polygon-line');
+        idsToMove.push(`dynamic-layer-${layer.id}`);
       } else {
         idsToMove.push(`dynamic-layer-${layer.id}`);
         if (map.getLayer(`dynamic-line-${layer.id}`)) {
@@ -3291,7 +3302,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       // Cleanup dynamically created raster layers that were removed from settings
       // We don't remove copernicus or deepstate sources to avoid reload flashes
     };
-  }, [settings.layers, mapLoaded, selectedAircraftId, selectedVesselMmsi, selectedWeatherTime, weatherValidTimes]);
+  }, [settings.layers, mapLoaded, selectedAircraftId, selectedVesselMmsi, selectedWeatherTime, weatherValidTimes, selectedEarthquake, selectedVolcano, selectedEarthquakeShakemap, selectedVolcanoPolygon]);
 
   // Fetch weather data for visible cities
   useEffect(() => {
@@ -4543,6 +4554,25 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     });
   }, [selectedEarthquake, mapLoaded, settings.layers]);
 
+  // Update cyclone point filter to hide selected cyclone point
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+    
+    settings.layers.forEach(layer => {
+      if (layer.type === 'gdacs_cyclones') {
+        const layerId = `dynamic-layer-${layer.id}`;
+        if (map.getLayer(layerId)) {
+          if (selectedCycloneId) {
+            map.setFilter(layerId, ['!=', ['to-string', ['get', 'eventid']], selectedCycloneId.id]);
+          } else {
+            map.setFilter(layerId, null);
+          }
+        }
+      }
+    });
+  }, [selectedCycloneId, mapLoaded, settings.layers]);
+
   // Render selected earthquake DOM label
   useEffect(() => {
     const map = mapRef.current;
@@ -4608,6 +4638,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         data: { type: 'FeatureCollection', features: [] }
       });
       
+      const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
+      const beforeId = (eqLayer && map.getLayer(`dynamic-layer-${eqLayer.id}`)) ? `dynamic-layer-${eqLayer.id}` : 'custom-polygons';
+
       map.addLayer({
         id: 'selected-earthquake-shakemap-fill',
         type: 'fill',
@@ -4616,7 +4649,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           'fill-color': ['coalesce', ['get', 'fill'], '#ff9900'],
           'fill-opacity': 0.3
         }
-      }, 'custom-polygons');
+      }, beforeId);
 
       map.addLayer({
         id: 'selected-earthquake-shakemap-line',
@@ -4627,14 +4660,14 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           'line-width': 1,
           'line-opacity': 0.8
         }
-      }, 'custom-polygons');
+      }, beforeId);
     }
 
     const source = map.getSource('selected-earthquake-shakemap-source') as maplibregl.GeoJSONSource;
     if (source) {
       source.setData(selectedEarthquakeShakemap || { type: 'FeatureCollection', features: [] });
     }
-  }, [selectedEarthquakeShakemap, mapLoaded]);
+  }, [selectedEarthquakeShakemap, mapLoaded, settings.layers]);
 
   // Render selected volcano DOM label
   useEffect(() => {
@@ -4705,6 +4738,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         data: { type: 'FeatureCollection', features: [] }
       });
       
+      const volLayer = settings.layers.find(l => l.type === 'gdacs_volcanoes');
+      const beforeId = (volLayer && map.getLayer(`dynamic-layer-${volLayer.id}`)) ? `dynamic-layer-${volLayer.id}` : 'custom-polygons';
+
       map.addLayer({
         id: 'selected-volcano-polygon-fill',
         type: 'fill',
@@ -4713,7 +4749,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           'fill-color': ['coalesce', ['get', 'fillColor'], '#ff0000'],
           'fill-opacity': 0.3
         }
-      }, 'custom-polygons');
+      }, beforeId);
 
       map.addLayer({
         id: 'selected-volcano-polygon-line',
@@ -4724,14 +4760,14 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           'line-width': 1,
           'line-opacity': 0.8
         }
-      }, 'custom-polygons');
+      }, beforeId);
     }
 
     const source = map.getSource('selected-volcano-polygon-source') as maplibregl.GeoJSONSource;
     if (source) {
       source.setData(selectedVolcanoPolygon || { type: 'FeatureCollection', features: [] });
     }
-  }, [selectedVolcanoPolygon, mapLoaded]);
+  }, [selectedVolcanoPolygon, mapLoaded, settings.layers]);
 
   // Dynamically update clip polygons to match screen-space of highlight DOM labels
   useEffect(() => {
@@ -6282,15 +6318,21 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               
               setAnnotations(prev => prev.map(a => {
                 if (a.id === ann.id) {
-                  let newX = (a.screenPosition?.x || 0) + info.offset.x;
-                  let newY = (a.screenPosition?.y || 0) + info.offset.y;
-                  if (isDropZone) {
-                    const el = document.querySelector(`.headline-overlay-element[data-id="${ann.id}"]`) as HTMLElement;
-                    if (el) {
-                      newX = window.innerWidth / 2 - el.offsetWidth / 2;
-                    }
+                  const el = document.querySelector(`.headline-overlay-element[data-id="${ann.id}"]`) as HTMLElement;
+                  let currentX = a.screenPosition?.x || 0;
+                  if (a.isCentered && el) {
+                    currentX = window.innerWidth / 2 - el.offsetWidth / 2;
                   }
-                  return { ...a, screenPosition: { x: newX, y: newY } };
+                  let newX = currentX + info.offset.x;
+                  let newY = (a.screenPosition?.y || 0) + info.offset.y;
+                  let isCentered = false;
+                  
+                  if (isDropZone) {
+                    isCentered = true;
+                    newX = 0;
+                    newY = 12; // Centered vertically in the drop zone
+                  }
+                  return { ...a, screenPosition: { x: newX, y: newY }, isCentered };
                 }
                 return a;
               }));
@@ -6312,8 +6354,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             }}
             className={`headline-overlay-element absolute z-[45] flex items-center gap-3 ${activeTool === 'headline' || isSelected ? 'cursor-grab active:cursor-grabbing' : (activeTool !== 'none' && activeTool !== 'highlight' ? 'cursor-pointer' : 'pointer-events-none')} ${isSelected ? 'ring-2 ring-white ring-offset-2 ring-offset-black' : ''}`}
             style={{
-              left: ann.screenPosition?.x || 0,
+              left: ann.isCentered ? '50vw' : (ann.screenPosition?.x || 0),
               top: ann.screenPosition?.y || 0,
+              x: ann.isCentered ? '-50%' : 0,
             }}
           >
             {ann.text && (
@@ -6345,7 +6388,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1 bg-white/30 rounded-lg pointer-events-none z-0" />
               
               <div 
-                className="absolute top-1/2 -translate-y-1/2 bg-white rounded-full flex items-center justify-center pointer-events-none z-10 font-bold text-black shadow-md transition-transform group-hover:scale-105"
+                className="absolute top-1/2 -translate-y-1/2 bg-white rounded-full flex items-center justify-center pointer-events-none z-10 font-bold text-black shadow-md transition-transform group-hover:scale-105 select-none"
                 style={{
                   left: `calc(${cycloneTimelinePercent}% + (${0.5 - (cycloneTimelinePercent / 100)} * 48px))`,
                   width: '48px',
@@ -6364,6 +6407,24 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                 step="1"
                 value={cycloneTimelinePercent}
                 onChange={(e) => setCycloneTimelinePercent(Number(e.target.value))}
+                onTouchStart={(e) => {
+                  e.stopPropagation();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const update = (clientX: number) => {
+                    const x = clientX - rect.left;
+                    const pct = Math.max(0, Math.min(100, (x / rect.width) * 100));
+                    setCycloneTimelinePercent(pct);
+                  };
+                  update(e.touches[0].clientX);
+                }}
+                onTouchMove={(e) => {
+                  e.stopPropagation();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const x = e.touches[0].clientX - rect.left;
+                  const pct = Math.max(0, Math.min(100, (x / rect.width) * 100));
+                  setCycloneTimelinePercent(pct);
+                }}
+                onTouchEnd={(e) => e.stopPropagation()}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 m-0 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-[48px] [&::-webkit-slider-thumb]:h-[20px]"
               />
             </div>
@@ -6388,7 +6449,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1 bg-white/30 rounded-lg pointer-events-none z-0" />
               
               <div 
-                className="absolute top-1/2 -translate-y-1/2 bg-white rounded-full flex items-center justify-center pointer-events-none z-10 font-bold text-black shadow-md transition-transform group-hover:scale-105"
+                className="absolute top-1/2 -translate-y-1/2 bg-white rounded-full flex items-center justify-center pointer-events-none z-10 font-bold text-black shadow-md transition-transform group-hover:scale-105 select-none"
                 style={{
                   left: `calc(${(nighttimeHour / 24) * 100}% + (${0.5 - (nighttimeHour / 24)} * 48px))`,
                   width: '48px',
@@ -6414,6 +6475,34 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                     }));
                   }
                 }}
+                onTouchStart={(e) => {
+                  e.stopPropagation();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const update = (clientX: number) => {
+                    const x = clientX - rect.left;
+                    const val = Math.max(0, Math.min(24, (x / rect.width) * 24));
+                    if (setSettings && activeNighttimeLayer) {
+                      setSettings(prev => ({
+                        ...prev,
+                        layers: prev.layers.map(l => l.id === activeNighttimeLayer.id ? { ...l, nighttimeHour: val } : l)
+                      }));
+                    }
+                  };
+                  update(e.touches[0].clientX);
+                }}
+                onTouchMove={(e) => {
+                  e.stopPropagation();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const x = e.touches[0].clientX - rect.left;
+                  const val = Math.max(0, Math.min(24, (x / rect.width) * 24));
+                  if (setSettings && activeNighttimeLayer) {
+                    setSettings(prev => ({
+                      ...prev,
+                      layers: prev.layers.map(l => l.id === activeNighttimeLayer.id ? { ...l, nighttimeHour: val } : l)
+                    }));
+                  }
+                }}
+                onTouchEnd={(e) => e.stopPropagation()}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20 m-0 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-[48px] [&::-webkit-slider-thumb]:h-[20px]"
               />
             </div>

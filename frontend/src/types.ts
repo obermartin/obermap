@@ -30,6 +30,7 @@ export interface Annotation {
     pitch: number;
     bearing: number;
   };
+  isCentered?: boolean;
 }
 
 export interface MapLayer {
@@ -48,6 +49,7 @@ export interface MapLayer {
   wildfireMode?: 'effis' | 'gdacs';
   _isDirty?: boolean;
   _keepExistingData?: boolean;
+  customLayer?: boolean;
   nighttimeDate?: string; // YYYY-MM-DD
   nighttimeHour?: number; // 0-24
   

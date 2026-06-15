@@ -216,7 +216,7 @@ const DEFAULT_LAYERS: MapLayer[] = [
     windParticleSizeBySpeed: true,
     windParticleSpeedBySpeed: true,
     windParticleTrailBySpeed: false,
-    windParticleColorBySpeed: true,
+    windParticleColorBySpeed: false,
     showCityTemperatures: true,
     showCityWeatherIcons: true,
   },
@@ -750,6 +750,7 @@ export function LayerSidebar({
         id: `${layerToDuplicate.type}-${Date.now()}`,
         name: `${layerToDuplicate.name} (Copy)`,
         _isDirty: true,
+        customLayer: layerToDuplicate.customLayer || layerToDuplicate.id.startsWith("upload-") || layerToDuplicate.id.startsWith("url-") || undefined,
       };
 
       if (parentSplitId) {
@@ -885,6 +886,7 @@ export function LayerSidebar({
         visible: true,
         data: geojson,
         _isDirty: true,
+        customLayer: true,
       };
       setSettings((prev) => ({ ...prev, layers: [newLayer, ...prev.layers] }));
     } catch (err) {
@@ -962,6 +964,7 @@ export function LayerSidebar({
       visible: true,
       url: inputUrl,
       _isDirty: true,
+      customLayer: true,
     };
     setSettings((prev) => ({ ...prev, layers: [newLayer, ...prev.layers] }));
     setUrlInput("");
@@ -2761,11 +2764,6 @@ function LayerItem(props: {
               )}
 
             {layer.type !== "split" &&
-              layer.id !== "satellite" &&
-              layer.id !== "deepstate" &&
-              layer.type !== "wildfires" &&
-              layer.id !== "flights" &&
-              layer.type !== "vessels" &&
               !isNestedChild && (
                 <button
                   onClick={() => removeLayer(layer.id)}
@@ -2790,7 +2788,12 @@ function LayerItem(props: {
               layer.type === "nighttime" ? (
                 <div className="flex flex-col gap-3 pb-2">
                   <div className="flex items-center gap-3">
-                    {layer.type === "raster" && saveAsPreset && (
+                    {(layer.type === "raster" ||
+                      layer.type === "satellite" ||
+                      layer.type === "gdacs_earthquakes" ||
+                      layer.type === "gdacs_volcanoes" ||
+                      layer.type === "wildfires" ||
+                      layer.type === "gdacs_cyclones") && saveAsPreset && (
                       <button
                         onClick={() => saveAsPreset(layer)}
                         className="text-white/50 hover:text-white transition-colors flex items-center shrink-0"
@@ -2802,7 +2805,9 @@ function LayerItem(props: {
                     {(layer.type === "deepstate" ||
                       layer.type === "gdacs_earthquakes" ||
                       layer.type === "gdacs_volcanoes" ||
-                      layer.type === "wildfires") &&
+                      layer.type === "wildfires" ||
+                      layer.id === "floods" ||
+                      layer.id.startsWith("raster-")) &&
                       duplicateLayer && (
                         <button
                           onClick={() => duplicateLayer(layer.id)}
@@ -3000,27 +3005,32 @@ function LayerItem(props: {
                     </div>
                   )}
 
+                  {(layer.customLayer === true || layer.id.startsWith("upload-") || layer.id.startsWith("url-")) && (
+                    <div className="flex flex-col gap-1 mt-1 pt-2 border-t border-white/10">
+                      <div className="flex justify-between items-center mb-2">
+                        <label className="text-[10px] text-white font-semibold tracking-wider">
+                          {t("DATA SOURCE")}
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        placeholder={t("e.g. Mapbox, NASA, custom...")}
+                        value={layer.dataSource || ""}
+                        onChange={(e) =>
+                          updateLayerProperty(
+                            layer.id,
+                            "dataSource",
+                            e.target.value,
+                          )
+                        }
+                        className="w-full bg-black border border-white/20 px-2 py-1 text-xs text-white outline-none focus:border-white/50 mb-3"
+                      />
+                    </div>
+                  )}
+
                   <div
                     className={`flex flex-col gap-1 mt-1 ${layer.type === "deepstate" ? "" : "pt-2 border-t border-white/10"}`}
                   >
-                    <div className="flex justify-between items-center mb-2">
-                      <label className="text-[10px] text-white font-semibold tracking-wider">
-                        {t("DATA SOURCE")}
-                      </label>
-                    </div>
-                    <input
-                      type="text"
-                      placeholder={t("e.g. Mapbox, NASA, custom...")}
-                      value={layer.dataSource || ""}
-                      onChange={(e) =>
-                        updateLayerProperty(
-                          layer.id,
-                          "dataSource",
-                          e.target.value,
-                        )
-                      }
-                      className="w-full bg-black border border-white/20 px-2 py-1 text-xs text-white outline-none focus:border-white/50 mb-3"
-                    />
                     <div className="flex justify-between items-end">
                       <label className="text-[10px] text-white font-semibold tracking-wider">
                         {t("OPACITY")}
