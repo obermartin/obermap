@@ -1,11 +1,11 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import fs from "node:fs";
 import path from "node:path";
 import https from "node:https";
 import { MongoClient } from "mongodb";
 
-function mockPhpBackend() {
+function mockPhpBackend(env: Record<string, string>) {
   let client: MongoClient;
   let db: any;
   let showsCol: any;
@@ -14,7 +14,7 @@ function mockPhpBackend() {
   return {
     name: "mock-php-backend",
     configureServer(server: any) {
-      const mongoUri = "mongodb+srv://mo_db_user:3LJupcGC3yjCSh97@cluster0.ybvkgyd.mongodb.net/?appName=Cluster0";
+      const mongoUri = env.MONGO_URI || "mongodb://localhost:27017";
       client = new MongoClient(mongoUri);
       db = client.db("obermap");
       showsCol = db.collection("shows");
@@ -690,6 +690,9 @@ function mockPhpBackend() {
 }
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react(), mockPhpBackend()],
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), "");
+  return {
+    plugins: [react(), mockPhpBackend(env)],
+  };
 });

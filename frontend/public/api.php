@@ -14,7 +14,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-$mongoUri = 'mongodb+srv://mo_db_user:3LJupcGC3yjCSh97@cluster0.ybvkgyd.mongodb.net/?appName=Cluster0';
+$config = file_exists(__DIR__ . '/db_config.php') ? require __DIR__ . '/db_config.php' : ['mongoUri' => ''];
+$mongoUri = $config['mongoUri'];
 $dbName = 'obermap';
 
 try {
