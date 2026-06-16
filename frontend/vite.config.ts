@@ -3,44 +3,30 @@ import react from "@vitejs/plugin-react";
 import fs from "node:fs";
 import path from "node:path";
 import https from "node:https";
-import mysql from "mysql2/promise";
+import { MongoClient } from "mongodb";
 
 function mockPhpBackend() {
-  let pool: mysql.Pool;
+  let client: MongoClient;
+  let db: any;
+  let showsCol: any;
+  let weatherCol: any;
+
   return {
     name: "mock-php-backend",
     configureServer(server: any) {
-      pool = mysql.createPool({
-        host: "localhost",
-        port: 3306,
-        user: "root",
-        password: "",
-        database: "dbs15671316",
-        waitForConnections: true,
-        connectionLimit: 10,
-        queueLimit: 0,
+      const mongoUri = "mongodb+srv://mo_db_user:3LJupcGC3yjCSh97@cluster0.ybvkgyd.mongodb.net/?appName=Cluster0";
+      client = new MongoClient(mongoUri);
+      db = client.db("obermap");
+      showsCol = db.collection("shows");
+      weatherCol = db.collection("weather_cache");
+
+      client.connect().then(() => {
+        console.log("Connected to MongoDB Atlas successfully");
+        showsCol.createIndex({ id: 1 }, { unique: true }).catch(console.error);
+        weatherCol.createIndex({ id: 1 }, { unique: true }).catch(console.error);
+      }).catch(err => {
+        console.error("Failed to connect to MongoDB:", err);
       });
-
-      pool
-        .execute(
-          `CREATE TABLE IF NOT EXISTS shows (
-        id VARCHAR(255) PRIMARY KEY,
-        title VARCHAR(255),
-        data LONGTEXT,
-        updated_at DATETIME
-      )`,
-        )
-        .catch(console.error);
-
-      pool
-        .execute(
-          `CREATE TABLE IF NOT EXISTS weather_cache (
-        id VARCHAR(255) PRIMARY KEY,
-        data LONGTEXT,
-        created_at DATETIME
-      )`,
-        )
-        .catch(console.error);
 
       server.middlewares.use(async (req: any, res: any, next: any) => {
         const urlObj = new URL(req.url, "http://localhost");
@@ -196,7 +182,7 @@ function mockPhpBackend() {
             return;
           }
 
-          if (action === "migrate_to_sql") {
+          if (action === "migrate_to_sql" || action === "migrate_to_mongodb") {
             res.setHeader("Content-Type", "application/json");
             try {
               const showsDir = path.resolve(__dirname, "public/shows");
@@ -222,13 +208,17 @@ function mockPhpBackend() {
                     if (data?.settings?.title) title = data.settings.title;
                   } catch (e) {}
 
-                  const dateStr = new Date(stat.mtime)
-                    .toISOString()
-                    .slice(0, 19)
-                    .replace("T", " ");
-                  await pool.execute(
-                    "INSERT INTO shows (id, title, data, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE title=VALUES(title), data=VALUES(data), updated_at=VALUES(updated_at)",
-                    [showId, title, content, dateStr],
+                  await showsCol.updateOne(
+                    { id: showId },
+                    {
+                      $set: {
+                        id: showId,
+                        title,
+                        data: content,
+                        updated_at: stat.mtime,
+                      },
+                    },
+                    { upsert: true },
                   );
                   migratedShows++;
                 }
@@ -246,13 +236,16 @@ function mockPhpBackend() {
                   try {
                     const data = JSON.parse(content);
                     if (data.cacheId && data.createdAt) {
-                      const dateStr = new Date(data.createdAt)
-                        .toISOString()
-                        .slice(0, 19)
-                        .replace("T", " ");
-                      await pool.execute(
-                        "INSERT INTO weather_cache (id, data, created_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE data=VALUES(data)",
-                        [data.cacheId, content, dateStr],
+                      await weatherCol.updateOne(
+                        { id: data.cacheId },
+                        {
+                          $set: {
+                            id: data.cacheId,
+                            data: content,
+                            created_at: new Date(data.createdAt),
+                          },
+                        },
+                        { upsert: true },
                       );
                       migratedCache++;
                     }
@@ -260,12 +253,68 @@ function mockPhpBackend() {
                 }
               }
 
+              let mysqlMigratedShows = 0;
+              let mysqlMigratedCache = 0;
+              let mysqlError = null;
+
+              try {
+                const mysql = await import("mysql2/promise");
+                const connection = await mysql.createConnection({
+                  host: "localhost",
+                  port: 3306,
+                  user: "root",
+                  password: "",
+                  database: "dbs15671316",
+                });
+
+                const [showsRows]: any = await connection.execute("SELECT id, title, data, updated_at FROM shows");
+                for (const row of showsRows) {
+                  const mtime = row.updated_at ? new Date(row.updated_at) : new Date();
+                  await showsCol.updateOne(
+                    { id: row.id },
+                    {
+                      $set: {
+                        id: row.id,
+                        title: row.title,
+                        data: row.data,
+                        updated_at: mtime,
+                      },
+                    },
+                    { upsert: true }
+                  );
+                  mysqlMigratedShows++;
+                }
+
+                const [cacheRows]: any = await connection.execute("SELECT id, data, created_at FROM weather_cache");
+                for (const row of cacheRows) {
+                  const ctime = row.created_at ? new Date(row.created_at) : new Date();
+                  await weatherCol.updateOne(
+                    { id: row.id },
+                    {
+                      $set: {
+                        id: row.id,
+                        data: row.data,
+                        created_at: ctime,
+                      },
+                    },
+                    { upsert: true }
+                  );
+                  mysqlMigratedCache++;
+                }
+
+                await connection.end();
+              } catch (err: any) {
+                console.error("MySQL migration error:", err);
+                mysqlError = err.message;
+              }
+
               res.statusCode = 200;
               res.end(
                 JSON.stringify({
                   success: true,
-                  migrated_shows: migratedShows,
-                  migrated_cache: migratedCache,
+                  files_migrated: { shows: migratedShows, weather_cache: migratedCache },
+                  mysql_migrated: { shows: mysqlMigratedShows, weather_cache: mysqlMigratedCache },
+                  mysql_error: mysqlError,
                 }),
               );
             } catch (e: any) {
@@ -280,13 +329,14 @@ function mockPhpBackend() {
               res.setHeader("Content-Type", "application/json");
               try {
                 if (urlObj.searchParams.get("list") === "1") {
-                  const [rows]: any = await pool.query(
-                    "SELECT id as cacheId, created_at as createdAt FROM weather_cache ORDER BY created_at ASC",
-                  );
-                  const snapshots = rows.map((r: any) => ({
-                    cacheId: r.cacheId,
-                    createdAt: new Date(r.createdAt).toISOString(),
-                    path: `weather-cache/${r.cacheId}.json`,
+                  const docs = await weatherCol
+                    .find({}, { projection: { id: 1, created_at: 1 } })
+                    .sort({ created_at: 1 })
+                    .toArray();
+                  const snapshots = docs.map((doc: any) => ({
+                    cacheId: doc.id,
+                    createdAt: new Date(doc.created_at).toISOString(),
+                    path: `weather-cache/${doc.id}.json`,
                   }));
                   res.statusCode = 200;
                   res.end(JSON.stringify({ snapshots }));
@@ -294,22 +344,22 @@ function mockPhpBackend() {
                 }
 
                 const requestedCacheId = urlObj.searchParams.get("cacheId");
-                let rows: any;
+                let doc: any;
                 if (
                   requestedCacheId &&
                   /^[a-zA-Z0-9_-]+$/.test(requestedCacheId)
                 ) {
-                  [rows] = await pool.query(
-                    "SELECT data FROM weather_cache WHERE id = ?",
-                    [requestedCacheId],
-                  );
+                  doc = await weatherCol.findOne({ id: requestedCacheId });
                 } else {
-                  [rows] = await pool.query(
-                    "SELECT data FROM weather_cache ORDER BY created_at DESC LIMIT 1",
-                  );
+                  const docs = await weatherCol
+                    .find({})
+                    .sort({ created_at: -1 })
+                    .limit(1)
+                    .toArray();
+                  doc = docs[0];
                 }
 
-                if (rows.length === 0) {
+                if (!doc) {
                   res.statusCode = 404;
                   res.end(
                     JSON.stringify({
@@ -320,7 +370,7 @@ function mockPhpBackend() {
                 }
 
                 res.statusCode = 200;
-                res.end(rows[0].data);
+                res.end(doc.data);
               } catch (e: any) {
                 res.statusCode = 500;
                 res.end(JSON.stringify({ error: e.message }));
@@ -355,14 +405,17 @@ function mockPhpBackend() {
                     geojson: decoded.geojson,
                   };
                   const encoded = JSON.stringify(payload, null, 2);
-                  const dateStr = now
-                    .toISOString()
-                    .slice(0, 19)
-                    .replace("T", " ");
 
-                  await pool.execute(
-                    "INSERT INTO weather_cache (id, data, created_at) VALUES (?, ?, ?)",
-                    [cacheId, encoded, dateStr],
+                  await weatherCol.updateOne(
+                    { id: cacheId },
+                    {
+                      $set: {
+                        id: cacheId,
+                        data: encoded,
+                        created_at: now,
+                      },
+                    },
+                    { upsert: true },
                   );
 
                   res.statusCode = 200;
@@ -390,13 +443,14 @@ function mockPhpBackend() {
 
           if (action === "list_shows" && req.method === "GET") {
             try {
-              const [rows]: any = await pool.query(
-                "SELECT id, title, updated_at FROM shows ORDER BY updated_at DESC",
-              );
-              const shows = rows.map((r: any) => ({
-                id: r.id,
-                title: r.title,
-                updatedAt: new Date(r.updated_at).toISOString(),
+              const docs = await showsCol
+                .find({}, { projection: { id: 1, title: 1, updated_at: 1 } })
+                .sort({ updated_at: -1 })
+                .toArray();
+              const shows = docs.map((doc: any) => ({
+                id: doc.id,
+                title: doc.title,
+                updatedAt: new Date(doc.updated_at).toISOString(),
               }));
               res.setHeader("Content-Type", "application/json");
               res.statusCode = 200;
@@ -410,12 +464,9 @@ function mockPhpBackend() {
 
           if (action === "delete_show" && req.method === "POST") {
             try {
-              const [result]: any = await pool.execute(
-                "DELETE FROM shows WHERE id = ?",
-                [show_id],
-              );
+              const result = await showsCol.deleteOne({ id: show_id });
               res.setHeader("Content-Type", "application/json");
-              if (result.affectedRows > 0) {
+              if (result.deletedCount && result.deletedCount > 0) {
                 res.statusCode = 200;
                 res.end(JSON.stringify({ success: true }));
               } else {
@@ -451,36 +502,36 @@ function mockPhpBackend() {
 
           if (req.method === "GET") {
             try {
-              const [rows]: any = await pool.query(
-                "SELECT data FROM shows WHERE id = ?",
-                [safe_show_id],
-              );
-              if (rows.length === 0) {
+              const doc = await showsCol.findOne({ id: safe_show_id });
+              if (!doc) {
                 let initialData = JSON.stringify({
                   annotations: [],
                   settings: null,
                 });
                 if (safe_show_id !== "_DEFAULT") {
-                  const [defRows]: any = await pool.query(
-                    "SELECT data FROM shows WHERE id = '_DEFAULT'",
-                  );
-                  if (defRows.length > 0) {
-                    initialData = defRows[0].data;
+                  const defDoc = await showsCol.findOne({ id: "_DEFAULT" });
+                  if (defDoc) {
+                    initialData = defDoc.data;
                   }
                 }
-                const dateStr = new Date()
-                  .toISOString()
-                  .slice(0, 19)
-                  .replace("T", " ");
-                await pool.execute(
-                  "INSERT INTO shows (id, title, data, updated_at) VALUES (?, ?, ?, ?)",
-                  [safe_show_id, safe_show_id, initialData, dateStr],
+                const now = new Date();
+                await showsCol.updateOne(
+                  { id: safe_show_id },
+                  {
+                    $set: {
+                      id: safe_show_id,
+                      title: safe_show_id,
+                      data: initialData,
+                      updated_at: now,
+                    },
+                  },
+                  { upsert: true },
                 );
                 res.statusCode = 200;
                 res.end(initialData);
               } else {
                 res.statusCode = 200;
-                res.end(rows[0].data);
+                res.end(doc.data);
               }
             } catch (e: any) {
               res.statusCode = 500;
@@ -498,12 +549,9 @@ function mockPhpBackend() {
 
                 // Differential Save Logic
                 if (decoded.settings && decoded.settings.layers) {
-                  const [rows]: any = await pool.query(
-                    "SELECT data FROM shows WHERE id = ?",
-                    [safe_show_id],
-                  );
-                  if (rows.length > 0) {
-                    const existingData = JSON.parse(rows[0].data);
+                  const doc = await showsCol.findOne({ id: safe_show_id });
+                  if (doc) {
+                    const existingData = JSON.parse(doc.data);
                     if (existingData.settings && existingData.settings.layers) {
                       const existingLayers: any = {};
                       existingData.settings.layers.forEach((l: any) => {
@@ -531,14 +579,19 @@ function mockPhpBackend() {
 
                 const title = decoded.settings?.title || safe_show_id;
                 const encoded = JSON.stringify(decoded);
-                const dateStr = new Date()
-                  .toISOString()
-                  .slice(0, 19)
-                  .replace("T", " ");
+                const now = new Date();
 
-                await pool.execute(
-                  "INSERT INTO shows (id, title, data, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE title=VALUES(title), data=VALUES(data), updated_at=VALUES(updated_at)",
-                  [safe_show_id, title, encoded, dateStr],
+                await showsCol.updateOne(
+                  { id: safe_show_id },
+                  {
+                    $set: {
+                      id: safe_show_id,
+                      title,
+                      data: encoded,
+                      updated_at: now,
+                    },
+                  },
+                  { upsert: true },
                 );
 
                 res.statusCode = 200;

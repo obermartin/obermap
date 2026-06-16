@@ -14,37 +14,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-$dbHost = 'db5020452906.hosting-data.io';
-$dbPort = '3306';
-$dbUser = 'dbu347313';
-$dbPass = 'aN19ehfS863SfvgXav1sOcvibu20a9sduOUAYVDyq083y7bh';
-$dbName = 'dbs15671316';
+$mongoUri = 'mongodb+srv://mo_db_user:3LJupcGC3yjCSh97@cluster0.ybvkgyd.mongodb.net/?appName=Cluster0';
+$dbName = 'obermap';
 
 try {
-    $pdo = new PDO("mysql:host=$dbHost;port=$dbPort;dbname=$dbName;charset=utf8mb4", $dbUser, $dbPass);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    
-    // Ensure tables exist
-    $pdo->exec("CREATE TABLE IF NOT EXISTS shows (
-        id VARCHAR(255) PRIMARY KEY,
-        title VARCHAR(255),
-        data LONGTEXT,
-        updated_at DATETIME
-    )");
-    
-    $pdo->exec("CREATE TABLE IF NOT EXISTS weather_cache (
-        id VARCHAR(255) PRIMARY KEY,
-        data LONGTEXT,
-        created_at DATETIME
-    )");
-} catch (PDOException $e) {
+    $manager = new MongoDB\Driver\Manager($mongoUri);
+} catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Database connection failed. Verify the $dbName variable in api.php. Error: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Database connection failed. Error: ' . $e->getMessage()]);
     exit;
 }
 
 // Migration Endpoint
-if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'migrate_to_sql') {
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && ($_GET['action'] === 'migrate_to_mongodb' || $_GET['action'] === 'migrate_to_sql')) {
     $shows_dir = __DIR__ . '/shows';
     $weather_cache_dir = __DIR__ . '/weather-cache';
     $migratedShows = 0;
@@ -61,8 +43,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
                 if (isset($data['settings']['title']) && !empty($data['settings']['title'])) {
                     $title = $data['settings']['title'];
                 }
-                $stmt = $pdo->prepare("INSERT INTO shows (id, title, data, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE title=VALUES(title), data=VALUES(data), updated_at=VALUES(updated_at)");
-                $stmt->execute([$show_id, $title, $content, date('Y-m-d H:i:s', $mtime)]);
+                
+                $bulk = new MongoDB\Driver\BulkWrite;
+                $bulk->update(
+                    ['id' => $show_id],
+                    ['$set' => [
+                        'id' => $show_id,
+                        'title' => $title,
+                        'data' => $content,
+                        'updated_at' => new MongoDB\BSON\UTCDateTime($mtime * 1000)
+                    ]],
+                    ['upsert' => true]
+                );
+                $manager->executeBulkWrite('obermap.shows', $bulk);
                 $migratedShows++;
             }
         }
@@ -75,26 +68,114 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
             if ($content !== false) {
                 $data = json_decode($content, true);
                 if (isset($data['cacheId'], $data['createdAt'])) {
-                    $stmt = $pdo->prepare("INSERT INTO weather_cache (id, data, created_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE data=VALUES(data)");
-                    $stmt->execute([$data['cacheId'], $content, date('Y-m-d H:i:s', strtotime($data['createdAt']))]);
+                    $bulk = new MongoDB\Driver\BulkWrite;
+                    $bulk->update(
+                        ['id' => $data['cacheId']],
+                        ['$set' => [
+                            'id' => $data['cacheId'],
+                            'data' => $content,
+                            'created_at' => new MongoDB\BSON\UTCDateTime(strtotime($data['createdAt']) * 1000)
+                        ]],
+                        ['upsert' => true]
+                    );
+                    $manager->executeBulkWrite('obermap.weather_cache', $bulk);
                     $migratedCache++;
                 }
             }
         }
     }
+
+    // Connect to legacy MySQL database to migrate existing entries if available
+    $mysqlMigratedShows = 0;
+    $mysqlMigratedCache = 0;
+    $mysqlError = null;
+    try {
+        $dbHost = 'db5020452906.hosting-data.io';
+        $dbPort = '3306';
+        $dbUser = 'dbu347313';
+        $dbPass = 'aN19ehfS863SfvgXav1sOcvibu20a9sduOUAYVDyq083y7bh';
+        $dbName = 'dbs15671316';
+        
+        $pdo = new PDO("mysql:host=$dbHost;port=$dbPort;dbname=$dbName;charset=utf8mb4", $dbUser, $dbPass);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        
+        // Migrate shows table
+        $stmt = $pdo->query("SELECT id, title, data, updated_at FROM shows");
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $mtime = strtotime($row['updated_at']) ?: time();
+            $bulk = new MongoDB\Driver\BulkWrite;
+            $bulk->update(
+                ['id' => $row['id']],
+                ['$set' => [
+                    'id' => $row['id'],
+                    'title' => $row['title'],
+                    'data' => $row['data'],
+                    'updated_at' => new MongoDB\BSON\UTCDateTime($mtime * 1000)
+                ]],
+                ['upsert' => true]
+            );
+            $manager->executeBulkWrite('obermap.shows', $bulk);
+            $mysqlMigratedShows++;
+        }
+        
+        // Migrate weather_cache table
+        $stmtCache = $pdo->query("SELECT id, data, created_at FROM weather_cache");
+        while ($row = $stmtCache->fetch(PDO::FETCH_ASSOC)) {
+            $ctime = strtotime($row['created_at']) ?: time();
+            $bulk = new MongoDB\Driver\BulkWrite;
+            $bulk->update(
+                ['id' => $row['id']],
+                ['$set' => [
+                    'id' => $row['id'],
+                    'data' => $row['data'],
+                    'created_at' => new MongoDB\BSON\UTCDateTime($ctime * 1000)
+                ]],
+                ['upsert' => true]
+            );
+            $manager->executeBulkWrite('obermap.weather_cache', $bulk);
+            $mysqlMigratedCache++;
+        }
+    } catch (Exception $e) {
+        $mysqlError = $e->getMessage();
+    }
     
-    echo json_encode(['success' => true, 'migrated_shows' => $migratedShows, 'migrated_cache' => $migratedCache]);
+    echo json_encode([
+        'success' => true, 
+        'files_migrated' => [
+            'shows' => $migratedShows, 
+            'weather_cache' => $migratedCache
+        ],
+        'mysql_migrated' => [
+            'shows' => $mysqlMigratedShows,
+            'weather_cache' => $mysqlMigratedCache
+        ],
+        'mysql_error' => $mysqlError
+    ]);
     exit;
 }
 
 // Handle list_shows action
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'list_shows') {
-    $stmt = $pdo->query("SELECT id, title, updated_at FROM shows ORDER BY updated_at DESC");
-    $shows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    foreach ($shows as &$show) {
-        $show['updatedAt'] = date('c', strtotime($show['updated_at']));
-        unset($show['updated_at']);
+    $query = new MongoDB\Driver\Query([], [
+        'projection' => ['id' => 1, 'title' => 1, 'updated_at' => 1],
+        'sort' => ['updated_at' => -1]
+    ]);
+    $cursor = $manager->executeQuery('obermap.shows', $query);
+    $shows = [];
+    foreach ($cursor as $doc) {
+        $arr = (array)$doc;
+        if (isset($arr['updated_at']) && $arr['updated_at'] instanceof MongoDB\BSON\UTCDateTime) {
+            $milliseconds = (string)$arr['updated_at'];
+            $seconds = (int)($milliseconds / 1000);
+            $updatedAt = date('c', $seconds);
+        } else {
+            $updatedAt = date('c');
+        }
+        $shows[] = [
+            'id' => $arr['id'] ?? '',
+            'title' => $arr['title'] ?? '',
+            'updatedAt' => $updatedAt
+        ];
     }
     
     echo json_encode($shows);
@@ -105,9 +186,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['action'] === 'delete_show') {
     $show_id = $_GET['show'] ?? '';
     if (preg_match('/^[a-zA-Z0-9_-]+$/', $show_id)) {
-        $stmt = $pdo->prepare("DELETE FROM shows WHERE id = ?");
-        $stmt->execute([$show_id]);
-        if ($stmt->rowCount() > 0) {
+        $bulk = new MongoDB\Driver\BulkWrite;
+        $bulk->delete(['id' => $show_id]);
+        $result = $manager->executeBulkWrite('obermap.shows', $bulk);
+        if ($result->getDeletedCount() > 0) {
             echo json_encode(['success' => true]);
             exit;
         }
@@ -121,11 +203,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['ac
 if (isset($_GET['action']) && $_GET['action'] === 'weather_wind_cache') {
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         if (isset($_GET['list']) && $_GET['list'] === '1') {
-            $stmt = $pdo->query("SELECT id as cacheId, created_at as createdAt FROM weather_cache ORDER BY created_at ASC");
-            $snapshots = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            foreach ($snapshots as &$snap) {
-                $snap['createdAt'] = date('c', strtotime($snap['createdAt']));
-                $snap['path'] = 'weather-cache/' . $snap['cacheId'] . '.json';
+            $query = new MongoDB\Driver\Query([], ['sort' => ['created_at' => 1]]);
+            $cursor = $manager->executeQuery('obermap.weather_cache', $query);
+            $snapshots = [];
+            foreach ($cursor as $doc) {
+                $arr = (array)$doc;
+                if (isset($arr['created_at']) && $arr['created_at'] instanceof MongoDB\BSON\UTCDateTime) {
+                    $milliseconds = (string)$arr['created_at'];
+                    $seconds = (int)($milliseconds / 1000);
+                    $createdAt = date('c', $seconds);
+                } else {
+                    $createdAt = date('c');
+                }
+                $snapshots[] = [
+                    'cacheId' => $arr['id'] ?? '',
+                    'createdAt' => $createdAt,
+                    'path' => 'weather-cache/' . ($arr['id'] ?? '') . '.json'
+                ];
             }
             echo json_encode(['snapshots' => $snapshots]);
             exit;
@@ -133,20 +227,21 @@ if (isset($_GET['action']) && $_GET['action'] === 'weather_wind_cache') {
 
         if (isset($_GET['cacheId'])) {
             $cache_id = preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['cacheId']);
-            $stmt = $pdo->prepare("SELECT data FROM weather_cache WHERE id = ?");
-            $stmt->execute([$cache_id]);
+            $query = new MongoDB\Driver\Query(['id' => $cache_id]);
         } else {
-            $stmt = $pdo->query("SELECT data FROM weather_cache ORDER BY created_at DESC LIMIT 1");
+            $query = new MongoDB\Driver\Query([], ['sort' => ['created_at' => -1], 'limit' => 1]);
         }
         
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$row) {
+        $cursor = $manager->executeQuery('obermap.weather_cache', $query);
+        $docs = $cursor->toArray();
+        if (empty($docs)) {
             http_response_code(404);
             echo json_encode(['error' => 'No weather wind cache available']);
             exit;
         }
 
-        echo $row['data'];
+        $arr = (array)$docs[0];
+        echo $arr['data'];
         exit;
     }
 
@@ -175,12 +270,17 @@ if (isset($_GET['action']) && $_GET['action'] === 'weather_wind_cache') {
 
         $encoded = json_encode($payload, JSON_PRETTY_PRINT);
         
-        $stmt = $pdo->prepare("INSERT INTO weather_cache (id, data, created_at) VALUES (?, ?, ?)");
-        if (!$stmt->execute([$cache_id, $encoded, date('Y-m-d H:i:s', strtotime($createdAt))])) {
-            http_response_code(500);
-            echo json_encode(['error' => 'Failed to write weather wind cache to DB']);
-            exit;
-        }
+        $bulk = new MongoDB\Driver\BulkWrite;
+        $bulk->update(
+            ['id' => $cache_id],
+            ['$set' => [
+                'id' => $cache_id,
+                'data' => $encoded,
+                'created_at' => new MongoDB\BSON\UTCDateTime(strtotime($createdAt) * 1000)
+            ]],
+            ['upsert' => true]
+        );
+        $manager->executeBulkWrite('obermap.weather_cache', $bulk);
 
         echo json_encode(['success' => true, 'cacheId' => $cache_id, 'path' => 'weather-cache/' . $cache_id . '.json']);
         exit;
@@ -427,17 +527,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         exit;
     }
     
-    $stmt = $pdo->prepare("SELECT data FROM shows WHERE id = ?");
-    $stmt->execute([$show_id]);
-    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    $query = new MongoDB\Driver\Query(['id' => $show_id]);
+    $cursor = $manager->executeQuery('obermap.shows', $query);
+    $docs = $cursor->toArray();
     
-    if (!$row) {
+    if (empty($docs)) {
         if ($show_id !== '_DEFAULT') {
-            $stmtDef = $pdo->prepare("SELECT data FROM shows WHERE id = '_DEFAULT'");
-            $stmtDef->execute();
-            $rowDef = $stmtDef->fetch(PDO::FETCH_ASSOC);
-            if ($rowDef) {
-                $data = $rowDef['data'];
+            $queryDef = new MongoDB\Driver\Query(['id' => '_DEFAULT']);
+            $cursorDef = $manager->executeQuery('obermap.shows', $queryDef);
+            $docsDef = $cursorDef->toArray();
+            if (!empty($docsDef)) {
+                $arrDef = (array)$docsDef[0];
+                $data = $arrDef['data'];
             } else {
                 $data = json_encode(['annotations' => [], 'settings' => null]);
             }
@@ -445,11 +546,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             $data = json_encode(['annotations' => [], 'settings' => null]);
         }
         
-        // Auto-insert it into SQL
-        $insertStmt = $pdo->prepare("INSERT INTO shows (id, title, data, updated_at) VALUES (?, ?, ?, ?)");
-        $insertStmt->execute([$show_id, $show_id, $data, date('Y-m-d H:i:s')]);
+        // Auto-insert it into MongoDB
+        $bulk = new MongoDB\Driver\BulkWrite;
+        $bulk->update(
+            ['id' => $show_id],
+            ['$set' => [
+                'id' => $show_id,
+                'title' => $show_id,
+                'data' => $data,
+                'updated_at' => new MongoDB\BSON\UTCDateTime(time() * 1000)
+            ]],
+            ['upsert' => true]
+        );
+        $manager->executeBulkWrite('obermap.shows', $bulk);
     } else {
-        $data = $row['data'];
+        $arr = (array)$docs[0];
+        $data = $arr['data'];
     }
     
     echo $data;
@@ -477,12 +589,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     // Differential Save Logic
     if (isset($decoded['settings']['layers'])) {
-        $stmt = $pdo->prepare("SELECT data FROM shows WHERE id = ?");
-        $stmt->execute([$show_id]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $query = new MongoDB\Driver\Query(['id' => $show_id]);
+        $cursor = $manager->executeQuery('obermap.shows', $query);
+        $docs = $cursor->toArray();
         
-        if ($row) {
-            $existing_data = json_decode($row['data'], true);
+        if (!empty($docs)) {
+            $arr = (array)$docs[0];
+            $existing_data = json_decode($arr['data'], true);
             if (isset($existing_data['settings']['layers'])) {
                 $existing_layers = [];
                 foreach ($existing_data['settings']['layers'] as $layer) {
@@ -513,10 +626,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $title = $decoded['settings']['title'];
     }
     
-    $stmt = $pdo->prepare("INSERT INTO shows (id, title, data, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE title=VALUES(title), data=VALUES(data), updated_at=VALUES(updated_at)");
-    if (!$stmt->execute([$show_id, $title, $json, date('Y-m-d H:i:s')])) {
+    $bulk = new MongoDB\Driver\BulkWrite;
+    $bulk->update(
+        ['id' => $show_id],
+        ['$set' => [
+            'id' => $show_id,
+            'title' => $title,
+            'data' => $json,
+            'updated_at' => new MongoDB\BSON\UTCDateTime(time() * 1000)
+        ]],
+        ['upsert' => true]
+    );
+    
+    try {
+        $manager->executeBulkWrite('obermap.shows', $bulk);
+    } catch (Exception $e) {
         http_response_code(500);
-        echo json_encode(['error' => 'Failed to save data to DB']);
+        echo json_encode(['error' => 'Failed to save data to DB: ' . $e->getMessage()]);
         exit;
     }
     

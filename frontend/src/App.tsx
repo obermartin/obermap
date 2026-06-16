@@ -23,16 +23,18 @@ const DEFAULT_SETTINGS: AppSettings = {
   labelDensity: 50,
   layers: [
     { id: 'split-container', name: 'Split View Container', type: 'split', visible: false, splitPosition: 0.5, splitDirection: 'vertical', splitLayers: [] },
-    { id: 'deepstate', name: 'UKRAINE CURRENT', type: 'deepstate', visible: false, isLive: true },
-    { id: 'copernicus', name: 'Wildfires (EFFIS)', type: 'raster', visible: false, url: 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}' },
-    { id: 'satellite', name: 'Satellite Map Overlay (Mapbox)', type: 'satellite', visible: false },
-    { id: 'flights', name: 'Air Traffic (OpenSky)', type: 'flights', visible: false },
-    { id: 'weather_forecast', name: 'Weather Forecast (Open-Meteo)', type: 'weather_forecast', visible: false, showTemperature: true, showPrecipitation: false, windOpacity: 1, windParticleSize: 1.5, windParticleTrail: 94, showWindParticles: true, showWindLegend: true, windParticleSizeBySpeed: true, windParticleSpeedBySpeed: true, windParticleTrailBySpeed: false, windParticleColorBySpeed: false, showCityTemperatures: true, showCityWeatherIcons: true },
-    { id: 'temperature', name: 'Live Temperature (OWM)', type: 'raster', visible: false, url: 'https://tile.openweathermap.org/map/temp_new/{z}/{x}/{y}.png?appid=d04bc4ae6960dc10d49057fc174ad2aa' },
-    { id: 'precipitation', name: 'Live Rain (OWM)', type: 'raster', visible: false, url: 'https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=d04bc4ae6960dc10d49057fc174ad2aa' },
-    { id: 'google_satellite', name: 'Satellite View (Google)', type: 'raster', visible: false, url: 'https://mt0.google.com/vt/lyrs=s&x={x}&y={y}&z={z}' },
-    { id: 'bing_satellite', name: 'Satellite View (Bing)', type: 'raster', visible: false, url: 'https://ecn.t0.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=685&mkt=en-us&n=z' },
-    { id: 'population_density', name: 'Population Density', type: 'raster', visible: false, url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GPW_Population_Density_2020/default/default/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png' }
+    { id: 'deepstate', name: 'Ukraine', type: 'deepstate', visible: false, isLive: true },
+    { id: 'flights', name: 'Air Traffic', type: 'flights', visible: false },
+    { id: 'vessels', name: 'Maritime Traffic', type: 'vessels', visible: false },
+    { id: 'nighttime', name: 'Nighttime Overlay', type: 'nighttime', visible: false, opacity: 0.5 },
+    { id: 'satellite', name: 'Satellite View (Bing)', type: 'satellite', visible: false },
+    { id: 'population_density', name: 'Population Density', type: 'raster', visible: false, url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GPW_Population_Density_2020/default/default/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png' },
+    { id: 'weather_forecast', name: 'Weather', type: 'weather_forecast', visible: false, showTemperature: true, showPrecipitation: false, windOpacity: 1, windParticleSize: 1.5, windParticleTrail: 94, showWindParticles: true, showWindLegend: true, windParticleSizeBySpeed: true, windParticleSpeedBySpeed: true, windParticleTrailBySpeed: false, windParticleColorBySpeed: false, showCityTemperatures: true, showCityWeatherIcons: true },
+    { id: 'gdacs_cyclones', name: 'Tropical Cyclones', type: 'gdacs_cyclones', visible: false },
+    { id: 'wildfires', name: 'Wildfires', type: 'wildfires', visible: false, wildfireMode: 'effis', url: 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}' },
+    { id: 'floods', name: 'Floods', type: 'raster', visible: false, url: 'https://geoserver.gfm.eodc.eu/geoserver/gfm/wms?service=WMS&request=GetMap&layers=observed_flood_extent&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}T00:00:00.000Z/{date-end}T23:59:59.000Z' },
+    { id: 'gdacs_earthquakes', name: 'Earthquakes', type: 'gdacs_earthquakes', visible: false },
+    { id: 'gdacs_volcanoes', name: 'Volcanoes', type: 'gdacs_volcanoes', visible: false }
   ]
 };
 
