@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
-import type { AppSettings, MapLayer } from "../types";
+import maplibregl from "maplibre-gl";
+import type { AppSettings, MapLayer, BaseMapStyle } from "../types";
 import {
   Reorder,
   useDragControls,
@@ -492,6 +493,19 @@ export function LayerSidebar({
     Record<string, boolean>
   >({});
 
+  const [basemaps, setBasemaps] = useState<BaseMapStyle[]>([]);
+  const basemapFileInputRef = useRef<HTMLInputElement>(null);
+  const [isGeneratingScreenshotId, setIsGeneratingScreenshotId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api.php?action=list_basemaps')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setBasemaps(data);
+      })
+      .catch(console.error);
+  }, []);
+
   // Video Export State
   const [videoFormat, setVideoFormat] = useState<"16x9" | "9x16" | "both">(
     "16x9",
@@ -654,6 +668,88 @@ export function LayerSidebar({
       ...prev,
       colorPalette: prev.colorPalette.filter((c) => c !== color),
     }));
+  };
+
+  const refreshBasemaps = async () => {
+    try {
+      const res = await fetch('/api.php?action=list_basemaps');
+      const data = await res.json();
+      if (Array.isArray(data)) setBasemaps(data);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleAddBasemapUrl = async () => {
+    const url = await customPrompt(t("Enter Map Style URL:"));
+    if (!url) return;
+    const name = await customPrompt(t("Enter a name for this style:")) || "Custom Style";
+    const id = `basemap_${Date.now()}`;
+    await fetch('/api.php?action=save_basemap', {
+      method: 'POST',
+      body: JSON.stringify({ id, name, url })
+    });
+    refreshBasemaps();
+  };
+
+  const handleUploadBasemapJson = () => {
+    if (basemapFileInputRef.current) {
+      basemapFileInputRef.current.accept = ".json";
+      basemapFileInputRef.current.onchange = async (e: any) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const text = await file.text();
+        try {
+          JSON.parse(text);
+          const name = await customPrompt(t("Enter a name for this style:")) || file.name;
+          const id = `basemap_${Date.now()}`;
+          const url = `/api.php?action=basemap_style&id=${id}`;
+          await fetch('/api.php?action=save_basemap', {
+            method: 'POST',
+            body: JSON.stringify({ id, name, url, styleData: text })
+          });
+          refreshBasemaps();
+        } catch (err) {
+          customAlert(t("Invalid JSON file"));
+        }
+        e.target.value = '';
+      };
+      basemapFileInputRef.current.click();
+    }
+  };
+
+  const handleUploadBasemapPreview = (id: string) => {
+    if (basemapFileInputRef.current) {
+      basemapFileInputRef.current.accept = "image/png, image/jpeg";
+      basemapFileInputRef.current.onchange = async (e: any) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async () => {
+          const previewData = reader.result as string;
+          const bm = basemaps.find(b => b.id === id);
+          if (bm) {
+            await fetch('/api.php?action=save_basemap', {
+              method: 'POST',
+              body: JSON.stringify({ ...bm, previewData })
+            });
+            refreshBasemaps();
+          }
+        };
+        reader.readAsDataURL(file);
+        e.target.value = '';
+      };
+      basemapFileInputRef.current.click();
+    }
+  };
+
+  const handleDeleteBasemap = async (id: string) => {
+    if (await customConfirm(t("Are you sure you want to delete this custom base map?"))) {
+      await fetch(`/api.php?action=delete_basemap&id=${id}`, { method: 'POST' });
+      refreshBasemaps();
+    }
+  };
+
+  const handleGenerateBasemapPreview = (bm: BaseMapStyle) => {
+    setIsGeneratingScreenshotId(bm.id);
   };
 
   const updateLayerRecursively = (
@@ -2210,36 +2306,107 @@ export function LayerSidebar({
               <span>{t("BASE MAP")}</span>
             </summary>
             <div className="p-3 flex flex-col gap-4 bg-black mt-[2px]">
-              <div>
-                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">
-                  {t("MAP TOKEN (OPTIONAL)")}
+              <div className="grid grid-cols-3 gap-2">
+                {/* Default Map: Liberty */}
+                <div 
+                  className={`relative aspect-square bg-white/10 rounded cursor-pointer overflow-hidden border-2 transition-all ${settings.mapStyle === 'https://tiles.openfreemap.org/styles/liberty' ? 'outline outline-2 outline-offset-2 outline-white border-transparent' : 'border-transparent hover:border-white/20'}`}
+                  onClick={() => setSettings(p => ({ ...p, mapStyle: 'https://tiles.openfreemap.org/styles/liberty' }))}
+                >
+                  <img src="https://a.tile.openstreetmap.org/5/16/10.png" className="w-full h-full object-cover opacity-80 mix-blend-luminosity" />
+                  <div className="absolute inset-0 flex items-center justify-center p-2 text-center text-[10px] font-bold text-white uppercase bg-black/40">Liberty</div>
+                </div>
+                
+                {/* Solid Color */}
+                <div 
+                  className={`relative aspect-square rounded cursor-pointer overflow-hidden border-2 transition-all ${settings.mapStyle?.startsWith('solid:') ? 'outline outline-2 outline-offset-2 outline-white border-white/10' : 'border-white/10 hover:border-white/20'}`}
+                >
+                  <input type="color" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" value={settings.mapStyle?.startsWith('solid:') ? settings.mapStyle.replace('solid:', '') : '#1A1A1A'} onChange={e => setSettings(p => ({ ...p, mapStyle: `solid:${e.target.value.toUpperCase()}` }))} />
+                  <div className="absolute inset-0" style={{ backgroundColor: settings.mapStyle?.startsWith('solid:') ? settings.mapStyle.replace('solid:', '') : '#1A1A1A' }}></div>
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-[10px] font-bold text-white bg-black/20 mix-blend-difference text-center leading-tight px-1">{t("Solid Color")}</div>
+                </div>
+
+                {/* Custom Base Maps */}
+                {basemaps.map(bm => (
+                  <div 
+                    key={bm.id} 
+                    className={`relative aspect-square bg-white/5 rounded cursor-pointer overflow-hidden border-2 group transition-all ${settings.mapStyle === bm.url ? 'outline outline-2 outline-offset-2 outline-white border-transparent' : 'border-transparent hover:border-white/20'}`}
+                  >
+                    <div className="absolute inset-0" onClick={() => setSettings(p => ({ ...p, mapStyle: bm.url }))}>
+                      {bm.previewData ? (
+                        <img src={bm.previewData} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-white/20 bg-black/40">
+                          {isGeneratingScreenshotId === bm.id ? <Loader2 className="animate-spin" size={24} /> : <ImageIcon size={24} />}
+                        </div>
+                      )}
+                      <div className="absolute inset-x-0 bottom-0 p-1 bg-black/60 text-[8px] text-white truncate text-center">{bm.name}</div>
+                    </div>
+                    
+                    {/* Hover Actions */}
+                    <div className="absolute top-1 right-1 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button className="p-1.5 bg-black/80 hover:bg-red-500 text-white rounded-full transition-colors" onClick={(e) => { e.stopPropagation(); handleDeleteBasemap(bm.id); }} title="Delete">
+                        <Trash2 size={10} />
+                      </button>
+                      {!bm.previewData && isGeneratingScreenshotId !== bm.id && (
+                        <>
+                          <button className="p-1.5 bg-black/80 hover:bg-white hover:text-black text-white rounded-full transition-colors" onClick={(e) => { e.stopPropagation(); handleUploadBasemapPreview(bm.id); }} title="Upload PNG Preview">
+                            <Upload size={10} />
+                          </button>
+                          <button className="p-1.5 bg-black/80 hover:bg-white hover:text-black text-white rounded-full transition-colors" onClick={(e) => { e.stopPropagation(); handleGenerateBasemapPreview(bm); }} title="Generate Preview from Map">
+                            <RefreshCcw size={10} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="flex gap-2">
+                <button onClick={handleAddBasemapUrl} className="flex-1 py-2 bg-white/5 hover:bg-white/10 text-white text-sm transition-colors rounded-full flex items-center justify-center gap-2">
+                  <Link size={16} /> {t("Add URL")}
+                </button>
+                <button onClick={handleUploadBasemapJson} className="flex-1 py-2 bg-white/5 hover:bg-white/10 text-white text-sm transition-colors rounded-full flex items-center justify-center gap-2">
+                  <Upload size={16} /> {t("Upload JSON")}
+                </button>
+                <input type="file" ref={basemapFileInputRef} className="hidden" />
+              </div>
+
+              <div className="flex items-center justify-between px-1 mt-2">
+                <label className="text-[10px] text-white font-semibold tracking-wider">
+                  {t("Force Gotham Font")}
                 </label>
-                <input
-                  className="w-full bg-black/60 px-3 py-2 outline-none font-mono text-xs border border-white/10 focus:border-white/50 transition-colors"
-                  value={settings.mapToken}
-                  onChange={(e) =>
+                <button
+                  onClick={() =>
                     setSettings((prev) => ({
                       ...prev,
-                      mapToken: e.target.value,
+                      replaceGothamFont: prev.replaceGothamFont === false ? true : false,
                     }))
                   }
-                />
+                  className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${settings.replaceGothamFont !== false ? "bg-white" : "bg-white/20"}`}
+                >
+                  <div
+                    className={`w-3 h-3 rounded-full absolute top-1 transition-all ${settings.replaceGothamFont !== false ? "left-5 bg-black" : "left-1 bg-white"}`}
+                  />
+                </button>
               </div>
-              <div>
-                <label className="text-[10px] text-white mb-1 block font-semibold tracking-wider">
-                  {t("MAP STYLE URL")}
-                </label>
-                <input
-                  className="w-full bg-black/60 px-3 py-2 outline-none font-mono text-xs border border-white/10 focus:border-white/50 transition-colors"
-                  value={settings.mapStyle}
-                  onChange={(e) =>
-                    setSettings((prev) => ({
-                      ...prev,
-                      mapStyle: e.target.value,
-                    }))
-                  }
+
+              {isGeneratingScreenshotId && basemaps.find(b => b.id === isGeneratingScreenshotId) && (
+                <ScreenshotMap 
+                  styleUrl={basemaps.find(b => b.id === isGeneratingScreenshotId)!.url}
+                  onReady={async (data) => {
+                    const bm = basemaps.find(b => b.id === isGeneratingScreenshotId);
+                    if (bm) {
+                      await fetch('/api.php?action=save_basemap', {
+                        method: 'POST',
+                        body: JSON.stringify({ ...bm, previewData: data })
+                      });
+                      refreshBasemaps();
+                    }
+                    setIsGeneratingScreenshotId(null);
+                  }}
                 />
-              </div>
+              )}
             </div>
           </details>
 
@@ -3895,6 +4062,62 @@ function LayerItem(props: {
           )}
         </div>
       </Wrapper>
+    </div>
+  );
+}
+
+const ScreenshotMap = ({ styleUrl, onReady }: { styleUrl: string, onReady: (dataUrl: string) => void }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    if (!containerRef.current) return;
+    let mapStyle = styleUrl;
+    if (typeof styleUrl === 'string' && styleUrl.startsWith('solid:')) {
+      mapStyle = {
+        version: 8,
+        sources: {},
+        layers: [
+          {
+            id: 'background',
+            type: 'background',
+            paint: { 'background-color': styleUrl.replace('solid:', '') }
+          }
+        ]
+      } as any;
+    }
+
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style: mapStyle,
+      center: [10.45, 51.16],
+      zoom: 4,
+      preserveDrawingBuffer: true,
+      interactive: false,
+      attributionControl: false
+    });
+
+    let isRemoved = false;
+    map.once('idle', () => {
+      if (isRemoved) return;
+      try {
+        const data = map.getCanvas().toDataURL('image/png');
+        onReady(data);
+      } catch (e) {
+        console.error("Screenshot capture failed:", e);
+      }
+    });
+
+    return () => {
+      if (!isRemoved) {
+        isRemoved = true;
+        map.remove();
+      }
+    };
+  }, [styleUrl, onReady]);
+
+  return (
+    <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '256px', height: '256px' }}>
+      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
     </div>
   );
 }

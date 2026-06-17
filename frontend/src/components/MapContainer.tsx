@@ -291,9 +291,10 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const originalFiltersRef = useRef<{ [layerId: string]: any }>({});
   const localMarkersRef = useRef<{ [id: string]: maplibregl.Marker }>({});
   const markersRef = propsMarkersRef || localMarkersRef;
-  const deepstateDatesRef = useRef<{ [layerId: string]: string | undefined }>({});
-  const gdacsDatesRef = useRef<{ [layerId: string]: string | undefined }>({});
+  const deepstateDataCacheRef = useRef<{ [cacheKey: string]: any }>({});
+  const gdacsDataCacheRef = useRef<{ [cacheKey: string]: any }>({});
   const activeDrawMarkersRef = useRef<{ [id: string]: maplibregl.Marker }>({});
+  const selectionMarkersRef = useRef<{ [id: string]: maplibregl.Marker }>({});
   const openSkyTokenRef = useRef<{ token: string, expires: number } | null>(null);
   const aircraftPopupRef = useRef<maplibregl.Popup | null>(null);
   const selectedAircraftMetaRef = useRef<any>(null);
@@ -426,9 +427,26 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       }
     }
 
+    let finalStyle: any = settings.mapStyle || 'https://tiles.openfreemap.org/styles/liberty';
+    if (typeof finalStyle === 'string' && finalStyle.startsWith('solid:')) {
+      finalStyle = {
+        version: 8,
+        sources: {},
+        layers: [
+          {
+            id: 'background',
+            type: 'background',
+            paint: {
+              'background-color': finalStyle.replace('solid:', '')
+            }
+          }
+        ]
+      };
+    }
+
     const map = new maplibregl.Map({
       container: mapContainer.current,
-      style: settings.mapStyle || 'mapbox://styles/mapbox/satellite-v9',
+      style: finalStyle,
       center: settings.defaultView.center,
       zoom: settings.defaultView.zoom,
       pitch: settings.defaultView.pitch,
@@ -436,7 +454,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       canvasContextAttributes: { preserveDrawingBuffer: true },
       attributionControl: false,
       transformRequest: (url, resourceType) => {
-        if (resourceType === 'Glyphs' && decodeURIComponent(url).includes('Gotham Condensed')) {
+        if (settings.replaceGothamFont !== false && resourceType === 'Glyphs' && decodeURIComponent(url).includes('Gotham Condensed')) {
           try {
             const urlObj = new URL(url);
             const parts = urlObj.pathname.split('/');
@@ -455,6 +473,18 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     
     mapRef.current = map;
     onMapInit?.(map);
+
+    map.on('error', (e: any) => {
+      if (e.error && e.error.message && e.error.message.includes('404')) {
+        console.error("Map style not found (404). Falling back to default map style.", e.error);
+        if (typeof settings.mapStyle === 'string' && settings.mapStyle.includes('api.php?action=basemap_style')) {
+          setSettings(p => ({ ...p, mapStyle: 'https://tiles.openfreemap.org/styles/liberty' }));
+        }
+        try {
+          map.setStyle('https://tiles.openfreemap.org/styles/liberty');
+        } catch (err) {}
+      }
+    });
 
     // Add Orbital controls (NavigationControl)
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true, showZoom: false }), 'top-right');
@@ -589,7 +619,10 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       let initFirstAdminId;
       for (let i = 0; i < styleLayers.length; i++) {
         const id = styleLayers[i].id;
-        if (!initFirstAdminId && (id.includes('admin') || id.includes('border') || id.includes('boundar') || id.includes('coutry'))) {
+        if (!initFirstAdminId && 
+            (styleLayers[i].type === 'line' || styleLayers[i].type === 'symbol') &&
+            !id.includes('water') && !id.includes('marine') &&
+            (id.includes('admin') || id.includes('border') || id.includes('boundar') || id.includes('country'))) {
           initFirstAdminId = id;
         }
         if (styleLayers[i].type === 'symbol') {
@@ -625,36 +658,38 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
                 map.setLayoutProperty(id, 'text-field', textFieldExp);
                 
-                // Map font weights dynamically based on layer type
-                let newFont = 'Gotham Condensed Book';
-                const lowerId = id.toLowerCase();
-                
-                if (lowerId.includes('country') || lowerId.includes('admin-0')) {
-                  newFont = 'Gotham Condensed Bold';
-                } else if (lowerId.includes('state') || lowerId.includes('admin-1')) {
-                  newFont = 'Gotham Condensed Medium';
-                } else if (lowerId.includes('water') || lowerId.includes('marine') || lowerId.includes('ocean')) {
-                  newFont = 'Gotham Condensed Book Italic';
-                } else if (lowerId.includes('city') || lowerId.includes('town')) {
-                  newFont = 'Gotham Condensed Medium';
-                } else if (lowerId.includes('road') || lowerId.includes('street') || lowerId.includes('path')) {
-                  newFont = 'Gotham Condensed Light';
-                } else {
-                  // Attempt to preserve original weight if possible
-                  try {
-                    const currentFonts = JSON.stringify(layout['text-font']).toLowerCase();
-                    if (currentFonts.includes('black') || currentFonts.includes('heavy')) newFont = 'Gotham Condensed Black';
-                    else if (currentFonts.includes('bold') || currentFonts.includes('strong')) newFont = 'Gotham Condensed Bold';
-                    else if (currentFonts.includes('medium')) newFont = 'Gotham Condensed Medium';
-                    else if (currentFonts.includes('light') || currentFonts.includes('thin')) newFont = 'Gotham Condensed Light';
-                    
-                    if (currentFonts.includes('italic')) newFont += ' Italic';
-                  } catch (e) {
-                    // Fallback to book
+                if (settings.replaceGothamFont !== false) {
+                  // Map font weights dynamically based on layer type
+                  let newFont = 'Gotham Condensed Book';
+                  const lowerId = id.toLowerCase();
+                  
+                  if (lowerId.includes('country') || lowerId.includes('admin-0')) {
+                    newFont = 'Gotham Condensed Bold';
+                  } else if (lowerId.includes('state') || lowerId.includes('admin-1')) {
+                    newFont = 'Gotham Condensed Medium';
+                  } else if (lowerId.includes('water') || lowerId.includes('marine') || lowerId.includes('ocean')) {
+                    newFont = 'Gotham Condensed Book Italic';
+                  } else if (lowerId.includes('city') || lowerId.includes('town')) {
+                    newFont = 'Gotham Condensed Medium';
+                  } else if (lowerId.includes('road') || lowerId.includes('street') || lowerId.includes('path')) {
+                    newFont = 'Gotham Condensed Light';
+                  } else {
+                    // Attempt to preserve original weight if possible
+                    try {
+                      const currentFonts = JSON.stringify(layout['text-font']).toLowerCase();
+                      if (currentFonts.includes('black') || currentFonts.includes('heavy')) newFont = 'Gotham Condensed Black';
+                      else if (currentFonts.includes('bold') || currentFonts.includes('strong')) newFont = 'Gotham Condensed Bold';
+                      else if (currentFonts.includes('medium')) newFont = 'Gotham Condensed Medium';
+                      else if (currentFonts.includes('light') || currentFonts.includes('thin')) newFont = 'Gotham Condensed Light';
+                      
+                      if (currentFonts.includes('italic')) newFont += ' Italic';
+                    } catch (e) {
+                      // Fallback to book
+                    }
                   }
+                  
+                  map.setLayoutProperty(id, 'text-font', [newFont]);
                 }
-                
-                map.setLayoutProperty(id, 'text-font', [newFont]);
               }
             }
           }
@@ -951,7 +986,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         filter: ['==', ['get', 'type'], 'invisible-collision-box'],
         layout: {
           'text-field': ['get', 'text'],
-          'text-font': ['Gotham Bold', 'Arial Unicode MS Regular'],
+          'text-font': settings.replaceGothamFont !== false ? ['Gotham Bold', 'Arial Unicode MS Regular'] : ['Arial Unicode MS Regular'],
           'text-size': 14,
           'text-transform': 'uppercase',
           'text-allow-overlap': true,
@@ -1151,7 +1186,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       map.remove();
       mapRef.current = null;
     };
-  }, [settings.mapToken, settings.mapStyle]);
+  }, [settings.mapStyle, settings.replaceGothamFont]);
 
   // Handle dynamic mapbox transitions based on settings
   useEffect(() => {
@@ -2501,15 +2536,38 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     }
     
     const layers = settings.layers || [];
-    const firstSymbolId = style?.layers?.find(l => l.type === 'symbol')?.id;
-    const firstAdminId = style?.layers?.find(l => 
-      l.id.includes('admin') || 
-      l.id.includes('border') || 
-      l.id.includes('boundar') || 
-      l.id.includes('coutry')
-    )?.id || firstSymbolId;
+    const styleLayers = style?.layers || [];
+    const firstSymbolId = styleLayers.find(l => l.type === 'symbol')?.id;
+    
+    let lastWaterIndex = -1;
+    for (let i = 0; i < styleLayers.length; i++) {
+      if (styleLayers[i].type === 'fill' && (styleLayers[i].id.includes('water') || styleLayers[i].id.includes('marine') || styleLayers[i].id.includes('ocean'))) {
+        lastWaterIndex = i;
+      }
+    }
+    
+    let firstAdminId = undefined;
+    for (let i = lastWaterIndex + 1; i < styleLayers.length; i++) {
+      const l = styleLayers[i];
+      if ((l.type === 'line' || l.type === 'symbol') &&
+          (l.id.includes('admin') || l.id.includes('border') || l.id.includes('boundar') || l.id.includes('country'))) {
+        firstAdminId = l.id;
+        break;
+      }
+    }
+    firstAdminId = firstAdminId || firstSymbolId;
+    let firstSymbolFont = ['Open Sans Regular'];
+    for (let i = 0; i < styleLayers.length; i++) {
+      if (styleLayers[i].type === 'symbol') {
+        const font = (styleLayers[i] as any).layout?.['text-font'];
+        if (font && Array.isArray(font) && font.length > 0 && typeof font[0] === 'string') {
+           firstSymbolFont = font;
+           break;
+        }
+      }
+    }
 
-
+    const fallbackFont = settings.replaceGothamFont !== false ? ['Gotham Bold', ...firstSymbolFont] : firstSymbolFont;
 
     // Identify current custom dynamic layers
     const dynamicLayerIds = (style?.layers || [])
@@ -2523,9 +2581,6 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         if (map.getLayer(`dynamic-line-${id}`)) map.removeLayer(`dynamic-line-${id}`);
         if (map.getSource(`dynamic-source-${id}`)) {
           map.removeSource(`dynamic-source-${id}`);
-          if (deepstateDatesRef.current[id]) {
-            delete deepstateDatesRef.current[id];
-          }
         }
       }
     });
@@ -2793,14 +2848,16 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               source: sourceId,
               layout: {
                 visibility: layer.visible ? 'visible' : 'none',
-                'text-field': ['to-string', ['coalesce', ['get', 'severity', ['get', 'severitydata']], ['get', 'severity'], '0']],
-                'text-font': ['Gotham Bold', 'Arial Unicode MS Regular'],
-                'text-size': 11,
+                'text-field': ['to-string', ['get', 'severity_numeric']],
+                'text-font': fallbackFont,
+                'text-size': 12,
                 'text-anchor': 'center',
-                'symbol-sort-key': ['-', 0, ['coalesce', ['get', 'severity', ['get', 'severitydata']], ['get', 'severity'], 0]]
+                'symbol-sort-key': ['-', 0, ['get', 'severity_numeric']]
               },
               paint: {
-                'text-color': '#ffffff'
+                'text-color': '#ffffff',
+                'text-halo-color': '#ffffff',
+                'text-halo-width': 0.5
               }
             });
           }
@@ -2922,7 +2979,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             layout: {
               visibility: layer.visible && layer.showCallsigns ? 'visible' : 'none',
               'text-field': ['case', ['==', ['get', 'callsign'], ''], ['get', 'icao24'], ['get', 'callsign']],
-              'text-font': ['Gotham Bold', 'Arial Unicode MS Regular'],
+              'text-font': fallbackFont,
               'text-size': 10,
               'text-offset': [0, 1.5],
               'text-anchor': 'top',
@@ -3020,7 +3077,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               layout: {
                 visibility: layer.visible ? 'visible' : 'none',
                 'text-field': ['case', ['==', ['get', 'callsign'], ''], ['get', 'icao24'], ['get', 'callsign']],
-                'text-font': ['Gotham Bold', 'Arial Unicode MS Regular'],
+                'text-font': fallbackFont,
                 'text-size': 10,
                 'text-offset': [0, 1.5],
                 'text-anchor': 'top',
@@ -3108,90 +3165,72 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         const todayDateStr = new Date().toISOString().split('T')[0];
         const targetDate = layer.startDate || todayDateStr;
         
-        const cacheKey = `${targetDate}-${!!layer.isLive}`;
-        if (deepstateDatesRef.current[layer.id] !== cacheKey) {
-          deepstateDatesRef.current[layer.id] = cacheKey;
-          
+        const cacheKey = `${layer.id}-${targetDate}`;
+        if (deepstateDataCacheRef.current[cacheKey]) {
+          const source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
+          if (source) source.setData(deepstateDataCacheRef.current[cacheKey]);
+        } else {
           (async () => {
             try {
-              let url = '';
-              if (layer.isLive) {
-                url = 'https://deepstatemap.live/api/history/last';
-              } else {
-                let history = globalDeepstateHistory;
-                if (!history) {
+              let url = `https://deepstatemap.live/api/history/${targetDate}/geojson`;
+              if (targetDate.length === 10) {
+                if (!globalDeepstateHistory) {
                   if (!globalDeepstateHistoryPromise) {
-                    globalDeepstateHistoryPromise = fetch('https://deepstatemap.live/api/history/public')
-                      .then(res => res.json())
-                      .then(data => { globalDeepstateHistory = data; })
-                      .catch(err => {
-                        console.error('Failed to fetch deepstate history:', err);
-                        globalDeepstateHistoryPromise = null;
+                    globalDeepstateHistoryPromise = fetch('https://deepstatemap.live/api/history')
+                      .then(r => r.json())
+                      .catch(e => {
+                        console.error('Failed to fetch deepstate history', e);
+                        return null;
                       });
                   }
+                  globalDeepstateHistory = await globalDeepstateHistoryPromise;
+                }
+                let history = globalDeepstateHistory;
+                if (!history && globalDeepstateHistoryPromise) {
                   await globalDeepstateHistoryPromise;
                   history = globalDeepstateHistory;
                 }
-                
                 if (!history) throw new Error('No history available');
-
-                const entriesForDate = history.filter(entry => entry.createdAt.startsWith(targetDate));
-                let targetId: number;
-                if (entriesForDate.length > 0) {
-                  targetId = entriesForDate[entriesForDate.length - 1].id;
-                } else {
-                  const pastEntries = history.filter(entry => entry.createdAt < targetDate);
-                  if (pastEntries.length > 0) {
-                    targetId = pastEntries[pastEntries.length - 1].id;
-                  } else {
-                    throw new Error('No data found for this date');
-                  }
+                const entriesForDate = history.filter((entry: any) => entry.createdAt.startsWith(targetDate));
+                let targetId: number = entriesForDate.length > 0 ? entriesForDate[entriesForDate.length - 1].id : 0;
+                if (targetId === 0) {
+                  const pastEntries = history.filter((entry: any) => entry.createdAt < targetDate);
+                  if (pastEntries.length > 0) targetId = pastEntries[pastEntries.length - 1].id;
+                  else throw new Error('No data found for this date');
                 }
-
                 url = `https://deepstatemap.live/api/history/${targetId}/geojson`;
               }
               const res = await fetch(url);
               if (!res.ok) throw new Error(`Failed to fetch deepstate data: ${res.statusText}`);
               const data = await res.json();
-              
               const geojsonData = data.map ? data.map : data;
               if (geojsonData && geojsonData.features) {
                 const ignoredTerms = [
                   'geoJSON.territories.estonia',
                   'geoJSON.territories.pechorsky-district',
                   'geoJSON.territories.latvia',
-                  'geoJSON.territories.karelia',
-                  'geoJSON.territories.prussia',
-                  'geoJSON.territories.salla',
-                  'geoJSON.territories.petsamo',
-                  'geoJSON.territories.abkhazia',
-                  'geoJSON.territories.tskhinvali-district',
-                  'geoJSON.territories.ichkeria',
-                  'geoJSON.territories.kuril'
+                  'geoJSON.territories.belarus'
                 ];
-
                 const filteredFeatures = geojsonData.features.filter((f: any) => {
                   const isPolygon = f.geometry?.type === 'Polygon' || f.geometry?.type === 'MultiPolygon';
                   if (!isPolygon) return false;
-                  
                   const name = f.properties?.name || '';
-                  if (typeof name === 'string' && ignoredTerms.some(term => name.includes(term))) {
-                    return false;
-                  }
-                  return true;
+                  return !(typeof name === 'string' && ignoredTerms.some(term => name.includes(term)));
                 });
-
                 const polygonsOnly = {
                   ...geojsonData,
                   features: filteredFeatures
                 };
+                deepstateDataCacheRef.current[cacheKey] = polygonsOnly;
                 const source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
                 if (source) source.setData(polygonsOnly);
               }
             } catch (err) {
               console.error(`Error fetching deepstate for date ${targetDate}:`, err);
+              const emptyData = { type: 'FeatureCollection', features: [] };
+              deepstateDataCacheRef.current[cacheKey] = emptyData;
               const source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
-              if (source) source.setData({ type: 'FeatureCollection', features: [] });
+              if (source) source.setData(emptyData);
             }
           })();
         }
@@ -3208,11 +3247,11 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         const startDate = layer.startDate || todayDateStr;
         const isPolygonLayer = layer.type === 'wildfires' && layer.wildfireMode === 'gdacs';
         const endDate = isPolygonLayer ? startDate : (layer.endDate || todayDateStr);
-        
         const cacheKey = `${layer.type}-${startDate}-${endDate}`;
-        if (gdacsDatesRef.current[layer.id] !== cacheKey) {
-          gdacsDatesRef.current[layer.id] = cacheKey;
-          
+        if (gdacsDataCacheRef.current[cacheKey]) {
+          const source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
+          if (source) source.setData(gdacsDataCacheRef.current[cacheKey]);
+        } else {
           (async () => {
             try {
               const eventlist = layer.type.includes('earthquake') || layer.type.includes('shakemap') ? 'EQ' : layer.type.includes('wildfires') ? 'WF' : layer.type === 'gdacs_cyclones' ? 'TC' : 'VO';
@@ -3222,6 +3261,14 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               const text = await res.text();
               const data = text ? JSON.parse(text) : { type: 'FeatureCollection', features: [] };
               let geojsonData = data;
+
+              if (geojsonData && geojsonData.features) {
+                geojsonData.features.forEach((f: any) => {
+                  if (f.properties) {
+                    f.properties.severity_numeric = f.properties.severitydata?.severity ?? f.properties.severity ?? 0;
+                  }
+                });
+              }
 
               if (isPolygonLayer && data && data.features) {
                  const polygonFeatures = [];
@@ -3243,16 +3290,18 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                  }
                  geojsonData = { type: 'FeatureCollection', features: polygonFeatures };
               }
-
+              gdacsDataCacheRef.current[cacheKey] = geojsonData;
               const map = mapRef.current;
               if (map && map.getSource(sourceId)) {
                 (map.getSource(sourceId) as maplibregl.GeoJSONSource).setData(geojsonData);
               }
             } catch (err) {
-              console.error(`Error fetching GDACS for dates ${startDate}-${endDate}:`, err);
+              console.error(`Error fetching GDACS for type ${layer.type}:`, err);
+              const emptyData = { type: 'FeatureCollection', features: [] };
+              gdacsDataCacheRef.current[cacheKey] = emptyData;
               const map = mapRef.current;
               if (map && map.getSource(sourceId)) {
-                (map.getSource(sourceId) as maplibregl.GeoJSONSource).setData({ type: 'FeatureCollection', features: [] });
+                (map.getSource(sourceId) as maplibregl.GeoJSONSource).setData(emptyData);
               }
             }
           })();
@@ -3263,36 +3312,44 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     // Reorder layers dynamically. Iterate backwards to place the bottom-most layer right before firstAdminId.
     for (let i = layers.length - 1; i >= 0; i--) {
       const layer = layers[i];
-      const idsToMove: string[] = [];
+      const idsToMoveAdmin: string[] = [];
+      const idsToMoveTop: string[] = [];
       
       if (layer.type === 'weather_forecast') {
-        idsToMove.push(...weatherForecastLayerIdsRef.current);
+        idsToMoveTop.push(...weatherForecastLayerIdsRef.current);
       } else if (layer.type === 'wildfires') {
-        idsToMove.push(`dynamic-layer-${layer.id}-effis`);
-        idsToMove.push(`dynamic-layer-${layer.id}-gdacs-fill`);
-        idsToMove.push(`dynamic-layer-${layer.id}-gdacs-line`);
+        idsToMoveAdmin.push(`dynamic-layer-${layer.id}-effis`);
+        idsToMoveAdmin.push(`dynamic-layer-${layer.id}-gdacs-fill`);
+        idsToMoveAdmin.push(`dynamic-layer-${layer.id}-gdacs-line`);
       } else if (layer.type === 'gdacs_earthquakes') {
-        idsToMove.push('selected-earthquake-shakemap-fill');
-        idsToMove.push('selected-earthquake-shakemap-line');
-        idsToMove.push(`dynamic-layer-${layer.id}`);
+        idsToMoveAdmin.push('selected-earthquake-shakemap-fill');
+        idsToMoveAdmin.push('selected-earthquake-shakemap-line');
+        idsToMoveTop.push(`dynamic-layer-${layer.id}`); // circles on top
         if (map.getLayer(`dynamic-layer-${layer.id}-label`)) {
-          idsToMove.push(`dynamic-layer-${layer.id}-label`);
+          idsToMoveTop.push(`dynamic-layer-${layer.id}-label`); // labels on top
         }
       } else if (layer.type === 'gdacs_volcanoes') {
-        idsToMove.push('selected-volcano-polygon-fill');
-        idsToMove.push('selected-volcano-polygon-line');
-        idsToMove.push(`dynamic-layer-${layer.id}`);
+        idsToMoveAdmin.push('selected-volcano-polygon-fill');
+        idsToMoveAdmin.push('selected-volcano-polygon-line');
+        idsToMoveTop.push(`dynamic-layer-${layer.id}`); // circles on top
       } else {
-        idsToMove.push(`dynamic-layer-${layer.id}`);
+        idsToMoveAdmin.push(`dynamic-layer-${layer.id}`);
         if (map.getLayer(`dynamic-line-${layer.id}`)) {
-          idsToMove.push(`dynamic-line-${layer.id}`);
+          idsToMoveAdmin.push(`dynamic-line-${layer.id}`);
         }
       }
       
-      idsToMove.forEach(id => {
+      idsToMoveAdmin.forEach(id => {
         if (map.getLayer(id)) {
           try {
             map.moveLayer(id, firstAdminId);
+          } catch (e) {}
+        }
+      });
+      idsToMoveTop.forEach(id => {
+        if (map.getLayer(id)) {
+          try {
+            map.moveLayer(id); // push to very top
           } catch (e) {}
         }
       });
@@ -4576,17 +4633,22 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   // Render selected earthquake DOM label
   useEffect(() => {
     const map = mapRef.current;
+    if (activeDrawMarkersRef.current['selected-eq-label']) {
+      activeDrawMarkersRef.current['selected-eq-label'].remove();
+      delete activeDrawMarkersRef.current['selected-eq-label'];
+    }
+    if (selectionMarkersRef.current['selected-eq-label']) {
+      selectionMarkersRef.current['selected-eq-label'].remove();
+      delete selectionMarkersRef.current['selected-eq-label'];
+    }
+    
     if (!map || !mapLoaded || !selectedEarthquake) {
-      if (activeDrawMarkersRef.current['selected-eq-label']) {
-        activeDrawMarkersRef.current['selected-eq-label'].remove();
-        delete activeDrawMarkersRef.current['selected-eq-label'];
-      }
       return;
     }
 
     const { coordinates, properties } = selectedEarthquake;
     const alertLevel = properties.alertlevel;
-    const bgColor = alertLevel === 'Red' ? '#ff0000' : alertLevel === 'Orange' ? '#ff9900' : alertLevel === 'Green' ? '#00ff00' : '#6b7280';
+    const bgColor = alertLevel === 'Red' ? '#ef4444' : alertLevel === 'Orange' ? '#f97316' : alertLevel === 'Green' ? '#22c55e' : '#6b7280';
     
     const fromDate = properties.fromdate || '';
     let dateStr = '';
@@ -4609,20 +4671,16 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     
     el.innerHTML = `<div>${dateStr}</div>`;
 
-    if (activeDrawMarkersRef.current['selected-eq-label']) {
-      activeDrawMarkersRef.current['selected-eq-label'].remove();
-    }
-    
     const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
       .setLngLat(coordinates)
       .addTo(map);
 
-    activeDrawMarkersRef.current['selected-eq-label'] = marker;
+    selectionMarkersRef.current['selected-eq-label'] = marker;
 
     return () => {
-      if (activeDrawMarkersRef.current['selected-eq-label']) {
-        activeDrawMarkersRef.current['selected-eq-label'].remove();
-        delete activeDrawMarkersRef.current['selected-eq-label'];
+      if (selectionMarkersRef.current['selected-eq-label']) {
+        selectionMarkersRef.current['selected-eq-label'].remove();
+        delete selectionMarkersRef.current['selected-eq-label'];
       }
     };
   }, [selectedEarthquake, mapLoaded]);
@@ -4672,11 +4730,12 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   // Render selected volcano DOM label
   useEffect(() => {
     const map = mapRef.current;
+    if (selectionMarkersRef.current['selected-volcano-label']) {
+      selectionMarkersRef.current['selected-volcano-label'].remove();
+      delete selectionMarkersRef.current['selected-volcano-label'];
+    }
+
     if (!map || !mapLoaded || !selectedVolcano) {
-      if (activeDrawMarkersRef.current['selected-volcano-label']) {
-        activeDrawMarkersRef.current['selected-volcano-label'].remove();
-        delete activeDrawMarkersRef.current['selected-volcano-label'];
-      }
       return;
     }
 
@@ -4709,20 +4768,20 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       ${dateStr ? `<div>${dateStr}</div>` : ''}
     `;
 
-    if (activeDrawMarkersRef.current['selected-volcano-label']) {
-      activeDrawMarkersRef.current['selected-volcano-label'].remove();
+    if (selectionMarkersRef.current['selected-volcano-label']) {
+      selectionMarkersRef.current['selected-volcano-label'].remove();
     }
     
     const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
       .setLngLat(coordinates)
       .addTo(map);
 
-    activeDrawMarkersRef.current['selected-volcano-label'] = marker;
+    selectionMarkersRef.current['selected-volcano-label'] = marker;
 
     return () => {
-      if (activeDrawMarkersRef.current['selected-volcano-label']) {
-        activeDrawMarkersRef.current['selected-volcano-label'].remove();
-        delete activeDrawMarkersRef.current['selected-volcano-label'];
+      if (selectionMarkersRef.current['selected-volcano-label']) {
+        selectionMarkersRef.current['selected-volcano-label'].remove();
+        delete selectionMarkersRef.current['selected-volcano-label'];
       }
     };
   }, [selectedVolcano, mapLoaded]);
@@ -6124,7 +6183,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       map.off('touchmove', onTouchMove);
       map.off('touchend', onTouchEnd);
     };
-  }, [activeTool, currentColor, currentStrokeType, currentFillOpacity, annotations, setAnnotations, activeGeojsonLayerId, setActiveGeojsonLayerId, setSelectedGeojsonFeatureId, selectedAircraftId, settings.layers, selectedIconId, routeMode, settings.googleMapsToken, settings.mapToken]);
+  }, [mapLoaded, activeTool, currentColor, currentStrokeType, currentFillOpacity, annotations, setAnnotations, activeGeojsonLayerId, setActiveGeojsonLayerId, setSelectedGeojsonFeatureId, selectedAircraftId, settings.layers, selectedIconId, routeMode, settings.googleMapsToken]);
 
   const activeWindLayer = settings.layers.find(l => l.type === 'weather_forecast' && l.visible && l.showWindParticles !== false);
   const windLayerVisible = Boolean(activeWindLayer);

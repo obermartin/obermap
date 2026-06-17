@@ -217,5 +217,9 @@ export const de: Record<string, string> = {
 
   // Video export panel
   "FILE TYPE": "Dateiformat",
-  "File type": "Dateiformat"
+  "File type": "Dateiformat",
+  
+  // Custom Fonts
+  "Force Gotham Font": "Gotham Font erzwingen",
+  "Solid Color": "Farbfläche"
 };

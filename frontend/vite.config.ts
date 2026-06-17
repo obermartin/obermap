@@ -10,6 +10,7 @@ function mockPhpBackend(env: Record<string, string>) {
   let db: any;
   let showsCol: any;
   let weatherCol: any;
+  let basemapsCol: any;
 
   return {
     name: "mock-php-backend",
@@ -19,11 +20,13 @@ function mockPhpBackend(env: Record<string, string>) {
       db = client.db("obermap");
       showsCol = db.collection("shows");
       weatherCol = db.collection("weather_cache");
+      basemapsCol = db.collection("basemaps");
 
       client.connect().then(() => {
         console.log("Connected to MongoDB Atlas successfully");
         showsCol.createIndex({ id: 1 }, { unique: true }).catch(console.error);
         weatherCol.createIndex({ id: 1 }, { unique: true }).catch(console.error);
+        basemapsCol.createIndex({ id: 1 }, { unique: true }).catch(console.error);
       }).catch(err => {
         console.error("Failed to connect to MongoDB:", err);
       });
@@ -438,7 +441,104 @@ function mockPhpBackend(env: Record<string, string>) {
               return;
             }
           }
+          if (action === "list_basemaps" && req.method === "GET") {
+            try {
+              const docs = await basemapsCol.find({}).toArray();
+              res.setHeader("Content-Type", "application/json");
+              res.statusCode = 200;
+              res.end(JSON.stringify(docs));
+            } catch (e: any) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: e.message }));
+            }
+            return;
+          }
 
+          if (action === "basemap_style" && req.method === "GET") {
+            const id = urlObj.searchParams.get("id");
+            if (!id) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: "Missing id" }));
+              return;
+            }
+            try {
+              const doc = await basemapsCol.findOne({ id });
+              if (doc && doc.styleData) {
+                res.setHeader("Content-Type", "application/json");
+                res.statusCode = 200;
+                res.end(doc.styleData);
+              } else {
+                res.statusCode = 404;
+                res.end(JSON.stringify({ error: "Not found or no style data" }));
+              }
+            } catch (e: any) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: e.message }));
+            }
+            return;
+          }
+
+          if (action === "delete_basemap" && req.method === "POST") {
+            const id = urlObj.searchParams.get("id");
+            if (!id) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: "Missing id" }));
+              return;
+            }
+            try {
+              const result = await basemapsCol.deleteOne({ id });
+              res.setHeader("Content-Type", "application/json");
+              if (result.deletedCount && result.deletedCount > 0) {
+                res.statusCode = 200;
+                res.end(JSON.stringify({ success: true }));
+              } else {
+                res.statusCode = 404;
+                res.end(JSON.stringify({ error: "Not found" }));
+              }
+            } catch (e: any) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: e.message }));
+            }
+            return;
+          }
+
+          if (action === "save_basemap" && req.method === "POST") {
+            let body = "";
+            req.on("data", (chunk: any) => (body += chunk.toString()));
+            req.on("end", async () => {
+              try {
+                const decoded = JSON.parse(body);
+                if (!decoded.id || !decoded.url) {
+                  res.statusCode = 400;
+                  res.end(JSON.stringify({ error: "Missing id or url" }));
+                  return;
+                }
+
+                await basemapsCol.updateOne(
+                  { id: decoded.id },
+                  {
+                    $set: {
+                      id: decoded.id,
+                      name: decoded.name || decoded.id,
+                      url: decoded.url,
+                      styleData: decoded.styleData || null,
+                      previewData: decoded.previewData || null,
+                      updated_at: new Date()
+                    }
+                  },
+                  { upsert: true }
+                );
+                
+                res.setHeader("Content-Type", "application/json");
+                res.statusCode = 200;
+                res.end(JSON.stringify({ success: true }));
+              } catch (e: any) {
+                res.statusCode = 400;
+                res.end(JSON.stringify({ error: "Invalid JSON or DB error: " + e.message }));
+              }
+            });
+            return;
+          }
           const show_id = urlObj.searchParams.get("show") || "";
 
           if (action === "list_shows" && req.method === "GET") {

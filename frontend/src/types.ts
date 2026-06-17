@@ -111,7 +111,6 @@ export interface LabelTemplateVariation {
 
 export interface AppSettings {
   title?: string;
-  mapToken: string;
   mapStyle: string;
   defaultView: {
     center: [number, number];
@@ -138,6 +137,16 @@ export interface AppSettings {
   presetLayers?: MapLayer[];
   animationDuration?: number;
   labelAnimationDuration?: number;
+  hideUI?: boolean;
+  replaceGothamFont?: boolean;
+}
+
+export interface BaseMapStyle {
+  id: string;
+  name: string;
+  url: string;
+  styleData?: string;
+  previewData?: string;
 }
 
 export interface AppState {

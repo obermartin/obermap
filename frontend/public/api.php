@@ -147,11 +147,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && ($_GET['ac
             'weather_cache' => $migratedCache
         ],
         'mysql_migrated' => [
-            'shows' => $mysqlMigratedShows,
-            'weather_cache' => $mysqlMigratedCache
         ],
         'mysql_error' => $mysqlError
     ]);
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'list_basemaps') {
+    $query = new MongoDB\Driver\Query([]);
+    $cursor = $manager->executeQuery('obermap.basemaps', $query);
+    $basemaps = [];
+    foreach ($cursor as $doc) {
+        $basemaps[] = (array)$doc;
+    }
+    echo json_encode($basemaps);
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'basemap_style') {
+    $id = $_GET['id'] ?? '';
+    if (!$id) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Missing id']);
+        exit;
+    }
+    $query = new MongoDB\Driver\Query(['id' => $id]);
+    $cursor = $manager->executeQuery('obermap.basemaps', $query);
+    $doc = current($cursor->toArray());
+    if ($doc && isset($doc->styleData)) {
+        header('Content-Type: application/json');
+        echo $doc->styleData;
+    } else {
+        http_response_code(404);
+        echo json_encode(['error' => 'Not found or no style data']);
+    }
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['action'] === 'delete_basemap') {
+    $id = $_GET['id'] ?? '';
+    if (!$id) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Missing id']);
+        exit;
+    }
+    $bulk = new MongoDB\Driver\BulkWrite;
+    $bulk->delete(['id' => $id]);
+    $result = $manager->executeBulkWrite('obermap.basemaps', $bulk);
+    if ($result->getDeletedCount() > 0) {
+        echo json_encode(['success' => true]);
+    } else {
+        http_response_code(404);
+        echo json_encode(['error' => 'Not found']);
+    }
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['action'] === 'save_basemap') {
+    $input = file_get_contents('php://input');
+    $decoded = json_decode($input, true);
+    if (!isset($decoded['id']) || !isset($decoded['url'])) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Missing id or url']);
+        exit;
+    }
+
+    $bulk = new MongoDB\Driver\BulkWrite;
+    $bulk->update(
+        ['id' => $decoded['id']],
+        ['$set' => [
+            'id' => $decoded['id'],
+            'name' => $decoded['name'] ?? $decoded['id'],
+            'url' => $decoded['url'],
+            'styleData' => $decoded['styleData'] ?? null,
+            'previewData' => $decoded['previewData'] ?? null,
+            'updated_at' => new MongoDB\BSON\UTCDateTime()
+        ]],
+        ['upsert' => true]
+    );
+    $manager->executeBulkWrite('obermap.basemaps', $bulk);
+    echo json_encode(['success' => true]);
     exit;
 }
 
