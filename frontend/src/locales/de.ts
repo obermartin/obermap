@@ -160,6 +160,7 @@ export const de: Record<string, string> = {
   "Both": "Beides",
   "STEP DURATION": "SCHRITTDAUER",
   "Export Video": "Video exportieren",
+  "Export Annotations": "Markierungen exportieren",
   "Optional. Leave blank for anonymous access (rate-limited).": "Optional. Für anonymen Zugriff leer lassen (ratenbegrenzt).",
   "Client ID": "Client-ID",
   "Client Secret": "Client-Secret",
@@ -221,5 +222,10 @@ export const de: Record<string, string> = {
   
   // Custom Fonts
   "Force Gotham Font": "Gotham Font erzwingen",
-  "Solid Color": "Farbfläche"
+  "Solid Color": "Farbfläche",
+
+  // Animations
+  "ANIMATIONS": "ANIMATIONEN",
+  "PATH & POLYGON REVEAL": "PFADE UND POLYGONE",
+  "LABEL & ICON REVEAL": "LABELS UND ICONS"
 };

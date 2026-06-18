@@ -32,6 +32,7 @@ import {
   BookmarkPlus,
   Home,
   Tag,
+  Download
 } from "lucide-react";
 import { parseMapFileWithIds } from "../utils/fileUtils";
 import {
@@ -451,6 +452,7 @@ interface LayerSidebarProps {
   selectedGeojsonFeatureId: string | number | null;
   onSave?: () => void;
   onSaveAndExit?: () => void;
+  onExport?: () => void;
   isSaving?: boolean;
 }
 
@@ -466,6 +468,7 @@ export function LayerSidebar({
   selectedGeojsonFeatureId,
   onSave,
   onSaveAndExit,
+  onExport,
   isSaving,
 }: LayerSidebarProps) {
   const { t } = useTranslation();
@@ -2219,6 +2222,14 @@ export function LayerSidebar({
             >
               <Video size={16} /> {t("Export Video")}
             </button>
+            {annotations?.some(a => a.coordinates || a.polygonGeometry || a.routeGeometry) && (
+              <button
+                onClick={() => onExport?.()}
+                className="w-full py-2 flex items-center justify-center gap-2 text-sm transition-colors bg-white/5 hover:bg-white/10 rounded-full"
+              >
+                <Download size={16} /> {t("Export Annotations")}
+              </button>
+            )}
           </div>
         </>
       ) : (
@@ -2313,7 +2324,7 @@ export function LayerSidebar({
                   onClick={() => setSettings(p => ({ ...p, mapStyle: 'https://tiles.openfreemap.org/styles/liberty' }))}
                 >
                   <img src="https://a.tile.openstreetmap.org/5/16/10.png" className="w-full h-full object-cover opacity-80 mix-blend-luminosity" />
-                  <div className="absolute inset-0 flex items-center justify-center p-2 text-center text-[10px] font-bold text-white uppercase bg-black/40">Liberty</div>
+                  <div className="absolute inset-0 flex items-center justify-center p-2 text-center text-[10px] font-bold text-white bg-black/40">{t("Default")}</div>
                 </div>
                 
                 {/* Solid Color */}

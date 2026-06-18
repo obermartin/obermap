@@ -20,6 +20,7 @@ interface ToolbarProps {
   onExport: () => void;
   onDelete: () => void;
   hasSelection: boolean;
+  hasAnnotations: boolean;
   settings: AppSettings;
   isSaving?: boolean;
   isOpen: boolean;
@@ -68,6 +69,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onExport,
   onDelete,
   hasSelection,
+  hasAnnotations,
   settings,
   isSaving,
   isOpen,
@@ -346,13 +348,15 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 >
                   {isSaving ? <Loader2 className="animate-spin" size={20} strokeWidth={1.5} /> : <Save size={20} strokeWidth={1.5} />}
                 </button>
-                <button
-                  onClick={onExport}
-                  className="w-10 h-10 flex justify-center items-center transition-colors text-white/60 hover:text-white hover:bg-white/20 rounded-full shrink-0"
-                  title={t("Export Annotations as GeoJSON")}
-                >
-                  <Download size={20} strokeWidth={1.5} />
-                </button>
+                {hasAnnotations && (
+                  <button
+                    onClick={onExport}
+                    className="w-10 h-10 flex justify-center items-center transition-colors text-white/60 hover:text-white hover:bg-white/20 rounded-full shrink-0"
+                    title={t("Export Annotations as GeoJSON")}
+                  >
+                    <Download size={20} strokeWidth={1.5} />
+                  </button>
+                )}
               </div>
 
               <div className="w-[1px] bg-white/30 h-8 mx-1 shrink-0" />

@@ -641,7 +641,8 @@ export function App() {
           onSave={() => handleSave(false)}
           onExport={handleExport}
           onDelete={handleDelete}
-          hasSelection={!!selectedAnnotationId}
+          hasSelection={selectedAnnotationId !== null || activeTool === 'delete_all'}
+          hasAnnotations={annotations.some(a => a.coordinates || a.polygonGeometry || a.routeGeometry)}
           settings={settings}
           isSaving={isSaving}
           isOpen={isToolbarOpen}
@@ -664,6 +665,7 @@ export function App() {
         selectedGeojsonFeatureId={selectedGeojsonFeatureId}
         onSave={() => handleSave(false)}
         onSaveAndExit={() => handleSave(true)}
+        onExport={handleExport}
         isSaving={isSaving}
       />
 
