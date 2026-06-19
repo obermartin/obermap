@@ -268,6 +268,38 @@ const CategoryItem = ({
   const controls = useDragControls();
   const isExpanded = expandedCategories[category.id] ?? false;
 
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(category.name);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleDoubleClick = () => {
+    setIsEditing(true);
+    setEditName(category.name);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  const handleRenameSubmit = () => {
+    setIsEditing(false);
+    if (editName.trim() && editName !== category.name) {
+      setSettings((prev: any) => {
+        const newIcons = [...(prev.icons || [])];
+        newIcons[catIndex] = { ...category, name: editName.trim() };
+        return { ...prev, icons: newIcons };
+      });
+    } else {
+      setEditName(category.name);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") handleRenameSubmit();
+    if (e.key === "Escape") {
+      setIsEditing(false);
+      setEditName(category.name);
+    }
+  };
+
+
   return (
     <Reorder.Item
       key={category.id}
@@ -299,19 +331,26 @@ const CategoryItem = ({
               <ChevronRight size={14} />
             )}
           </button>
-          <input
-            type="text"
-            value={category.name}
-            onChange={(e) => {
-              const newName = e.target.value;
-              setSettings((prev: any) => {
-                const newIcons = [...(prev.icons || [])];
-                newIcons[catIndex] = { ...category, name: newName };
-                return { ...prev, icons: newIcons };
-              });
-            }}
-            className="bg-transparent text-sm font-semibold tracking-wide text-white focus:outline-none w-full"
-          />
+          <div className="flex-1 min-w-0" onDoubleClick={handleDoubleClick}>
+            {isEditing ? (
+              <input
+                ref={inputRef}
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onBlur={handleRenameSubmit}
+                onKeyDown={handleKeyDown}
+                className="w-full bg-black border border-white/20 text-sm font-semibold tracking-wide px-1 outline-none text-white focus:border-white/50"
+              />
+            ) : (
+              <div
+                className="text-sm font-semibold tracking-wide text-white truncate cursor-text"
+                title={category.name}
+              >
+                {category.name}
+              </div>
+            )}
+          </div>
         </div>
         <button
           onClick={async () => {
@@ -1936,6 +1975,18 @@ export function LayerSidebar({
                                   <>
                                     <div className="flex flex-col items-center gap-1 mt-3">
                                       <div className="flex w-12 h-6 rounded-full overflow-hidden border border-white/20">
+                                        <input
+                                          type="color"
+                                          value={primaryText}
+                                          onChange={(e) =>
+                                            updateColor(
+                                              "primaryTextColor",
+                                              e.target.value,
+                                            )
+                                          }
+                                          className="w-1/2 h-full p-0 border-0 bg-transparent cursor-pointer [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:rounded-none"
+                                          title={t("Primary Text")}
+                                        />
                                         {man?.primary?.overrideColor ? (
                                           <input
                                             type="color"
@@ -1957,18 +2008,6 @@ export function LayerSidebar({
                                             )}
                                           />
                                         )}
-                                        <input
-                                          type="color"
-                                          value={primaryText}
-                                          onChange={(e) =>
-                                            updateColor(
-                                              "primaryTextColor",
-                                              e.target.value,
-                                            )
-                                          }
-                                          className="w-1/2 h-full p-0 border-0 bg-transparent cursor-pointer [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:rounded-none"
-                                          title={t("Primary Text")}
-                                        />
                                       </div>
                                       <span className="text-[9px] text-white/50 text-center leading-tight">
                                         {t("Primary")}
@@ -1979,6 +2018,18 @@ export function LayerSidebar({
                                       man?.secondary && (
                                         <div className="flex flex-col items-center gap-1 mt-3">
                                           <div className="flex w-12 h-6 rounded-full overflow-hidden border border-white/20">
+                                            <input
+                                              type="color"
+                                              value={secText}
+                                              onChange={(e) =>
+                                                updateColor(
+                                                  "secondaryTextColor",
+                                                  e.target.value,
+                                                )
+                                              }
+                                              className="w-1/2 h-full p-0 border-0 bg-transparent cursor-pointer [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:rounded-none"
+                                              title={t("Secondary Text")}
+                                            />
                                             {man.secondary.overrideColor ? (
                                               <input
                                                 type="color"
@@ -2000,18 +2051,6 @@ export function LayerSidebar({
                                                 )}
                                               />
                                             )}
-                                            <input
-                                              type="color"
-                                              value={secText}
-                                              onChange={(e) =>
-                                                updateColor(
-                                                  "secondaryTextColor",
-                                                  e.target.value,
-                                                )
-                                              }
-                                              className="w-1/2 h-full p-0 border-0 bg-transparent cursor-pointer [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch]:rounded-none"
-                                              title={t("Secondary Text")}
-                                            />
                                           </div>
                                           <span className="text-[9px] text-white/50 text-center leading-tight">
                                             {t("Secondary")}
@@ -2133,7 +2172,7 @@ export function LayerSidebar({
                           }}
                         />
                       )}
-                      {fmt === "both" ? t("Both") : fmt.toUpperCase()}
+                      {fmt === "both" ? t("Both") : t(fmt.toUpperCase())}
                     </button>
                   ))}
                 </div>
@@ -2941,8 +2980,7 @@ function LayerItem(props: {
                 </button>
               )}
 
-            {layer.type !== "split" &&
-              !isNestedChild && (
+            {!isNestedChild && (
                 <button
                   onClick={() => removeLayer(layer.id)}
                   className={`transition-colors ml-1 ${iconColor} rounded-full`}

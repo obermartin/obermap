@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Tag, MousePointer2, Paintbrush, Hexagon, Circle as CircleIcon, Ruler, Save, Trash2, X, MapPin, Loader2, ArrowUpRight, ChevronLeft, ChevronRight, Route, Car, Footprints, TrainFront, Download, Type } from 'lucide-react';
+import { Tag, MousePointer2, Paintbrush, Hexagon, Circle as CircleIcon, Ruler, Trash2, X, MapPin, ArrowUpRight, ChevronLeft, ChevronRight, Route, Car, Footprints, TrainFront, Type } from 'lucide-react';
 import type { ToolType, AppSettings, StrokeType, RouteMode } from '../types';
 import clsx from 'clsx';
 import { useTranslation } from '../contexts/I18nContext';
@@ -16,13 +16,10 @@ interface ToolbarProps {
   setCurrentFillOpacity?: (opacity: number) => void;
   routeMode?: RouteMode;
   setRouteMode?: (mode: RouteMode) => void;
-  onSave: () => void;
-  onExport: () => void;
   onDelete: () => void;
   hasSelection: boolean;
   hasAnnotations: boolean;
   settings: AppSettings;
-  isSaving?: boolean;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
   selectedIconId?: string | null;
@@ -65,13 +62,10 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   setCurrentFillOpacity,
   routeMode,
   setRouteMode,
-  onSave,
-  onExport,
   onDelete,
   hasSelection,
   hasAnnotations,
   settings,
-  isSaving,
   isOpen,
   setIsOpen,
   selectedIconId,
@@ -340,23 +334,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 >
                   <Trash2 size={20} strokeWidth={1.5} />
                 </button>
-                <button
-                  onClick={onSave}
-                  disabled={isSaving}
-                  className={`w-10 h-10 flex justify-center items-center transition-colors rounded-full shrink-0 ${isSaving ? 'text-white cursor-wait' : 'text-white/60 hover:text-white hover:bg-white/20'}`}
-                  title={isSaving ? t("Saving...") : t("Save Annotations & Settings")}
-                >
-                  {isSaving ? <Loader2 className="animate-spin" size={20} strokeWidth={1.5} /> : <Save size={20} strokeWidth={1.5} />}
-                </button>
-                {hasAnnotations && (
-                  <button
-                    onClick={onExport}
-                    className="w-10 h-10 flex justify-center items-center transition-colors text-white/60 hover:text-white hover:bg-white/20 rounded-full shrink-0"
-                    title={t("Export Annotations as GeoJSON")}
-                  >
-                    <Download size={20} strokeWidth={1.5} />
-                  </button>
-                )}
               </div>
 
               <div className="w-[1px] bg-white/30 h-8 mx-1 shrink-0" />

@@ -638,13 +638,10 @@ export function App() {
           setCurrentFillOpacity={handleFillOpacitySelect}
           routeMode={routeMode}
           setRouteMode={setRouteMode}
-          onSave={() => handleSave(false)}
-          onExport={handleExport}
           onDelete={handleDelete}
           hasSelection={selectedAnnotationId !== null || activeTool === 'delete_all'}
           hasAnnotations={annotations.some(a => a.coordinates || a.polygonGeometry || a.routeGeometry)}
           settings={settings}
-          isSaving={isSaving}
           isOpen={isToolbarOpen}
           setIsOpen={setIsToolbarOpen}
           selectedIconId={selectedIconId}
@@ -687,7 +684,7 @@ export function App() {
       {labelPrompt && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto">
           <div className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 min-w-[350px] max-w-md shadow-2xl">
-            <h3 className="text-white font-semibold flex items-center gap-2 text-sm uppercase tracking-wider border-b border-white/10 pb-2">Add Label</h3>
+            <h3 className="text-white font-semibold flex items-center gap-2 text-sm uppercase tracking-wider border-b border-white/10 pb-2">{t("Add Label")}</h3>
             <div className="flex flex-col gap-2">
               <input
                 autoFocus
@@ -701,7 +698,7 @@ export function App() {
                   }
                   if (e.key === 'Escape') setLabelPrompt(null);
                 }}
-                placeholder={activeTool === 'label' ? "Primary text..." : "Enter text..."}
+                placeholder={activeTool === 'label' ? t("Primary text...") : t("Enter text...")}
                 className="w-full bg-black/60 border border-white/10 px-3 py-2 outline-none font-mono text-sm text-white focus:border-white/50 transition-colors"
               />
               {activeTool === 'label' && (
@@ -716,7 +713,7 @@ export function App() {
                     }
                     if (e.key === 'Escape') setLabelPrompt(null);
                   }}
-                  placeholder="Secondary text (optional)..."
+                  placeholder={t("Secondary text (optional)...")}
                   className="w-full bg-black/60 border border-white/10 px-3 py-2 outline-none font-mono text-sm text-white focus:border-white/50 transition-colors"
                 />
               )}
@@ -726,7 +723,7 @@ export function App() {
                 onClick={() => setLabelPrompt(null)}
                 className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors rounded-full"
               >
-                Cancel
+                {t("Cancel")}
               </button>
               <button 
                 onClick={() => {
@@ -737,7 +734,7 @@ export function App() {
                 }}
                 className="px-4 py-2 bg-white text-black hover:bg-white/90 text-sm transition-colors rounded-full"
               >
-                Save Label
+                {t("Save Label")}
               </button>
             </div>
           </div>
@@ -748,7 +745,7 @@ export function App() {
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto">
           <div className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 min-w-[350px] max-w-md shadow-2xl">
             <h3 className="text-white font-semibold flex items-center gap-2 text-sm uppercase tracking-wider border-b border-white/10 pb-2">
-              {headlinePrompt.id ? "Edit Headline" : "Add Headline"}
+              {headlinePrompt.id ? t("Edit Headline") : t("Add Headline")}
             </h3>
             <div className="flex flex-col gap-2">
               <input
@@ -763,7 +760,7 @@ export function App() {
                   }
                   if (e.key === 'Escape') setHeadlinePrompt(null);
                 }}
-                placeholder="Headline (e.g. TRAGÖDIE IN BERLIN)..."
+                placeholder={t("Headline (e.g. TRAGÖDIE IN BERLIN)...")}
                 className="w-full bg-black/60 border border-white/10 px-3 py-2 outline-none font-mono text-sm text-white focus:border-white/50 transition-colors"
               />
               <input
@@ -777,7 +774,7 @@ export function App() {
                   }
                   if (e.key === 'Escape') setHeadlinePrompt(null);
                 }}
-                placeholder="Highlighted sub-line (optional)..."
+                placeholder={t("Highlighted sub-line (optional)...")}
                 className="w-full bg-black/60 border border-white/10 px-3 py-2 outline-none font-mono text-sm text-white focus:border-white/50 transition-colors"
               />
             </div>
@@ -786,7 +783,7 @@ export function App() {
                 onClick={() => setHeadlinePrompt(null)}
                 className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors rounded-full"
               >
-                Cancel
+                {t("Cancel")}
               </button>
               <button 
                 onClick={() => {
@@ -798,79 +795,13 @@ export function App() {
                 disabled={!headlineInput.trim() && !highlightedLineInput.trim()}
                 className="px-4 py-2 bg-white text-black hover:bg-white/90 text-sm font-semibold transition-colors rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Save
+                {t("Save")}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {headlinePrompt && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto">
-          <div className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 min-w-[350px] max-w-md shadow-2xl">
-            <h3 className="text-white font-semibold flex items-center gap-2 text-sm uppercase tracking-wider border-b border-white/10 pb-2">
-              {headlinePrompt.id ? "Edit Headline" : "Add Headline"}
-            </h3>
-            <div className="flex flex-col gap-2">
-              <input
-                autoFocus
-                type="text"
-                value={headlineInput}
-                onChange={e => setHeadlineInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && (headlineInput.trim() || highlightedLineInput.trim())) {
-                    const event = new CustomEvent('saveHeadline', { detail: { text: headlineInput, secondaryText: highlightedLineInput, id: headlinePrompt.id } });
-                    window.dispatchEvent(event);
-                  }
-                  if (e.key === 'Escape') {
-                    setHeadlinePrompt(null);
-                  }
-                }}
-                placeholder="Headline (e.g. TRAGÖDIE IN BERLIN)..."
-                className="w-full bg-black/60 border border-white/10 px-3 py-2 outline-none font-mono text-sm text-white focus:border-white/50 transition-colors"
-              />
-              <input
-                type="text"
-                value={highlightedLineInput}
-                onChange={e => setHighlightedLineInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && (headlineInput.trim() || highlightedLineInput.trim())) {
-                    const event = new CustomEvent('saveHeadline', { detail: { text: headlineInput, secondaryText: highlightedLineInput, id: headlinePrompt.id } });
-                    window.dispatchEvent(event);
-                  }
-                  if (e.key === 'Escape') {
-                    setHeadlinePrompt(null);
-                  }
-                }}
-                placeholder="Highlighted sub-line (optional)..."
-                className="w-full bg-black/60 border border-white/10 px-3 py-2 outline-none font-mono text-sm text-white focus:border-white/50 transition-colors"
-              />
-            </div>
-            <div className="flex justify-end gap-2 mt-2 pt-4 border-t border-white/10">
-              <button 
-                onClick={() => {
-                  setHeadlinePrompt(null);
-                }}
-                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors rounded-full"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={() => {
-                  if (headlineInput.trim() || highlightedLineInput.trim()) {
-                    const event = new CustomEvent('saveHeadline', { detail: { text: headlineInput, secondaryText: highlightedLineInput, id: headlinePrompt.id } });
-                    window.dispatchEvent(event);
-                  }
-                }}
-                disabled={!headlineInput.trim() && !highlightedLineInput.trim()}
-                className="px-4 py-2 bg-white text-black hover:bg-white/90 text-sm font-semibold transition-colors rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

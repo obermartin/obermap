@@ -6331,7 +6331,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             className="fixed top-0 left-0 w-full h-20 p-3 z-[100] bg-black/20 backdrop-blur-md transition-colors duration-200 pointer-events-none"
           >
             <div id="headline-dropzone-inner" className="w-full h-full flex items-center justify-center border-2 border-dashed border-white/30 rounded-xl transition-colors duration-200">
-              <span className="text-white/80 font-bold tracking-widest uppercase text-sm">Drop here to center horizontally</span>
+              <span className="text-white/80 font-bold tracking-widest uppercase text-sm">{t("Drop here to center horizontally")}</span>
             </div>
           </motion.div>
         )}

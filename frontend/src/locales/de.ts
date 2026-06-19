@@ -1,27 +1,27 @@
 export const de: Record<string, string> = {
-  "Available Shows": "Verfügbare Shows",
+  "Available Maps": "Verfügbare Karten",
   "Loading...": "Wird geladen...",
-  "No shows found. Create one below.": "Keine Shows gefunden. Erstelle unten eine neue.",
+  "No maps found. Create one below.": "Keine Karten gefunden. Erstelle unten eine neue.",
   "Unlock default template": "Standardvorlage entsperren",
   "Lock default template": "Standardvorlage sperren",
-  "Open Show": "Show öffnen",
+  "Open Map": "Karte öffnen",
   "Copy Link": "Link kopieren",
-  "Duplicate Show": "Show duplizieren",
-  "Delete Show": "Show löschen",
-  "Create New Show": "Neue Show erstellen",
+  "Duplicate Map": "Karte duplizieren",
+  "Delete Map": "Karte löschen",
+  "Create New Map": "Neue Karte erstellen",
   "User Guide": "Benutzerhandbuch",
-  "New Show Name": "Name der neuen Show",
-  "e.g. My_Awesome_Show": "z.B. Meine_Tolle_Show",
+  "New Map Name": "Name der neuen Karte",
+  "e.g. My_Awesome_Map": "z.B. Meine_Tolle_Karte",
   "Cancel": "Abbrechen",
   "Create": "Erstellen",
   "Unlock Template": "Vorlage entsperren",
   "You are about to unlock the default template.": "Du bist dabei, die Standardvorlage zu entsperren.",
-  "Any changes, edits, or deletions made to this show will directly affect the base template for all newly created shows in the future.": "Alle Änderungen, Bearbeitungen oder Löschungen, die an dieser Show vorgenommen werden, wirken sich direkt auf die Basisvorlage für alle in Zukunft erstellten Shows aus.",
+  "Any changes, edits, or deletions made to this map will directly affect the base template for all newly created maps in the future.": "Alle Änderungen, Bearbeitungen oder Löschungen, die an dieser Karte vorgenommen werden, wirken sich direkt auf die Basisvorlage für alle in Zukunft erstellten Karten aus.",
   "Unlock": "Entsperren",
   "Link copied to clipboard:\n{{url}}": "Link in die Zwischenablage kopiert:\n{{url}}",
-  "Enter name for duplicate show:": "Namen für duplizierte Show eingeben:",
-  "Enter new name for the show:": "Neuen Namen für die Show eingeben:",
-  "Are you sure you want to delete the show \"{{title}}\"? This cannot be undone.": "Bist du sicher, dass du die Show \"{{title}}\" löschen möchtest? Dies kann nicht rückgängig gemacht werden.",
+  "Enter name for duplicate map:": "Namen für duplizierte Karte eingeben:",
+  "Enter new name for the map:": "Neuen Namen für die Karte eingeben:",
+  "Are you sure you want to delete the map \"{{title}}\"? This cannot be undone.": "Bist du sicher, dass du die Karte \"{{title}}\" löschen möchtest? Dies kann nicht rückgängig gemacht werden.",
   "Copy of {{title}}": "Kopie von {{title}}",
 
   // Toolbar
@@ -34,7 +34,7 @@ export const de: Record<string, string> = {
   "Train": "Zug",
   "Fill": "Füllung",
   "Select Place/Country": "Ort/Land auswählen",
-  "Label": "Beschriftung",
+  "Label": "Label",
   "Paint (Freehand)": "Zeichnen (Freihand)",
   "Polygon": "Polygon",
   "Circle": "Kreis",
@@ -154,7 +154,7 @@ export const de: Record<string, string> = {
   "BASE MAP": "BASISKARTE",
   "API SETTINGS": "API-EINSTELLUNGEN",
   "VIDEO EXPORT": "VIDEO-EXPORT",
-  "FORMAT": "FORMAT",
+  "FORMAT": "BILD-FORMAT",
   "16x9": "16x9",
   "9x16": "9x16",
   "Both": "Beides",
@@ -171,7 +171,7 @@ export const de: Record<string, string> = {
   "Annotations & Settings saved successfully!": "Anmerkungen & Einstellungen erfolgreich gespeichert!",
   "Failed to save data.": "Fehler beim Speichern der Daten.",
   "Failed to save data due to an internal error.": "Fehler beim Speichern der Daten aufgrund eines internen Fehlers.",
-  "Video export requires custom map views to be set. Please use the highlight or label tools or manually add map views with the camera button.": "Der Video-Export erfordert benutzerdefinierte Kartenansichten. Bitte nutze die Hervorhebungs- oder Beschriftungswerkzeuge oder füge Ansichten manuell mit dem Kamera-Button hinzu.",
+  "Video export requires custom map views to be set. Please use the highlight or label tools or manually add map views with the camera button.": "Der Video-Export erfordert benutzerdefinierte Kartenpositionen. Bitte nutze die Hervorhebungs- oder Beschriftungswerkzeuge oder füge Positionen manuell mit dem Kamera-Button hinzu.",
   "Rendering": "Rendern",
   "Video": "Video",
   "of": "von",
@@ -217,8 +217,10 @@ export const de: Record<string, string> = {
   "Catastrophic": "Katastrophal",
 
   // Video export panel
-  "FILE TYPE": "Dateiformat",
-  "File type": "Dateiformat",
+  "FILE TYPE": "DATEI-FORMAT",
+  "File type": "DATEI-FORMAT",
+  "MP4": "Video",
+  "JSX": "Daten-Paket",
   
   // Custom Fonts
   "Force Gotham Font": "Gotham Font erzwingen",
@@ -227,5 +229,27 @@ export const de: Record<string, string> = {
   // Animations
   "ANIMATIONS": "ANIMATIONEN",
   "PATH & POLYGON REVEAL": "PFADE UND POLYGONE",
-  "LABEL & ICON REVEAL": "LABELS UND ICONS"
+  "LABEL & ICON REVEAL": "LABELS UND ICONS",
+
+  // Add Label Modal
+  "Add Label": "Label hinzufügen",
+  "Primary text...": "Hauptzeile...",
+  "Enter text...": "Text eingeben...",
+  "Secondary text (optional)...": "Sekundärzeile (optional)...",
+  "Save Label": "Label speichern",
+
+  // Add Headline Modal
+  "Add Headline": "Schlagzeile hinzufügen",
+  "Edit Headline": "Schlagzeile bearbeiten",
+  "Headline (e.g. TRAGÖDIE IN BERLIN)...": "Schlagzeile (z.B. TRAGÖDIE IN BERLIN)...",
+  "Highlighted sub-line (optional)...": "Hervorgehobene Unterzeile (optional)...",
+  "Save": "Speichern",
+  "Drop here to center horizontally": "Hier ablegen, um horizontal zu zentrieren",
+  
+  // Label Templates
+  "AVAILABLE TEMPLATES": "VERFÜGBARE TEMPLATES",
+  "Primary": "Primär",
+  "Secondary": "Sekundär",
+  "Pointer": "Zeiger",
+  "Upload .ZIP template": "Template (ZIP-Datei) hochladen"
 };

@@ -49,7 +49,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
   const handleDuplicate = async (showId: string) => {
     const targetShow = shows.find(s => s.id === showId);
     const oldTitle = targetShow?.title || showId;
-    const newName = await customPrompt(t("Enter name for duplicate show:"), t("Copy of {{title}}", { title: oldTitle }));
+    const newName = await customPrompt(t("Enter name for duplicate map:"), t("Copy of {{title}}", { title: oldTitle }));
     if (!newName) return;
     const safeId = 'show_' + Date.now();
     
@@ -73,7 +73,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
     
     const targetShow = shows.find(s => s.id === showId);
     const oldTitle = targetShow?.title || showId;
-    const newName = await customPrompt(t("Enter new name for the show:"), oldTitle);
+    const newName = await customPrompt(t("Enter new name for the map:"), oldTitle);
     if (!newName || newName.trim() === oldTitle) return;
 
     fetch(`./api.php?show=${showId}&t=${Date.now()}`)
@@ -95,7 +95,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
     if (showId === '_DEFAULT' && !isDefaultUnlocked) return;
     const targetShow = shows.find(s => s.id === showId);
     const title = targetShow?.title || showId;
-    const confirmed = await customConfirm(t("Are you sure you want to delete the show \"{{title}}\"? This cannot be undone.", { title }));
+    const confirmed = await customConfirm(t("Are you sure you want to delete the map \"{{title}}\"? This cannot be undone.", { title }));
     if (confirmed) {
       fetch(`./api.php?action=delete_show&show=${showId}`, { method: 'POST' })
         .then(res => res.json())
@@ -161,7 +161,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
           </div>
 
           <div className="text-white text-sm font-semibold flex items-center gap-2 pb-2 mb-2 uppercase tracking-wider">
-            <Layers size={18} /> {t('Available Shows')}
+            <Layers size={18} /> {t('Available Maps')}
           </div>
 
           <div className="flex flex-col gap-[2px] max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
@@ -170,7 +170,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
                 <Loader2 className="animate-spin" size={20} /> <span className="text-sm">{t('Loading...')}</span>
               </div>
             ) : shows.length === 0 ? (
-              <div className="text-white/50 py-8 italic text-center text-sm">{t('No shows found. Create one below.')}</div>
+              <div className="text-white/50 py-8 italic text-center text-sm">{t('No maps found. Create one below.')}</div>
             ) : (
               shows.map(show => {
                 const isDefault = show.id === '_DEFAULT';
@@ -203,7 +203,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
                       <button 
                         onClick={() => !isLocked && onSelectShow(show.id)}
                         className={`transition-colors ${isLocked ? 'text-white/10 cursor-not-allowed' : 'text-white/50 hover:text-white'}`}
-                        title={t("Open Show")}
+                        title={t("Open Map")}
                         disabled={isLocked}
                       >
                         <Play size={16} />
@@ -218,14 +218,14 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
                       <button 
                         onClick={() => handleDuplicate(show.id)}
                         className="transition-colors text-white/50 hover:text-white"
-                        title={t("Duplicate Show")}
+                        title={t("Duplicate Map")}
                       >
                         <Copy size={16} />
                       </button>
                       <button 
                         onClick={() => !isLocked && handleDelete(show.id)}
                         className={`transition-colors ${isLocked ? 'text-white/10 cursor-not-allowed' : 'text-white/50 hover:text-white'}`}
-                        title={t("Delete Show")}
+                        title={t("Delete Map")}
                         disabled={isLocked}
                       >
                         <Trash2 size={16} />
@@ -241,9 +241,9 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
             <button 
               onClick={handleCreateNew}
               className="w-full py-2 bg-white/5 hover:bg-white/10 text-white flex items-center justify-center gap-2 text-sm transition-colors rounded-full"
-              title={t("Create New Show")}
+              title={t("Create New Map")}
             >
-              <Plus size={16} /> {t('Create New Show')}
+              <Plus size={16} /> {t('Create New Map')}
             </button>
             <a 
               href="/user_guide.html"
@@ -262,7 +262,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
       {showPrompt && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto">
           <div className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 min-w-[350px] max-w-md shadow-2xl rounded-3xl mx-4">
-            <h3 className="text-white font-semibold flex items-center gap-2 text-sm uppercase tracking-wider border-b border-white/10 pb-2">{t('New Show Name')}</h3>
+            <h3 className="text-white font-semibold flex items-center gap-2 text-sm uppercase tracking-wider border-b border-white/10 pb-2">{t('New Map Name')}</h3>
             <input
               autoFocus
               type="text"
@@ -272,7 +272,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
                 if (e.key === 'Enter') confirmCreateNew();
                 if (e.key === 'Escape') setShowPrompt(false);
               }}
-              placeholder={t("e.g. My_Awesome_Show")}
+              placeholder={t("e.g. My_Awesome_Map")}
               className="w-full bg-black/60 border border-white/10 px-4 py-2 outline-none font-mono text-sm text-white focus:border-white/50 transition-colors rounded-full"
             />
             <div className="flex justify-end gap-2 mt-2 pt-4 border-t border-white/10">
@@ -303,7 +303,7 @@ export function OverviewScreen({ onSelectShow }: OverviewScreenProps) {
               <span dangerouslySetInnerHTML={{ __html: t('You are about to unlock the default template.') }} />
             </p>
             <p className="text-white/70 text-xs">
-              {t('Any changes, edits, or deletions made to this show will directly affect the base template for all newly created shows in the future.')}
+              {t('Any changes, edits, or deletions made to this map will directly affect the base template for all newly created maps in the future.')}
             </p>
             <div className="flex justify-end gap-2 mt-2 pt-4 border-t border-white/10">
               <button 
