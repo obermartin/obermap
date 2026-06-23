@@ -20,7 +20,7 @@ import excludedCitiesData from '../assets/excluded-cities.json';
 
 let omProtocolRegistered = false;
 let globalDeepstateHistory: { id: number; createdAt: string }[] | null = null;
-let globalDeepstateHistoryPromise: Promise<void> | null = null;
+let globalDeepstateHistoryPromise: Promise<{ id: number; createdAt: string; }[] | null> | null = null;
 
 type WindPoint = { id: string; lat: number; lon: number };
 
@@ -157,6 +157,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 }) => {
   const { t, language } = useTranslation();
   const mapContainer = useRef<HTMLDivElement>(null);
+  const initialTerrainLoaded = useRef(false);
   const windCanvasRef = useRef<HTMLCanvasElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -410,6 +411,101 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const terrestrialCountriesRef = useRef<any>(null);
   const cachedTurfDataRef = useRef<{[id: string]: any}>({});
   const activeFeaturesRef = useRef<GeoJSON.Feature[]>([]);
+
+  const fetchFullRoute = async (coords: [number, number][], rMode: RouteMode, googleMapsToken?: string) => {
+    const fullCoords = [coords[0]];
+    const fullLegs: { distance: number, duration: number }[] = [];
+  
+    const fetchSegment = async (p1: [number, number], p2: [number, number]): Promise<{ coords: [number, number][], leg: { distance: number, duration: number } }> => {
+      if (rMode === 'train') {
+        if (googleMapsToken) {
+          try {
+            const res = await fetch(`./api.php?action=google_directions&origin=${p1[1]},${p1[0]}&destination=${p2[1]},${p2[0]}&key=${googleMapsToken}`);
+            const data = await res.json();
+            if (data.routes && data.routes[0]) {
+              const route = data.routes[0];
+              const leg = route.legs[0];
+              let points: [number, number][] = [];
+              if (leg.steps && leg.steps.length > 0) {
+                const transitSteps = leg.steps.filter((s: any) => s.travel_mode === 'TRANSIT');
+                if (transitSteps.length > 0) {
+                  transitSteps.forEach((step: any) => {
+                    points.push(...decodePolyline(step.polyline.points));
+                  });
+                } else {
+                  points = decodePolyline(route.overview_polyline.points);
+                }
+              } else {
+                points = decodePolyline(route.overview_polyline.points);
+              }
+              return { coords: points, leg: { distance: leg.distance.value, duration: leg.duration.value } };
+            }
+          } catch (err) {
+            console.error('Google Transit API error:', err);
+          }
+        }
+        const distKm = turf.distance(turf.point(p1), turf.point(p2), { units: 'kilometers' });
+        return { coords: [p2], leg: { distance: distKm * 1000, duration: (distKm / 100) * 3600 } };
+      } else {
+        const endpoint = rMode === 'walking' 
+          ? 'https://routing.openstreetmap.de/routed-foot/route/v1/driving' 
+          : 'https://router.project-osrm.org/route/v1/driving';
+        try {
+          const res = await fetch(`${endpoint}/${p1[0]},${p1[1]};${p2[0]},${p2[1]}?overview=full&geometries=geojson`);
+          const data = await res.json();
+          if (data.routes && data.routes[0]) {
+            const route = data.routes[0];
+            return { coords: route.geometry.coordinates.slice(1), leg: { distance: route.distance, duration: route.duration } };
+          }
+        } catch (err) {
+          console.error('OSRM API error:', err);
+        }
+        const distKm = turf.distance(turf.point(p1), turf.point(p2), { units: 'kilometers' });
+        return { coords: [p2], leg: { distance: distKm * 1000, duration: (distKm / (rMode === 'walking' ? 5 : 60)) * 3600 } };
+      }
+    };
+  
+    const segmentPromises = [];
+    for (let i = 1; i < coords.length; i++) {
+      segmentPromises.push(fetchSegment(coords[i - 1], coords[i]));
+    }
+    
+    const segments = await Promise.all(segmentPromises);
+    
+    for (const seg of segments) {
+      fullCoords.push(...seg.coords);
+      fullLegs.push(seg.leg);
+    }
+  
+    return { fullCoords, fullLegs };
+  };
+
+  const handleRouteWaypointDragEnd = async (annId: string, wpIdx: number, newLngLat: [number, number]) => {
+    const ann = annotations.find(a => a.id === annId);
+    if (!ann || ann.type !== 'route' || !ann.coordinates) return;
+
+    const newCoords = [...ann.coordinates];
+    newCoords[wpIdx] = newLngLat;
+
+    const { fullCoords, fullLegs } = await fetchFullRoute(newCoords, ann.routeMode || 'driving', settings.googleMapsToken);
+    
+    if (setAnnotations) {
+      setAnnotations(prev => {
+        return prev.map(a => {
+          if (a.id === annId) {
+            return { 
+              ...a, 
+              coordinates: newCoords, 
+              routeGeometry: { type: 'LineString', coordinates: fullCoords }, 
+              routeLegs: fullLegs 
+            };
+          }
+          return a;
+        });
+      });
+    }
+  };
+
   
   const [animationTick, setAnimationTick] = useState(0);
 
@@ -451,6 +547,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       zoom: settings.defaultView.zoom,
       pitch: settings.defaultView.pitch,
       bearing: settings.defaultView.bearing,
+      maxPitch: 85,
       canvasContextAttributes: { preserveDrawingBuffer: true },
       attributionControl: false,
       transformRequest: (url, resourceType) => {
@@ -478,7 +575,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       if (e.error && e.error.message && e.error.message.includes('404')) {
         console.error("Map style not found (404). Falling back to default map style.", e.error);
         if (typeof settings.mapStyle === 'string' && settings.mapStyle.includes('api.php?action=basemap_style')) {
-          setSettings(p => ({ ...p, mapStyle: 'https://tiles.openfreemap.org/styles/liberty' }));
+          setSettings?.(p => ({ ...p, mapStyle: 'https://tiles.openfreemap.org/styles/liberty' }));
         }
         try {
           map.setStyle('https://tiles.openfreemap.org/styles/liberty');
@@ -551,6 +648,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           theme: settingsRef.current?.labelTemplates?.theme,
           coordinates: coords,
           text: name,
+          animationTriggerId: annotationId,
           view: {
             center: coords,
             zoom: mapRef.current!.getZoom(),
@@ -1670,7 +1768,12 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             el.style.outline = '2px dashed #ffffff';
             el.style.outlineOffset = '2px';
           }
-          expectedMarkers.set(`${ann.id}-route-${i}`, { lngLat: coord, el });
+          expectedMarkers.set(`${ann.id}-route-${i}`, { 
+            lngLat: coord, 
+            el,
+            draggable: true,
+            onDragEnd: (newLngLat: [number, number]) => handleRouteWaypointDragEnd(ann.id, i, newLngLat)
+          });
         });
       } else if (ann.type === 'circle' && ann.coordinates?.[0]?.length > 0) {
         try {
@@ -2987,7 +3090,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               'text-allow-overlap': true
             },
             paint: {
-              'text-color': '#ffffff',
+              'text-color': layer.aircraftColors && Object.keys(layer.aircraftColors).length > 0 
+                ? ['match', ['to-string', ['get', 'icao24']], ...Object.entries(layer.aircraftColors).flat(), layer.globalAircraftColor || '#ffffff'] as any
+                : (layer.globalAircraftColor || '#ffffff'),
               'text-opacity': selectedAircraftId 
                 ? ['case', ['==', ['to-string', ['get', 'icao24']], selectedAircraftId], 1.0, 0.5]
                 : 1.0
@@ -3068,6 +3173,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             map.setPaintProperty(`${layerId}-labels`, 'text-opacity', selectedAircraftId 
               ? ['case', ['==', ['to-string', ['get', 'icao24']], selectedAircraftId], 1.0, 0.5]
               : 1.0);
+            map.setPaintProperty(`${layerId}-labels`, 'text-color', colorExp as any);
           } else if (layer.showCallsigns) {
             const firstSymbolId = map.getStyle().layers?.find(l => l.type === 'symbol')?.id;
             map.addLayer({
@@ -3085,7 +3191,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                 'text-allow-overlap': true
               },
               paint: {
-                'text-color': '#ffffff',
+                'text-color': colorExp as any,
                 'text-opacity': selectedAircraftId 
                   ? ['case', ['==', ['to-string', ['get', 'icao24']], selectedAircraftId], 1.0, 0.5]
                   : 1.0
@@ -3172,11 +3278,11 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         } else {
           (async () => {
             try {
-              let url = `https://deepstatemap.live/api/history/${targetDate}/geojson`;
+              let url = `/api.php?action=deepstate_geojson&id=${targetDate}`;
               if (targetDate.length === 10) {
                 if (!globalDeepstateHistory) {
                   if (!globalDeepstateHistoryPromise) {
-                    globalDeepstateHistoryPromise = fetch('https://deepstatemap.live/api/history')
+                    globalDeepstateHistoryPromise = fetch('/api.php?action=deepstate_history')
                       .then(r => r.json())
                       .catch(e => {
                         console.error('Failed to fetch deepstate history', e);
@@ -3184,6 +3290,11 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                       });
                   }
                   globalDeepstateHistory = await globalDeepstateHistoryPromise;
+                  if (globalDeepstateHistory && !Array.isArray(globalDeepstateHistory)) {
+                    console.error('Deepstate API returned non-array response:', globalDeepstateHistory);
+                    globalDeepstateHistory = null;
+                    throw new Error('DeepStateMap API requires authentication (401 Unauthorized) or returned invalid data.');
+                  }
                 }
                 let history = globalDeepstateHistory;
                 if (!history && globalDeepstateHistoryPromise) {
@@ -3198,7 +3309,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                   if (pastEntries.length > 0) targetId = pastEntries[pastEntries.length - 1].id;
                   else throw new Error('No data found for this date');
                 }
-                url = `https://deepstatemap.live/api/history/${targetId}/geojson`;
+                url = `/api.php?action=deepstate_geojson&id=${targetId}`;
               }
               const res = await fetch(url);
               if (!res.ok) throw new Error(`Failed to fetch deepstate data: ${res.statusText}`);
@@ -3227,7 +3338,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               }
             } catch (err) {
               console.error(`Error fetching deepstate for date ${targetDate}:`, err);
-              const emptyData = { type: 'FeatureCollection', features: [] };
+              const emptyData = { type: 'FeatureCollection' as const, features: [] };
               deepstateDataCacheRef.current[cacheKey] = emptyData;
               const source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
               if (source) source.setData(emptyData);
@@ -3297,7 +3408,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               }
             } catch (err) {
               console.error(`Error fetching GDACS for type ${layer.type}:`, err);
-              const emptyData = { type: 'FeatureCollection', features: [] };
+              const emptyData = { type: 'FeatureCollection' as const, features: [] };
               gdacsDataCacheRef.current[cacheKey] = emptyData;
               const map = mapRef.current;
               if (map && map.getSource(sourceId)) {
@@ -4423,27 +4534,58 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     try {
       // 1. Extract and combine all LineString segments into one continuous track
       const lineFeatures = cycloneRawData.features.filter((f: any) => f.geometry.type === 'LineString');
-      // Sort them by their Class to ensure chronological order: Line_Line_0, Line_Line_1, etc.
-      lineFeatures.sort((a: any, b: any) => {
-        const aNum = parseInt(a.properties?.Class?.replace('Line_Line_', '') || '0');
-        const bNum = parseInt(b.properties?.Class?.replace('Line_Line_', '') || '0');
-        return aNum - bNum;
-      });
-
+      
+      const segments = lineFeatures.map((f: any) => f.geometry.coordinates);
       const allCoordinates: number[][] = [];
-      lineFeatures.forEach((f: any) => {
-        f.geometry.coordinates.forEach((coord: number[]) => {
-          // Avoid duplicate adjacent coordinates
+      
+      if (segments.length > 0) {
+        const isSamePoint = (p1: number[], p2: number[]) => Math.abs(p1[0] - p2[0]) < 0.01 && Math.abs(p1[1] - p2[1]) < 0.01;
+        const stitched = [...segments[0]];
+        const used = new Set([0]);
+        
+        let added = true;
+        while(added) {
+          added = false;
+          for (let i = 1; i < segments.length; i++) {
+            if (used.has(i)) continue;
+            const seg = segments[i];
+            
+            // Check if seg connects to the end of stitched
+            if (isSamePoint(stitched[stitched.length - 1], seg[0])) {
+              stitched.push(...seg.slice(1));
+              used.add(i);
+              added = true;
+            } 
+            // Check if seg connects to the beginning of stitched
+            else if (isSamePoint(stitched[0], seg[seg.length - 1])) {
+              stitched.unshift(...seg.slice(0, -1));
+              used.add(i);
+              added = true;
+            }
+          }
+        }
+
+        // Unwrap longitudes for Mapbox to avoid drawing across the entire map at the date line
+        let prevLon: number | null = null;
+        stitched.forEach(coord => {
+          let lon = coord[0];
+          let lat = coord[1];
+          if (prevLon !== null) {
+            while (lon - prevLon > 180) lon -= 360;
+            while (lon - prevLon < -180) lon += 360;
+          }
+          prevLon = lon;
+          
           if (allCoordinates.length === 0) {
-            allCoordinates.push(coord);
+            allCoordinates.push([lon, lat]);
           } else {
             const last = allCoordinates[allCoordinates.length - 1];
-            if (last[0] !== coord[0] || last[1] !== coord[1]) {
-              allCoordinates.push(coord);
+            if (last[0] !== lon || last[1] !== lat) {
+              allCoordinates.push([lon, lat]);
             }
           }
         });
-      });
+      }
 
       if (allCoordinates.length < 2) {
         // Not enough data for a track, just render whatever we have
@@ -4935,8 +5077,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         const coords = found.geometry.coordinates as [number, number];
         map.flyTo({ center: coords, zoom: 8 });
         setSelectedAircraftId(found.properties?.icao24 || null);
+        window.dispatchEvent(new CustomEvent('searchAircraftResult', { detail: { found: true } }));
       } else {
-        await customAlert(t('Aircraft not found in currently visible airspace.'));
+        window.dispatchEvent(new CustomEvent('searchAircraftResult', { detail: { found: false } }));
       }
     }) as EventListener;
     window.addEventListener('searchAircraft', handleSearchAircraft);
@@ -5483,6 +5626,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             theme: actualTheme,
             coordinates: coords,
             text: name,
+            animationTriggerId: newId,
             view: {
               center: coords,
               zoom: mapRef.current!.getZoom(),
@@ -5548,7 +5692,14 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                   fillOpacity: currentFillOpacity ?? 0.5,
                   coordinates: [centerLng, centerLat],
                   polygonGeometry: terrestrialGeometry || data.geojson,
-                  text: name
+                  text: name,
+                  animationTriggerId: newId,
+                  view: {
+                    center: [centerLng, centerLat],
+                    zoom: mapRef.current?.getZoom() || 4,
+                    pitch: mapRef.current?.getPitch() || 0,
+                    bearing: mapRef.current?.getBearing() || 0
+                  }
                 }]);
               }
             } catch (err) {
@@ -6208,6 +6359,123 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const activeNighttimeLayer = settings.layers.find(l => l.type === 'nighttime' && l.visible);
   const isNighttimeLayerVisible = Boolean(activeNighttimeLayer);
   const nighttimeHour = activeNighttimeLayer?.nighttimeHour ?? 12;
+
+  // 3D Terrain & Environment
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+
+    if (settings.enable3dTerrain) {
+      if (!map.getSource('aws-terrarium')) {
+        map.addSource('aws-terrarium', {
+          type: 'raster-dem',
+          tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+          encoding: 'terrarium',
+          tileSize: 256,
+          maxzoom: 15
+        });
+      }
+      map.setTerrain({ source: 'aws-terrarium', exaggeration: settings.terrainExaggeration || 1.5 });
+
+      if (!initialTerrainLoaded.current) {
+        initialTerrainLoaded.current = true;
+        let userMoved = false;
+        const onMove = (e: any) => { if (e.originalEvent) userMoved = true; };
+        map.once('movestart', onMove);
+        map.once('idle', () => {
+          if (!userMoved) {
+            map.jumpTo({
+              center: settings.defaultView.center,
+              zoom: settings.defaultView.zoom,
+              pitch: settings.defaultView.pitch,
+              bearing: settings.defaultView.bearing
+            });
+          }
+          map.off('movestart', onMove);
+        });
+      }
+
+      if (settings.enableHillshade) {
+        const shadowOp = settings.hillshadeShadowOpacity ?? 0.5;
+        const highlightOp = settings.hillshadeHighlightOpacity ?? 0.5;
+        const shadowColor = `rgba(0,0,0,${shadowOp})`;
+        const highlightColor = `rgba(255,255,255,${highlightOp})`;
+
+        if (!map.getLayer('aws-terrarium-hillshade')) {
+          let insertBeforeId;
+          const layers = map.getStyle().layers;
+          // Find the first water layer so we can insert the hillshade underneath it.
+          // This allows the water layer's opacity to mask out underwater terrain.
+          for (let i = 0; i < layers.length; i++) {
+            if (layers[i].id.includes('water')) {
+              insertBeforeId = layers[i].id;
+              break;
+            }
+          }
+          if (!insertBeforeId) {
+            for (let i = 0; i < layers.length; i++) {
+              if (layers[i].type === 'symbol') {
+                insertBeforeId = layers[i].id;
+                break;
+              }
+            }
+          }
+
+          map.addLayer({
+            id: 'aws-terrarium-hillshade',
+            type: 'hillshade',
+            source: 'aws-terrarium',
+            paint: {
+              'hillshade-exaggeration': 0.5,
+              'hillshade-shadow-color': shadowColor,
+              'hillshade-highlight-color': highlightColor,
+              'hillshade-accent-color': '#000000'
+            }
+          }, insertBeforeId);
+        } else {
+          map.setPaintProperty('aws-terrarium-hillshade', 'hillshade-shadow-color', shadowColor);
+          map.setPaintProperty('aws-terrarium-hillshade', 'hillshade-highlight-color', highlightColor);
+        }
+      } else {
+        if (map.getLayer('aws-terrarium-hillshade')) {
+          map.removeLayer('aws-terrarium-hillshade');
+        }
+      }
+
+      if (map.getSky && map.getSky()) {
+         map.setSky(undefined as any);
+      }
+      if (mapContainer.current) {
+        mapContainer.current.style.backgroundColor = settings.enableSky ? '#88C6FC' : '';
+      }
+
+    } else {
+      map.setTerrain(null);
+      if (map.getLayer('aws-terrarium-hillshade')) {
+        map.removeLayer('aws-terrarium-hillshade');
+      }
+      if (map.getSky && map.getSky()) {
+         map.setSky(undefined as any);
+      }
+    }
+  }, [mapLoaded, settings.enable3dTerrain, settings.terrainExaggeration, settings.enableHillshade, settings.hillshadeShadowOpacity, settings.hillshadeHighlightOpacity, settings.enableSky]);
+
+  // Water Layer Styling
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+    
+    // Only apply to styles that use the standard 'water' fill layer
+    if (map.getLayer('water')) {
+      if (settings.waterColor !== undefined) {
+        map.setPaintProperty('water', 'fill-color', settings.waterColor);
+      }
+      if (settings.waterOpacity !== undefined) {
+        map.setPaintProperty('water', 'fill-opacity', settings.waterOpacity);
+      }
+    }
+  }, [mapLoaded, settings.waterColor, settings.waterOpacity, settings.mapStyle]);
 
   return (
     <div className={`absolute inset-0 w-full h-full touch-none ${isSecondary ? 'pointer-events-none' : ''}`} style={{ clipPath, WebkitClipPath: clipPath, zIndex: isSecondary ? 10 : 0 }}>
@@ -7438,6 +7706,8 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
       setSplitPos(Math.max(0, Math.min(100, pos)));
     }
   };
+
+
 
   useEffect(() => {
     if (isDragging) {

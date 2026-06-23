@@ -181,7 +181,7 @@ const DEFAULT_LAYERS: MapLayer[] = [
     visible: false,
     isLive: true,
   },
-  { id: "flights", name: "Air Traffic", type: "flights", visible: false },
+  { id: "flights", name: "Air Traffic", type: "flights", visible: false, showCallsigns: true },
   { id: "vessels", name: "Maritime Traffic", type: "vessels", visible: false },
   {
     id: "nighttime",
@@ -577,6 +577,7 @@ export function LayerSidebar({
     };
   }, []);
 
+
   // Fetch available templates
   useEffect(() => {
     fetch("/api/templates")
@@ -738,8 +739,17 @@ export function LayerSidebar({
       basemapFileInputRef.current.onchange = async (e: any) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        const text = await file.text();
+        let text = await file.text();
         try {
+          if (text.includes("get_your_own_OpIi9ZULNHzrESv6T2vL")) {
+            const apiKey = await customPrompt(t("This map style requires a MapTiler API key. Please enter your API key:"));
+            if (apiKey) {
+              text = text.replace(/get_your_own_OpIi9ZULNHzrESv6T2vL/g, apiKey);
+            } else {
+              customAlert(t("Without a valid API key, this map style will not load correctly."));
+            }
+          }
+
           JSON.parse(text);
           const name = await customPrompt(t("Enter a name for this style:")) || file.name;
           const id = `basemap_${Date.now()}`;
@@ -2441,6 +2451,7 @@ export function LayerSidebar({
                 </button>
               </div>
 
+
               {isGeneratingScreenshotId && basemaps.find(b => b.id === isGeneratingScreenshotId) && (
                 <ScreenshotMap 
                   styleUrl={basemaps.find(b => b.id === isGeneratingScreenshotId)!.url}
@@ -2460,7 +2471,161 @@ export function LayerSidebar({
             </div>
           </details>
 
-          {/* 6. ANIMATIONS */}
+          {/* 3D TERRAIN */}
+          <details className="group flex flex-col gap-[2px] w-full mb-6">
+            <summary className="relative p-3 flex items-center gap-2 bg-black text-xs text-white font-semibold tracking-wider cursor-pointer list-none outline-none [&::-webkit-details-marker]:hidden">
+              <ChevronRight size={14} className="text-white/50 group-hover:text-white transition-colors group-open:hidden shrink-0" />
+              <ChevronDown size={14} className="text-white/50 group-hover:text-white transition-colors hidden group-open:block shrink-0" />
+              {t("3D TERRAIN")}
+            </summary>
+            
+            <div className="p-3 flex flex-col gap-4 bg-black mt-[2px]">
+              <div className="flex items-center justify-between px-1">
+                <label className="text-[10px] text-white font-semibold tracking-wider">
+                  {t("Enable 3D Terrain")}
+                </label>
+                <button
+                  onClick={() => setSettings((prev) => ({ ...prev, enable3dTerrain: !prev.enable3dTerrain }))}
+                  className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${settings.enable3dTerrain ? "bg-white" : "bg-white/20"}`}
+                >
+                  <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${settings.enable3dTerrain ? "left-5 bg-black" : "left-1 bg-white"}`} />
+                </button>
+              </div>
+
+              {settings.enable3dTerrain && (
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-2 px-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] text-white font-semibold tracking-wider">
+                        {t("Exaggeration")}
+                      </label>
+                      <span className="text-[10px] text-white/50 font-mono">
+                        {(settings.terrainExaggeration ?? 1.5).toFixed(1)}x
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="3"
+                      step="0.1"
+                      value={settings.terrainExaggeration ?? 1.5}
+                      onChange={(e) => setSettings((prev) => ({ ...prev, terrainExaggeration: parseFloat(e.target.value) }))}
+                      className="w-full h-1 bg-white/20 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between px-1">
+                      <label className="text-[10px] text-white font-semibold tracking-wider">
+                        {t("Hillshade (Shadows)")}
+                      </label>
+                      <button
+                        onClick={() => setSettings((prev) => ({ ...prev, enableHillshade: !prev.enableHillshade }))}
+                        className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${settings.enableHillshade ? "bg-white" : "bg-white/20"}`}
+                      >
+                        <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${settings.enableHillshade ? "left-5 bg-black" : "left-1 bg-white"}`} />
+                      </button>
+                    </div>
+
+                    {settings.enableHillshade && (
+                      <div className="flex flex-col gap-3 pl-2 pr-1 mt-1 border-l-2 border-white/10">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[9px] text-white/70 font-semibold tracking-wider uppercase">
+                              {t("Shadow Opacity")}
+                            </label>
+                            <span className="text-[9px] text-white/50 font-mono">
+                              {Math.round((settings.hillshadeShadowOpacity ?? 0.5) * 100)}%
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.05"
+                            value={settings.hillshadeShadowOpacity ?? 0.5}
+                            onChange={(e) => setSettings((prev) => ({ ...prev, hillshadeShadowOpacity: parseFloat(e.target.value) }))}
+                            className="w-full h-1 bg-white/20 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[9px] text-white/70 font-semibold tracking-wider uppercase">
+                              {t("Highlight Opacity")}
+                            </label>
+                            <span className="text-[9px] text-white/50 font-mono">
+                              {Math.round((settings.hillshadeHighlightOpacity ?? 0.5) * 100)}%
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.05"
+                            value={settings.hillshadeHighlightOpacity ?? 0.5}
+                            onChange={(e) => setSettings((prev) => ({ ...prev, hillshadeHighlightOpacity: parseFloat(e.target.value) }))}
+                            className="w-full h-1 bg-white/20 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between px-1 mt-1">
+                    <label className="text-[10px] text-white font-semibold tracking-wider">
+                      {t("Sky")}
+                    </label>
+                    <button
+                      onClick={() => setSettings((prev) => ({ ...prev, enableSky: !prev.enableSky }))}
+                      className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${settings.enableSky ? "bg-white" : "bg-white/20"}`}
+                    >
+                      <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${settings.enableSky ? "left-5 bg-black" : "left-1 bg-white"}`} />
+                    </button>
+                  </div>
+
+                  <div className="w-full h-px bg-white/10 my-1"></div>
+
+                  <div className="flex flex-col gap-3 px-1">
+                    <label className="text-[10px] text-white font-semibold tracking-wider uppercase">
+                      {t("Water Masking / Styling")}
+                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-[9px] text-white/70 font-semibold tracking-wider uppercase">
+                        {t("Water Color")}
+                      </label>
+                      <input
+                        type="color"
+                        value={settings.waterColor || "#9ebdc8"}
+                        onChange={(e) => setSettings((prev) => ({ ...prev, waterColor: e.target.value }))}
+                        className="w-6 h-6 p-0 border-0 bg-transparent cursor-pointer"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[9px] text-white/70 font-semibold tracking-wider uppercase">
+                          {t("Water Opacity")}
+                        </label>
+                        <span className="text-[9px] text-white/50 font-mono">
+                          {Math.round((settings.waterOpacity ?? 1) * 100)}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={settings.waterOpacity ?? 1}
+                        onChange={(e) => setSettings((prev) => ({ ...prev, waterOpacity: parseFloat(e.target.value) }))}
+                        className="w-full h-1 bg-white/20 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </details>
+
+          {/* ANIMATIONS */}
           <details className="group flex flex-col gap-[2px] w-full mb-6">
             <summary className="relative p-3 flex items-center gap-2 bg-black text-xs text-white font-semibold tracking-wider cursor-pointer list-none outline-none [&::-webkit-details-marker]:hidden">
               <ChevronRight
@@ -2723,6 +2888,16 @@ function LayerItem(props: {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(layer.name);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [aircraftSearchError, setAircraftSearchError] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleSearchAircraftResult = (e: Event) => {
+      const customEvent = e as CustomEvent<{ found: boolean }>;
+      setAircraftSearchError(!customEvent.detail.found);
+    };
+    window.addEventListener("searchAircraftResult", handleSearchAircraftResult);
+    return () => window.removeEventListener("searchAircraftResult", handleSearchAircraftResult);
+  }, []);
 
   let defaultStartDate = "";
   let defaultEndDate = "";
@@ -3447,12 +3622,14 @@ function LayerItem(props: {
                         type="text"
                         placeholder="Enter callsign..."
                         className="w-full bg-black/50 border border-white/10 px-3 py-1.5 text-sm outline-none focus:border-white/30"
+                        onChange={() => setAircraftSearchError(false)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             const val = e.currentTarget.value
                               .trim()
                               .toUpperCase();
                             if (val) {
+                              setAircraftSearchError(false);
                               const event = new CustomEvent("searchAircraft", {
                                 detail: val,
                               });
@@ -3462,6 +3639,11 @@ function LayerItem(props: {
                         }}
                       />
                     </div>
+                    {aircraftSearchError && (
+                      <div className="text-red-500 text-[10px] mt-1">
+                        {t("Callsign not found in visible airspace, try zooming out")}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-col gap-2">
@@ -3632,19 +3814,6 @@ function LayerItem(props: {
                 </div>
               ) : layer.type === "weather_forecast" ? (
                 <div className="flex flex-col gap-4 pb-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      {duplicateLayer && (
-                        <button
-                          onClick={() => duplicateLayer(layer.id)}
-                          className="text-white/50 hover:text-white transition-colors flex items-center shrink-0"
-                          title={t("Duplicate Layer")}
-                        >
-                          <Copy size={16} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
 
                   <div className="flex flex-col gap-1.5">
                     <div className="flex justify-between items-end">
@@ -3672,56 +3841,6 @@ function LayerItem(props: {
                     />
                   </div>
 
-                  <div className="flex border border-white/20 rounded-full p-1 relative bg-transparent mt-2">
-                    <button
-                      onClick={() => {
-                        updateLayerProperty(layer.id, "showTemperature", true);
-                        updateLayerProperty(
-                          layer.id,
-                          "showPrecipitation",
-                          false,
-                        );
-                      }}
-                      className={`flex-1 px-4 py-2 text-sm relative z-10 transition-colors ${layer.showTemperature ? "text-black" : "text-white/60 hover:text-white/80"}`}
-                    >
-                      {layer.showTemperature && (
-                        <motion.div
-                          layoutId={`weather-active-bg-${layer.id}`}
-                          className="absolute inset-0 bg-white rounded-full -z-10"
-                          transition={{
-                            type: "spring",
-                            stiffness: 400,
-                            damping: 30,
-                          }}
-                        />
-                      )}
-                      {t("Temperature")}
-                    </button>
-                    <button
-                      onClick={() => {
-                        updateLayerProperty(layer.id, "showTemperature", false);
-                        updateLayerProperty(
-                          layer.id,
-                          "showPrecipitation",
-                          true,
-                        );
-                      }}
-                      className={`flex-1 px-4 py-2 text-sm relative z-10 transition-colors ${layer.showPrecipitation ? "text-black" : "text-white/60 hover:text-white/80"}`}
-                    >
-                      {layer.showPrecipitation && (
-                        <motion.div
-                          layoutId={`weather-active-bg-${layer.id}`}
-                          className="absolute inset-0 bg-white rounded-full -z-10"
-                          transition={{
-                            type: "spring",
-                            stiffness: 400,
-                            damping: 30,
-                          }}
-                        />
-                      )}
-                      {t("Precipitation")}
-                    </button>
-                  </div>
 
                   <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-white/10">
                     <div className="grid grid-cols-2 gap-2">
@@ -3839,44 +3958,7 @@ function LayerItem(props: {
                             />
                           </div>
                         </button>
-                        <button
-                          onClick={() =>
-                            updateLayerProperty(
-                              layer.id,
-                              "windParticleTrailBySpeed",
-                              layer.windParticleTrailBySpeed !== true,
-                            )
-                          }
-                          className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-[10px] font-semibold tracking-wider uppercase text-left"
-                        >
-                          {t("Trail by speed")}
-                          <div
-                            className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.windParticleTrailBySpeed === true ? "bg-white" : "bg-white/20"}`}
-                          >
-                            <div
-                              className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.windParticleTrailBySpeed === true ? "left-5 bg-black" : "left-1 bg-white"}`}
-                            />
-                          </div>
-                        </button>
-                        <button
-                          onClick={() =>
-                            updateLayerProperty(
-                              layer.id,
-                              "windParticleColorBySpeed",
-                              layer.windParticleColorBySpeed !== true,
-                            )
-                          }
-                          className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-[10px] font-semibold tracking-wider uppercase text-left"
-                        >
-                          {t("Color by speed")}
-                          <div
-                            className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${layer.windParticleColorBySpeed === true ? "bg-white" : "bg-white/20"}`}
-                          >
-                            <div
-                              className={`w-3 h-3 rounded-full absolute top-1 transition-all ${layer.windParticleColorBySpeed === true ? "left-5 bg-black" : "left-1 bg-white"}`}
-                            />
-                          </div>
-                        </button>
+
                       </div>
 
                       <div className="flex flex-col gap-1 mt-2 border-t border-white/10 pt-3">
@@ -4143,7 +4225,7 @@ const ScreenshotMap = ({ styleUrl, onReady }: { styleUrl: string, onReady: (data
       preserveDrawingBuffer: true,
       interactive: false,
       attributionControl: false
-    });
+    } as any);
 
     let isRemoved = false;
     map.once('idle', () => {

@@ -185,6 +185,43 @@ function mockPhpBackend(env: Record<string, string>) {
             return;
           }
 
+          if (action === "deepstate_history") {
+            const targetUrl = "https://deepstatemap.live/api/history";
+            const options: any = { method: "GET", headers: {} };
+            const proxyReq = https.request(targetUrl, options, (proxyRes) => {
+              res.writeHead(proxyRes.statusCode || 200, {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+              });
+              proxyRes.pipe(res);
+            });
+            proxyReq.on("error", (e) => {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: e.message }));
+            });
+            proxyReq.end();
+            return;
+          }
+
+          if (action === "deepstate_geojson") {
+            const id = urlObj.searchParams.get("id") || "";
+            const targetUrl = `https://deepstatemap.live/api/history/${id}/geojson`;
+            const options: any = { method: "GET", headers: {} };
+            const proxyReq = https.request(targetUrl, options, (proxyRes) => {
+              res.writeHead(proxyRes.statusCode || 200, {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*",
+              });
+              proxyRes.pipe(res);
+            });
+            proxyReq.on("error", (e) => {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: e.message }));
+            });
+            proxyReq.end();
+            return;
+          }
+
           if (action === "migrate_to_sql" || action === "migrate_to_mongodb") {
             res.setHeader("Content-Type", "application/json");
             try {

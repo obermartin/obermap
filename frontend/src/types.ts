@@ -112,6 +112,14 @@ export interface LabelTemplateVariation {
 export interface AppSettings {
   title?: string;
   mapStyle: string;
+  enable3dTerrain?: boolean;
+  terrainExaggeration?: number;
+  enableHillshade?: boolean;
+  hillshadeShadowOpacity?: number;
+  hillshadeHighlightOpacity?: number;
+  enableSky?: boolean;
+  waterColor?: string;
+  waterOpacity?: number;
   defaultView: {
     center: [number, number];
     zoom: number;

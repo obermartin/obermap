@@ -24,7 +24,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   layers: [
     { id: 'split-container', name: 'Split View Container', type: 'split', visible: false, splitPosition: 0.5, splitDirection: 'vertical', splitLayers: [] },
     { id: 'deepstate', name: 'Ukraine', type: 'deepstate', visible: false, isLive: true },
-    { id: 'flights', name: 'Air Traffic', type: 'flights', visible: false },
+    { id: 'flights', name: 'Air Traffic', type: 'flights', visible: false, showCallsigns: true },
     { id: 'vessels', name: 'Maritime Traffic', type: 'vessels', visible: false },
     { id: 'nighttime', name: 'Nighttime Overlay', type: 'nighttime', visible: false, opacity: 0.5 },
     { id: 'satellite', name: 'Satellite View (Bing)', type: 'satellite', visible: false },
@@ -639,7 +639,7 @@ export function App() {
           routeMode={routeMode}
           setRouteMode={setRouteMode}
           onDelete={handleDelete}
-          hasSelection={selectedAnnotationId !== null || activeTool === 'delete_all'}
+          hasSelection={selectedAnnotationId !== null}
           hasAnnotations={annotations.some(a => a.coordinates || a.polygonGeometry || a.routeGeometry)}
           settings={settings}
           isOpen={isToolbarOpen}

@@ -64,7 +64,6 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   setRouteMode,
   onDelete,
   hasSelection,
-  hasAnnotations,
   settings,
   isOpen,
   setIsOpen,
