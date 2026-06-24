@@ -29,6 +29,7 @@ export interface Annotation {
     zoom: number;
     pitch: number;
     bearing: number;
+    elevation?: number;
   };
   isCentered?: boolean;
 }
@@ -125,6 +126,7 @@ export interface AppSettings {
     zoom: number;
     pitch: number;
     bearing: number;
+    elevation?: number;
   };
   colorPalette: string[];
   icons: IconCategory[];

@@ -18,7 +18,7 @@ export interface Pointer {
   width: number;
   height: number;
   attachEdge: "top" | "bottom" | "left" | "right";
-  attachFrom: "left" | "right" | "top" | "bottom";
+  attachFrom: "left" | "right" | "top" | "bottom" | "center";
   attachOffset: number;
   tipX: number;
   tipY: number;
@@ -642,6 +642,9 @@ export class LabelMarkerManager {
       else if (pointer.attachFrom === "right")
         ptrLeft =
           primaryLeft + primaryWidth - pointer.attachOffset - pointer.tipX;
+      else if (pointer.attachFrom === "center")
+        ptrLeft =
+          primaryLeft + primaryWidth / 2 + pointer.attachOffset - pointer.tipX;
     } else if (pointer.attachEdge === "top") {
       ptrTop = primaryTop - pointer.height + 1;
       if (pointer.attachFrom === "left")
@@ -649,6 +652,9 @@ export class LabelMarkerManager {
       else if (pointer.attachFrom === "right")
         ptrLeft =
           primaryLeft + primaryWidth - pointer.attachOffset - pointer.tipX;
+      else if (pointer.attachFrom === "center")
+        ptrLeft =
+          primaryLeft + primaryWidth / 2 + pointer.attachOffset - pointer.tipX;
     } else if (pointer.attachEdge === "left") {
       ptrLeft = primaryLeft - pointer.width + 1;
       if (pointer.attachFrom === "top")
@@ -656,6 +662,9 @@ export class LabelMarkerManager {
       else if (pointer.attachFrom === "bottom")
         ptrTop =
           primaryTop + primary.height - pointer.attachOffset - pointer.tipY;
+      else if (pointer.attachFrom === "center")
+        ptrTop =
+          primaryTop + primary.height / 2 + pointer.attachOffset - pointer.tipY;
     } else if (pointer.attachEdge === "right") {
       ptrLeft = primaryLeft + primaryWidth - 1;
       if (pointer.attachFrom === "top")
@@ -663,6 +672,9 @@ export class LabelMarkerManager {
       else if (pointer.attachFrom === "bottom")
         ptrTop =
           primaryTop + primary.height - pointer.attachOffset - pointer.tipY;
+      else if (pointer.attachFrom === "center")
+        ptrTop =
+          primaryTop + primary.height / 2 + pointer.attachOffset - pointer.tipY;
     }
 
     // Shift everything if pointer goes negative
@@ -883,6 +895,9 @@ export class LabelMarkerManager {
       else if (pointer.attachFrom === "right")
         ptrLeft =
           primaryLeft + primaryWidth - pointer.attachOffset - pointer.tipX;
+      else if (pointer.attachFrom === "center")
+        ptrLeft =
+          primaryLeft + primaryWidth / 2 + pointer.attachOffset - pointer.tipX;
     } else if (pointer.attachEdge === "top") {
       ptrTop = primaryTop - pointer.height + 1;
       if (pointer.attachFrom === "left")
@@ -890,6 +905,9 @@ export class LabelMarkerManager {
       else if (pointer.attachFrom === "right")
         ptrLeft =
           primaryLeft + primaryWidth - pointer.attachOffset - pointer.tipX;
+      else if (pointer.attachFrom === "center")
+        ptrLeft =
+          primaryLeft + primaryWidth / 2 + pointer.attachOffset - pointer.tipX;
     } else if (pointer.attachEdge === "left") {
       ptrLeft = primaryLeft - pointer.width + 1;
       if (pointer.attachFrom === "top")
@@ -897,6 +915,9 @@ export class LabelMarkerManager {
       else if (pointer.attachFrom === "bottom")
         ptrTop =
           primaryTop + primary.height - pointer.attachOffset - pointer.tipY;
+      else if (pointer.attachFrom === "center")
+        ptrTop =
+          primaryTop + primary.height / 2 + pointer.attachOffset - pointer.tipY;
     } else if (pointer.attachEdge === "right") {
       ptrLeft = primaryLeft + primaryWidth - 1;
       if (pointer.attachFrom === "top")
@@ -904,6 +925,9 @@ export class LabelMarkerManager {
       else if (pointer.attachFrom === "bottom")
         ptrTop =
           primaryTop + primary.height - pointer.attachOffset - pointer.tipY;
+      else if (pointer.attachFrom === "center")
+        ptrTop =
+          primaryTop + primary.height / 2 + pointer.attachOffset - pointer.tipY;
     }
 
     const minLeft = Math.min(primaryLeft, secondaryLeft, ptrLeft);

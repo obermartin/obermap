@@ -653,14 +653,20 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             center: coords,
             zoom: mapRef.current!.getZoom(),
             pitch: mapRef.current!.getPitch(),
-            bearing: mapRef.current!.getBearing()
+            bearing: mapRef.current!.getBearing(),
+            elevation: mapRef.current!.queryTerrainElevation(coords as [number, number]) || 0
           }
         }]);
 
         // Wait for geocoder flight to finish, then update the view
+        // Only update if we actually reached the destination (flight wasn't aborted)
         mapRef.current.once('moveend', () => {
-          const event = new CustomEvent('requestViewCaptureForUpdate', { detail: annotationId });
-          window.dispatchEvent(event);
+          const currentCenter = mapRef.current!.getCenter();
+          const dist = Math.sqrt(Math.pow(currentCenter.lng - coords[0], 2) + Math.pow(currentCenter.lat - coords[1], 2));
+          if (dist < 0.1) {
+            const event = new CustomEvent('requestViewCaptureForUpdate', { detail: annotationId });
+            window.dispatchEvent(event);
+          }
         });
       }
     });
@@ -811,7 +817,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           'fill-opacity-transition': { duration: 0 },
           'fill-color': ['coalesce', ['get', 'color'], '#ffffff']
         }
-      }, firstSymbolId);
+      });
 
 
 
@@ -1010,7 +1016,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           'line-opacity': ['coalesce', ['get', 'currentLineOpacity'], 1],
           'line-opacity-transition': { duration: 0 }
         }
-      }, firstSymbolId);
+      });
 
       map.addLayer({
         id: 'custom-lines-dashed',
@@ -1028,7 +1034,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           'line-opacity': ['coalesce', ['get', 'currentLineOpacity'], 1],
           'line-opacity-transition': { duration: 0 }
         }
-      }, firstSymbolId);
+      });
 
       map.addLayer({
         id: 'custom-lines-dotted',
@@ -1046,7 +1052,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           'line-opacity': ['coalesce', ['get', 'currentLineOpacity'], 1],
           'line-opacity-transition': { duration: 0 }
         }
-      }, firstSymbolId);
+      });
 
       // Arrow Heads
       map.addLayer({
@@ -1074,7 +1080,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           'text-opacity': ['coalesce', ['get', 'currentLineOpacity'], 1],
           'text-opacity-transition': { duration: 0 }
         }
-      }, firstSymbolId);
+      });
 
       // Invisible layer to force Mapbox's collision detection to hide underlying labels
       map.addLayer({
@@ -1116,7 +1122,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           'line-blur': 8,
           'line-opacity': 0.8
         }
-      }, firstSymbolId);
+      });
 
       // Selected Annotation Highlight
       map.addLayer({
@@ -1129,7 +1135,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           'line-color': '#ffffff',
           'line-dasharray': [2, 2]
         }
-      }, firstSymbolId);
+      });
 
       // Active drawing source
       map.addSource('active-drawing', {
@@ -1165,7 +1171,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           'line-blur': 8,
           'line-opacity': 0.8
         }
-      }, firstSymbolId);
+      });
       map.addLayer({
         id: 'geojson-selected-line',
         type: 'line',
@@ -1175,7 +1181,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           'line-color': '#ffffff',
           'line-dasharray': [2, 2]
         }
-      }, firstSymbolId);
+      });
     });
 
     // Add flyTo listener
@@ -1202,7 +1208,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           });
         }
         
-        mapRef.current.flyTo({
+                mapRef.current.flyTo({
           center: view.center,
           zoom: view.zoom,
           pitch: view.pitch,
@@ -1210,6 +1216,24 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           duration: 2000,
           essential: true
         });
+
+                if (view.elevation !== undefined) {
+          mapRef.current.once('moveend', () => {
+            const currentCenter = mapRef.current?.getCenter();
+            if (currentCenter) {
+              const dist = Math.sqrt(Math.pow(currentCenter.lng - view.center[0], 2) + Math.pow(currentCenter.lat - view.center[1], 2));
+              if (dist < 0.1) {
+                mapRef.current?.jumpTo({
+                  center: view.center,
+                  zoom: view.zoom,
+                  pitch: view.pitch,
+                  bearing: view.bearing,
+                  elevation: view.elevation
+                });
+              }
+            }
+          });
+        }
       }
     }) as EventListener;
     window.addEventListener('flyToView', handleFlyTo);
@@ -1309,8 +1333,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         center: [center.lng, center.lat] as [number, number],
         zoom: map.getZoom(),
         pitch: map.getPitch(),
-        bearing: map.getBearing()
-      };
+        bearing: map.getBearing(),
+            elevation: map.queryTerrainElevation([center.lng, center.lat] as [number, number]) || 0
+          };
       const event = new CustomEvent('viewCaptured', { detail: view });
       window.dispatchEvent(event);
     };
@@ -1323,8 +1348,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         center: [center.lng, center.lat] as [number, number],
         zoom: map.getZoom(),
         pitch: map.getPitch(),
-        bearing: map.getBearing()
-      };
+        bearing: map.getBearing(),
+            elevation: map.queryTerrainElevation([center.lng, center.lat] as [number, number]) || 0
+          };
       const event = new CustomEvent('viewCapturedForPosition', { detail: view });
       window.dispatchEvent(event);
     };
@@ -1339,8 +1365,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         center: [center.lng, center.lat] as [number, number],
         zoom: map.getZoom(),
         pitch: map.getPitch(),
-        bearing: map.getBearing()
-      };
+        bearing: map.getBearing(),
+            elevation: map.queryTerrainElevation([center.lng, center.lat] as [number, number]) || 0
+          };
       const event = new CustomEvent('viewCapturedForUpdate', { detail: { id: annotationId, view } });
       window.dispatchEvent(event);
     };
@@ -1353,8 +1380,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         center: [center.lng, center.lat] as [number, number],
         zoom: map.getZoom(),
         pitch: map.getPitch(),
-        bearing: map.getBearing()
-      };
+        bearing: map.getBearing(),
+            elevation: map.queryTerrainElevation([center.lng, center.lat] as [number, number]) || 0
+          };
       const event = new CustomEvent('viewCapturedForDefaultUpdate', { detail: view });
       window.dispatchEvent(event);
     };
@@ -1397,7 +1425,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             center: [map.getCenter().lng, map.getCenter().lat],
             zoom: map.getZoom(),
             pitch: map.getPitch(),
-            bearing: map.getBearing()
+            bearing: map.getBearing(),
+            elevation: map.queryTerrainElevation([map.getCenter().lng, map.getCenter().lat]) || 0
           }
         };
         setAnnotations(prev => [...prev, newLabel]);
@@ -1428,7 +1457,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             center: [map.getCenter().lng, map.getCenter().lat],
             zoom: map.getZoom(),
             pitch: map.getPitch(),
-            bearing: map.getBearing()
+            bearing: map.getBearing(),
+            elevation: map.queryTerrainElevation([map.getCenter().lng, map.getCenter().lat]) || 0
           } : undefined
         }]);
       }
@@ -5637,8 +5667,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               center: coords,
               zoom: mapRef.current!.getZoom(),
               pitch: mapRef.current!.getPitch(),
-              bearing: mapRef.current!.getBearing()
-            }
+              bearing: mapRef.current!.getBearing(),
+            elevation: mapRef.current!.queryTerrainElevation(coords as [number, number]) || 0
+          }
           }]);
         } else if (clickedAnnotationId) {
           // If we clicked on an existing country polygon but missed all labels, select it instead of duplicating it
@@ -6395,7 +6426,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               center: settings.defaultView.center,
               zoom: settings.defaultView.zoom,
               pitch: settings.defaultView.pitch,
-              bearing: settings.defaultView.bearing
+              bearing: settings.defaultView.bearing,
+              ...(settings.defaultView.elevation !== undefined ? { elevation: settings.defaultView.elevation } : {})
             });
           }
           map.off('movestart', onMove);
@@ -7054,7 +7086,8 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
           center: viewsToVisit[0].view.center,
           zoom: viewsToVisit[0].view.zoom,
           pitch: viewsToVisit[0].view.pitch,
-          bearing: viewsToVisit[0].view.bearing
+          bearing: viewsToVisit[0].view.bearing,
+          ...(viewsToVisit[0].view.elevation !== undefined ? { elevation: viewsToVisit[0].view.elevation } : {})
         });
         // Let the map move to the starting position BEFORE starting the video export sequence
         // This prevents capturing a short transition/loading frame in the final video
@@ -7544,7 +7577,8 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
             center: view.center,
             zoom: view.zoom,
             pitch: view.pitch,
-            bearing: view.bearing
+            bearing: view.bearing,
+            ...(view.elevation !== undefined ? { elevation: view.elevation } : {})
           });
           
           let hasResolved = false;
@@ -7576,7 +7610,8 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
           center: firstView.center,
           zoom: firstView.zoom,
           pitch: firstView.pitch,
-          bearing: firstView.bearing
+          bearing: firstView.bearing,
+          ...(firstView.elevation !== undefined ? { elevation: firstView.elevation } : {})
         });
         setTimeout(resolve, 1000);
       });
@@ -7609,12 +7644,13 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               center: view.center,
               zoom: view.zoom,
               pitch: view.pitch,
-              bearing: view.bearing
+              bearing: view.bearing,
+              ...(view.elevation !== undefined ? { elevation: view.elevation } : {})
             });
             // Allow tiles to load and give a brief pause at the start of the video
             setTimeout(resolve, 2000);
           } else {
-            map1!.flyTo({
+                        map1!.flyTo({
               center: view.center,
               zoom: view.zoom,
               pitch: view.pitch,
@@ -7622,6 +7658,23 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               duration: duration * 1000,
               essential: true
             });
+                        if (view.elevation !== undefined) {
+              map1!.once('moveend', () => {
+                const currentCenter = map1!.getCenter();
+                if (currentCenter) {
+                  const dist = Math.sqrt(Math.pow(currentCenter.lng - view.center[0], 2) + Math.pow(currentCenter.lat - view.center[1], 2));
+                  if (dist < 0.1) {
+                    map1!.jumpTo({
+                      center: view.center,
+                      zoom: view.zoom,
+                      pitch: view.pitch,
+                      bearing: view.bearing,
+                      elevation: view.elevation
+                    });
+                  }
+                }
+              });
+            }
             map1!.once('moveend', () => {
               // Wait 1 second extra to let tiles settle and to pause on the view
               setTimeout(resolve, 1000);
@@ -7675,13 +7728,13 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
     const sync1to2 = () => {
       if (isSyncing) return;
       isSyncing = true;
-      map2.jumpTo({ center: map1.getCenter(), zoom: map1.getZoom(), pitch: map1.getPitch(), bearing: map1.getBearing() });
+      map2.jumpTo({ center: map1.getCenter(), zoom: map1.getZoom(), pitch: map1.getPitch(), bearing: map1.getBearing(), ...(map1.queryTerrainElevation(map1.getCenter()) !== null ? { elevation: map1.queryTerrainElevation(map1.getCenter()) || 0 } : {}) });
       isSyncing = false;
     };
     const sync2to1 = () => {
       if (isSyncing) return;
       isSyncing = true;
-      map1.jumpTo({ center: map2.getCenter(), zoom: map2.getZoom(), pitch: map2.getPitch(), bearing: map2.getBearing() });
+      map1.jumpTo({ center: map2.getCenter(), zoom: map2.getZoom(), pitch: map2.getPitch(), bearing: map2.getBearing(), ...(map2.queryTerrainElevation(map2.getCenter()) !== null ? { elevation: map2.queryTerrainElevation(map2.getCenter()) || 0 } : {}) });
       isSyncing = false;
     };
     map1.on('move', sync1to2);
