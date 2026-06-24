@@ -1,0 +1,23 @@
+{
+  "capital": {
+    "height": 64,
+    "pixelRatio": 1,
+    "width": 64,
+    "x": 0,
+    "y": 0
+  },
+  "city": {
+    "height": 64,
+    "pixelRatio": 1,
+    "width": 64,
+    "x": 64,
+    "y": 0
+  },
+  "village": {
+    "height": 64,
+    "pixelRatio": 1,
+    "width": 64,
+    "x": 0,
+    "y": 64
+  }
+}

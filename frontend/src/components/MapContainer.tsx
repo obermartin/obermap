@@ -1460,7 +1460,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     if (!mapRef.current || !mapLoaded) return;
     const source = mapRef.current.getSource('custom-annotations') as maplibregl.GeoJSONSource;
     if (!source) return;
-
+    cachedTurfDataRef.current = {};
     const features: GeoJSON.Feature[] = annotations.reduce((acc: GeoJSON.Feature[], ann) => {
       if (ann.type === 'paint') {
         acc.push({
@@ -2153,6 +2153,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                  } else {
                    f.geometry.coordinates = [];
                  }
+               } else {
+                 f.geometry.coordinates = baseF.geometry.coordinates;
                }
              } else if (f.geometry.type === 'MultiLineString' && baseF.geometry.type === 'MultiLineString') {
                if (annProgress === 0) {
@@ -2162,6 +2164,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                  const totalSegments = baseCoords.length;
                  const targetSegments = Math.max(1, Math.floor(totalSegments * annProgress));
                  f.geometry.coordinates = baseCoords.slice(0, targetSegments);
+               } else {
+                 f.geometry.coordinates = baseF.geometry.coordinates;
                }
              }
           });
@@ -2216,6 +2220,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                  ]);
                  currentFeatures[featureIdx].geometry.coordinates = [scaledCoords];
                }
+             } else {
+               currentFeatures[featureIdx].geometry.coordinates = ann.coordinates;
              }
           }
         }
