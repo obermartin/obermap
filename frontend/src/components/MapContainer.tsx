@@ -6439,6 +6439,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         const highlightOp = settings.hillshadeHighlightOpacity ?? 0.5;
         const shadowColor = `rgba(0,0,0,${shadowOp})`;
         const highlightColor = `rgba(255,255,255,${highlightOp})`;
+        const accentColor = `rgba(0,0,0,${shadowOp})`;
 
         if (!map.getLayer('aws-terrarium-hillshade')) {
           let insertBeforeId;
@@ -6468,12 +6469,13 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               'hillshade-exaggeration': 0.5,
               'hillshade-shadow-color': shadowColor,
               'hillshade-highlight-color': highlightColor,
-              'hillshade-accent-color': '#000000'
+              'hillshade-accent-color': accentColor
             }
           }, insertBeforeId);
         } else {
           map.setPaintProperty('aws-terrarium-hillshade', 'hillshade-shadow-color', shadowColor);
           map.setPaintProperty('aws-terrarium-hillshade', 'hillshade-highlight-color', highlightColor);
+          map.setPaintProperty('aws-terrarium-hillshade', 'hillshade-accent-color', accentColor);
         }
       } else {
         if (map.getLayer('aws-terrarium-hillshade')) {
