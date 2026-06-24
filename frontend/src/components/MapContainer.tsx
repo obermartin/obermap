@@ -6413,7 +6413,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           maxzoom: 15
         });
       }
-      map.setTerrain({ source: 'aws-terrarium', exaggeration: settings.terrainExaggeration || 1.5 });
+      map.setTerrain({ source: 'aws-terrarium', exaggeration: settings.terrainExaggeration ?? 1 });
 
       if (!initialTerrainLoaded.current) {
         initialTerrainLoaded.current = true;

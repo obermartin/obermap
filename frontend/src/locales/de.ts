@@ -70,6 +70,16 @@ export const de: Record<string, string> = {
   // Saved Views
   "OVERVIEW": "ÜBERSICHT",
   "Save Current Position": "Aktuelle Position speichern",
+  "Enable 3D Terrain": "3D-Gelände aktivieren",
+  "3D TERRAIN": "3D-GELÄNDE",
+  "Exaggeration": "Überhöhung",
+  "Hillshade (Shadows)": "Schattierung (Hillshade)",
+  "Shadow Opacity": "Schatten-Deckkraft",
+  "Highlight Opacity": "Highlight-Deckkraft",
+  "Sky": "Himmel",
+  "Water Masking / Styling": "Wasser-Stil",
+  "Water Color": "Wasserfarbe",
+  "Water Opacity": "Wasser-Deckkraft",
   // MapContainer & LayerSidebar details
   "Previous wind snapshot": "Vorheriger Wind-Snapshot",
   "Next wind snapshot": "Nächster Wind-Snapshot",

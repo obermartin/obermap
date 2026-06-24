@@ -2500,7 +2500,7 @@ export function LayerSidebar({
                         {t("Exaggeration")}
                       </label>
                       <span className="text-[10px] text-white/50 font-mono">
-                        {(settings.terrainExaggeration ?? 1.5).toFixed(1)}x
+                        {(settings.terrainExaggeration ?? 1).toFixed(1)}x
                       </span>
                     </div>
                     <input
