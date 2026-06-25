@@ -161,3 +161,53 @@ export const decodePolyline = (str: string, precision: number = 5): [number, num
   }
   return coordinates;
 };
+
+export const parseWKT = (wkt: string): any => {
+  if (!wkt) return null;
+  wkt = wkt.trim();
+  
+  if (wkt.startsWith('POINT')) {
+    const coordsStr = wkt.match(/POINT\s*\(\s*(.*?)\s*\)/)?.[1];
+    if (coordsStr) {
+      const parts = coordsStr.split(/\s+/).map(Number);
+      if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        return turf.point([parts[0], parts[1]]);
+      }
+    }
+  } else if (wkt.startsWith('POLYGON')) {
+    const coordsStr = wkt.match(/POLYGON\s*\(\((.*?)\)\)/)?.[1];
+    if (coordsStr) {
+      const points = coordsStr.split(',').map(pair => {
+        const parts = pair.trim().split(/\s+/).map(Number);
+        return [parts[0], parts[1]];
+      });
+      // Turf requires polygons to be closed (first == last)
+      if (points.length > 0) {
+        if (points[0][0] !== points[points.length - 1][0] || points[0][1] !== points[points.length - 1][1]) {
+          points.push([...points[0]]);
+        }
+        return turf.polygon([points]);
+      }
+    }
+  }
+  return null;
+};
+
+export const haversineDistance = (coords1: [number, number], coords2: [number, number]) => {
+  const toRad = (x: number) => x * Math.PI / 180;
+  const lon1 = coords1[0];
+  const lat1 = coords1[1];
+  const lon2 = coords2[0];
+  const lat2 = coords2[1];
+
+  const R = 6371; // km
+  const x1 = lat2 - lat1;
+  const dLat = toRad(x1);
+  const x2 = lon2 - lon1;
+  const dLon = toRad(x2);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};

@@ -9,10 +9,10 @@ import '@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css';
 import type { Annotation, ToolType, AppSettings, StrokeType, RouteMode } from '../types';
 import * as turf from '@turf/turf';
 import { useTranslation } from '../contexts/I18nContext';
-import { createCirclePolygon, calculateDistance, simplifyLine, transliterateToGerman, createArrowFeatures, decodePolyline } from '../utils/mapUtils';
+import { createCirclePolygon, calculateDistance, simplifyLine, transliterateToGerman, createArrowFeatures, decodePolyline, parseWKT, haversineDistance } from '../utils/mapUtils';
 import { getTerminatorPolygon } from '../utils/terminatorUtils';
 import anyAscii from 'any-ascii';
-import { customAlert } from '../utils/dialogService';
+import { customAlert, customPrompt } from '../utils/dialogService';
 import * as Mp4Muxer from 'mp4-muxer';
 import { omProtocol } from '@openmeteo/weather-map-layer';
 import { globalLabelManager } from '../labels/LabelMarkerManager';
@@ -161,6 +161,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const windCanvasRef = useRef<HTMLCanvasElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [styleLoadedTick, setStyleLoadedTick] = useState(0);
   const [selectedAircraftId, setSelectedAircraftIdState] = useState<string | null>(null);
   const [selectedVesselMmsi, setSelectedVesselMmsi] = useState<string | null>(null);
   const [selectedCycloneId, setSelectedCycloneIdState] = useState<{ id: string, ep: string } | null>(null);
@@ -172,6 +173,13 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const [selectedEarthquake, setSelectedEarthquakeState] = useState<{ id: string, ep: string, geomUrl: string, coordinates: [number, number], properties: any } | null>(null);
   const selectedEarthquakeRef = useRef<{ id: string, ep: string, geomUrl: string, coordinates: [number, number], properties: any } | null>(null);
   const [selectedEarthquakeShakemap, setSelectedEarthquakeShakemap] = useState<any>(null);
+  const [selectedEarthquakeUsgsDyfi10km, setSelectedEarthquakeUsgsDyfi10km] = useState<any>(null);
+  const [selectedEarthquakeUsgsDyfi1km, setSelectedEarthquakeUsgsDyfi1km] = useState<any>(null);
+  const [selectedEarthquakeUsgsLandslide, setSelectedEarthquakeUsgsLandslide] = useState<{ url: string, extent: [number, number, number, number] } | null>(null);
+  const [selectedEarthquakeUsgsLiquefaction, setSelectedEarthquakeUsgsLiquefaction] = useState<{ url: string, extent: [number, number, number, number] } | null>(null);
+  const [selectedCemsEarthquake, setSelectedCemsEarthquakeState] = useState<{ id: string, code: string, properties: any, coordinates: [number, number] } | null>(null);
+  const selectedCemsEarthquakeRef = useRef<{ id: string, code: string, properties: any, coordinates: [number, number] } | null>(null);
+  const [selectedCemsEarthquakeFeatures, setSelectedCemsEarthquakeFeatures] = useState<any>(null);
 
   const [selectedVolcano, setSelectedVolcanoState] = useState<{ id: string, ep: string, geomUrl: string, coordinates: [number, number], properties: any } | null>(null);
   const selectedVolcanoRef = useRef<{ id: string, ep: string, geomUrl: string, coordinates: [number, number], properties: any } | null>(null);
@@ -180,6 +188,10 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   useEffect(() => {
     selectedEarthquakeRef.current = selectedEarthquake;
   }, [selectedEarthquake]);
+
+  useEffect(() => {
+    selectedCemsEarthquakeRef.current = selectedCemsEarthquake;
+  }, [selectedCemsEarthquake]);
 
   useEffect(() => {
     selectedVolcanoRef.current = selectedVolcano;
@@ -207,6 +219,56 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     setAnnotationsRef.current = setAnnotations;
     settingsRef.current = settings;
   }, [currentColor, setAnnotations, settings]);
+
+  useEffect(() => {
+    const handleHide = () => {
+      const isShakemapVisible = !!(selectedEarthquakeRef.current || selectedCemsEarthquakeRef.current);
+      if (mapRef.current && isShakemapVisible) {
+        settingsRef.current.layers.forEach(l => {
+          if (l.type === 'gdacs_earthquakes' || l.type === 'cems_rapid_mapping') {
+            try {
+              mapRef.current!.setFilter(`dynamic-layer-${l.id}`, ['==', '1', '2']);
+              if (mapRef.current!.getLayer(`dynamic-layer-${l.id}-label`)) {
+                mapRef.current!.setFilter(`dynamic-layer-${l.id}-label`, ['==', '1', '2']);
+              }
+            } catch(e) {}
+          }
+        });
+      }
+    };
+    
+    const handleRestore = () => {
+      if (mapRef.current) {
+        settingsRef.current.layers.forEach(l => {
+          if (l.type === 'gdacs_earthquakes' || l.type === 'cems_rapid_mapping') {
+            const baseLayerId = `dynamic-layer-${l.id}`;
+            const labelLayerId = `${baseLayerId}-label`;
+            try {
+              const eq = selectedEarthquakeRef.current;
+              const cems = selectedCemsEarthquakeRef.current;
+              if (eq && l.type === 'gdacs_earthquakes') {
+                 mapRef.current!.setFilter(baseLayerId, ['!=', ['to-string', ['get', 'eventid']], eq.id]);
+                 if (mapRef.current!.getLayer(labelLayerId)) mapRef.current!.setFilter(labelLayerId, ['!=', ['to-string', ['get', 'eventid']], eq.id]);
+              } else if (cems && l.type === 'cems_rapid_mapping') {
+                 mapRef.current!.setFilter(baseLayerId, ['!=', ['to-string', ['get', 'code']], cems.code]);
+                 if (mapRef.current!.getLayer(labelLayerId)) mapRef.current!.setFilter(labelLayerId, ['!=', ['to-string', ['get', 'code']], cems.code]);
+              } else {
+                 mapRef.current!.setFilter(baseLayerId, null);
+                 if (mapRef.current!.getLayer(labelLayerId)) mapRef.current!.setFilter(labelLayerId, null);
+              }
+            } catch(e) {}
+          }
+        });
+      }
+    };
+    
+    window.addEventListener('hideEarthquakeDotsForExport', handleHide);
+    window.addEventListener('restoreEarthquakeDotsForExport', handleRestore);
+    return () => {
+      window.removeEventListener('hideEarthquakeDotsForExport', handleHide);
+      window.removeEventListener('restoreEarthquakeDotsForExport', handleRestore);
+    };
+  }, []);
 
   const getBaseTemplate = useCallback((id?: string) => {
     if (!id) return null;
@@ -732,7 +794,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         if (styleLayers[i].type === 'symbol') {
           if (!firstSymbolId) firstSymbolId = id;
           if (!id.startsWith('custom-')) {
-            originalFiltersRef.current[id] = (styleLayers[i] as any).filter || null;
+            originalFiltersRef.current[id] = map.getFilter(id) || null;
             
             // Apply language overrides
             const layout = (styleLayers[i] as any).layout;
@@ -1109,6 +1171,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
       // Setup complete
       setMapLoaded(true);
+      setStyleLoadedTick(t => t + 1);
       
       // Selected Annotation Glow
       map.addLayer({
@@ -1272,6 +1335,23 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     }) as EventListener;
     window.addEventListener('updateHideAnimationTrigger', handleUpdateHideAnimationTrigger);
 
+    const handleActivateExportTrigger = ((e: CustomEvent<{ triggerId: string }>) => {
+      const { triggerId } = e.detail;
+      triggerProgressRef.current[triggerId] = 0;
+      triggerTimestampsRef.current[triggerId] = Date.now();
+      setRevealedTriggers(prev => {
+        const next = new Set(prev);
+        next.add(triggerId);
+        return next;
+      });
+      setHiddenTriggers(prev => {
+        const next = new Set(prev);
+        next.add(triggerId);
+        return next;
+      });
+    }) as EventListener;
+    window.addEventListener('activateExportTrigger', handleActivateExportTrigger);
+
     const handleUpdateBothTriggers = ((e: CustomEvent<{ triggerId: string }>) => {
       const { triggerId } = e.detail;
       triggerProgressRef.current[triggerId] = 0;
@@ -1303,6 +1383,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       window.removeEventListener('flyToView', handleFlyTo);
       window.removeEventListener('updateAnimationTrigger', handleUpdateAnimationTrigger);
       window.removeEventListener('updateHideAnimationTrigger', handleUpdateHideAnimationTrigger);
+      window.removeEventListener('activateExportTrigger', handleActivateExportTrigger);
       window.removeEventListener('updateBothTriggers', handleUpdateBothTriggers);
       window.removeEventListener('resetAnimationTriggers', handleResetAnimationTriggers);
       map.remove();
@@ -1686,7 +1767,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           el = document.createElement('div');
           
           if (ann.polygonGeometry) {
-            el.className = 'custom-country-marker';
+            el.className = `custom-country-marker label-marker-${ann.id}`;
             el.innerHTML = `
               <div class="custom-country-plate" style="background-color: ${ann.color};">
                 <div class="custom-country-text" style="color: ${contrastColor}">
@@ -1695,7 +1776,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               </div>
             `;
           } else {
-            el.className = 'custom-highlight-marker';
+            el.className = `custom-highlight-marker label-marker-${ann.id}`;
             el.style.backgroundColor = ann.color;
             el.innerHTML = `
               <div class="custom-highlight-plate" style="background-color: ${ann.color};">
@@ -1839,6 +1920,24 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             e.stopPropagation();
             if (activeTool !== 'none') {
               setSelectedAnnotationId(ann.id);
+            }
+          });
+          labelEl.addEventListener('dblclick', async (e) => {
+            e.stopPropagation();
+            if (activeTool !== 'none') {
+              const currentRadius = ann.radius?.toFixed(2) || '';
+              const newRadiusStr = await customPrompt(t('Enter new radius in km:'), currentRadius);
+              if (newRadiusStr !== null) {
+                const newRadius = parseFloat(newRadiusStr);
+                if (!isNaN(newRadius) && newRadius > 0 && setAnnotationsRef.current) {
+                  const circlePoly = createCirclePolygon(center, newRadius);
+                  if (circlePoly) {
+                    setAnnotationsRef.current(prev => prev.map(a => 
+                      a.id === ann.id ? { ...a, radius: newRadius, coordinates: circlePoly.geometry.coordinates } : a
+                    ));
+                  }
+                }
+              }
             }
           });
           labelEl.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -2554,6 +2653,32 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     source.setData({ type: 'FeatureCollection', features: [] });
   }, [activeGeojsonLayerId, selectedGeojsonFeatureId, settings.layers, mapLoaded]);
 
+  // Helper to safely upgrade legacy Mapbox/MapLibre filters into expressions
+  // This prevents crashes when combining user-uploaded legacy JSON styles with modern expressions.
+  const upgradeLegacyFilter = (filter: any): any => {
+    if (!Array.isArray(filter) || filter.length === 0) return filter;
+    const op = filter[0];
+    
+    // Check if it's already an expression (second element is an array like ['get', 'class'])
+    if (op !== 'all' && op !== 'any' && op !== 'none') {
+      if (filter.length > 1 && Array.isArray(filter[1])) {
+        return filter; 
+      }
+    }
+
+    if (op === 'all' || op === 'any' || op === 'none') {
+      return [op, ...filter.slice(1).map(upgradeLegacyFilter)];
+    }
+    if (op === 'has') return ['has', filter[1]];
+    if (op === '!has') return ['!', ['has', filter[1]]];
+    if (op === 'in') return ['in', ['get', filter[1]], ['literal', filter.slice(2)]];
+    if (op === '!in') return ['!', ['in', ['get', filter[1]], ['literal', filter.slice(2)]]];
+    if (['==', '!=', '>', '>=', '<', '<='].includes(op)) {
+      return [op, ['get', filter[1]], filter[2]];
+    }
+    return filter;
+  };
+
   // Handle Map Label Density
   useEffect(() => {
     if (!mapRef.current || !mapLoaded || settings.labelDensity === undefined) return;
@@ -2594,12 +2719,15 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               
               extraCondition = ['any', popCondition, capCondition];
             }
-          } else if (id.includes('place') || sourceLayer.includes('place')) {
+          } else if (id.includes('place') || sourceLayer.includes('place') || id.includes('settlement') || sourceLayer.includes('settlement') || id.includes('village') || id.includes('town') || id.includes('cit') || id.includes('capital')) {
             if (density < 100) {
               let maxRank = 1;
               if (density > 0) {
-                // Most datasets use ranks from 1 to 20. Scale smoothly up to 30.
-                maxRank = 1 + Math.floor((density / 100) * 29);
+                // Use an exponential curve so that the slider is immediately sensitive.
+                // At density 100: maxRank = 15
+                // At density 50: maxRank = 4
+                // At density 0: maxRank = 1
+                maxRank = 1 + Math.floor(Math.pow(density / 100, 2) * 14);
               }
 
               // If a place has no rank, assign it a virtual rank based on its class
@@ -2607,11 +2735,16 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                 ['==', ['get', 'class'], 'city'], 5,
                 ['==', ['get', 'class'], 'town'], 10,
                 ['==', ['get', 'class'], 'village'], 15,
-                ['in', ['get', 'class'], ['literal', ['hamlet', 'suburb', 'neighbourhood', 'isolated_dwelling']]], 20,
+                ['any',
+                  ['==', ['get', 'class'], 'hamlet'],
+                  ['==', ['get', 'class'], 'suburb'],
+                  ['==', ['get', 'class'], 'neighbourhood'],
+                  ['==', ['get', 'class'], 'isolated_dwelling']
+                ], 20,
                 30
               ];
 
-              const rankCondition = ['<=', ['coalesce', ['get', 'symbolrank'], ['get', 'scalerank'], ['get', 'rank'], classBasedRank], maxRank];
+              const rankCondition = ['<=', ['to-number', ['coalesce', ['get', 'symbolrank'], ['get', 'scalerank'], ['get', 'rank'], classBasedRank]], maxRank];
               
               let capCondition: any[] = ['==', '1', '2'];
               if (density === 0) {
@@ -2626,32 +2759,33 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
               extraCondition = ['any', rankCondition, capCondition, isCountry];
             }
-          } else if (id.includes('poi') || id.includes('transit') || sourceLayer.includes('poi')) {
+          } else if (id.includes('poi') || id.includes('transit') || sourceLayer.includes('poi') || id.includes('amenity') || id.includes('shop') || id.includes('tourism') || id.includes('leisure') || id.includes('sport') || id.includes('attraction') || id.includes('airport') || id.includes('station') || id.includes('historic') || sourceLayer.includes('amenity') || sourceLayer.includes('shop') || sourceLayer.includes('tourism') || sourceLayer.includes('leisure')) {
             if (density < 15) {
               extraCondition = ['==', 1, 2]; // Hide
             } else if (density < 100) {
               const maxScaleRank = 1 + Math.floor(((density - 15) / 85) * 9);
               extraCondition = ['<=', ['coalesce', ['get', 'scalerank'], ['get', 'rank'], 10], maxScaleRank];
             }
-          } else if (id.includes('road') || id.includes('water') || id.includes('natural')) {
+          } else if (id.includes('road') || id.includes('water') || id.includes('natural') || id.includes('highway') || id.includes('path') || id.includes('trail')) {
             if (density < 5) {
               extraCondition = ['==', 1, 2]; // Hide
             }
           }
 
+          let finalFilter = origFilter;
+          if (extraCondition) {
+            finalFilter = origFilter ? ['all', upgradeLegacyFilter(origFilter), extraCondition] : extraCondition;
+          }
+          
           try {
-            if (extraCondition) {
-              mapRef.current!.setFilter(layer.id, origFilter ? ['all', origFilter, extraCondition] : extraCondition);
-            } else {
-              mapRef.current!.setFilter(layer.id, origFilter || null);
-            }
-          } catch (e) {
-            // ignore filter errors
+            mapRef.current!.setFilter(layer.id, finalFilter);
+          } catch(e) {
+            console.error('Label density filter error:', e, layer.id, finalFilter);
           }
         }
       });
     }
-  }, [settings.labelDensity, mapLoaded]);
+  }, [settings.labelDensity, mapLoaded, styleLoadedTick]);
 
   // Update selected annotation filter
   useEffect(() => {
@@ -2875,7 +3009,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       if (!map.getSource(sourceId)) {
         if (layer.type === 'geojson' && layer.data) {
           map.addSource(sourceId, { type: 'geojson', data: layer.data });
-        } else if (layer.type === 'deepstate' || layer.type === 'gdacs_earthquakes' || layer.type === 'gdacs_volcanoes' || layer.type === 'gdacs_cyclones' || layer.type === 'nighttime') {
+        } else if (layer.type === 'deepstate' || layer.type === 'gdacs_earthquakes' || layer.type === 'cems_rapid_mapping' || layer.type === 'gdacs_volcanoes' || layer.type === 'gdacs_cyclones' || layer.type === 'nighttime') {
           map.addSource(sourceId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         } else if (layer.type === 'wildfires') {
           // Add both sources, we will toggle visibility
@@ -3000,6 +3134,38 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               }
             });
           }
+        } else if (layer.type === 'cems_rapid_mapping') {
+          map.addLayer({
+            id: layerId,
+            type: 'circle',
+            source: sourceId,
+            layout: { visibility: layer.visible ? 'visible' : 'none' },
+            paint: {
+              'circle-radius': 6,
+              'circle-color': '#ff0000',
+              'circle-opacity': layer.opacity ?? 0.8,
+              'circle-stroke-width': 2,
+              'circle-stroke-color': '#ffffff'
+            }
+          }, firstSymbolId);
+          map.addLayer({
+            id: `${layerId}-label`,
+            type: 'symbol',
+            source: sourceId,
+            layout: {
+              visibility: layer.visible ? 'visible' : 'none',
+              'text-field': ['get', 'name'],
+              'text-font': fallbackFont,
+              'text-size': 12,
+              'text-anchor': 'top',
+              'text-offset': [0, 0.8],
+            },
+            paint: {
+              'text-color': '#ffffff',
+              'text-halo-color': '#000000',
+              'text-halo-width': 1
+            }
+          });
         } else if (layer.type === 'nighttime') {
           map.addLayer({
             id: layerId,
@@ -3248,6 +3414,21 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             map.setLayoutProperty(`${layerId}-gdacs-line`, 'visibility', layer.visible && layer.wildfireMode === 'gdacs' ? 'visible' : 'none');
           }
         } else if (layer.type === 'gdacs_earthquakes' || layer.type === 'gdacs_volcanoes') {
+          if (map.getLayer(layerId)) {
+            map.setPaintProperty(layerId, 'circle-opacity', layer.opacity ?? 0.8);
+            map.setLayoutProperty(layerId, 'visibility', layer.visible ? 'visible' : 'none');
+          }
+          if (map.getLayer(`${layerId}-label`)) {
+            map.setLayoutProperty(`${layerId}-label`, 'visibility', layer.visible ? 'visible' : 'none');
+          }
+        } else if (layer.type === 'cems_rapid_mapping') {
+          if (map.getLayer(layerId)) {
+            map.setPaintProperty(layerId, 'circle-opacity', layer.opacity ?? 0.8);
+            map.setLayoutProperty(layerId, 'visibility', layer.visible ? 'visible' : 'none');
+          }
+          if (map.getLayer(`${layerId}-label`)) {
+            map.setLayoutProperty(`${layerId}-label`, 'visibility', layer.visible ? 'visible' : 'none');
+          }
           map.setPaintProperty(layerId, 'circle-opacity', layer.opacity ?? 0.8);
         } else if (layer.type === 'deepstate') {
           map.setPaintProperty(layerId, 'fill-opacity', layer.opacity ?? 0.5);
@@ -3388,7 +3569,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     // Fetch data for GDACS if needed
     for (const layer of settings.layers) {
       if (!layer.visible) continue;
-      if (layer.type.startsWith('gdacs_') || (layer.type === 'wildfires' && layer.wildfireMode === 'gdacs')) {
+      if (layer.type.startsWith('gdacs_') || layer.type === 'cems_rapid_mapping' || (layer.type === 'wildfires' && layer.wildfireMode === 'gdacs')) {
         const sourceId = layer.type === 'wildfires' ? `dynamic-source-${layer.id}-gdacs` : `dynamic-source-${layer.id}`;
         const todayDateStr = new Date().toISOString().split('T')[0];
         const startDate = layer.startDate || todayDateStr;
@@ -3401,13 +3582,35 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         } else {
           (async () => {
             try {
-              const eventlist = layer.type.includes('earthquake') || layer.type.includes('shakemap') ? 'EQ' : layer.type.includes('wildfires') ? 'WF' : layer.type === 'gdacs_cyclones' ? 'TC' : 'VO';
-              const url = `https://www.gdacs.org/gdacsapi/api/Events/geteventlist/search?eventlist=${eventlist}&fromDate=${startDate}&toDate=${endDate}`;
-              const res = await fetch(url);
-              if (!res.ok) throw new Error(`Failed to fetch GDACS data: ${res.statusText}`);
-              const text = await res.text();
-              const data = text ? JSON.parse(text) : { type: 'FeatureCollection', features: [] };
-              let geojsonData = data;
+              let geojsonData: any = { type: 'FeatureCollection', features: [] };
+              if (layer.type === 'cems_rapid_mapping') {
+                const url = `https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations-info/?limit=50`;
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(`Failed to fetch CEMS data`);
+                const data = await res.json();
+                if (data && data.results) {
+                  geojsonData.features = data.results
+                    .filter((act: any) => act.category === 'Earthquake')
+                    .map((act: any) => {
+                      const geom = parseWKT(act.centroid);
+                      if (!geom) return null;
+                      return {
+                        type: 'Feature',
+                        geometry: geom.geometry,
+                        properties: {
+                          ...act,
+                        }
+                      };
+                    }).filter(Boolean);
+                }
+              } else {
+                const eventlist = layer.type.includes('earthquake') || layer.type.includes('shakemap') ? 'EQ' : layer.type.includes('wildfires') ? 'WF' : layer.type === 'gdacs_cyclones' ? 'TC' : 'VO';
+                const url = `https://www.gdacs.org/gdacsapi/api/Events/geteventlist/search?eventlist=${eventlist}&fromDate=${startDate}&toDate=${endDate}`;
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(`Failed to fetch GDACS data: ${res.statusText}`);
+                const text = await res.text();
+                const data = text ? JSON.parse(text) : { type: 'FeatureCollection', features: [] };
+                geojsonData = data;
 
               if (geojsonData && geojsonData.features) {
                 geojsonData.features.forEach((f: any) => {
@@ -3435,7 +3638,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                      }
                    }
                  }
-                 geojsonData = { type: 'FeatureCollection', features: polygonFeatures };
+                  geojsonData = { type: 'FeatureCollection', features: polygonFeatures };
+               }
               }
               gdacsDataCacheRef.current[cacheKey] = geojsonData;
               const map = mapRef.current;
@@ -3468,9 +3672,16 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         idsToMoveAdmin.push(`dynamic-layer-${layer.id}-effis`);
         idsToMoveAdmin.push(`dynamic-layer-${layer.id}-gdacs-fill`);
         idsToMoveAdmin.push(`dynamic-layer-${layer.id}-gdacs-line`);
-      } else if (layer.type === 'gdacs_earthquakes') {
+      } else if (layer.type === 'gdacs_earthquakes' || layer.type === 'cems_rapid_mapping') {
         idsToMoveAdmin.push('selected-earthquake-shakemap-fill');
         idsToMoveAdmin.push('selected-earthquake-shakemap-line');
+        idsToMoveAdmin.push('selected-usgs-dyfi-10km-fill');
+        idsToMoveAdmin.push('selected-usgs-dyfi-1km-fill');
+        idsToMoveAdmin.push('selected-usgs-landslide-raster');
+        idsToMoveAdmin.push('selected-usgs-liquefaction-raster');
+        idsToMoveAdmin.push('selected-cems-vt-extent');
+        idsToMoveAdmin.push('selected-cems-vt-polygons');
+        idsToMoveAdmin.push('selected-cems-vt-lines');
         idsToMoveTop.push(`dynamic-layer-${layer.id}`); // circles on top
         if (map.getLayer(`dynamic-layer-${layer.id}-label`)) {
           idsToMoveTop.push(`dynamic-layer-${layer.id}-label`); // labels on top
@@ -3506,7 +3717,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       // Cleanup dynamically created raster layers that were removed from settings
       // We don't remove copernicus or deepstate sources to avoid reload flashes
     };
-  }, [settings.layers, mapLoaded, selectedAircraftId, selectedVesselMmsi, selectedWeatherTime, weatherValidTimes, selectedEarthquake, selectedVolcano, selectedEarthquakeShakemap, selectedVolcanoPolygon]);
+  }, [settings.layers, mapLoaded, selectedAircraftId, selectedVesselMmsi, selectedWeatherTime, weatherValidTimes, selectedEarthquake, selectedVolcano, selectedEarthquakeShakemap, selectedVolcanoPolygon, selectedCemsEarthquake, selectedCemsEarthquakeFeatures]);
 
   // Fetch weather data for visible cities
   useEffect(() => {
@@ -4716,6 +4927,73 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     }
   }, [settings.layers, mapLoaded]);
 
+  // Fetch detailed CEMS activation when selectedCemsEarthquake changes
+  useEffect(() => {
+    if (!selectedCemsEarthquake) {
+      setSelectedCemsEarthquakeFeatures(null);
+      return;
+    }
+
+    let isSubscribed = true;
+    (async () => {
+      try {
+        const res = await fetch(`https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations/?code=${selectedCemsEarthquake.code}`);
+        if (!res.ok) throw new Error('Failed to fetch detailed CEMS activation');
+        const data = await res.json();
+        
+        const allFeatures: any[] = [];
+        
+        if (data && data.results && data.results.length > 0 && data.results[0].aois) {
+          for (const aoi of data.results[0].aois) {
+            // Also add AOI extent polygon
+            if (aoi.extent) {
+              const aoiGeom = parseWKT(aoi.extent);
+              if (aoiGeom) {
+                allFeatures.push({
+                  type: 'Feature',
+                  geometry: aoiGeom.geometry,
+                  properties: { aoiName: aoi.aoiName, isExtent: true }
+                });
+              }
+            }
+
+            if (aoi.products) {
+              for (const product of aoi.products) {
+                if (product.layers) {
+                  for (const layer of product.layers) {
+                    if (layer.format === 'vt' && layer.json) {
+                      try {
+                        const layerRes = await fetch(layer.json);
+                        if (layerRes.ok) {
+                          const layerData = await layerRes.json();
+                          if (layerData && layerData.features) {
+                            allFeatures.push(...layerData.features);
+                          }
+                        }
+                      } catch (err) {
+                        console.error('Failed to fetch CEMS VT layer', err);
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        
+        if (isSubscribed) {
+          setSelectedCemsEarthquakeFeatures({
+            type: 'FeatureCollection',
+            features: allFeatures
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching CEMS details', err);
+      }
+    })();
+    return () => { isSubscribed = false; };
+  }, [selectedCemsEarthquake]);
+
   // Fetch shakemap when selectedEarthquake changes
   useEffect(() => {
     if (!selectedEarthquake) {
@@ -4737,6 +5015,383 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         if (isSubscribed) {
           setSelectedEarthquakeShakemap(null);
         }
+      }
+    })();
+
+    return () => { isSubscribed = false; };
+  }, [selectedEarthquake]);
+
+  // Fetch USGS overlays when selectedEarthquakeShakemap changes
+  useEffect(() => {
+    if (!selectedEarthquakeShakemap || !selectedEarthquakeShakemap.features || selectedEarthquakeShakemap.features.length === 0) {
+      setSelectedEarthquakeUsgsDyfi10km(null);
+      setSelectedEarthquakeUsgsDyfi1km(null);
+      setSelectedEarthquakeUsgsLandslide(null);
+      setSelectedEarthquakeUsgsLiquefaction(null);
+      return;
+    }
+
+    let isSubscribed = true;
+    (async () => {
+      try {
+        const sourceId = selectedEarthquakeShakemap.features[0].properties?.sourceid;
+        if (!sourceId) return;
+
+        const res = await fetch(`https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&eventid=${sourceId}`);
+        if (!res.ok) return; 
+        const data = await res.json();
+        
+        if (!isSubscribed) return;
+
+        const products = data.properties?.products;
+        if (!products) return;
+
+        const fixGeoJsonPolygons = (geoJson: any) => {
+          if (!geoJson || !geoJson.features) return geoJson;
+          const newFeatures = geoJson.features.map((feature: any) => {
+            if (feature.geometry && (feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon')) {
+              const coords = feature.geometry.coordinates;
+              const fixRing = (ring: number[][]) => {
+                if (ring.length > 0) {
+                  const first = ring[0];
+                  const last = ring[ring.length - 1];
+                  if (first[0] !== last[0] || first[1] !== last[1]) {
+                    ring.push([...first]);
+                  }
+                }
+              };
+              
+              if (feature.geometry.type === 'Polygon') {
+                coords.forEach(fixRing);
+              } else {
+                coords.forEach((polygon: any) => polygon.forEach(fixRing));
+              }
+            }
+            return feature;
+          });
+          return { ...geoJson, features: newFeatures };
+        };
+
+        // DYFI 10km
+        if (products.dyfi && products.dyfi[0]?.contents['dyfi_geo_10km.geojson']) {
+          const dyfiRes = await fetch(products.dyfi[0].contents['dyfi_geo_10km.geojson'].url);
+          if (dyfiRes.ok) {
+            const dyfiData = await dyfiRes.json();
+            if (isSubscribed) setSelectedEarthquakeUsgsDyfi10km(fixGeoJsonPolygons(dyfiData));
+          }
+        }
+
+        // DYFI 1km
+        if (products.dyfi && products.dyfi[0]?.contents['dyfi_geo_1km.geojson']) {
+          const dyfiRes = await fetch(products.dyfi[0].contents['dyfi_geo_1km.geojson'].url);
+          if (dyfiRes.ok) {
+            const dyfiData = await dyfiRes.json();
+            if (isSubscribed) setSelectedEarthquakeUsgsDyfi1km(fixGeoJsonPolygons(dyfiData));
+          }
+        }
+
+        // Ground Failure
+        if (products['ground-failure'] && products['ground-failure'][0]?.contents['info.json']) {
+          const gfRes = await fetch(products['ground-failure'][0].contents['info.json'].url);
+          if (gfRes.ok) {
+            const gfData = await gfRes.json();
+            
+            // Landslide
+            if (gfData.Landslides) {
+              const preferred = gfData.Landslides.find((l: any) => l.preferred) || gfData.Landslides[0];
+              if (preferred && preferred.overlay && preferred.extent) {
+                const overlayUrl = products['ground-failure'][0].contents[preferred.overlay]?.url;
+                if (overlayUrl && isSubscribed) {
+                  setSelectedEarthquakeUsgsLandslide({ url: overlayUrl, extent: preferred.extent });
+                }
+              }
+            }
+
+            // Liquefaction
+            if (gfData.Liquefaction) {
+              const preferred = gfData.Liquefaction.find((l: any) => l.preferred) || gfData.Liquefaction[0];
+              if (preferred && preferred.overlay && preferred.extent) {
+                const overlayUrl = products['ground-failure'][0].contents[preferred.overlay]?.url;
+                if (overlayUrl && isSubscribed) {
+                  setSelectedEarthquakeUsgsLiquefaction({ url: overlayUrl, extent: preferred.extent });
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching USGS data:', err);
+      }
+    })();
+
+    return () => { isSubscribed = false; };
+  }, [selectedEarthquakeShakemap]);
+
+  // Render USGS DYFI 10km
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    if (!map.getSource('selected-usgs-dyfi-10km-source')) {
+      map.addSource('selected-usgs-dyfi-10km-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+      });
+
+      const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
+      const beforeId = (eqLayer && map.getLayer(`dynamic-layer-${eqLayer.id}`)) ? `dynamic-layer-${eqLayer.id}` : 'custom-polygons';
+
+      map.addLayer({
+        id: 'selected-usgs-dyfi-10km-fill',
+        type: 'fill',
+        source: 'selected-usgs-dyfi-10km-source',
+        paint: {
+          'fill-color': [
+            'step',
+            ['to-number', ['coalesce', ['get', 'cdi'], 0]],
+            '#ffffff',
+            2, '#bfccff',
+            4, '#a0e6ff',
+            5, '#80ffff',
+            6, '#7aff93',
+            7, '#ffff00',
+            8, '#ffc800',
+            9, '#ff9100',
+            10, '#ff0000'
+          ],
+          'fill-opacity': 0.6
+        }
+      }, beforeId);
+    }
+
+    const source = map.getSource('selected-usgs-dyfi-10km-source') as maplibregl.GeoJSONSource;
+    if (source) {
+      source.setData(selectedEarthquakeUsgsDyfi10km || { type: 'FeatureCollection', features: [] });
+    }
+
+    const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
+    const visibility = eqLayer?.usgsDyfi10kmEnabled ? 'visible' : 'none';
+    if (map.getLayer('selected-usgs-dyfi-10km-fill')) map.setLayoutProperty('selected-usgs-dyfi-10km-fill', 'visibility', visibility);
+  }, [selectedEarthquakeUsgsDyfi10km, mapLoaded, settings.layers]);
+
+  // Render USGS DYFI 1km
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    if (!map.getSource('selected-usgs-dyfi-1km-source')) {
+      map.addSource('selected-usgs-dyfi-1km-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+      });
+
+      const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
+      const beforeId = (eqLayer && map.getLayer(`dynamic-layer-${eqLayer.id}`)) ? `dynamic-layer-${eqLayer.id}` : 'custom-polygons';
+
+      map.addLayer({
+        id: 'selected-usgs-dyfi-1km-fill',
+        type: 'fill',
+        source: 'selected-usgs-dyfi-1km-source',
+        paint: {
+          'fill-color': [
+            'step',
+            ['to-number', ['coalesce', ['get', 'cdi'], 0]],
+            '#ffffff',
+            2, '#bfccff',
+            4, '#a0e6ff',
+            5, '#80ffff',
+            6, '#7aff93',
+            7, '#ffff00',
+            8, '#ffc800',
+            9, '#ff9100',
+            10, '#ff0000'
+          ],
+          'fill-opacity': 0.6
+        }
+      }, beforeId);
+    }
+
+    const source = map.getSource('selected-usgs-dyfi-1km-source') as maplibregl.GeoJSONSource;
+    if (source) {
+      source.setData(selectedEarthquakeUsgsDyfi1km || { type: 'FeatureCollection', features: [] });
+    }
+
+    const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
+    const visibility = eqLayer?.usgsDyfi1kmEnabled ? 'visible' : 'none';
+    if (map.getLayer('selected-usgs-dyfi-1km-fill')) map.setLayoutProperty('selected-usgs-dyfi-1km-fill', 'visibility', visibility);
+  }, [selectedEarthquakeUsgsDyfi1km, mapLoaded, settings.layers]);
+
+  // Render USGS Landslide Overlay
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    if (!map.getSource('selected-usgs-landslide-source') && selectedEarthquakeUsgsLandslide) {
+      map.addSource('selected-usgs-landslide-source', {
+        type: 'image',
+        url: selectedEarthquakeUsgsLandslide.url,
+        coordinates: [
+          [selectedEarthquakeUsgsLandslide.extent[0], selectedEarthquakeUsgsLandslide.extent[3]], // Top Left
+          [selectedEarthquakeUsgsLandslide.extent[1], selectedEarthquakeUsgsLandslide.extent[3]], // Top Right
+          [selectedEarthquakeUsgsLandslide.extent[1], selectedEarthquakeUsgsLandslide.extent[2]], // Bottom Right
+          [selectedEarthquakeUsgsLandslide.extent[0], selectedEarthquakeUsgsLandslide.extent[2]]  // Bottom Left
+        ]
+      });
+
+      const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
+      const beforeId = (eqLayer && map.getLayer(`dynamic-layer-${eqLayer.id}`)) ? `dynamic-layer-${eqLayer.id}` : 'custom-polygons';
+
+      map.addLayer({
+        id: 'selected-usgs-landslide-raster',
+        type: 'raster',
+        source: 'selected-usgs-landslide-source',
+        paint: {
+          'raster-opacity': 0.8
+        }
+      }, beforeId);
+    } else if (map.getSource('selected-usgs-landslide-source') && selectedEarthquakeUsgsLandslide) {
+      (map.getSource('selected-usgs-landslide-source') as any).updateImage({
+        url: selectedEarthquakeUsgsLandslide.url,
+        coordinates: [
+          [selectedEarthquakeUsgsLandslide.extent[0], selectedEarthquakeUsgsLandslide.extent[3]],
+          [selectedEarthquakeUsgsLandslide.extent[1], selectedEarthquakeUsgsLandslide.extent[3]],
+          [selectedEarthquakeUsgsLandslide.extent[1], selectedEarthquakeUsgsLandslide.extent[2]],
+          [selectedEarthquakeUsgsLandslide.extent[0], selectedEarthquakeUsgsLandslide.extent[2]]
+        ]
+      });
+    }
+
+    const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
+    const visibility = (eqLayer?.usgsLandslideEnabled && selectedEarthquakeUsgsLandslide) ? 'visible' : 'none';
+    if (map.getLayer('selected-usgs-landslide-raster')) {
+      map.setLayoutProperty('selected-usgs-landslide-raster', 'visibility', visibility);
+    }
+  }, [selectedEarthquakeUsgsLandslide, mapLoaded, settings.layers]);
+
+  // Render USGS Liquefaction Overlay
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    if (!map.getSource('selected-usgs-liquefaction-source') && selectedEarthquakeUsgsLiquefaction) {
+      map.addSource('selected-usgs-liquefaction-source', {
+        type: 'image',
+        url: selectedEarthquakeUsgsLiquefaction.url,
+        coordinates: [
+          [selectedEarthquakeUsgsLiquefaction.extent[0], selectedEarthquakeUsgsLiquefaction.extent[3]], // Top Left
+          [selectedEarthquakeUsgsLiquefaction.extent[1], selectedEarthquakeUsgsLiquefaction.extent[3]], // Top Right
+          [selectedEarthquakeUsgsLiquefaction.extent[1], selectedEarthquakeUsgsLiquefaction.extent[2]], // Bottom Right
+          [selectedEarthquakeUsgsLiquefaction.extent[0], selectedEarthquakeUsgsLiquefaction.extent[2]]  // Bottom Left
+        ]
+      });
+
+      const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
+      const beforeId = (eqLayer && map.getLayer(`dynamic-layer-${eqLayer.id}`)) ? `dynamic-layer-${eqLayer.id}` : 'custom-polygons';
+
+      map.addLayer({
+        id: 'selected-usgs-liquefaction-raster',
+        type: 'raster',
+        source: 'selected-usgs-liquefaction-source',
+        paint: {
+          'raster-opacity': 0.8
+        }
+      }, beforeId);
+    } else if (map.getSource('selected-usgs-liquefaction-source') && selectedEarthquakeUsgsLiquefaction) {
+      (map.getSource('selected-usgs-liquefaction-source') as any).updateImage({
+        url: selectedEarthquakeUsgsLiquefaction.url,
+        coordinates: [
+          [selectedEarthquakeUsgsLiquefaction.extent[0], selectedEarthquakeUsgsLiquefaction.extent[3]],
+          [selectedEarthquakeUsgsLiquefaction.extent[1], selectedEarthquakeUsgsLiquefaction.extent[3]],
+          [selectedEarthquakeUsgsLiquefaction.extent[1], selectedEarthquakeUsgsLiquefaction.extent[2]],
+          [selectedEarthquakeUsgsLiquefaction.extent[0], selectedEarthquakeUsgsLiquefaction.extent[2]]
+        ]
+      });
+    }
+
+    const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
+    const visibility = (eqLayer?.usgsLiquefactionEnabled && selectedEarthquakeUsgsLiquefaction) ? 'visible' : 'none';
+    if (map.getLayer('selected-usgs-liquefaction-raster')) {
+      map.setLayoutProperty('selected-usgs-liquefaction-raster', 'visibility', visibility);
+    }
+  }, [selectedEarthquakeUsgsLiquefaction, mapLoaded, settings.layers]);
+  // Fetch corresponding CEMS activation when a GDACS earthquake is selected
+  useEffect(() => {
+    if (!selectedEarthquake) {
+      return;
+    }
+
+    // Always clear old CEMS selection when selecting a new earthquake
+    if (selectedCemsEarthquakeRef.current) {
+      setSelectedCemsEarthquakeState(null);
+    }
+
+    let isSubscribed = true;
+    (async () => {
+      try {
+        console.log(`Fetching CEMS for gdacsId: EQ${selectedEarthquake.id}`);
+        const res = await fetch(`https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations-info/?gdacsId=EQ${selectedEarthquake.id}`);
+        let act = null;
+
+        if (res.ok) {
+           const data = await res.json();
+           if (data && data.results && data.results.length > 0) {
+             act = data.results[0];
+           }
+        }
+        
+        // Fallback to spatial matching if gdacsId fails
+        if (!act) {
+           console.log(`gdacsId match failed. Attempting spatial matching for earthquake coordinates:`, selectedEarthquake.coordinates);
+           const allRes = await fetch(`https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations-info/`);
+           if (allRes.ok) {
+             const allData = await allRes.json();
+             if (allData && allData.results) {
+               // Find all earthquake activations
+               const earthquakes = allData.results.filter((a: any) => a.category === 'Earthquake' && a.centroid);
+               
+               let closestAct = null;
+               let minDistance = Infinity;
+
+               for (const a of earthquakes) {
+                 // Ensure the CEMS event time is within 7 days of the GDACS earthquake time
+                 const eqDate = new Date(selectedEarthquake.properties.fromdate);
+                 const cemsDate = new Date(a.eventTime || a.activationTime);
+                 const timeDiffDays = Math.abs(eqDate.getTime() - cemsDate.getTime()) / (1000 * 3600 * 24);
+                 
+                 if (isNaN(timeDiffDays) || timeDiffDays > 7) {
+                   continue;
+                 }
+
+                 const geom = parseWKT(a.centroid);
+                 if (geom && geom.geometry && geom.geometry.type === 'Point') {
+                   const cemsCoords = geom.geometry.coordinates as [number, number];
+                   const dist = haversineDistance(selectedEarthquake.coordinates, cemsCoords);
+                   if (dist < minDistance) {
+                     minDistance = dist;
+                     closestAct = a;
+                   }
+                 }
+               }
+
+               // If the closest CEMS earthquake is within 100km, match it
+               if (closestAct && minDistance <= 100) {
+                 console.log(`Spatial match found: ${closestAct.code} at distance ${minDistance.toFixed(2)}km`);
+                 act = closestAct;
+               }
+             }
+           }
+        }
+
+        if (act && isSubscribed) {
+           setSelectedCemsEarthquakeState({
+             id: act.code,
+             code: act.code,
+             properties: act,
+             coordinates: selectedEarthquake.coordinates
+           });
+        }
+      } catch (err) {
+        console.error('Error fetching correlated CEMS activation:', err);
       }
     })();
 
@@ -4776,18 +5431,29 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     if (!map || !mapLoaded) return;
     
     settings.layers.forEach(layer => {
-      if (layer.type === 'gdacs_earthquakes') {
-        const layerId = `dynamic-layer-${layer.id}-label`;
-        if (map.getLayer(layerId)) {
-          if (selectedEarthquake) {
-             map.setFilter(layerId, ['!=', ['to-string', ['get', 'eventid']], selectedEarthquake.id]);
+      if (layer.type === 'gdacs_earthquakes' || layer.type === 'cems_rapid_mapping') {
+        const baseLayerId = `dynamic-layer-${layer.id}`;
+        const labelLayerId = `${baseLayerId}-label`;
+        
+        if (map.getLayer(baseLayerId)) {
+          if (selectedEarthquake && layer.type === 'gdacs_earthquakes') {
+             map.setFilter(baseLayerId, ['!=', ['to-string', ['get', 'eventid']], selectedEarthquake.id]);
+             if (map.getLayer(labelLayerId)) {
+               map.setFilter(labelLayerId, ['!=', ['to-string', ['get', 'eventid']], selectedEarthquake.id]);
+             }
+          } else if (selectedCemsEarthquake && layer.type === 'cems_rapid_mapping') {
+             map.setFilter(baseLayerId, ['!=', ['to-string', ['get', 'code']], selectedCemsEarthquake.code]);
+             if (map.getLayer(labelLayerId)) {
+               map.setFilter(labelLayerId, ['!=', ['to-string', ['get', 'code']], selectedCemsEarthquake.code]);
+             }
           } else {
-             map.setFilter(layerId, null);
+             map.setFilter(baseLayerId, null);
+             if (map.getLayer(labelLayerId)) map.setFilter(labelLayerId, null);
           }
         }
       }
     });
-  }, [selectedEarthquake, mapLoaded, settings.layers]);
+  }, [selectedEarthquake, selectedCemsEarthquake, mapLoaded, settings.layers]);
 
   // Update cyclone point filter to hide selected cyclone point
   useEffect(() => {
@@ -4835,7 +5501,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     }
 
     const el = document.createElement('div');
-    el.className = 'flex flex-col items-center justify-center pointer-events-none';
+    el.className = 'flex flex-col items-center justify-center pointer-events-none shakemap-marker-dot';
     el.style.backgroundColor = bgColor;
     el.style.color = '#ffffff';
     el.style.padding = '4px 8px';
@@ -4862,6 +5528,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       }
     };
   }, [selectedEarthquake, mapLoaded]);
+
+
 
   // Render selected earthquake shakemap
   useEffect(() => {
@@ -4903,7 +5571,187 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     if (source) {
       source.setData(selectedEarthquakeShakemap || { type: 'FeatureCollection', features: [] });
     }
+
+    const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
+    if (eqLayer) {
+      const useColor = eqLayer.colorCodeShakemap !== false;
+      const colorExpr = useColor 
+        ? [
+            'step',
+            ['to-number', ['get', 'intensity'], 0],
+            '#ffffff',
+            2, '#bfccff',
+            4, '#a0e6ff',
+            5, '#80ffff',
+            6, '#7aff93',
+            7, '#ffff00',
+            8, '#ffc800',
+            9, '#ff9100',
+            10, '#ff0000'
+          ]
+        : null; // null means we'll handle fallback separately
+        
+      const shakemapVisibility = eqLayer.shakemapEnabled !== false ? 'visible' : 'none';
+      if (map.getLayer('selected-earthquake-shakemap-fill')) {
+        map.setLayoutProperty('selected-earthquake-shakemap-fill', 'visibility', shakemapVisibility);
+        map.setPaintProperty('selected-earthquake-shakemap-fill', 'fill-color', colorExpr || ['coalesce', ['get', 'fill'], '#ff9900']);
+      }
+      
+      if (map.getLayer('selected-earthquake-shakemap-line')) {
+        map.setLayoutProperty('selected-earthquake-shakemap-line', 'visibility', shakemapVisibility);
+        map.setPaintProperty('selected-earthquake-shakemap-line', 'line-color', colorExpr || ['coalesce', ['get', 'stroke'], '#ff0000']);
+      }
+    }
   }, [selectedEarthquakeShakemap, mapLoaded, settings.layers]);
+
+  // Render selected CEMS earthquake VT layers
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    if (!map.getSource('selected-cems-vt-source')) {
+      map.addSource('selected-cems-vt-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+      });
+
+      const cemsLayer = settings.layers.find(l => l.type === 'cems_rapid_mapping');
+      const beforeId = (cemsLayer && map.getLayer(`dynamic-layer-${cemsLayer.id}`)) ? `dynamic-layer-${cemsLayer.id}` : 'custom-polygons';
+
+      map.addLayer({
+        id: 'selected-cems-vt-extent',
+        type: 'line',
+        source: 'selected-cems-vt-source',
+        filter: ['==', 'isExtent', true],
+        paint: {
+          'line-color': '#ffff00',
+          'line-width': 2,
+          'line-dasharray': [2, 2]
+        }
+      }, beforeId);
+
+      map.addLayer({
+        id: 'selected-cems-vt-polygons',
+        type: 'fill',
+        source: 'selected-cems-vt-source',
+        filter: ['all', 
+          ['!=', 'isExtent', true], 
+          ['==', '$type', 'Polygon'],
+          ['any',
+            ['==', 'damage_gra', 'Destroyed'],
+            ['==', 'damage_gra', 'Damaged'],
+            ['==', 'damage_gra', 'Possibly damaged']
+          ]
+        ],
+        paint: {
+          'fill-color': [
+            'match',
+            ['get', 'damage_gra'],
+            'Destroyed', '#ff0000',
+            'Damaged', '#ff9900',
+            'Possibly damaged', '#ffff00',
+            'No visible damage', '#888888',
+            '#888888'
+          ],
+          'fill-opacity': [
+            'match',
+            ['get', 'damage_gra'],
+            'Destroyed', 0.6,
+            'Damaged', 0.6,
+            'Possibly damaged', 0.6,
+            'No visible damage', 0.6,
+            0.25
+          ]
+        }
+      }, beforeId);
+
+      map.addLayer({
+        id: 'selected-cems-vt-lines',
+        type: 'line',
+        source: 'selected-cems-vt-source',
+        filter: ['all', 
+          ['!=', 'isExtent', true], 
+          ['==', '$type', 'LineString'],
+          ['any',
+            ['==', 'damage_gra', 'Destroyed'],
+            ['==', 'damage_gra', 'Damaged'],
+            ['==', 'damage_gra', 'Possibly damaged']
+          ]
+        ],
+        paint: {
+          'line-color': [
+            'match',
+            ['get', 'damage_gra'],
+            'Destroyed', '#ff0000',
+            'Damaged', '#ff9900',
+            'Possibly damaged', '#ffff00',
+            'No visible damage', '#888888',
+            '#888888'
+          ],
+          'line-width': 3,
+          'line-opacity': [
+            'match',
+            ['get', 'damage_gra'],
+            'Destroyed', 1,
+            'Damaged', 1,
+            'Possibly damaged', 1,
+            'No visible damage', 1,
+            0.25
+          ]
+        }
+      }, beforeId);
+
+      map.addLayer({
+        id: 'selected-cems-vt-points',
+        type: 'circle',
+        source: 'selected-cems-vt-source',
+        filter: ['all', 
+          ['!=', 'isExtent', true], 
+          ['==', '$type', 'Point'],
+          ['any',
+            ['==', 'damage_gra', 'Destroyed'],
+            ['==', 'damage_gra', 'Damaged'],
+            ['==', 'damage_gra', 'Possibly damaged']
+          ]
+        ],
+        paint: {
+          'circle-radius': 4,
+          'circle-color': [
+            'match',
+            ['get', 'damage_gra'],
+            'Destroyed', '#ff0000',
+            'Damaged', '#ff9900',
+            'Possibly damaged', '#ffff00',
+            'No visible damage', '#888888',
+            '#888888'
+          ],
+          'circle-opacity': [
+            'match',
+            ['get', 'damage_gra'],
+            'Destroyed', 1,
+            'Damaged', 1,
+            'Possibly damaged', 1,
+            'No visible damage', 1,
+            0.25
+          ],
+          'circle-stroke-width': 0
+        }
+      }, beforeId);
+    }
+
+    const source = map.getSource('selected-cems-vt-source') as maplibregl.GeoJSONSource;
+    if (source) {
+      source.setData(selectedCemsEarthquakeFeatures || { type: 'FeatureCollection', features: [] });
+    }
+
+    const isCemsEnabled = !!settings.layers.find(l => l.type === 'gdacs_earthquakes')?.copernicusEnabled;
+    const cemsVisibility = isCemsEnabled ? 'visible' : 'none';
+    if (map.getLayer('selected-cems-vt-extent')) map.setLayoutProperty('selected-cems-vt-extent', 'visibility', cemsVisibility);
+    if (map.getLayer('selected-cems-vt-polygons')) map.setLayoutProperty('selected-cems-vt-polygons', 'visibility', cemsVisibility);
+    if (map.getLayer('selected-cems-vt-lines')) map.setLayoutProperty('selected-cems-vt-lines', 'visibility', cemsVisibility);
+    if (map.getLayer('selected-cems-vt-points')) map.setLayoutProperty('selected-cems-vt-points', 'visibility', cemsVisibility);
+
+  }, [selectedCemsEarthquakeFeatures, mapLoaded, settings.layers]);
 
   // Render selected volcano DOM label
   useEffect(() => {
@@ -5361,6 +6209,40 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         }
       }
 
+      // Handle CEMS earthquake click
+      let clickedCemsEarthquake: { id: string, code: string, properties: any, coordinates: [number, number] } | null = null;
+      try {
+        const cemsLayers = settings.layers.filter(l => l.type === 'cems_rapid_mapping').map(l => `dynamic-layer-${l.id}`);
+        if (cemsLayers.length > 0) {
+          const cemsFeatures = map.queryRenderedFeatures(e.point, { layers: cemsLayers });
+          if (cemsFeatures.length > 0) {
+            const props = cemsFeatures[0].properties;
+            const geom = cemsFeatures[0].geometry as GeoJSON.Point;
+            if (props && props.code && geom && geom.type === 'Point') {
+              clickedCemsEarthquake = { 
+                id: props.code, 
+                code: props.code, 
+                properties: props,
+                coordinates: geom.coordinates as [number, number]
+              };
+            }
+          }
+        }
+      } catch (err) {}
+
+      if (clickedCemsEarthquake) {
+        if (selectedCemsEarthquakeRef.current?.id === clickedCemsEarthquake.id) {
+          setSelectedCemsEarthquakeState(null);
+        } else {
+          setSelectedCemsEarthquakeState(clickedCemsEarthquake);
+        }
+        return; // Prevent drawing
+      } else {
+        if (selectedCemsEarthquakeRef.current) {
+          setSelectedCemsEarthquakeState(null);
+        }
+      }
+
       // Handle vessel click
       let clickedVesselMmsi: string | null = null;
       try {
@@ -5449,8 +6331,14 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         features = map.queryRenderedFeatures(e.point, { layers: ['custom-polygons', 'custom-lines', 'custom-lines-dashed', 'custom-lines-dotted', 'custom-arrow-heads'] });
       } catch (err) {}
       let clickedAnnotationId: string | null = null;
-      if (features.length > 0) {
-        clickedAnnotationId = features[0].properties?.id;
+      
+      // Smart Event Delegation: ignore polygon fills ('custom-polygons') 
+      // so clicks pass through to allow adding annotations inside countries.
+      // Selection will only happen if clicking the border ('custom-lines' etc).
+      const targetFeature = features.find(f => f.layer.id !== 'custom-polygons');
+      
+      if (targetFeature) {
+        clickedAnnotationId = targetFeature.properties?.id;
         if (clickedAnnotationId && activeTool !== 'none' && activeTool !== 'highlight') {
           setSelectedAnnotationId(clickedAnnotationId);
           return; // Prevent drawing if we selected an element
@@ -6011,8 +6899,11 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         // layer might not be ready
       }
       
-      if (features.length > 0) {
-        const clickedId = features[0].properties?.id;
+      // Smart Event Delegation: ignore polygon fills so drawing tools can start inside them.
+      const targetFeature = features.find(f => f.layer.id !== 'custom-polygons');
+      
+      if (targetFeature) {
+        const clickedId = targetFeature.properties?.id;
         if (clickedId) {
           setSelectedAnnotationId(clickedId);
           return; // Prevent drawing if we selected an element
@@ -6883,7 +7774,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 };
 
 export const MapContainer: React.FC<MapContainerProps> = (props) => {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const [map1, setMap1] = useState<maplibregl.Map | null>(null);
   const [map2, setMap2] = useState<maplibregl.Map | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -6897,8 +7788,8 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
   // --- VIDEO EXPORT STATE ---
   const [videoExportState, setVideoExportState] = useState<{
     active: boolean;
-    format: '16x9' | '9x16' | 'both';
-    currentFormat: '16x9' | '9x16';
+    formats: ('landscape' | 'portrait' | 'square')[];
+    currentFormat: 'landscape' | 'portrait' | 'square';
     progress: number;
     total: number;
     message: string;
@@ -6908,14 +7799,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
     height: number;
   } | null>(null);
 
-  useEffect(() => {
-    const handleStartVideoExport = (e: any) => {
-      const { format, fileType, duration, dynamicLabels, bitrate, showName } = e.detail;
-      startExportSequence(format, fileType || 'mp4', duration, dynamicLabels, bitrate, showName);
-    };
-    window.addEventListener('startVideoExport', handleStartVideoExport);
-    return () => window.removeEventListener('startVideoExport', handleStartVideoExport);
-  }, [map1, props.annotations, props.settings]);
+
 
   const generateAEJSX = (viewsToVisit: any[], duration: number) => {
     let script = `(function() {
@@ -7017,10 +7901,10 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
     return script;
   };
 
-  const startExportSequence = async (format: '16x9' | '9x16' | 'both', fileType: 'mp4' | 'jsx' | 'both', duration: number, dynamicLabels: boolean = true, bitrate: number = 15, showName?: string | null) => {
-    if (!map1) return;
+  const startExportSequence = async (formats: ('landscape' | 'portrait' | 'square')[], fileTypes: ('mp4' | 'jsx')[], duration: number, dynamicLabels: boolean = true, bitrate: number = 15, showName?: string | null) => {
+    if (!map1 || formats.length === 0 || fileTypes.length === 0) return;
     
-    if ((fileType === 'mp4' || fileType === 'both') && typeof window.VideoEncoder === 'undefined') {
+    if (fileTypes.includes('mp4') && typeof window.VideoEncoder === 'undefined') {
       await customAlert(t('Video export requires a modern browser and a secure context (HTTPS). WebCodecs API is not available on this server.'));
       return;
     }
@@ -7028,8 +7912,11 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
     // Disable user interactions
     document.body.classList.add('is-recording');
 
+    const shakemapDots = document.querySelectorAll('.shakemap-marker-dot');
+    shakemapDots.forEach((el: any) => el.style.display = 'none');
+
     // Reset all animation triggers
-    window.dispatchEvent(new CustomEvent('resetAnimationTriggers'));
+    // We will reset animation triggers inside the format loop
 
     // Hide labels and highlights initially if dynamicLabels is enabled
     if (dynamicLabels) {
@@ -7040,7 +7927,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
       });
     }
     
-    const formatsToRender: ('16x9' | '9x16')[] = format === 'both' ? ['16x9', '9x16'] : [format];
+    const formatsToRender = formats;
     
     // Calculate total views: defaultView + label views
     const labelAnnotations = props.annotations.filter(a => (a.type === 'label' || a.type === 'highlight') && a.text && a.view);
@@ -7051,7 +7938,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
     const totalViews = viewsToVisit.length;
 
     // Generate JSX if requested
-    if (fileType === 'jsx' || fileType === 'both') {
+    if (fileTypes.includes('jsx')) {
       const jsxContent = generateAEJSX(viewsToVisit, duration);
       const blob = new Blob([jsxContent], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
@@ -7064,11 +7951,14 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
-      if (fileType === 'jsx') {
+      if (!fileTypes.includes('mp4')) {
         // Exit early since we don't need the MP4
         setVideoExportState(null);
         document.body.classList.remove('is-recording');
         window.dispatchEvent(new CustomEvent('resetAnimationTriggers'));
+        
+        // Restore earthquake filters
+        window.dispatchEvent(new CustomEvent('restoreEarthquakeDotsForExport'));
         
         // Restore dynamic labels
         if (dynamicLabels) {
@@ -7096,9 +7986,15 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
         await new Promise(r => setTimeout(r, 1000));
       }
       for (let fIdx = 0; fIdx < formatsToRender.length; fIdx++) {
+        // Reset all animation triggers at the start of each format to prevent double-firing
+        window.dispatchEvent(new CustomEvent('resetAnimationTriggers'));
+
       const currentFmt = formatsToRender[fIdx];
-      const targetWidth = currentFmt === '16x9' ? 1920 : 1080;
-      const targetHeight = currentFmt === '16x9' ? 1080 : 1920;
+      const targetWidth = currentFmt === 'landscape' ? 1920 : currentFmt === 'portrait' ? 1080 : 1920;
+      const targetHeight = currentFmt === 'landscape' ? 1080 : currentFmt === 'portrait' ? 1920 : 1920;
+      
+      // Hide earthquake dots if shakemap is visible
+      window.dispatchEvent(new CustomEvent('hideEarthquakeDotsForExport'));
       
       // Calculate scale so it fits on screen
       const screenW = window.innerWidth;
@@ -7107,11 +8003,11 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
       
       setVideoExportState({
         active: true,
-        format,
+        formats,
         currentFormat: currentFmt,
         progress: 0,
         total: totalViews,
-        message: formatsToRender.length > 1 ? `${t("Rendering")} ${currentFmt.toUpperCase()} (${t("Video")} ${fIdx + 1} ${t("of")} 2)...` : t("Rendering Video..."),
+        message: formatsToRender.length > 1 ? `${t("Rendering")} ${currentFmt.toUpperCase()} (${t("Video")} ${fIdx + 1} ${t("of")} ${formatsToRender.length})...` : t("Rendering Video..."),
         duration,
         scaleTransform: `scale(${scale})`,
         width: targetWidth,
@@ -7215,7 +8111,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
       });
       
       videoEncoder.configure({
-        codec: 'avc1.640028',
+        codec: 'avc1.640034',
         width: targetWidth,
         height: targetHeight,
         bitrate: bitrate * 1_000_000,
@@ -7618,7 +8514,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
         setTimeout(resolve, 1000);
       });
 
-      setVideoExportState(prev => prev ? { ...prev, message: formatsToRender.length > 1 ? `${t("Rendering")} ${currentFmt.toUpperCase()} (${t("Video")} ${fIdx + 1} ${t("of")} 2)...` : t("Rendering Video...") } : null);
+      setVideoExportState(prev => prev ? { ...prev, message: formatsToRender.length > 1 ? `${t("Rendering")} ${currentFmt.toUpperCase()} (${t("Video")} ${fIdx + 1} ${t("of")} ${formatsToRender.length})...` : t("Rendering Video...") } : null);
 
       requestAnimationFrame(captureFrame);
 
@@ -7629,14 +8525,10 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
         setVideoExportState(prev => prev ? { ...prev, progress: i + 1, total: viewsToVisit.length } : null);
         
         if (dynamicLabels) {
-          const prevHideId = i > 0 ? viewsToVisit[i - 1].hideAnimationTriggerId : undefined;
           const currId = viewsToVisit[i].animationTriggerId || viewsToVisit[i].annotationId;
           
-          if (prevHideId && prevHideId !== 'overview') {
-            window.dispatchEvent(new CustomEvent('updateBothTriggers', { detail: { triggerId: prevHideId } }));
-          }
           if (currId && currId !== 'overview') {
-            window.dispatchEvent(new CustomEvent('updateBothTriggers', { detail: { triggerId: currId } }));
+            window.dispatchEvent(new CustomEvent('activateExportTrigger', { detail: { triggerId: currId } }));
           }
         }
 
@@ -7698,7 +8590,8 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
       const a = document.createElement('a');
       a.href = url;
       const safeShowName = (showName || 'obermap_tour').replace(/\s+/g, '_');
-      a.download = `${safeShowName}_${currentFmt}.mp4`;
+      const fmtSuffix = language === 'de' ? (currentFmt === 'landscape' ? 'quer' : currentFmt === 'portrait' ? 'hochkant' : 'quadratisch') : currentFmt;
+      a.download = `${safeShowName}_${fmtSuffix}.mp4`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -7710,6 +8603,12 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
     } finally {
       // RESTORE
       document.body.classList.remove('is-recording');
+      const shakemapDots = document.querySelectorAll('.shakemap-marker-dot');
+      shakemapDots.forEach((el: any) => el.style.display = '');
+
+      // Restore earthquake filters
+      window.dispatchEvent(new CustomEvent('restoreEarthquakeDotsForExport'));
+
       setVideoExportState(null);
       if (dynamicLabels) {
         props.annotations.forEach(ann => {
@@ -7722,7 +8621,482 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
       setTimeout(() => map1?.resize(), 500);
     }
   };
+
+  const startImageExportSequence = async (formats: ('landscape' | 'portrait' | 'square')[], filenamePrefix: string = 'obermap') => {
+    if (!map1 || formats.length === 0) return;
+    
+    // Disable user interactions
+    document.body.classList.add('is-recording');
+    
+    const shakemapDots = document.querySelectorAll('.shakemap-marker-dot');
+    shakemapDots.forEach((el: any) => el.style.display = 'none');
+
+    const originalZoom = map1.getZoom();
+    const originalCenter = map1.getCenter();
+    const originalContainerHeight = containerRef.current?.clientHeight || window.innerHeight;
+
+    try {
+      for (let fIdx = 0; fIdx < formats.length; fIdx++) {
+        const currentFmt = formats[fIdx];
+        
+        // Output image should have a height of 3840 physical pixels
+        const outHeight = 3840;
+        const aspect = currentFmt === 'landscape' ? 16/9 : currentFmt === 'portrait' ? 9/16 : 1;
+        const outWidth = Math.round(outHeight * aspect);
+        
+        // Hide earthquake dots if shakemap is visible
+        window.dispatchEvent(new CustomEvent('hideEarthquakeDotsForExport'));
+        
+        const dpr = window.devicePixelRatio || 1;
+        const targetWidth = outWidth / dpr;
+        const targetHeight = outHeight / dpr;
+        
+        const scaleFactor = targetHeight / originalContainerHeight;
+        const newZoom = originalZoom + Math.log2(scaleFactor);
+        
+        const screenW = window.innerWidth;
+        const screenH = window.innerHeight;
+        const scale = Math.min(screenW / targetWidth, screenH / targetHeight) * 0.8;
+        
+        setVideoExportState({
+          active: true,
+          formats,
+          currentFormat: currentFmt,
+          progress: 1,
+          total: 1,
+          message: formats.length > 1 ? `${t("Exporting")} ${currentFmt.toUpperCase()}...` : t("Exporting Image..."),
+          duration: 0,
+          scaleTransform: `scale(${scale})`,
+          width: targetWidth,
+          height: targetHeight
+        });
+
+        // Wait for React to apply CSS to map container
+        await new Promise(r => setTimeout(r, 500));
+        map1.resize();
+        map1.jumpTo({ center: originalCenter, zoom: newZoom });
+        
+        // Wait for map tiles to load at the new resolution
+        await new Promise(r => setTimeout(r, 2000));
+        
+        // PRELOAD SVGS FOR COMPOSITOR
+        const preloadedIcons = new Map<string, HTMLImageElement>();
+        for (const ann of props.annotations) {
+          if (ann.type === 'icon' && ann.iconId) {
+            const iconObj = props.settings.icons?.flatMap(c => c.icons).find(i => i.id === ann.iconId);
+            if (iconObj) {
+              const colorHex = ann.color || '#ffffff';
+              const contrast = getContrastYIQ(colorHex);
+              
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(iconObj.svg, 'image/svg+xml');
+              const svgEl = doc.querySelector('svg');
+              if (svgEl) {
+                svgEl.setAttribute('width', '48');
+                svgEl.setAttribute('height', '48');
+                if (svgEl.getAttribute('fill') === 'currentColor') svgEl.setAttribute('fill', contrast);
+                if (svgEl.getAttribute('stroke') === 'currentColor') svgEl.setAttribute('stroke', contrast);
+                
+                const elements = svgEl.querySelectorAll('*');
+                for (let j = 0; j < elements.length; j++) {
+                  const p = elements[j];
+                  if (p.getAttribute('fill') === 'currentColor') p.setAttribute('fill', contrast);
+                  if (p.getAttribute('stroke') === 'currentColor') p.setAttribute('stroke', contrast);
+                  const htmlEl = p as HTMLElement;
+                  if (htmlEl.style?.fill === 'currentColor') htmlEl.style.fill = contrast;
+                  if (htmlEl.style?.stroke === 'currentColor') htmlEl.style.stroke = contrast;
+                }
+                const finalSvgStr = new XMLSerializer().serializeToString(doc);
+                
+                const img = new Image();
+                await new Promise((resolve) => {
+                  img.onload = resolve;
+                  img.onerror = resolve;
+                  img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(finalSvgStr)));
+                });
+                preloadedIcons.set(ann.id, img);
+              }
+            }
+          }
+        }
+
+        const preloadedLabels = new Map<string, HTMLImageElement>();
+        for (const ann of props.annotations) {
+          if (ann.type === 'label' || ann.type === 'highlight') {
+            const el = document.querySelector(`.label-marker-${ann.id}`);
+            if (el && el.classList.contains('label-marker')) {
+              try {
+                const img = await globalLabelManager.getRasterizedImage(ann.id);
+                if (img) preloadedLabels.set(ann.id, img);
+              } catch (e) {
+                console.error('Failed to rasterize label for image export', e);
+              }
+            }
+          }
+        }
+
+        const preloadedWeatherIcons = new Map<string, HTMLImageElement>();
+        const weatherMarkers = document.querySelectorAll('.custom-city-weather-marker');
+        for (let i = 0; i < weatherMarkers.length; i++) {
+          const el = weatherMarkers[i];
+          const svgEl = el.querySelector('svg');
+          const nameSpan = el.querySelector('span');
+          if (svgEl && nameSpan) {
+            const doc = new DOMParser().parseFromString(svgEl.outerHTML, 'image/svg+xml');
+            const svgDocEl = doc.querySelector('svg');
+            if (svgDocEl) {
+              const finalSvgStr = new XMLSerializer().serializeToString(doc);
+              const img = new Image();
+              await new Promise((resolve) => {
+                img.onload = resolve;
+                img.onerror = resolve;
+                img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(finalSvgStr)));
+              });
+              preloadedWeatherIcons.set(nameSpan.innerText, img);
+            }
+          }
+        }
+
+        // Capture map
+        const mapCanvas = map1.getCanvas();
+        const compositorCanvas = document.createElement('canvas');
+        compositorCanvas.width = outWidth;
+        compositorCanvas.height = outHeight;
+        const ctx = compositorCanvas.getContext('2d', { alpha: false });
+        if (!ctx) throw new Error("Canvas 2D context not supported");
+
+        ctx.fillStyle = '#18181b';
+        ctx.fillRect(0, 0, outWidth, outHeight);
+        ctx.drawImage(mapCanvas, 0, 0, outWidth, outHeight);
+
+        // Draw DOM markers
+        Object.entries(map1MarkersRef.current).forEach(([id, markerInfo]) => {
+          const el = markerInfo.getElement();
+          if (!el || el.style.opacity === '0' || el.style.visibility === 'hidden' || el.style.display === 'none') return;
+          
+          // Skip shakemap red dots from export
+          if (el.classList.contains('shakemap-marker-dot')) return;
+          
+          const lngLat = markerInfo.getLngLat();
+          if (!lngLat) return;
+          
+          const point = map1!.project(lngLat);
+          ctx.save();
+          ctx.translate(point.x * dpr, point.y * dpr);
+          
+          const exportScale = outHeight / originalContainerHeight;
+          ctx.scale(exportScale, exportScale);
+          
+          const opacity = parseFloat(el.style.opacity || '1');
+          ctx.globalAlpha = opacity;
+          
+          if (el.classList.contains('custom-marker')) {
+            const plate = el.querySelector('.custom-marker-plate') as HTMLElement;
+            const textEl = el.querySelector('.custom-marker-text') as HTMLElement;
+            if (plate && textEl) {
+              const spans = textEl.querySelectorAll('span');
+              const lines = spans.length > 0 ? Array.from(spans).map(s => s.textContent || '') : [textEl.textContent?.trim() || ''];
+              
+              ctx.font = '600 12px Roboto, sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              
+              const textW = Math.max(...lines.map(l => ctx.measureText(l.toUpperCase()).width));
+              const boxW = textW + 16;
+              const boxH = lines.length > 1 ? 32 : 20;
+              const pointerH = 6;
+              
+              const startX = -boxW / 2;
+              const startY = -(boxH + pointerH);
+              
+              const clipStr = plate.style.clipPath || '';
+              let clipTop = 0;
+              if (clipStr.includes('inset')) {
+                const match = clipStr.match(/inset\(([-\d.]+)%?/);
+                if (match) clipTop = parseFloat(match[1]) || 0;
+              }
+              const clipPx = (clipTop / 100) * boxH;
+              
+              let transY = 0;
+              const transStr = textEl.style.transform || '';
+              if (transStr.includes('translateY')) {
+                const match = transStr.match(/translateY\(([-\d.]+)%\)/);
+                if (match) transY = parseFloat(match[1]) || 0;
+              }
+              const textOffY = (transY / 100) * boxH;
+
+              ctx.beginPath();
+              ctx.moveTo(-6, startY + boxH);
+              ctx.lineTo(6, startY + boxH);
+              ctx.lineTo(0, startY + boxH + pointerH);
+              ctx.fillStyle = plate.style.borderColor || '#000';
+              ctx.fill();
+
+              ctx.save();
+              ctx.beginPath();
+              ctx.rect(startX, startY + clipPx, boxW, boxH - clipPx);
+              ctx.clip();
+              ctx.fillStyle = plate.style.backgroundColor || '#000';
+              ctx.fillRect(startX, startY, boxW, boxH);
+              
+              ctx.fillStyle = textEl.style.color || '#fff';
+              if (lines.length > 1) {
+                ctx.font = '600 14px Roboto, sans-serif';
+                ctx.fillText(lines[0].toUpperCase(), 0, startY + boxH / 2 + textOffY - 6);
+                ctx.font = '400 10px Roboto, sans-serif';
+                ctx.fillText(lines[1].toUpperCase(), 0, startY + boxH / 2 + textOffY + 8);
+              } else {
+                ctx.fillText(lines[0].toUpperCase(), 0, startY + boxH / 2 + textOffY);
+              }
+              ctx.restore();
+            }
+          } 
+          else if (el.classList.contains('custom-highlight-marker')) {
+            const plate = el.querySelector('.custom-highlight-plate') as HTMLElement;
+            const textEl = el.querySelector('.custom-highlight-text') as HTMLElement;
+            
+            ctx.beginPath();
+            ctx.arc(0, 0, 7, 0, Math.PI * 2);
+            ctx.fillStyle = el.style.backgroundColor || '#000';
+            ctx.fill();
+
+            if (plate && textEl) {
+              const text = (textEl.textContent?.trim() || '').toUpperCase();
+              ctx.font = '700 14px Roboto, sans-serif';
+              ctx.textAlign = 'left';
+              ctx.textBaseline = 'middle';
+              
+              const boxW = ctx.measureText(text).width + 16;
+              const boxH = 22;
+              const startX = 15; 
+              const startY = -boxH / 2;
+              
+              let clipLeft = 0;
+              const clipStr = plate.style.clipPath || '';
+              if (clipStr.includes('inset')) {
+                const parts = clipStr.replace('inset(', '').replace(')', '').split(' ');
+                if (parts.length > 1) clipLeft = parseFloat(parts[1]) || 0;
+              }
+              const clipPx = (clipLeft / 100) * boxW;
+              
+              let transY = 0;
+              const transStr = textEl.style.transform || '';
+              if (transStr.includes('translateY')) {
+                const match = transStr.match(/translateY\(([-\d.]+)%\)/);
+                if (match) transY = parseFloat(match[1]) || 0;
+              }
+              const textOffY = (transY / 100) * boxH;
+              
+              ctx.save();
+              ctx.beginPath();
+              ctx.rect(startX, startY, boxW - clipPx, boxH);
+              ctx.clip();
+              ctx.fillStyle = plate.style.backgroundColor || '#000';
+              ctx.fillRect(startX, startY, boxW, boxH);
+              ctx.fillStyle = textEl.style.color || '#fff';
+              ctx.fillText(text, startX + 8, textOffY + 1.5);
+              ctx.restore();
+            }
+          }
+          else if (el.classList.contains('custom-country-marker')) {
+            const plate = el.querySelector('.custom-country-plate') as HTMLElement;
+            const textEl = el.querySelector('.custom-country-text') as HTMLElement;
+            if (plate && textEl) {
+              const text = (textEl.textContent?.trim() || '').toUpperCase();
+              ctx.font = '700 14px Roboto, sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              
+              const boxW = ctx.measureText(text).width + 16;
+              const boxH = 22;
+              const startX = -boxW / 2;
+              const startY = -boxH / 2;
+              
+              let clipRight = 0;
+              const clipStr = plate.style.clipPath || '';
+              if (clipStr.includes('inset')) {
+                const parts = clipStr.replace('inset(', '').replace(')', '').split(' ');
+                if (parts.length > 1) clipRight = parseFloat(parts[1]) || 0;
+              }
+              const clipPx = (clipRight / 100) * boxW;
+              
+              let transY = 0;
+              const transStr = textEl.style.transform || '';
+              if (transStr.includes('translateY')) {
+                const match = transStr.match(/translateY\(([-\d.]+)%\)/);
+                if (match) transY = parseFloat(match[1]) || 0;
+              }
+              const textOffY = (transY / 100) * boxH;
+              
+              ctx.save();
+              ctx.beginPath();
+              ctx.rect(startX, startY, boxW - clipPx, boxH);
+              ctx.clip();
+              ctx.fillStyle = plate.style.backgroundColor || '#000';
+              ctx.fillRect(startX, startY, boxW, boxH);
+              ctx.fillStyle = textEl.style.color || '#fff';
+              ctx.fillText(text, 0, textOffY);
+              ctx.restore();
+            }
+          }
+          else if (el.classList.contains('icon-marker')) {
+            const img = preloadedIcons.get(id);
+            if (img && img.complete && img.naturalWidth > 0) {
+              const bgStr = el.style.backgroundColor || '#ffffff';
+              ctx.beginPath();
+              ctx.rect(-32, -32, 64, 64);
+              ctx.fillStyle = bgStr;
+              ctx.fill();
+              ctx.drawImage(img, -24, -24, 48, 48);
+            }
+          }
+          else if (el.classList.contains('label-marker')) {
+            const img = preloadedLabels.get(id);
+            if (img && img.complete && img.naturalWidth > 0) {
+               const offset = globalLabelManager.getAnchorOffset(id);
+               if (offset) {
+                 ctx.drawImage(img, -offset.x, -offset.y);
+               }
+            }
+          }
+          else if (el.classList.contains('custom-marker-flat')) {
+            const lines = el.innerHTML.split(/<br\s*\/?>/i).map((s: string) => s.replace(/<[^>]+>/g, '').trim());
+            ctx.font = el.classList.contains('text-xs') ? '700 12px ui-sans-serif, system-ui' : '600 12px ui-sans-serif, system-ui';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            const textW = Math.max(...lines.map((l: string) => ctx.measureText(l).width));
+            const boxW = textW + 12;
+            const boxH = lines.length === 2 ? 30 : 20;
+            const startX = -boxW / 2;
+            const startY = -boxH / 2;
+            
+            ctx.fillStyle = el.style.backgroundColor || '#000';
+            ctx.fillRect(startX, startY, boxW, boxH);
+            ctx.fillStyle = el.style.color || '#fff';
+            
+            if (lines.length === 1) {
+              ctx.fillText(lines[0], 0, 0);
+            } else {
+              ctx.fillText(lines[0], 0, -6);
+              ctx.font = '600 9px ui-sans-serif, system-ui';
+              ctx.globalAlpha = opacity * 0.9;
+              ctx.fillText(lines[1], 0, 8);
+            }
+          }
+          else if (el.classList.contains('custom-marker-dot') || el.classList.contains('custom-route-dot')) {
+            ctx.beginPath();
+            ctx.arc(0, 0, 12, 0, Math.PI * 2);
+            ctx.fillStyle = el.style.backgroundColor || '#000';
+            ctx.fill();
+            ctx.restore();
+          }
+          else if (el.classList.contains('custom-city-weather-marker')) {
+            const spans = el.querySelectorAll('span');
+            const svgDiv = el.querySelector('div');
+            
+            ctx.font = '700 11px system-ui, -apple-system, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            let text = '';
+            if (spans.length > 0) {
+              text = Array.from(spans).map(s => s.innerText).join(' ');
+            }
+            
+            const hasIcon = !!svgDiv;
+            const textW = text ? ctx.measureText(text).width : 0;
+            const iconW = hasIcon ? 14 : 0;
+            const gap = (text && hasIcon) ? 6 : 0; 
+            
+            const totalW = textW + gap + iconW;
+            const px = 6; 
+            const py = 2; 
+            const boxW = totalW + (px * 2);
+            const boxH = 16 + (py * 2);
+            
+            const startX = -boxW / 2;
+            const startY = (-boxH / 2) - 16; 
+            
+            ctx.fillStyle = '#000000';
+            ctx.beginPath();
+            ctx.rect(startX, startY, boxW, boxH);
+            ctx.fill();
+            
+            ctx.fillStyle = '#ffffff';
+            let currentX = startX + px;
+            
+            if (text) {
+              ctx.fillText(text, currentX + textW/2, startY + boxH/2);
+              currentX += textW + gap;
+            }
+            
+            if (hasIcon) {
+               const img = preloadedWeatherIcons.get(text);
+               if (img) {
+                  ctx.drawImage(img, currentX, startY + (boxH - 14) / 2, 14, 14);
+               }
+            }
+          }
+          
+          ctx.restore();
+        });
+
+        const dataUrl = compositorCanvas.toDataURL('image/png');
+        
+        // Download
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        
+        // Sanitize filename prefix
+        const safePrefix = (filenamePrefix || 'obermap').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        const fmtSuffix = language === 'de' ? (currentFmt === 'landscape' ? 'quer' : currentFmt === 'portrait' ? 'hochkant' : 'quadratisch') : currentFmt;
+        a.download = `${safePrefix}_${fmtSuffix}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+    } catch (err: any) {
+      console.error('Image Export Error:', err);
+      await customAlert(t('An error occurred during image export: \n{{err}}', { err: err.message || String(err) }));
+    } finally {
+      // Restore everything
+      const shakemapDots = document.querySelectorAll('.shakemap-marker-dot');
+      shakemapDots.forEach((el: any) => el.style.display = '');
+
+      // Restore earthquake filters
+      window.dispatchEvent(new CustomEvent('restoreEarthquakeDotsForExport'));
+
+      setVideoExportState(null);
+      document.body.classList.remove('is-recording');
+      setTimeout(() => {
+        if (map1) {
+          map1.resize();
+          map1.jumpTo({ center: originalCenter, zoom: originalZoom });
+        }
+      }, 500);
+    }
+  };
   // --- END VIDEO EXPORT ---
+
+  useEffect(() => {
+    const handleStartVideoExport = (e: any) => {
+      const { formats, fileTypes, duration, dynamicLabels, bitrate, showName } = e.detail;
+      startExportSequence(formats, fileTypes, duration, dynamicLabels, bitrate, showName);
+    };
+
+    const handleStartImageExport = (e: any) => {
+      const { formats, filenamePrefix } = e.detail;
+      startImageExportSequence(formats, filenamePrefix);
+    };
+
+    window.addEventListener('startVideoExport', handleStartVideoExport);
+    window.addEventListener('startImageExport', handleStartImageExport);
+    return () => {
+      window.removeEventListener('startVideoExport', handleStartVideoExport);
+      window.removeEventListener('startImageExport', handleStartImageExport);
+    };
+  }, [startExportSequence, startImageExportSequence]);
 
   useEffect(() => {
     if (!map1 || !map2) return;

@@ -262,5 +262,14 @@ export const de: Record<string, string> = {
   "Primary": "Primär",
   "Secondary": "Sekundär",
   "Pointer": "Zeiger",
-  "Upload .ZIP template": "Template (ZIP-Datei) hochladen"
+  "Upload .ZIP template": "Template (ZIP-Datei) hochladen",
+  
+  // Export Settings
+  "Landscape": "Quer",
+  "Portrait": "Hochkant",
+  "Square": "Quadratisch",
+  "Video (mp4)": "Video (mp4)",
+  "Data package (jsx)": "Datenpaket (jsx)",
+  "Export image": "Bild exportieren",
+  "Export images": "Bilder exportieren"
 };

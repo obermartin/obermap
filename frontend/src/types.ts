@@ -37,7 +37,7 @@ export interface Annotation {
 export interface MapLayer {
   id: string;
   name: string;
-  type: 'geojson' | 'raster' | 'satellite' | 'split' | 'deepstate' | 'empty-slot' | 'flights' | 'vessels' | 'weather_forecast' | 'gdacs_earthquakes' | 'gdacs_volcanoes' | 'wildfires' | 'gdacs_cyclones' | 'nighttime';
+  type: 'geojson' | 'raster' | 'satellite' | 'split' | 'deepstate' | 'empty-slot' | 'flights' | 'vessels' | 'weather_forecast' | 'gdacs_earthquakes' | 'gdacs_volcanoes' | 'wildfires' | 'gdacs_cyclones' | 'nighttime' | 'cems_rapid_mapping';
   visible: boolean;
   data?: any; // For GeoJSON
   url?: string; // For XYZ/WMTS
@@ -58,6 +58,14 @@ export interface MapLayer {
   splitLayers?: MapLayer[];
   splitDirection?: 'vertical' | 'horizontal';
   splitPosition?: number;
+  
+  // Earthquake layer specific
+  copernicusEnabled?: boolean;
+  usgsDyfi10kmEnabled?: boolean;
+  usgsDyfi1kmEnabled?: boolean;
+  usgsLandslideEnabled?: boolean;
+  usgsLiquefactionEnabled?: boolean;
+  colorCodeShakemap?: boolean;
   
   // Post-processing
   contrast?: number;

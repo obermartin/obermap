@@ -357,11 +357,14 @@ export function App() {
     }
   }, [activeTool, selectedAnnotationId]);
 
+  const [activeMapViewId, setActiveMapViewId] = useState<string>('overview');
+
   useEffect(() => {
     setSelectedAnnotationId(null);
   }, [activeTool]);
 
   const handleFlyTo = useCallback((viewId: string, view: NonNullable<Annotation['view']>) => {
+    setActiveMapViewId(viewId);
     // We need to pass the flyTo trigger down or pass map instance up.
     // Instead of full map ref in App, we can dispatch an event or use a ref.
     // A simple hack: window.mapInstance is often used, but let's pass a CustomEvent
@@ -549,6 +552,16 @@ export function App() {
         }
       }
 
+      // Add dynamic earthquake accreditations
+      if (layer.type === 'gdacs_earthquakes') {
+        if (layer.copernicusEnabled) {
+          source += ", Copernicus EMS";
+        }
+        if (layer.usgsDyfi10kmEnabled || layer.usgsDyfi1kmEnabled || layer.usgsLandslideEnabled || layer.usgsLiquefactionEnabled) {
+          source += ", USGS";
+        }
+      }
+
       if (identifier && source) {
         sources.push({ identifier, source });
       }
@@ -607,7 +620,31 @@ export function App() {
         defaultView={settings.defaultView}
         isSidebarOpen={isLayerSidebarOpen}
         isToolbarOpen={isToolbarOpen}
-        onDeleteAnnotation={(id) => setAnnotations(prev => prev.filter(a => a.id !== id))}
+        onDeleteAnnotation={(id) => setAnnotations(prev => prev.map(a => {
+          if (a.id === id) {
+            const newA = { ...a };
+            delete newA.view;
+            return newA;
+          }
+          return a;
+        }).filter(a => a.view || a.coordinates || a.polygonGeometry || a.routeGeometry))}
+        onReorderAnnotations={(reorderedIds) => setAnnotations(prev => {
+          const newAnns = [...prev];
+          const indices: number[] = [];
+          prev.forEach((a, i) => {
+            if ((a.type === 'label' || a.type === 'highlight') && a.text && a.view) {
+              indices.push(i);
+            }
+          });
+          indices.forEach((index, i) => {
+            const idToPlace = reorderedIds[i];
+            const ann = prev.find(a => a.id === idToPlace);
+            if (ann) {
+              newAnns[index] = ann;
+            }
+          });
+          return newAnns;
+        })}
         selectedAnnotationId={selectedAnnotationId}
       />
       {/* Floating active distance readout for Measure and Circle tools */}
@@ -651,6 +688,7 @@ export function App() {
       </div>
 
       <LayerSidebar 
+        activeMapViewId={activeMapViewId}
         settings={settings} 
         setSettings={setSettings} 
         currentShow={currentShow}

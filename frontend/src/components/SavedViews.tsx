@@ -1,9 +1,91 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Trash2, Play } from 'lucide-react';
+import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion';
+import { Camera, Trash2, Play, GripVertical } from 'lucide-react';
 import type { Annotation } from '../types';
 import { useTranslation } from '../contexts/I18nContext';
 
+const SavedViewItem = ({ annotation, isRevealDisabled, isHideDisabled, onFlyTo, isToolbarOpen, onDeleteAnnotation, selectedAnnotationId, revealTriggerId, hideTriggerId, t }: any) => {
+  const controls = useDragControls();
+
+  return (
+    <Reorder.Item
+      value={annotation}
+      dragListener={false}
+      dragControls={controls}
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, scale: 0.8 }}
+      className="flex items-center gap-2"
+    >
+      <div className={`flex items-stretch border border-white/10 rounded-full overflow-hidden grow ${selectedAnnotationId === annotation.id ? 'ring-2 ring-white ring-offset-2 ring-offset-black' : ''}`}>
+        {isToolbarOpen && (
+          <div 
+            onPointerDown={(e) => controls.start(e)}
+            className="cursor-grab active:cursor-grabbing flex items-center justify-center pl-3 pr-2 bg-black text-white/30 hover:text-white transition-colors shrink-0"
+          >
+            <GripVertical size={14} />
+          </div>
+        )}
+        <button
+          onClick={() => annotation.view && onFlyTo(annotation.id, annotation.view)}
+          className={`flex items-center gap-2 bg-black py-2 pr-4 text-white hover:bg-white hover:text-black transition-colors grow text-left ${!isToolbarOpen ? 'pl-4' : 'pl-1'}`}
+        >
+          <span className="font-semibold text-sm uppercase tracking-wider truncate max-w-[200px]">{annotation.text}</span>
+        </button>
+        {isToolbarOpen && (
+          <>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                window.dispatchEvent(new CustomEvent('requestViewCaptureForUpdate', { detail: annotation.id }));
+              }}
+              className="flex items-center justify-center px-3 bg-black text-white/50 hover:text-black hover:bg-white transition-colors shrink-0 border-l border-white/10"
+              title={t("Update View Camera")}
+            >
+              <Camera size={16} />
+            </button>
+            {onDeleteAnnotation && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteAnnotation(annotation.id);
+                }}
+                className="flex items-center justify-center px-3 bg-black text-white/50 hover:text-[#ff0000] hover:bg-white transition-colors shrink-0 border-l border-white/10"
+                title={t("Delete View")}
+              >
+                <Trash2 size={16} />
+              </button>
+            )}
+          </>
+        )}
+      </div>
+      {isToolbarOpen && selectedAnnotationId && (
+        <div className="flex gap-1 shrink-0">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              window.dispatchEvent(new CustomEvent('updateAnimationTrigger', { detail: { targetId: selectedAnnotationId, triggerId: annotation.id, clearHideTrigger: isRevealDisabled } }));
+            }}
+            className={`w-9 h-9 rounded-full flex items-center justify-center border border-white/10 transition-colors shadow-lg ${revealTriggerId === annotation.id ? 'bg-white text-black' : 'bg-black text-white hover:bg-white hover:text-black'}`}
+            title={isRevealDisabled ? t("Set as reveal trigger (will clear conflicting hide trigger)") : t("Set as reveal animation trigger for selected annotation")}
+          >
+            <Play size={14} fill={revealTriggerId === annotation.id ? "currentColor" : "none"} className={revealTriggerId === annotation.id ? '' : 'ml-0.5'} />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              window.dispatchEvent(new CustomEvent('updateHideAnimationTrigger', { detail: { targetId: selectedAnnotationId, triggerId: annotation.id, clearRevealTrigger: isHideDisabled } }));
+            }}
+            className={`w-9 h-9 rounded-full flex items-center justify-center border border-white/10 transition-colors shadow-lg ${hideTriggerId === annotation.id ? 'bg-white text-black' : 'bg-black text-white hover:bg-white hover:text-black'}`}
+            title={isHideDisabled ? t("Set as hide trigger (will clear conflicting reveal trigger)") : t("Set as hide animation trigger for selected annotation")}
+          >
+            <Play size={14} fill={hideTriggerId === annotation.id ? "currentColor" : "none"} className={hideTriggerId === annotation.id ? 'scale-x-[-1]' : 'scale-x-[-1] ml-[-2px]'} />
+          </button>
+        </div>
+      )}
+    </Reorder.Item>
+  );
+};
 interface SavedViewsProps {
   annotations: Annotation[];
   onFlyTo: (viewId: string, view: NonNullable<Annotation['view']>) => void;
@@ -17,9 +99,10 @@ interface SavedViewsProps {
   isToolbarOpen?: boolean;
   onDeleteAnnotation?: (id: string) => void;
   selectedAnnotationId?: string | null;
+  onReorderAnnotations?: (reorderedIds: string[]) => void;
 }
 
-export const SavedViews: React.FC<SavedViewsProps> = ({ annotations, onFlyTo, defaultView, isSidebarOpen, isToolbarOpen, onDeleteAnnotation, selectedAnnotationId }) => {
+export const SavedViews: React.FC<SavedViewsProps> = ({ annotations, onFlyTo, defaultView, isSidebarOpen, isToolbarOpen, onDeleteAnnotation, selectedAnnotationId, onReorderAnnotations }) => {
   const { t } = useTranslation();
   const labelAnnotations = annotations.filter(a => (a.type === 'label' || a.type === 'highlight') && a.text && a.view);
 
@@ -63,78 +146,31 @@ export const SavedViews: React.FC<SavedViewsProps> = ({ annotations, onFlyTo, de
           )}
         </motion.div>
 
-        {labelAnnotations.map((annotation, index) => {
-          const isRevealDisabled = hideIndex !== -1 && index >= hideIndex;
-          const isHideDisabled = revealIndex !== -1 && index <= revealIndex;
+        <Reorder.Group as="div" axis="y" values={labelAnnotations} onReorder={(newOrder) => onReorderAnnotations?.(newOrder.map(a => a.id))} className="flex flex-col gap-2">
+          <AnimatePresence>
+            {labelAnnotations.map((annotation, index) => {
+              const isRevealDisabled = hideIndex !== -1 && index >= hideIndex;
+              const isHideDisabled = revealIndex !== -1 && index <= revealIndex;
 
-          return (
-          <motion.div
-            key={annotation.id}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            className="flex items-center gap-2"
-          >
-            <div className={`flex items-stretch border border-white/10 rounded-full overflow-hidden grow ${selectedAnnotationId === annotation.id ? 'ring-2 ring-white ring-offset-2 ring-offset-black' : ''}`}>
-              <button
-                onClick={() => annotation.view && onFlyTo(annotation.id, annotation.view)}
-                className="flex items-center gap-2 bg-black px-4 py-2 text-white hover:bg-white hover:text-black transition-colors grow text-left"
-              >
-                <span className="font-semibold text-sm uppercase tracking-wider truncate max-w-[200px]">{annotation.text}</span>
-              </button>
-              {isToolbarOpen && (
-                <>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      window.dispatchEvent(new CustomEvent('requestViewCaptureForUpdate', { detail: annotation.id }));
-                    }}
-                    className="flex items-center justify-center px-3 bg-black text-white/50 hover:text-black hover:bg-white transition-colors shrink-0 border-l border-white/10"
-                    title={t("Update View Camera")}
-                  >
-                    <Camera size={16} />
-                  </button>
-                  {onDeleteAnnotation && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteAnnotation(annotation.id);
-                      }}
-                      className="flex items-center justify-center px-3 bg-black text-white/50 hover:text-[#ff0000] hover:bg-white transition-colors shrink-0 border-l border-white/10"
-                      title={t("Delete View")}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-            {isToolbarOpen && selectedAnnotationId && (
-              <div className="flex gap-1 shrink-0">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    window.dispatchEvent(new CustomEvent('updateAnimationTrigger', { detail: { targetId: selectedAnnotationId, triggerId: annotation.id, clearHideTrigger: isRevealDisabled } }));
-                  }}
-                  className={`w-9 h-9 rounded-full flex items-center justify-center border border-white/10 transition-colors shadow-lg ${revealTriggerId === annotation.id ? 'bg-white text-black' : 'bg-black text-white hover:bg-white hover:text-black'}`}
-                  title={isRevealDisabled ? t("Set as reveal trigger (will clear conflicting hide trigger)") : t("Set as reveal animation trigger for selected annotation")}
-                >
-                  <Play size={14} fill={revealTriggerId === annotation.id ? "currentColor" : "none"} className={revealTriggerId === annotation.id ? '' : 'ml-0.5'} />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    window.dispatchEvent(new CustomEvent('updateHideAnimationTrigger', { detail: { targetId: selectedAnnotationId, triggerId: annotation.id, clearRevealTrigger: isHideDisabled } }));
-                  }}
-                  className={`w-9 h-9 rounded-full flex items-center justify-center border border-white/10 transition-colors shadow-lg ${hideTriggerId === annotation.id ? 'bg-white text-black' : 'bg-black text-white hover:bg-white hover:text-black'}`}
-                  title={isHideDisabled ? t("Set as hide trigger (will clear conflicting reveal trigger)") : t("Set as hide animation trigger for selected annotation")}
-                >
-                  <Play size={14} fill={hideTriggerId === annotation.id ? "currentColor" : "none"} className={hideTriggerId === annotation.id ? 'scale-x-[-1]' : 'scale-x-[-1] ml-[-2px]'} />
-                </button>
-              </div>
-            )}
-          </motion.div>
-        )})}
+              return (
+                <SavedViewItem
+                  key={annotation.id}
+                  annotation={annotation}
+                  index={index}
+                  isRevealDisabled={isRevealDisabled}
+                  isHideDisabled={isHideDisabled}
+                  onFlyTo={onFlyTo}
+                  isToolbarOpen={isToolbarOpen}
+                  onDeleteAnnotation={onDeleteAnnotation}
+                  selectedAnnotationId={selectedAnnotationId}
+                  revealTriggerId={revealTriggerId}
+                  hideTriggerId={hideTriggerId}
+                  t={t}
+                />
+              );
+            })}
+          </AnimatePresence>
+        </Reorder.Group>
 
         {isToolbarOpen && (
           <motion.button

@@ -223,39 +223,26 @@ const DEFAULT_LAYERS: MapLayer[] = [
     showCityWeatherIcons: true,
   },
   {
-    id: "gdacs_cyclones",
-    name: "Tropical Cyclones",
-    type: "gdacs_cyclones",
-    visible: false,
-  },
-  {
-    id: "wildfires",
-    name: "Wildfires",
-    type: "wildfires",
-    visible: false,
-    wildfireMode: "effis",
-    url: "https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}",
-  },
-  {
-    id: "floods",
-    name: "Floods",
-    type: "raster",
-    visible: false,
-    url: "https://geoserver.gfm.eodc.eu/geoserver/gfm/wms?service=WMS&request=GetMap&layers=observed_flood_extent&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}T00:00:00.000Z/{date-end}T23:59:59.000Z",
-  },
-  {
     id: "gdacs_earthquakes",
     name: "Earthquakes",
     type: "gdacs_earthquakes",
     visible: false,
   },
+
   {
     id: "gdacs_volcanoes",
     name: "Volcanoes",
     type: "gdacs_volcanoes",
     visible: false,
   },
+  {
+    id: "gdacs_cyclones",
+    name: "Tropical Cyclones",
+    type: "gdacs_cyclones",
+    visible: false,
+  },
 ];
+
 
 const CategoryItem = ({
   category,
@@ -493,6 +480,7 @@ interface LayerSidebarProps {
   onSaveAndExit?: () => void;
   onExport?: () => void;
   isSaving?: boolean;
+  activeMapViewId?: string;
 }
 
 export function LayerSidebar({
@@ -509,9 +497,25 @@ export function LayerSidebar({
   onSaveAndExit,
   onExport,
   isSaving,
+  activeMapViewId,
 }: LayerSidebarProps) {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const getDefaultFilename = () => {
+    if (!activeMapViewId || activeMapViewId === 'overview') {
+      return settings.title || 'obermap';
+    }
+    const mapview = annotations?.find(a => a.id === activeMapViewId);
+    return mapview?.text || settings.title || 'obermap';
+  };
+  
+  const [imageFilenamePrefix, setImageFilenamePrefix] = useState<string>(getDefaultFilename());
+  
+  useEffect(() => {
+    setImageFilenamePrefix(getDefaultFilename());
+  }, [activeMapViewId, settings.title, annotations]);
+
   const [urlInput, setUrlInput] = useState("");
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [activeTab, setActiveTab] = useState<
@@ -549,12 +553,9 @@ export function LayerSidebar({
   }, []);
 
   // Video Export State
-  const [videoFormat, setVideoFormat] = useState<"16x9" | "9x16" | "both">(
-    "16x9",
-  );
-  const [videoFileType, setVideoFileType] = useState<"mp4" | "jsx" | "both">(
-    "mp4",
-  );
+  const [videoFormats, setVideoFormats] = useState<("landscape" | "portrait" | "square")[]>(["landscape"]);
+  const [videoFileTypes, setVideoFileTypes] = useState<("mp4" | "jsx")[]>(["mp4"]);
+  const [imageFormats, setImageFormats] = useState<("landscape" | "portrait" | "square")[]>(["landscape"]);
   const [videoDuration, setVideoDuration] = useState<number>(3);
 
   const [videoBitrate, setVideoBitrate] = useState<number>(15);
@@ -2128,31 +2129,31 @@ export function LayerSidebar({
                 <label className="text-xs text-white/60 mb-2 block font-semibold tracking-wider">
                   {t("FORMAT")}
                 </label>
-                <div className="flex border border-white/20 rounded-full p-1 relative bg-transparent">
-                  {(["16x9", "9x16", "both"] as const).map((fmt) => (
-                    <button
-                      key={fmt}
-                      onClick={() => setVideoFormat(fmt)}
-                      className={`flex-1 px-4 py-2 text-sm relative z-10 transition-colors ${
-                        videoFormat === fmt
-                          ? "text-black"
-                          : "text-white/60 hover:text-white/80"
-                      }`}
-                    >
-                      {videoFormat === fmt && (
-                        <motion.div
-                          layoutId="format-active-bg"
-                          className="absolute inset-0 bg-white rounded-full -z-10"
-                          transition={{
-                            type: "spring",
-                            stiffness: 400,
-                            damping: 30,
+                <div className="flex flex-col gap-1 mt-2">
+                  {[
+                    { id: "landscape", label: "Landscape", labelDe: "Quer" },
+                    { id: "portrait", label: "Portrait", labelDe: "Hochkant" },
+                    { id: "square", label: "Square", labelDe: "Quadratisch" }
+                  ].map((fmt) => {
+                    const isEnabled = videoFormats.includes(fmt.id as any);
+                    return (
+                      <div key={fmt.id} className="flex items-center justify-between py-1">
+                        <span className="text-sm font-medium text-white">{t(fmt.label)}</span>
+                        <button
+                          onClick={() => {
+                            setVideoFormats(prev => 
+                              prev.includes(fmt.id as any) 
+                                ? prev.filter(f => f !== fmt.id) 
+                                : [...prev, fmt.id as any]
+                            );
                           }}
-                        />
-                      )}
-                      {t(fmt.charAt(0).toUpperCase() + fmt.slice(1))}
-                    </button>
-                  ))}
+                          className={`w-9 h-5 rounded-full relative transition-colors ${isEnabled ? "bg-white" : "bg-white/20"}`}
+                        >
+                          <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${isEnabled ? "left-5 bg-black" : "left-1 bg-white"}`} />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -2160,31 +2161,30 @@ export function LayerSidebar({
                 <label className="text-xs text-white/60 mb-2 block font-semibold tracking-wider">
                   {t("FILE TYPE")}
                 </label>
-                <div className="flex border border-white/20 rounded-full p-1 relative bg-transparent">
-                  {(["mp4", "jsx", "both"] as const).map((fmt) => (
-                    <button
-                      key={fmt}
-                      onClick={() => setVideoFileType(fmt)}
-                      className={`flex-1 px-4 py-2 text-sm relative z-10 transition-colors ${
-                        videoFileType === fmt
-                          ? "text-black"
-                          : "text-white/60 hover:text-white/80"
-                      }`}
-                    >
-                      {videoFileType === fmt && (
-                        <motion.div
-                          layoutId="filetype-active-bg"
-                          className="absolute inset-0 bg-white rounded-full -z-10"
-                          transition={{
-                            type: "spring",
-                            stiffness: 400,
-                            damping: 30,
+                <div className="flex flex-col gap-1 mt-2">
+                  {[
+                    { id: "mp4", label: "Video (mp4)" },
+                    { id: "jsx", label: "Data package (jsx)" }
+                  ].map((fmt) => {
+                    const isEnabled = videoFileTypes.includes(fmt.id as any);
+                    return (
+                      <div key={fmt.id} className="flex items-center justify-between py-1">
+                        <span className="text-sm font-medium text-white">{t(fmt.label)}</span>
+                        <button
+                          onClick={() => {
+                            setVideoFileTypes(prev => 
+                              prev.includes(fmt.id as any) 
+                                ? prev.filter(f => f !== fmt.id) 
+                                : [...prev, fmt.id as any]
+                            );
                           }}
-                        />
-                      )}
-                      {fmt === "both" ? t("Both") : t(fmt.toUpperCase())}
-                    </button>
-                  ))}
+                          className={`w-9 h-5 rounded-full relative transition-colors ${isEnabled ? "bg-white" : "bg-white/20"}`}
+                        >
+                          <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${isEnabled ? "left-5 bg-black" : "left-1 bg-white"}`} />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -2219,6 +2219,55 @@ export function LayerSidebar({
                   className="w-full accent-white"
                 />
               </div>
+
+              <div className="mt-8 pt-6 border-t border-white/20">
+                <div className="text-xs font-semibold tracking-wider text-white mb-4">
+                  {t("STILL IMAGE EXPORT")}
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-[10px] font-bold text-white/50 tracking-wider uppercase mb-1.5 block">
+                      {t("Filename")}
+                    </label>
+                    <input
+                      type="text"
+                      value={imageFilenamePrefix}
+                      onChange={(e) => setImageFilenamePrefix(e.target.value)}
+                      className="w-full bg-black/40 border border-white/20 rounded px-3 py-1.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-white transition-colors"
+                      placeholder={t("Enter filename...")}
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex flex-col gap-1 mt-2">
+                      {[
+                        { id: "landscape", label: "Landscape", labelDe: "Quer" },
+                        { id: "portrait", label: "Portrait", labelDe: "Hochkant" },
+                        { id: "square", label: "Square", labelDe: "Quadratisch" }
+                      ].map((fmt) => {
+                        const isEnabled = imageFormats.includes(fmt.id as any);
+                        return (
+                          <div key={fmt.id} className="flex items-center justify-between py-1">
+                            <span className="text-sm font-medium text-white">{t(fmt.label)}</span>
+                            <button
+                              onClick={() => {
+                                setImageFormats(prev => 
+                                  prev.includes(fmt.id as any) 
+                                    ? prev.filter(f => f !== fmt.id) 
+                                    : [...prev, fmt.id as any]
+                                );
+                              }}
+                              className={`w-9 h-5 rounded-full relative transition-colors ${isEnabled ? "bg-white" : "bg-white/20"}`}
+                            >
+                              <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${isEnabled ? "left-5 bg-black" : "left-1 bg-white"}`} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -2237,6 +2286,7 @@ export function LayerSidebar({
             )}
             <button
               disabled={
+                videoFormats.length === 0 || videoFileTypes.length === 0 ||
                 !annotations?.some(
                   (a) =>
                     (a.type === "label" || a.type === "highlight") &&
@@ -2247,8 +2297,8 @@ export function LayerSidebar({
               onClick={() => {
                 const event = new CustomEvent("startVideoExport", {
                   detail: {
-                    format: videoFormat,
-                    fileType: videoFileType,
+                    formats: videoFormats,
+                    fileTypes: videoFileTypes,
                     duration: videoDuration,
                     dynamicLabels: true,
                     bitrate: videoBitrate,
@@ -2270,6 +2320,23 @@ export function LayerSidebar({
               } rounded-full`}
             >
               <Video size={16} /> {t("Export Video")}
+            </button>
+            <button
+              disabled={imageFormats.length === 0}
+              onClick={() => {
+                const event = new CustomEvent("startImageExport", {
+                  detail: { formats: imageFormats, filenamePrefix: imageFilenamePrefix },
+                });
+                window.dispatchEvent(event);
+                setIsOpen(false);
+              }}
+              className={`w-full py-2 flex items-center justify-center gap-2 text-sm transition-colors ${
+                imageFormats.length > 0
+                  ? "bg-white/5 hover:bg-white/10"
+                  : "bg-white/5 text-white/30 cursor-not-allowed"
+              } rounded-full`}
+            >
+              <ImageIcon size={16} /> {imageFormats.length > 1 ? t("Export images") : t("Export image")}
             </button>
             {annotations?.some(a => a.coordinates || a.polygonGeometry || a.routeGeometry) && (
               <button
@@ -3139,6 +3206,7 @@ function LayerItem(props: {
                 layer.type === "vessels" ||
                 layer.type === "weather_forecast" ||
                 layer.type === "gdacs_earthquakes" ||
+                layer.type === "cems_rapid_mapping" ||
                 layer.type === "gdacs_volcanoes" ||
                 layer.type === "wildfires" ||
                 layer.type === "gdacs_cyclones" ||
@@ -3173,6 +3241,7 @@ function LayerItem(props: {
               layer.type === "satellite" ||
               layer.type === "deepstate" ||
               layer.type === "gdacs_earthquakes" ||
+              layer.type === "cems_rapid_mapping" ||
               layer.type === "gdacs_volcanoes" ||
               layer.type === "wildfires" ||
               layer.type === "gdacs_cyclones" ||
@@ -3182,6 +3251,7 @@ function LayerItem(props: {
                     {(layer.type === "raster" ||
                       layer.type === "satellite" ||
                       layer.type === "gdacs_earthquakes" ||
+                      layer.type === "cems_rapid_mapping" ||
                       layer.type === "gdacs_volcanoes" ||
                       layer.type === "wildfires" ||
                       layer.type === "gdacs_cyclones") && saveAsPreset && (
@@ -3323,6 +3393,86 @@ function LayerItem(props: {
                             className={`text-[10px] px-3 py-1 rounded-full transition-colors ${layer.wildfireMode === "gdacs" ? "bg-white text-black font-medium" : "text-white/60 hover:text-white"}`}
                           >
                             {t("Catastrophic")} (GDACS)
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {layer.type === "gdacs_earthquakes" && updateLayerProperty && (
+                    <div className="flex flex-col gap-2 pt-3 border-t border-white/10 mt-2">
+                      <label className="text-[10px] text-white font-semibold tracking-wider">
+                        {t("EARTHQUAKE OVERLAYS")}
+                      </label>
+                      <div className="flex flex-col gap-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/80">{t("Show GDACS Shakemap")}</span>
+                          <button
+                            onClick={() => updateLayerProperty(layer.id, "shakemapEnabled", layer.shakemapEnabled === false ? true : false)}
+                            className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none"
+                            style={{ backgroundColor: layer.shakemapEnabled !== false ? "#ffffff" : "rgba(255, 255, 255, 0.2)" }}
+                          >
+                            <span className={`inline-block h-3 w-3 transform rounded-full bg-black transition-transform ${layer.shakemapEnabled !== false ? "translate-x-4" : "translate-x-1"}`} />
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/80">{t("Color-code GDACS Shakemap")}</span>
+                          <button
+                            onClick={() => updateLayerProperty(layer.id, "colorCodeShakemap", layer.colorCodeShakemap === false ? true : false)}
+                            className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none"
+                            style={{ backgroundColor: layer.colorCodeShakemap !== false ? "#ffffff" : "rgba(255, 255, 255, 0.2)" }}
+                          >
+                            <span className={`inline-block h-3 w-3 transform rounded-full bg-black transition-transform ${layer.colorCodeShakemap !== false ? "translate-x-4" : "translate-x-1"}`} />
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/80">{t("Copernicus EMS Damage Data")}</span>
+                          <button
+                            onClick={() => updateLayerProperty(layer.id, "copernicusEnabled", layer.copernicusEnabled ? false : true)}
+                            className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none"
+                            style={{ backgroundColor: layer.copernicusEnabled ? "#ffffff" : "rgba(255, 255, 255, 0.2)" }}
+                          >
+                            <span className={`inline-block h-3 w-3 transform rounded-full bg-black transition-transform ${layer.copernicusEnabled ? "translate-x-4" : "translate-x-1"}`} />
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/80">{t("USGS Did You Feel It? (10km resolution)")}</span>
+                          <button
+                            onClick={() => updateLayerProperty(layer.id, "usgsDyfi10kmEnabled", layer.usgsDyfi10kmEnabled ? false : true)}
+                            className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none"
+                            style={{ backgroundColor: layer.usgsDyfi10kmEnabled ? "#ffffff" : "rgba(255, 255, 255, 0.2)" }}
+                          >
+                            <span className={`inline-block h-3 w-3 transform rounded-full bg-black transition-transform ${layer.usgsDyfi10kmEnabled ? "translate-x-4" : "translate-x-1"}`} />
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/80">{t("USGS Did You Feel It? (1km resolution)")}</span>
+                          <button
+                            onClick={() => updateLayerProperty(layer.id, "usgsDyfi1kmEnabled", layer.usgsDyfi1kmEnabled ? false : true)}
+                            className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none"
+                            style={{ backgroundColor: layer.usgsDyfi1kmEnabled ? "#ffffff" : "rgba(255, 255, 255, 0.2)" }}
+                          >
+                            <span className={`inline-block h-3 w-3 transform rounded-full bg-black transition-transform ${layer.usgsDyfi1kmEnabled ? "translate-x-4" : "translate-x-1"}`} />
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/80">{t("USGS Ground Failure: Landslides")}</span>
+                          <button
+                            onClick={() => updateLayerProperty(layer.id, "usgsLandslideEnabled", layer.usgsLandslideEnabled ? false : true)}
+                            className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none"
+                            style={{ backgroundColor: layer.usgsLandslideEnabled ? "#ffffff" : "rgba(255, 255, 255, 0.2)" }}
+                          >
+                            <span className={`inline-block h-3 w-3 transform rounded-full bg-black transition-transform ${layer.usgsLandslideEnabled ? "translate-x-4" : "translate-x-1"}`} />
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/80">{t("USGS Ground Failure: Liquefaction")}</span>
+                          <button
+                            onClick={() => updateLayerProperty(layer.id, "usgsLiquefactionEnabled", layer.usgsLiquefactionEnabled ? false : true)}
+                            className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none"
+                            style={{ backgroundColor: layer.usgsLiquefactionEnabled ? "#ffffff" : "rgba(255, 255, 255, 0.2)" }}
+                          >
+                            <span className={`inline-block h-3 w-3 transform rounded-full bg-black transition-transform ${layer.usgsLiquefactionEnabled ? "translate-x-4" : "translate-x-1"}`} />
                           </button>
                         </div>
                       </div>
