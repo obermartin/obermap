@@ -121,6 +121,7 @@ export const SavedViews: React.FC<SavedViewsProps> = ({ annotations, onFlyTo, de
     <div className={`absolute top-6 left-6 z-10 flex flex-col gap-2 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-[20rem]' : 'translate-x-0'}`}>
       <AnimatePresence>
         <motion.div
+          key="overview-panel"
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, scale: 0.8 }}
@@ -146,7 +147,7 @@ export const SavedViews: React.FC<SavedViewsProps> = ({ annotations, onFlyTo, de
           )}
         </motion.div>
 
-        <Reorder.Group as="div" axis="y" values={labelAnnotations} onReorder={(newOrder) => onReorderAnnotations?.(newOrder.map(a => a.id))} className="flex flex-col gap-2">
+        <Reorder.Group key="reorder-group" as="div" axis="y" values={labelAnnotations} onReorder={(newOrder) => onReorderAnnotations?.(newOrder.map(a => a.id))} className="flex flex-col gap-2">
           <AnimatePresence>
             {labelAnnotations.map((annotation, index) => {
               const isRevealDisabled = hideIndex !== -1 && index >= hideIndex;

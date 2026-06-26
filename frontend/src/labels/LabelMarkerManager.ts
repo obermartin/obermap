@@ -74,7 +74,7 @@ export interface LabelHandle {
   setTheme(theme: Partial<Theme>): void;
   remove(): void;
   getElement(): HTMLElement;
-  getRasterizedImage(): Promise<HTMLImageElement>;
+  getRasterizedImage(scale?: number): Promise<HTMLImageElement>;
   getLngLat(): [number, number];
 }
 
@@ -493,7 +493,7 @@ export class LabelMarkerManager {
       },
       getElement: () => markerEl,
       getLngLat: () => opts.lngLat,
-      getRasterizedImage: async () => {
+      getRasterizedImage: async (scale: number = 1) => {
         const tpl = this.templates.get(opts.template);
         if (!tpl) throw new Error("Template not found");
 
@@ -503,6 +503,7 @@ export class LabelMarkerManager {
             tpl,
             opts.text,
             opts.theme,
+            scale
           );
 
         const url =
@@ -788,6 +789,7 @@ export class LabelMarkerManager {
     tpl: LoadedTemplate,
     textInput: string | { primary: string; secondary?: string },
     theme: Theme | undefined,
+    scale: number = 1
   ): {
     svg: string;
     width: number;
@@ -965,7 +967,8 @@ export class LabelMarkerManager {
       ),
     );
 
-    let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${markerWidth}" height="${finalMarkerHeight}">`;
+    let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${markerWidth * scale}" height="${finalMarkerHeight * scale}">`;
+    svg += `<g transform="scale(${scale})">`;
 
     svg += `
       <style>
@@ -1023,7 +1026,7 @@ export class LabelMarkerManager {
       `;
     }
 
-    svg += "</svg>";
+    svg += "</g></svg>";
 
     // Canvas drawImage ignores CSS variables in data URIs, so we explicitly replace them with literal values
     svg = svg.replace(
@@ -1053,15 +1056,12 @@ export class LabelMarkerManager {
       theme?.accentFill || "$1",
     );
 
-    const anchorX = ptrLeft + pointer.tipX;
-    const anchorY = finalPtrTop + pointer.tipY;
-
     return {
       svg,
-      width: markerWidth,
-      height: finalMarkerHeight,
-      anchorX,
-      anchorY,
+      width: markerWidth * scale,
+      height: finalMarkerHeight * scale,
+      anchorX: ptrLeft + pointer.tipX,
+      anchorY: finalPtrTop + pointer.tipY,
     };
   }
 
@@ -1125,10 +1125,10 @@ export class LabelMarkerManager {
     }
   }
 
-  async getRasterizedImage(id: string): Promise<HTMLImageElement | null> {
+  async getRasterizedImage(id: string, scale: number = 1): Promise<HTMLImageElement | null> {
     const handle = this.handles.get(id);
     if (!handle) return null;
-    return handle.getRasterizedImage();
+    return handle.getRasterizedImage(scale);
   }
 
   getAnchorOffset(id: string): { x: number; y: number } | null {

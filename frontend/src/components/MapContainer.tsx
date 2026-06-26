@@ -17,6 +17,8 @@ import * as Mp4Muxer from 'mp4-muxer';
 import { omProtocol } from '@openmeteo/weather-map-layer';
 import { globalLabelManager } from '../labels/LabelMarkerManager';
 import excludedCitiesData from '../assets/excluded-cities.json';
+import { scaleMapboxExpression } from "../utils/mapboxScaleHelper";
+import { CropOverlay } from "./CropOverlay";
 
 let omProtocolRegistered = false;
 let globalDeepstateHistory: { id: number; createdAt: string }[] | null = null;
@@ -93,6 +95,7 @@ interface MapContainerProps {
   isSidebarOpen?: boolean;
   isToolbarOpen?: boolean;
   markersRef?: React.MutableRefObject<{ [id: string]: maplibregl.Marker }>;
+  activeCropOverlay?: 'landscape' | 'portrait' | 'square' | null;
 }
 
 function getContrastYIQ(hexcolor: string) {
@@ -127,7 +130,7 @@ const fetchOpenMeteo = async (url: string) => {
   return res;
 };
 
-export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, clipPath?: string, onMapInit?: (map: maplibregl.Map) => void }> = ({
+export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, clipPath?: string, onMapInit?: (map: maplibregl.Map) => void, isExporting?: boolean, imageExportScale?: number }> = ({
   activeTool,
   currentColor,
   currentStrokeType,
@@ -153,7 +156,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   onMapInit,
   isSidebarOpen,
   isToolbarOpen,
-  markersRef: propsMarkersRef
+  markersRef: propsMarkersRef,
+  isExporting,
+  imageExportScale
 }) => {
   const { t, language } = useTranslation();
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -210,6 +215,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const baseFeaturesRef = useRef<GeoJSON.Feature[]>([]);
   const triggerProgressRef = useRef<Record<string, number>>({});
   const triggerTimestampsRef = useRef<Record<string, number>>({});
+  const originalBasemapLayoutsRef = useRef<Record<string, { textSize?: any; iconSize?: any }>>({});
+
 
   const currentColorRef = useRef(currentColor);
   const setAnnotationsRef = useRef(setAnnotations);
@@ -339,6 +346,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
   const weatherForecastLayerIdsRef = useRef<string[]>([]);
   const weatherForecastSourceIdsRef = useRef<string[]>([]);
+  const layerFadeTimeoutsRef = useRef<{[key: string]: NodeJS.Timeout}>({});
   const weatherAllValidTimesRef = useRef<string[]>([]);
   const selectedAircraftIdRef = useRef<string | null>(null);
   const selectedFlightTrackRef = useRef<number[][]>([]);
@@ -699,7 +707,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       const coords = e.result.center as [number, number];
       const rawName = e.result.text || e.result.place_name || '';
       const name = rawName.split(',')[0].trim();
-      const annotationId = Date.now().toString();
+      const annotationId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
       
       if (setAnnotationsRef.current && mapRef.current) {
         setAnnotationsRef.current(prev => [...prev, {
@@ -1491,7 +1499,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         const actualTemplate = variation ? variation.baseTemplate : selectedId;
         const actualTheme = settingsRef.current?.labelTemplates?.savedThemes?.[selectedId || ''] || settingsRef.current?.labelTemplates?.theme;
 
-        const newId = Date.now().toString();
+        const newId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
         const newLabel: Annotation = {
           id: newId,
           type: 'label',
@@ -1526,7 +1534,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         setAnnotations(prev => prev.map(a => a.id === id ? { ...a, text, secondaryText } : a));
       } else {
         const map = mapRef.current;
-        const newId = Date.now().toString();
+        const newId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
         setAnnotations(prev => [...prev, {
           id: newId,
           type: 'headline',
@@ -1555,7 +1563,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       if (!mapRef.current) return;
       const lngLat = mapRef.current.unproject([e.detail.clientX, e.detail.clientY]);
       setAnnotations(prev => [...prev, {
-        id: Date.now().toString(),
+        id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
         type: 'icon',
         iconId: e.detail.iconId,
         color: e.detail.color,
@@ -1765,23 +1773,30 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           }
         } else {
           el = document.createElement('div');
+          el.className = `label-marker-${ann.id} ${ann.polygonGeometry ? 'custom-country-marker' : 'custom-highlight-marker'}`;
+          el.style.width = '0px';
+          el.style.height = '0px';
+          el.style.position = 'relative';
           
           if (ann.polygonGeometry) {
-            el.className = `custom-country-marker label-marker-${ann.id}`;
             el.innerHTML = `
-              <div class="custom-country-plate" style="background-color: ${ann.color};">
-                <div class="custom-country-text" style="color: ${contrastColor}">
-                  ${ann.text || ''}
+              <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center;">
+                <div class="custom-country-plate" style="background-color: ${ann.color};">
+                  <div class="custom-country-text" style="color: ${contrastColor}">
+                    ${ann.text || ''}
+                  </div>
                 </div>
               </div>
             `;
           } else {
-            el.className = `custom-highlight-marker label-marker-${ann.id}`;
-            el.style.backgroundColor = ann.color;
             el.innerHTML = `
-              <div class="custom-highlight-plate" style="background-color: ${ann.color};">
-                <div class="custom-highlight-text" style="color: ${contrastColor}">
-                  ${ann.text || ''}
+              <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center;">
+                <div class="custom-highlight-marker" style="background-color: ${ann.color};">
+                  <div class="custom-highlight-plate" style="background-color: ${ann.color};">
+                    <div class="custom-highlight-text" style="color: ${contrastColor}">
+                      ${ann.text || ''}
+                    </div>
+                  </div>
                 </div>
               </div>
             `;
@@ -1818,10 +1833,17 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             totalDistance += turf.distance(ann.coordinates[i-1], coord, { units: 'kilometers' });
           }
           const el = document.createElement('div');
-          el.className = 'custom-marker-flat';
-          el.style.backgroundColor = ann.color;
-          el.style.color = contrastColor;
-          el.innerHTML = `${totalDistance.toFixed(2)} km`;
+          el.className = 'label-marker-measure-point';
+          el.style.width = '0px';
+          el.style.height = '0px';
+          el.style.position = 'relative';
+          el.innerHTML = `
+            <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
+              <div class="custom-marker-flat" style="background-color: ${ann.color}; color: ${contrastColor};">
+                ${totalDistance.toFixed(2)} km
+              </div>
+            </div>
+          `;
           el.style.cursor = 'pointer';
           el.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1845,10 +1867,17 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         
         ann.coordinates.forEach((coord: [number, number], i: number) => {
           const el = document.createElement('div');
+          el.className = 'label-marker-route-point';
+          el.style.width = '0px';
+          el.style.height = '0px';
+          el.style.position = 'relative';
+          
+          let innerClass = '';
+          let innerHtml = '';
           
           if (i === 0) {
-            el.className = 'custom-marker-flat text-xs font-bold uppercase tracking-wider';
-            el.innerHTML = 'START';
+            innerClass = 'custom-marker-flat text-xs font-bold uppercase tracking-wider';
+            innerHtml = 'START';
           } else {
             const leg = ann.routeLegs![i - 1];
             if (leg) {
@@ -1859,12 +1888,18 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             const mins = Math.round((accumulatedDuration % 3600) / 60);
             const timeStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
             
-            el.className = 'custom-marker-flat text-center leading-tight';
-            el.innerHTML = `${accumulatedDistance.toFixed(1)} km<br/><span style="font-size:0.75em;opacity:0.9">${timeStr}</span>`;
+            innerClass = 'custom-marker-flat text-center leading-tight';
+            innerHtml = `${accumulatedDistance.toFixed(1)} km<br/><span style="font-size:0.75em;opacity:0.9">${timeStr}</span>`;
           }
           
-          el.style.backgroundColor = ann.color;
-          el.style.color = contrastColor;
+          el.innerHTML = `
+            <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
+              <div class="${innerClass}" style="background-color: ${ann.color}; color: ${contrastColor};">
+                ${innerHtml}
+              </div>
+            </div>
+          `;
+          
           el.style.cursor = 'pointer';
           el.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1891,8 +1926,15 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           const contrastColor = getContrastYIQ(ann.color || '#ffffff');
           const center = turf.center(turf.polygon(ann.coordinates)).geometry.coordinates as [number, number];
           const centerEl = document.createElement('div');
-          centerEl.className = 'custom-marker-dot';
-          centerEl.style.backgroundColor = ann.color;
+          centerEl.className = 'label-marker-circle-center';
+          centerEl.style.width = '0px';
+          centerEl.style.height = '0px';
+          centerEl.style.position = 'relative';
+          centerEl.innerHTML = `
+            <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center;">
+              <div class="custom-marker-dot" style="background-color: ${ann.color};"></div>
+            </div>
+          `;
           centerEl.style.cursor = 'pointer';
           centerEl.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1911,10 +1953,17 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
           const edge = ann.coordinates[0][0];
           const labelEl = document.createElement('div');
-          labelEl.className = 'custom-marker-flat';
-          labelEl.style.backgroundColor = ann.color;
-          labelEl.style.color = contrastColor;
-          labelEl.innerHTML = `${ann.radius?.toFixed(2)} km`;
+          labelEl.className = 'label-marker-circle-radius';
+          labelEl.style.width = '0px';
+          labelEl.style.height = '0px';
+          labelEl.style.position = 'relative';
+          labelEl.innerHTML = `
+            <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
+              <div class="custom-marker-flat" style="background-color: ${ann.color}; color: ${contrastColor};">
+                ${(ann.radius || 0).toFixed(2)} km
+              </div>
+            </div>
+          `;
           labelEl.style.cursor = 'pointer';
           labelEl.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1956,10 +2005,17 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         const iconObj = allIcons.find(i => i.id === ann.iconId);
         if (iconObj) {
           const el = document.createElement('div');
-          el.className = 'icon-marker w-16 h-16 flex items-center justify-center p-2 icon-svg-wrapper';
-          el.style.backgroundColor = ann.color || '#ffffff';
-          el.style.color = getContrastYIQ(ann.color || '#ffffff');
-          el.innerHTML = iconObj.svg;
+          el.className = 'label-marker-icon';
+          el.style.width = '0px';
+          el.style.height = '0px';
+          el.style.position = 'relative';
+          el.innerHTML = `
+            <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
+              <div class="icon-marker w-16 h-16 flex items-center justify-center p-2 icon-svg-wrapper" style="background-color: ${ann.color || '#ffffff'}; color: ${getContrastYIQ(ann.color || '#ffffff')};">
+                ${iconObj.svg}
+              </div>
+            </div>
+          `;
           el.style.cursor = 'pointer';
           
           el.addEventListener('click', (e) => {
@@ -2801,6 +2857,54 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     if (!mapRef.current || !mapLoaded) return;
     const map = mapRef.current;
     
+    const fadeDuration = settings.labelAnimationDuration ?? 1000;
+    const transition = { duration: fadeDuration, delay: 0 };
+
+    const setLayerFade = (mapLibreLayerId: string, layerType: string, isVisible: boolean, maxOpacity: any = 1, layerSidebarVisible: boolean = true) => {
+      if (!map.getLayer(mapLibreLayerId)) return;
+      
+      if (!layerSidebarVisible) {
+        map.setLayoutProperty(mapLibreLayerId, 'visibility', 'none');
+        if (layerFadeTimeoutsRef.current[mapLibreLayerId]) {
+          clearTimeout(layerFadeTimeoutsRef.current[mapLibreLayerId]);
+          delete layerFadeTimeoutsRef.current[mapLibreLayerId];
+        }
+        return;
+      }
+      
+      if (layerFadeTimeoutsRef.current[mapLibreLayerId]) {
+        clearTimeout(layerFadeTimeoutsRef.current[mapLibreLayerId]);
+        delete layerFadeTimeoutsRef.current[mapLibreLayerId];
+      }
+      
+      const opacityProp = `${layerType}-opacity`;
+      const currentVisibility = map.getLayoutProperty(mapLibreLayerId, 'visibility');
+      
+      if (isVisible) {
+        if (currentVisibility === 'none') {
+          map.setLayoutProperty(mapLibreLayerId, 'visibility', 'visible');
+          setTimeout(() => {
+            if (!map.getLayer(mapLibreLayerId)) return;
+            map.setPaintProperty(mapLibreLayerId, opacityProp + '-transition', transition);
+            map.setPaintProperty(mapLibreLayerId, opacityProp, maxOpacity);
+          }, 30);
+        } else {
+          map.setPaintProperty(mapLibreLayerId, opacityProp + '-transition', transition);
+          map.setPaintProperty(mapLibreLayerId, opacityProp, maxOpacity);
+        }
+      } else {
+        map.setPaintProperty(mapLibreLayerId, opacityProp + '-transition', transition);
+        map.setPaintProperty(mapLibreLayerId, opacityProp, 0);
+        
+        layerFadeTimeoutsRef.current[mapLibreLayerId] = setTimeout(() => {
+          if (map.getLayer(mapLibreLayerId)) {
+            map.setLayoutProperty(mapLibreLayerId, 'visibility', 'none');
+          }
+          delete layerFadeTimeoutsRef.current[mapLibreLayerId];
+        }, fadeDuration);
+      }
+    };
+
     let style;
     try {
       style = map.getStyle();
@@ -2808,7 +2912,18 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       return; // Style not loaded yet
     }
     
-    const layers = settings.layers || [];
+    const layers = (settings.layers || []).map(layer => {
+      const hasRevealTrigger = !!layer.animationTriggerId;
+      const hasHideTrigger = !!layer.hideAnimationTriggerId;
+      
+      const overrideVisible = activeTool !== 'none';
+      const isRevealed = overrideVisible || (!hasRevealTrigger || revealedTriggers.has(layer.animationTriggerId!));
+      const isHidden = !overrideVisible && (hasHideTrigger && hiddenTriggers.has(layer.hideAnimationTriggerId!));
+      
+      const isTriggerVisible = isRevealed && !isHidden;
+      
+      return { ...layer, _effectiveOpacityVisible: isTriggerVisible };
+    });
     const styleLayers = style?.layers || [];
     const firstSymbolId = styleLayers.find(l => l.type === 'symbol')?.id;
     
@@ -2980,11 +3095,11 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           
           if (map.getLayer(tempLayerId)) {
             map.setLayoutProperty(tempLayerId, 'visibility', layer.visible ? 'visible' : 'none');
-            map.setPaintProperty(tempLayerId, 'raster-opacity', targetOpacity);
+            setLayerFade(tempLayerId, 'raster', layer._effectiveOpacityVisible ?? true, targetOpacity, layer.visible);
           }
           if (map.getLayer(precipLayerId)) {
             map.setLayoutProperty(precipLayerId, 'visibility', layer.visible ? 'visible' : 'none');
-            map.setPaintProperty(precipLayerId, 'raster-opacity', targetOpacity);
+            setLayerFade(precipLayerId, 'raster', layer._effectiveOpacityVisible ?? true, targetOpacity, layer.visible);
           }
         });
 
@@ -3345,11 +3460,11 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       } else if (map.getLayer(layerId)) {
         map.setLayoutProperty(layerId, 'visibility', layer.visible ? 'visible' : 'none');
         if (layer.type === 'nighttime') {
-          map.setPaintProperty(layerId, 'fill-opacity', layer.opacity ?? 0.5);
+          setLayerFade(layerId, 'fill', layer._effectiveOpacityVisible ?? true, layer.opacity ?? 0.5, layer.visible);
         } else if (layer.type === 'raster' || layer.type === 'satellite') {
           const bMin = layer.brightness !== undefined && layer.brightness > 0 ? layer.brightness : 0;
           const bMax = layer.brightness !== undefined && layer.brightness < 0 ? 1 + layer.brightness : 1;
-          map.setPaintProperty(layerId, 'raster-opacity', layer.opacity ?? 1.0);
+          setLayerFade(layerId, 'raster', layer._effectiveOpacityVisible ?? true, layer.opacity ?? 1.0, layer.visible);
           map.setPaintProperty(layerId, 'raster-contrast', layer.contrast ?? 0);
           map.setPaintProperty(layerId, 'raster-saturation', layer.saturation ?? 0);
           map.setPaintProperty(layerId, 'raster-hue-rotate', layer.hue ?? 0);
@@ -3365,16 +3480,18 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               ] 
             : (layer.globalAircraftColor || '#ffffff');
             
-          map.setPaintProperty(layerId, 'icon-opacity', selectedAircraftId 
+          const iconOpacityBase = selectedAircraftId 
             ? ['case', ['==', ['to-string', ['get', 'icao24']], selectedAircraftId], 1.0, 0.5]
-            : 1.0);
+            : 1.0;
+          setLayerFade(layerId, 'icon', layer._effectiveOpacityVisible ?? true, iconOpacityBase, layer.visible);
           map.setPaintProperty(layerId, 'icon-color', colorExp as any);
           
           if (map.getLayer(`${layerId}-labels`)) {
             map.setLayoutProperty(`${layerId}-labels`, 'visibility', layer.visible && layer.showCallsigns ? 'visible' : 'none');
-            map.setPaintProperty(`${layerId}-labels`, 'text-opacity', selectedAircraftId 
+            const labelOpacityBase = selectedAircraftId 
               ? ['case', ['==', ['to-string', ['get', 'icao24']], selectedAircraftId], 1.0, 0.5]
-              : 1.0);
+              : 1.0;
+            setLayerFade(`${layerId}-labels`, 'text', layer._effectiveOpacityVisible ?? true, labelOpacityBase, layer.visible);
             map.setPaintProperty(`${layerId}-labels`, 'text-color', colorExp as any);
           } else if (layer.showCallsigns) {
             const firstSymbolId = map.getStyle().layers?.find(l => l.type === 'symbol')?.id;
@@ -3402,36 +3519,37 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           }
         } else if (layer.type === 'wildfires') {
           if (map.getLayer(`${layerId}-effis`)) {
-            map.setPaintProperty(`${layerId}-effis`, 'raster-opacity', layer.opacity ?? 0.75);
+            setLayerFade(`${layerId}-effis`, 'raster', layer._effectiveOpacityVisible ?? true, layer.opacity ?? 0.75, layer.visible);
             map.setLayoutProperty(`${layerId}-effis`, 'visibility', layer.visible && layer.wildfireMode !== 'gdacs' ? 'visible' : 'none');
           }
           if (map.getLayer(`${layerId}-gdacs-fill`)) {
-            map.setPaintProperty(`${layerId}-gdacs-fill`, 'fill-opacity', layer.opacity ?? 0.3);
+            setLayerFade(`${layerId}-gdacs-fill`, 'fill', layer._effectiveOpacityVisible ?? true, layer.opacity ?? 0.3, layer.visible);
             map.setLayoutProperty(`${layerId}-gdacs-fill`, 'visibility', layer.visible && layer.wildfireMode === 'gdacs' ? 'visible' : 'none');
           }
           if (map.getLayer(`${layerId}-gdacs-line`)) {
-            map.setPaintProperty(`${layerId}-gdacs-line`, 'line-opacity', layer.opacity ?? 0.8);
+            setLayerFade(`${layerId}-gdacs-line`, 'line', layer._effectiveOpacityVisible ?? true, layer.opacity ?? 0.8, layer.visible);
             map.setLayoutProperty(`${layerId}-gdacs-line`, 'visibility', layer.visible && layer.wildfireMode === 'gdacs' ? 'visible' : 'none');
           }
         } else if (layer.type === 'gdacs_earthquakes' || layer.type === 'gdacs_volcanoes') {
           if (map.getLayer(layerId)) {
-            map.setPaintProperty(layerId, 'circle-opacity', layer.opacity ?? 0.8);
+            setLayerFade(layerId, 'circle', layer._effectiveOpacityVisible ?? true, layer.opacity ?? 0.8, layer.visible);
             map.setLayoutProperty(layerId, 'visibility', layer.visible ? 'visible' : 'none');
           }
           if (map.getLayer(`${layerId}-label`)) {
+            setLayerFade(`${layerId}-label`, 'text', layer._effectiveOpacityVisible ?? true, 1.0, layer.visible);
             map.setLayoutProperty(`${layerId}-label`, 'visibility', layer.visible ? 'visible' : 'none');
           }
         } else if (layer.type === 'cems_rapid_mapping') {
           if (map.getLayer(layerId)) {
-            map.setPaintProperty(layerId, 'circle-opacity', layer.opacity ?? 0.8);
+            setLayerFade(layerId, 'circle', layer._effectiveOpacityVisible ?? true, layer.opacity ?? 0.8, layer.visible);
             map.setLayoutProperty(layerId, 'visibility', layer.visible ? 'visible' : 'none');
           }
           if (map.getLayer(`${layerId}-label`)) {
+            setLayerFade(`${layerId}-label`, 'text', layer._effectiveOpacityVisible ?? true, 1.0, layer.visible);
             map.setLayoutProperty(`${layerId}-label`, 'visibility', layer.visible ? 'visible' : 'none');
           }
-          map.setPaintProperty(layerId, 'circle-opacity', layer.opacity ?? 0.8);
         } else if (layer.type === 'deepstate') {
-          map.setPaintProperty(layerId, 'fill-opacity', layer.opacity ?? 0.5);
+          setLayerFade(layerId, 'fill', layer._effectiveOpacityVisible ?? true, layer.opacity ?? 0.5, layer.visible);
         }
         
         if (layer.type === 'flights') {
@@ -3459,9 +3577,10 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               ] 
             : (layer.globalVesselColor || '#ffffff');
             
-          map.setPaintProperty(layerId, 'icon-opacity', selectedVesselMmsi 
+          const iconOpacityBase = selectedVesselMmsi 
             ? ['case', ['==', ['to-string', ['get', 'mmsi']], selectedVesselMmsi], 1.0, 0.5]
-            : 1.0);
+            : 1.0;
+          setLayerFade(layerId, 'icon', layer._effectiveOpacityVisible ?? true, iconOpacityBase, layer.visible);
           map.setPaintProperty(layerId, 'icon-color', colorExp as any);
           
           if (map.getLayer('selected-vessel-track-layer')) {
@@ -3478,8 +3597,17 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           }
         }
         
+        if (layer.type === 'geojson') {
+          if (map.getLayer(layerId)) {
+            setLayerFade(layerId, 'fill', layer._effectiveOpacityVisible ?? true, ['coalesce', ['get', 'fillOpacity'], 0.5], layer.visible);
+          }
+        }
+
         if (map.getLayer(lineId)) {
           map.setLayoutProperty(lineId, 'visibility', layer.visible ? 'visible' : 'none');
+          if (layer.type === 'geojson') {
+            setLayerFade(lineId, 'line', layer._effectiveOpacityVisible ?? true, ['coalesce', ['get', 'lineOpacity'], 1.0], layer.visible);
+          }
         }
       }
 
@@ -3567,7 +3695,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     });
 
     // Fetch data for GDACS if needed
-    for (const layer of settings.layers) {
+    for (const layer of layers) {
       if (!layer.visible) continue;
       if (layer.type.startsWith('gdacs_') || layer.type === 'cems_rapid_mapping' || (layer.type === 'wildfires' && layer.wildfireMode === 'gdacs')) {
         const sourceId = layer.type === 'wildfires' ? `dynamic-source-${layer.id}-gdacs` : `dynamic-source-${layer.id}`;
@@ -3717,7 +3845,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       // Cleanup dynamically created raster layers that were removed from settings
       // We don't remove copernicus or deepstate sources to avoid reload flashes
     };
-  }, [settings.layers, mapLoaded, selectedAircraftId, selectedVesselMmsi, selectedWeatherTime, weatherValidTimes, selectedEarthquake, selectedVolcano, selectedEarthquakeShakemap, selectedVolcanoPolygon, selectedCemsEarthquake, selectedCemsEarthquakeFeatures]);
+  }, [settings.layers, activeTool, revealedTriggers, hiddenTriggers, mapLoaded, selectedAircraftId, selectedVesselMmsi, selectedWeatherTime, weatherValidTimes, selectedEarthquake, selectedVolcano, selectedEarthquakeShakemap, selectedVolcanoPolygon, selectedCemsEarthquake, selectedCemsEarthquakeFeatures]);
 
   // Fetch weather data for visible cities
   useEffect(() => {
@@ -5149,17 +5277,18 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           'fill-color': [
             'step',
             ['to-number', ['coalesce', ['get', 'cdi'], 0]],
-            '#ffffff',
-            2, '#bfccff',
-            4, '#a0e6ff',
-            5, '#80ffff',
-            6, '#7aff93',
-            7, '#ffff00',
-            8, '#ffc800',
-            9, '#ff9100',
-            10, '#ff0000'
+            '#ffffff', 1,
+            '#bfccff', 2,
+            '#a0e6ff', 3,
+            '#80ffff', 4,
+            '#7aff93', 5,
+            '#ffff00', 6,
+            '#ffc800', 7,
+            '#ff9100', 8,
+            '#ff0000', 9,
+            '#c80000'
           ],
-          'fill-opacity': 0.6
+          'fill-opacity': eqLayer?.usgsDyfi10kmOpacity ?? 0.6
         }
       }, beforeId);
     }
@@ -5171,7 +5300,10 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
     const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
     const visibility = eqLayer?.usgsDyfi10kmEnabled ? 'visible' : 'none';
-    if (map.getLayer('selected-usgs-dyfi-10km-fill')) map.setLayoutProperty('selected-usgs-dyfi-10km-fill', 'visibility', visibility);
+    if (map.getLayer('selected-usgs-dyfi-10km-fill')) {
+      map.setLayoutProperty('selected-usgs-dyfi-10km-fill', 'visibility', visibility);
+      map.setPaintProperty('selected-usgs-dyfi-10km-fill', 'fill-opacity', eqLayer?.usgsDyfi10kmOpacity ?? 0.6);
+    }
   }, [selectedEarthquakeUsgsDyfi10km, mapLoaded, settings.layers]);
 
   // Render USGS DYFI 1km
@@ -5196,17 +5328,18 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           'fill-color': [
             'step',
             ['to-number', ['coalesce', ['get', 'cdi'], 0]],
-            '#ffffff',
-            2, '#bfccff',
-            4, '#a0e6ff',
-            5, '#80ffff',
-            6, '#7aff93',
-            7, '#ffff00',
-            8, '#ffc800',
-            9, '#ff9100',
-            10, '#ff0000'
+            '#ffffff', 1,
+            '#bfccff', 2,
+            '#a0e6ff', 3,
+            '#80ffff', 4,
+            '#7aff93', 5,
+            '#ffff00', 6,
+            '#ffc800', 7,
+            '#ff9100', 8,
+            '#ff0000', 9,
+            '#c80000'
           ],
-          'fill-opacity': 0.6
+          'fill-opacity': eqLayer?.usgsDyfi1kmOpacity ?? 0.6
         }
       }, beforeId);
     }
@@ -5218,7 +5351,10 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
     const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
     const visibility = eqLayer?.usgsDyfi1kmEnabled ? 'visible' : 'none';
-    if (map.getLayer('selected-usgs-dyfi-1km-fill')) map.setLayoutProperty('selected-usgs-dyfi-1km-fill', 'visibility', visibility);
+    if (map.getLayer('selected-usgs-dyfi-1km-fill')) {
+      map.setLayoutProperty('selected-usgs-dyfi-1km-fill', 'visibility', visibility);
+      map.setPaintProperty('selected-usgs-dyfi-1km-fill', 'fill-opacity', eqLayer?.usgsDyfi1kmOpacity ?? 0.6);
+    }
   }, [selectedEarthquakeUsgsDyfi1km, mapLoaded, settings.layers]);
 
   // Render USGS Landslide Overlay
@@ -5246,7 +5382,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         type: 'raster',
         source: 'selected-usgs-landslide-source',
         paint: {
-          'raster-opacity': 0.8
+          'raster-opacity': eqLayer?.usgsLandslideOpacity ?? 0.8
         }
       }, beforeId);
     } else if (map.getSource('selected-usgs-landslide-source') && selectedEarthquakeUsgsLandslide) {
@@ -5265,6 +5401,15 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     const visibility = (eqLayer?.usgsLandslideEnabled && selectedEarthquakeUsgsLandslide) ? 'visible' : 'none';
     if (map.getLayer('selected-usgs-landslide-raster')) {
       map.setLayoutProperty('selected-usgs-landslide-raster', 'visibility', visibility);
+      map.setPaintProperty('selected-usgs-landslide-raster', 'raster-opacity', eqLayer?.usgsLandslideOpacity ?? 0.8);
+      
+      const bMin = eqLayer?.usgsLandslideBrightness !== undefined && eqLayer.usgsLandslideBrightness > 0 ? eqLayer.usgsLandslideBrightness : 0;
+      const bMax = eqLayer?.usgsLandslideBrightness !== undefined && eqLayer.usgsLandslideBrightness < 0 ? 1 + eqLayer.usgsLandslideBrightness : 1;
+      map.setPaintProperty('selected-usgs-landslide-raster', 'raster-brightness-min', bMin);
+      map.setPaintProperty('selected-usgs-landslide-raster', 'raster-brightness-max', bMax);
+      map.setPaintProperty('selected-usgs-landslide-raster', 'raster-contrast', eqLayer?.usgsLandslideContrast ?? 0);
+      map.setPaintProperty('selected-usgs-landslide-raster', 'raster-saturation', eqLayer?.usgsLandslideSaturation ?? 0);
+      map.setPaintProperty('selected-usgs-landslide-raster', 'raster-hue-rotate', eqLayer?.usgsLandslideHue ?? 0);
     }
   }, [selectedEarthquakeUsgsLandslide, mapLoaded, settings.layers]);
 
@@ -5293,7 +5438,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         type: 'raster',
         source: 'selected-usgs-liquefaction-source',
         paint: {
-          'raster-opacity': 0.8
+          'raster-opacity': eqLayer?.usgsLiquefactionOpacity ?? 0.8
         }
       }, beforeId);
     } else if (map.getSource('selected-usgs-liquefaction-source') && selectedEarthquakeUsgsLiquefaction) {
@@ -5312,8 +5457,18 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     const visibility = (eqLayer?.usgsLiquefactionEnabled && selectedEarthquakeUsgsLiquefaction) ? 'visible' : 'none';
     if (map.getLayer('selected-usgs-liquefaction-raster')) {
       map.setLayoutProperty('selected-usgs-liquefaction-raster', 'visibility', visibility);
+      map.setPaintProperty('selected-usgs-liquefaction-raster', 'raster-opacity', eqLayer?.usgsLiquefactionOpacity ?? 0.8);
+      
+      const bMin = eqLayer?.usgsLiquefactionBrightness !== undefined && eqLayer.usgsLiquefactionBrightness > 0 ? eqLayer.usgsLiquefactionBrightness : 0;
+      const bMax = eqLayer?.usgsLiquefactionBrightness !== undefined && eqLayer.usgsLiquefactionBrightness < 0 ? 1 + eqLayer.usgsLiquefactionBrightness : 1;
+      map.setPaintProperty('selected-usgs-liquefaction-raster', 'raster-brightness-min', bMin);
+      map.setPaintProperty('selected-usgs-liquefaction-raster', 'raster-brightness-max', bMax);
+      map.setPaintProperty('selected-usgs-liquefaction-raster', 'raster-contrast', eqLayer?.usgsLiquefactionContrast ?? 0);
+      map.setPaintProperty('selected-usgs-liquefaction-raster', 'raster-saturation', eqLayer?.usgsLiquefactionSaturation ?? 0);
+      map.setPaintProperty('selected-usgs-liquefaction-raster', 'raster-hue-rotate', eqLayer?.usgsLiquefactionHue ?? 0);
     }
   }, [selectedEarthquakeUsgsLiquefaction, mapLoaded, settings.layers]);
+  
   // Fetch corresponding CEMS activation when a GDACS earthquake is selected
   useEffect(() => {
     if (!selectedEarthquake) {
@@ -5543,7 +5698,13 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       });
       
       const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
-      const beforeId = (eqLayer && map.getLayer(`dynamic-layer-${eqLayer.id}`)) ? `dynamic-layer-${eqLayer.id}` : 'custom-polygons';
+      let beforeId = 'custom-polygons';
+      const firstSymbolId = map.getStyle().layers?.find(l => l.type === 'symbol')?.id;
+      if (firstSymbolId) {
+        beforeId = firstSymbolId;
+      } else if (eqLayer && map.getLayer(`dynamic-layer-${eqLayer.id}`)) {
+        beforeId = `dynamic-layer-${eqLayer.id}`;
+      }
 
       map.addLayer({
         id: 'selected-earthquake-shakemap-fill',
@@ -5595,11 +5756,13 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       if (map.getLayer('selected-earthquake-shakemap-fill')) {
         map.setLayoutProperty('selected-earthquake-shakemap-fill', 'visibility', shakemapVisibility);
         map.setPaintProperty('selected-earthquake-shakemap-fill', 'fill-color', colorExpr || ['coalesce', ['get', 'fill'], '#ff9900']);
+        map.setPaintProperty('selected-earthquake-shakemap-fill', 'fill-opacity', (eqLayer.shakemapOpacity ?? 1.0) * 0.3); // base is 0.3
       }
       
       if (map.getLayer('selected-earthquake-shakemap-line')) {
         map.setLayoutProperty('selected-earthquake-shakemap-line', 'visibility', shakemapVisibility);
         map.setPaintProperty('selected-earthquake-shakemap-line', 'line-color', colorExpr || ['coalesce', ['get', 'stroke'], '#ff0000']);
+        map.setPaintProperty('selected-earthquake-shakemap-line', 'line-opacity', (eqLayer.shakemapOpacity ?? 1.0) * 0.8); // base is 0.8
       }
     }
   }, [selectedEarthquakeShakemap, mapLoaded, settings.layers]);
@@ -5744,12 +5907,44 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       source.setData(selectedCemsEarthquakeFeatures || { type: 'FeatureCollection', features: [] });
     }
 
-    const isCemsEnabled = !!settings.layers.find(l => l.type === 'gdacs_earthquakes')?.copernicusEnabled;
+    const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
+    const isCemsEnabled = !!eqLayer?.copernicusEnabled;
     const cemsVisibility = isCemsEnabled ? 'visible' : 'none';
-    if (map.getLayer('selected-cems-vt-extent')) map.setLayoutProperty('selected-cems-vt-extent', 'visibility', cemsVisibility);
-    if (map.getLayer('selected-cems-vt-polygons')) map.setLayoutProperty('selected-cems-vt-polygons', 'visibility', cemsVisibility);
-    if (map.getLayer('selected-cems-vt-lines')) map.setLayoutProperty('selected-cems-vt-lines', 'visibility', cemsVisibility);
-    if (map.getLayer('selected-cems-vt-points')) map.setLayoutProperty('selected-cems-vt-points', 'visibility', cemsVisibility);
+    const cemsOpacity = eqLayer?.copernicusOpacity ?? 1.0;
+    
+    if (map.getLayer('selected-cems-vt-extent')) {
+      map.setLayoutProperty('selected-cems-vt-extent', 'visibility', cemsVisibility);
+      map.setPaintProperty('selected-cems-vt-extent', 'line-opacity', cemsOpacity);
+    }
+    if (map.getLayer('selected-cems-vt-polygons')) {
+      map.setLayoutProperty('selected-cems-vt-polygons', 'visibility', cemsVisibility);
+      map.setPaintProperty('selected-cems-vt-polygons', 'fill-opacity', [
+        'match',
+        ['get', 'damage_gra'],
+        'Destroyed', 0.6 * cemsOpacity,
+        'Damaged', 0.6 * cemsOpacity,
+        'Possibly damaged', 0.6 * cemsOpacity,
+        'No visible damage', 0.6 * cemsOpacity,
+        0.25 * cemsOpacity
+      ]);
+    }
+    if (map.getLayer('selected-cems-vt-lines')) {
+      map.setLayoutProperty('selected-cems-vt-lines', 'visibility', cemsVisibility);
+      map.setPaintProperty('selected-cems-vt-lines', 'line-opacity', [
+        'match',
+        ['get', 'damage_gra'],
+        'Destroyed', 1 * cemsOpacity,
+        'Damaged', 1 * cemsOpacity,
+        'Possibly damaged', 1 * cemsOpacity,
+        'No visible damage', 1 * cemsOpacity,
+        0.25 * cemsOpacity
+      ]);
+    }
+    if (map.getLayer('selected-cems-vt-points')) {
+      map.setLayoutProperty('selected-cems-vt-points', 'visibility', cemsVisibility);
+      map.setPaintProperty('selected-cems-vt-points', 'circle-opacity', cemsOpacity);
+      map.setPaintProperty('selected-cems-vt-points', 'circle-stroke-opacity', cemsOpacity);
+    }
 
   }, [selectedCemsEarthquakeFeatures, mapLoaded, settings.layers]);
 
@@ -6353,7 +6548,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
       if (activeTool === 'icon' && selectedIconId) {
         setAnnotations(prev => [...prev, {
-          id: Date.now().toString(),
+          id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
           type: 'icon',
           iconId: selectedIconId,
           color: currentColor,
@@ -6541,7 +6736,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           if (symbolFeature.geometry.type === 'Point') {
             coords = symbolFeature.geometry.coordinates as [number, number];
           }
-          const newId = Date.now().toString();
+          const newId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
           setAnnotations(prev => [...prev, {
             id: newId,
             type: 'highlight',
@@ -6606,7 +6801,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                 const centerLng = parseFloat(data.lon);
                 const centerLat = parseFloat(data.lat);
                 
-                const newId = Date.now().toString();
+                const newId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
                 setAnnotations(prev => [...prev, {
                   id: newId,
                   type: 'highlight',
@@ -6681,11 +6876,18 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         // Add static measure marker for this vertex
         const dist = calculateDistance(currentShapeCoords.current);
         const labelEl = document.createElement('div');
-        labelEl.className = 'custom-marker-flat';
-        labelEl.style.backgroundColor = currentColor;
-        labelEl.style.color = getContrastYIQ(currentColor);
+        labelEl.className = 'label-marker-measure-draw';
+        labelEl.style.width = '0px';
+        labelEl.style.height = '0px';
+        labelEl.style.position = 'relative';
         labelEl.style.pointerEvents = 'none';
-        labelEl.innerHTML = `${dist.toFixed(2)} km`;
+        labelEl.innerHTML = `
+          <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
+            <div class="custom-marker-flat" style="background-color: ${currentColor}; color: ${getContrastYIQ(currentColor)};">
+              ${dist.toFixed(2)} km
+            </div>
+          </div>
+        `;
         const markerId = `measure-${currentShapeCoords.current.length - 1}`;
         activeDrawMarkersRef.current[markerId] = new maplibregl.Marker({ element: labelEl })
           .setLngLat([e.lngLat.lng, e.lngLat.lat])
@@ -6703,11 +6905,18 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           const timeStr = hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
           
           const labelEl = document.createElement('div');
-          labelEl.className = 'custom-marker-flat text-center leading-tight';
-          labelEl.style.backgroundColor = currentColor;
-          labelEl.style.color = getContrastYIQ(currentColor);
+          labelEl.className = 'label-marker-route-draw';
+          labelEl.style.width = '0px';
+          labelEl.style.height = '0px';
+          labelEl.style.position = 'relative';
           labelEl.style.pointerEvents = 'none';
-          labelEl.innerHTML = `${totalDist.toFixed(1)} km<br/><span style="font-size:0.75em;opacity:0.9">${timeStr}</span>`;
+          labelEl.innerHTML = `
+            <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
+              <div class="custom-marker-flat text-center leading-tight" style="background-color: ${currentColor}; color: ${getContrastYIQ(currentColor)};">
+                ${totalDist.toFixed(1)} km<br/><span style="font-size:0.75em;opacity:0.9">${timeStr}</span>
+              </div>
+            </div>
+          `;
           
           const markerId = `route-${idx}`;
           activeDrawMarkersRef.current[markerId] = new maplibregl.Marker({ element: labelEl })
@@ -6737,11 +6946,18 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           routeLegsSegmentsRef.current = {};
           
           const labelEl = document.createElement('div');
-          labelEl.className = 'custom-marker-flat text-xs font-bold uppercase tracking-wider';
-          labelEl.style.backgroundColor = currentColor;
-          labelEl.style.color = getContrastYIQ(currentColor);
+          labelEl.className = 'label-marker-route-start';
+          labelEl.style.width = '0px';
+          labelEl.style.height = '0px';
+          labelEl.style.position = 'relative';
           labelEl.style.pointerEvents = 'none';
-          labelEl.innerHTML = 'START';
+          labelEl.innerHTML = `
+            <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
+              <div class="custom-marker-flat text-xs font-bold uppercase tracking-wider" style="background-color: ${currentColor}; color: ${getContrastYIQ(currentColor)};">
+                START
+              </div>
+            </div>
+          `;
           activeDrawMarkersRef.current[`route-0`] = new maplibregl.Marker({ element: labelEl })
             .setLngLat(point)
             .addTo(map);
@@ -6925,9 +7141,16 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         
         // Add live center dot
         const centerEl = document.createElement('div');
-        centerEl.className = 'custom-marker-dot';
-        centerEl.style.backgroundColor = currentColor;
+        centerEl.className = 'label-marker-circle-center-draw';
+        centerEl.style.width = '0px';
+        centerEl.style.height = '0px';
+        centerEl.style.position = 'relative';
         centerEl.style.pointerEvents = 'none';
+        centerEl.innerHTML = `
+          <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center;">
+            <div class="custom-marker-dot" style="background-color: ${currentColor};"></div>
+          </div>
+        `;
         activeDrawMarkersRef.current['circle-center'] = new maplibregl.Marker({ element: centerEl })
           .setLngLat(circleCenter.current)
           .addTo(map);
@@ -6975,16 +7198,30 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             // Update live radius marker
             if (!activeDrawMarkersRef.current['circle-radius']) {
               const labelEl = document.createElement('div');
-              labelEl.className = 'custom-marker-flat';
-              labelEl.style.backgroundColor = currentColor;
-              labelEl.style.color = getContrastYIQ(currentColor);
+              labelEl.className = 'label-marker-circle-radius';
+              labelEl.style.width = '0px';
+              labelEl.style.height = '0px';
+              labelEl.style.position = 'relative';
               labelEl.style.pointerEvents = 'none';
+              labelEl.innerHTML = `
+                <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
+                  <div class="custom-marker-flat" style="background-color: ${currentColor}; color: ${getContrastYIQ(currentColor)};">
+                    ${radius.toFixed(2)} km
+                  </div>
+                </div>
+              `;
               activeDrawMarkersRef.current['circle-radius'] = new maplibregl.Marker({ element: labelEl })
                 .setLngLat(currentPos)
                 .addTo(map);
             } else {
               activeDrawMarkersRef.current['circle-radius'].setLngLat(currentPos);
-              activeDrawMarkersRef.current['circle-radius'].getElement().innerHTML = `${radius.toFixed(2)} km`;
+              activeDrawMarkersRef.current['circle-radius'].getElement().innerHTML = `
+                <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
+                  <div class="custom-marker-flat" style="background-color: ${currentColor}; color: ${getContrastYIQ(currentColor)};">
+                    ${radius.toFixed(2)} km
+                  </div>
+                </div>
+              `;
             }
           }
         }
@@ -7030,16 +7267,30 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           
           if (!activeDrawMarkersRef.current['measure-floating']) {
             const labelEl = document.createElement('div');
-            labelEl.className = 'custom-marker-flat';
-            labelEl.style.backgroundColor = currentColor;
-            labelEl.style.color = getContrastYIQ(currentColor);
+            labelEl.className = 'label-marker-measure-floating';
+            labelEl.style.width = '0px';
+            labelEl.style.height = '0px';
+            labelEl.style.position = 'relative';
             labelEl.style.pointerEvents = 'none';
+            labelEl.innerHTML = `
+              <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
+                <div class="custom-marker-flat" style="background-color: ${currentColor}; color: ${getContrastYIQ(currentColor)};">
+                  ${dist.toFixed(2)} km
+                </div>
+              </div>
+            `;
             activeDrawMarkersRef.current['measure-floating'] = new maplibregl.Marker({ element: labelEl })
               .setLngLat([e.lngLat.lng, e.lngLat.lat])
               .addTo(map);
           } else {
             activeDrawMarkersRef.current['measure-floating'].setLngLat([e.lngLat.lng, e.lngLat.lat]);
-            activeDrawMarkersRef.current['measure-floating'].getElement().innerHTML = `${dist.toFixed(2)} km`;
+            activeDrawMarkersRef.current['measure-floating'].getElement().innerHTML = `
+              <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
+                <div class="custom-marker-flat" style="background-color: ${currentColor}; color: ${getContrastYIQ(currentColor)};">
+                  ${dist.toFixed(2)} km
+                </div>
+              </div>
+            `;
           }
         }
       }
@@ -7054,7 +7305,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         if (currentShapeCoords.current.length > 2) {
           const simplified = simplifyLine(currentShapeCoords.current);
           setAnnotations(prev => [...prev, {
-            id: Date.now().toString(),
+            id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
             type: 'paint',
             color: currentColor,
             strokeType: currentStrokeType,
@@ -7074,7 +7325,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           const circlePoly = createCirclePolygon(circleCenter.current, radius);
           if (circlePoly) {
             setAnnotations(prev => [...prev, {
-              id: Date.now().toString(),
+              id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
               type: 'circle',
               color: currentColor,
               strokeType: currentStrokeType,
@@ -7128,7 +7379,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         
         if (currentShapeCoords.current.length >= 4) {
           setAnnotations(prev => [...prev, {
-            id: Date.now().toString(),
+            id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
             type: 'polygon',
             color: currentColor,
             strokeType: currentStrokeType,
@@ -7154,7 +7405,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         
         if (currentShapeCoords.current.length >= 2) {
           setAnnotations(prev => [...prev, {
-            id: Date.now().toString(),
+            id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
             type: 'measure',
             color: currentColor,
             strokeType: currentStrokeType,
@@ -7173,7 +7424,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           isDrawing.current = false;
           if (currentShapeCoords.current.length >= 2) {
             setAnnotations(prev => [...prev, {
-              id: Date.now().toString(),
+              id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
               type: 'route',
               color: currentColor,
               strokeType: currentStrokeType,
@@ -7407,6 +7658,89 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       }
     }
   }, [mapLoaded, settings.waterColor, settings.waterOpacity, settings.mapStyle]);
+
+  // Export Scaling Logic (Basemap Labels)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+    
+    const scale = (settings.exportBasemapScale ?? 1.0) * (imageExportScale || 1.0);
+    const style = map.getStyle();
+    if (!style || !style.layers) return;
+
+    style.layers.forEach((layer) => {
+      // Scale basemap symbol layers (skip custom app layers)
+      if (layer.type === 'symbol' && !layer.id.startsWith('custom-') && !layer.id.startsWith('dynamic-') && !layer.id.startsWith('selected-')) {
+        // Cache original sizes
+        if (!originalBasemapLayoutsRef.current[layer.id]) {
+          originalBasemapLayoutsRef.current[layer.id] = {
+            textSize: map.getLayoutProperty(layer.id, 'text-size'),
+            iconSize: map.getLayoutProperty(layer.id, 'icon-size')
+          };
+        }
+
+        const origTextSize = originalBasemapLayoutsRef.current[layer.id].textSize ?? 16;
+        const origIconSize = originalBasemapLayoutsRef.current[layer.id].iconSize ?? 1;
+
+        try {
+          if (scale === 1.0) {
+            map.setLayoutProperty(layer.id, 'text-size', origTextSize);
+          } else {
+            map.setLayoutProperty(layer.id, 'text-size', scaleMapboxExpression(origTextSize, scale));
+          }
+        } catch (e) {
+          console.warn('Failed to scale text-size for layer', layer.id, e);
+        }
+
+        try {
+          if (scale === 1.0) {
+            map.setLayoutProperty(layer.id, 'icon-size', origIconSize);
+          } else {
+            map.setLayoutProperty(layer.id, 'icon-size', scaleMapboxExpression(origIconSize, scale));
+          }
+        } catch (e) {
+          console.warn('Failed to scale icon-size for layer', layer.id, e);
+        }
+      }
+    });
+  }, [mapLoaded, settings.mapStyle, settings.exportBasemapScale, settings.exportScalePreview, isExporting]);
+
+  // Export Scaling Logic (Annotations)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    const domScale = (settings.exportAnnotationScale ?? 1.0);
+    const mapboxScale = domScale * (imageExportScale || 1.0);
+
+    // Apply scaling to DOM markers via CSS variable globally
+    document.documentElement.style.setProperty('--export-annotation-scale', domScale.toString());
+
+    // Apply scaling to Custom Lines and Strokes
+    if (map.getLayer('custom-lines')) {
+      map.setPaintProperty('custom-lines', 'line-width', 6 * mapboxScale);
+    }
+    if (map.getLayer('custom-lines-dashed')) {
+      map.setPaintProperty('custom-lines-dashed', 'line-width', 6 * mapboxScale);
+    }
+    if (map.getLayer('custom-lines-dotted')) {
+      map.setPaintProperty('custom-lines-dotted', 'line-width', 6 * mapboxScale);
+    }
+
+    if (map.getLayer('custom-polygons-line')) {
+      map.setPaintProperty('custom-polygons-line', 'line-width', 3 * mapboxScale);
+    }
+
+    if (map.getLayer('custom-arrow-heads')) {
+      map.setLayoutProperty('custom-arrow-heads', 'text-size', 80 * mapboxScale);
+    }
+    
+    // Circle Outlines
+    if (map.getLayer('custom-circles-line')) {
+      map.setPaintProperty('custom-circles-line', 'line-width', 3 * mapboxScale);
+    }
+  }, [mapLoaded, settings.exportAnnotationScale, settings.exportScalePreview, isExporting, imageExportScale]);
+
 
   return (
     <div className={`absolute inset-0 w-full h-full touch-none ${isSecondary ? 'pointer-events-none' : ''}`} style={{ clipPath, WebkitClipPath: clipPath, zIndex: isSecondary ? 10 : 0 }}>
@@ -7797,6 +8131,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
     scaleTransform: string;
     width: number;
     height: number;
+    imageExportScale?: number;
   } | null>(null);
 
 
@@ -7973,25 +8308,88 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
     }
 
     try {
-      if (viewsToVisit.length > 0) {
-        map1!.jumpTo({
-          center: viewsToVisit[0].view.center,
-          zoom: viewsToVisit[0].view.zoom,
-          pitch: viewsToVisit[0].view.pitch,
-          bearing: viewsToVisit[0].view.bearing,
-          ...(viewsToVisit[0].view.elevation !== undefined ? { elevation: viewsToVisit[0].view.elevation } : {})
-        });
-        // Let the map move to the starting position BEFORE starting the video export sequence
-        // This prevents capturing a short transition/loading frame in the final video
-        await new Promise(r => setTimeout(r, 1000));
-      }
+      const originalContainerWidth = containerRef.current?.clientWidth || window.innerWidth;
+      const originalContainerHeight = containerRef.current?.clientHeight || window.innerHeight;
+
+      // Create a helper to apply crop transformation to a view
+      const applyCropToView = (view: { center: [number, number], zoom: number, pitch?: number, bearing?: number, elevation?: number }, cropSetting: { scale: number, offsetX: number, offsetY: number } | undefined, targetWidth: number, format: 'landscape'|'portrait'|'square') => {
+        const aspect = format === 'landscape' ? 16/9 : format === 'portrait' ? 9/16 : 1;
+        let maxW = originalContainerWidth;
+        let maxH = originalContainerWidth / aspect;
+        if (maxH > originalContainerHeight) {
+          maxH = originalContainerHeight;
+          maxW = originalContainerHeight * aspect;
+        }
+
+        if (!cropSetting) {
+          // Even without a crop setting, we need to adjust zoom for the container resize
+          // so that the maximum box fills the target dimensions.
+          const newZoom = view.zoom + Math.log2(targetWidth / maxW);
+          return { ...view, zoom: newZoom };
+        }
+        
+        const { scale, offsetX, offsetY } = cropSetting;
+
+        // targetWidth / (maxW * scale) is the exact scaling factor from the crop box to the target video/image
+        const newZoom = view.zoom + Math.log2(targetWidth / (maxW * scale));
+        
+        const lngToX = (lng: number) => (lng + 180) / 360;
+        const latToY = (lat: number) => {
+          const sinLat = Math.sin(lat * Math.PI / 180);
+          return 0.5 - 0.25 * Math.log((1 + sinLat) / (1 - sinLat)) / Math.PI;
+        };
+        const xToLng = (x: number) => x * 360 - 180;
+        const yToLat = (y: number) => {
+          const n = Math.PI - 2 * Math.PI * y;
+          return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+        };
+
+        const worldSize = 512 * Math.pow(2, view.zoom);
+        const centerX = lngToX(view.center[0]);
+        const centerY = latToY(view.center[1]);
+        
+        const mercatorDx = offsetX / worldSize;
+        const mercatorDy = offsetY / worldSize;
+        
+        const newLng = xToLng(centerX + mercatorDx);
+        const newLat = yToLat(centerY + mercatorDy);
+
+        return {
+          ...view,
+          center: [newLng, newLat] as [number, number],
+          zoom: newZoom
+        };
+      };
+
       for (let fIdx = 0; fIdx < formatsToRender.length; fIdx++) {
+        const currentFmt = formatsToRender[fIdx];
+        const cropSetting = props.settings.exportCropSettings?.[currentFmt];
+        const targetWidth = currentFmt === 'landscape' ? 1920 : currentFmt === 'portrait' ? 1080 : 1920;
+        const targetHeight = currentFmt === 'landscape' ? 1080 : currentFmt === 'portrait' ? 1920 : 1920;
+        
+        // Map original views to cropped views for this format
+        const currentViewsToVisit = viewsToVisit.map(v => ({
+          ...v,
+          view: applyCropToView(v.view, cropSetting, targetWidth, currentFmt)
+        }));
+
+        if (currentViewsToVisit.length > 0 && fIdx === 0) {
+          map1!.jumpTo({
+            center: currentViewsToVisit[0].view.center,
+            zoom: currentViewsToVisit[0].view.zoom,
+            pitch: currentViewsToVisit[0].view.pitch,
+            bearing: currentViewsToVisit[0].view.bearing,
+            ...(currentViewsToVisit[0].view.elevation !== undefined ? { elevation: currentViewsToVisit[0].view.elevation } : {})
+          });
+          // Let the map move to the starting position BEFORE starting the video export sequence
+          await new Promise(r => setTimeout(r, 1000));
+        }
+
         // Reset all animation triggers at the start of each format to prevent double-firing
         window.dispatchEvent(new CustomEvent('resetAnimationTriggers'));
 
-      const currentFmt = formatsToRender[fIdx];
-      const targetWidth = currentFmt === 'landscape' ? 1920 : currentFmt === 'portrait' ? 1080 : 1920;
-      const targetHeight = currentFmt === 'landscape' ? 1080 : currentFmt === 'portrait' ? 1920 : 1920;
+
+
       
       // Hide earthquake dots if shakemap is visible
       window.dispatchEvent(new CustomEvent('hideEarthquakeDotsForExport'));
@@ -8069,7 +8467,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
           const el = document.querySelector(`.label-marker-${ann.id}`);
           if (el && el.classList.contains('label-marker')) {
             try {
-              const img = await globalLabelManager.getRasterizedImage(ann.id);
+              const img = await globalLabelManager.getRasterizedImage(ann.id, props.settings.exportAnnotationScale ?? 1.0);
               if (img) preloadedLabels.set(ann.id, img);
             } catch (e) {
               console.error('Failed to rasterize label for video export', e);
@@ -8153,7 +8551,10 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
         ctx.clearRect(0, 0, targetWidth, targetHeight);
         ctx.drawImage(offscreenMapCanvas, 0, 0, targetWidth, targetHeight);
         
+        
         Object.entries(map1MarkersRef.current).forEach(([id, markerInfo]) => {
+          const ann = props.annotations.find(a => a.id === id);
+
           const el = markerInfo.getElement();
           if (!el || el.style.opacity === '0' || el.style.visibility === 'hidden' || el.style.display === 'none') return;
           
@@ -8164,12 +8565,26 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
           ctx.save();
           ctx.translate(point.x, point.y);
           
-          const opacity = parseFloat(el.style.opacity || '1');
+          const annScale = props.settings.exportAnnotationScale ?? 1.0;
+          ctx.scale(annScale, annScale);
+          
+          let innerEl = el;
+          if (el.className.includes('label-marker-')) {
+            innerEl = el.querySelector('.custom-marker-flat') as HTMLElement 
+              || el.querySelector('.custom-marker-dot') as HTMLElement
+              || el.querySelector('.icon-marker') as HTMLElement
+              || el.querySelector('.custom-highlight-marker') as HTMLElement
+              || el.querySelector('.custom-country-marker') as HTMLElement
+              || el;
+          }
+          
+          let opacity = parseFloat(window.getComputedStyle(innerEl).opacity || window.getComputedStyle(el).opacity || '1');
+          if (isNaN(opacity)) opacity = 1;
           ctx.globalAlpha = opacity;
 
-          if (el.classList.contains('custom-marker')) {
-            const plate = el.querySelector('.custom-marker-plate') as HTMLElement;
-            const textEl = el.querySelector('.custom-marker-text') as HTMLElement;
+          if (innerEl.classList.contains('custom-marker')) {
+            const plate = innerEl.querySelector('.custom-marker-plate') as HTMLElement;
+            const textEl = innerEl.querySelector('.custom-marker-text') as HTMLElement;
             if (plate && textEl) {
               const spans = textEl.querySelectorAll('span');
               const lines = spans.length > 0 ? Array.from(spans).map(s => s.textContent || '') : [textEl.textContent?.trim() || ''];
@@ -8186,7 +8601,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               const startX = -boxW / 2;
               const startY = -(boxH + pointerH);
               
-              const clipStr = plate.style.clipPath || '';
+              const clipStr = window.getComputedStyle(plate).clipPath || '';
               let clipTop = 0;
               if (clipStr.includes('inset')) {
                 const match = clipStr.match(/inset\(([-\d.]+)%?/);
@@ -8195,7 +8610,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               const clipPx = (clipTop / 100) * boxH;
               
               let transY = 0;
-              const transStr = textEl.style.transform || '';
+              const transStr = window.getComputedStyle(textEl).transform || '';
               if (transStr.includes('translateY')) {
                 const match = transStr.match(/translateY\(([-\d.]+)%\)/);
                 if (match) transY = parseFloat(match[1]) || 0;
@@ -8206,17 +8621,17 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               ctx.moveTo(-6, startY + boxH);
               ctx.lineTo(6, startY + boxH);
               ctx.lineTo(0, startY + boxH + pointerH);
-              ctx.fillStyle = plate.style.borderColor || '#000';
+              ctx.fillStyle = window.getComputedStyle(plate).borderColor || '#000';
               ctx.fill();
 
               ctx.save();
               ctx.beginPath();
               ctx.rect(startX, startY + clipPx, boxW, boxH - clipPx);
               ctx.clip();
-              ctx.fillStyle = plate.style.backgroundColor || '#000';
+              ctx.fillStyle = (ann && ann.color) ? ann.color : (window.getComputedStyle(plate).backgroundColor || '#000');
               ctx.fillRect(startX, startY, boxW, boxH);
               
-              ctx.fillStyle = textEl.style.color || '#fff';
+              ctx.fillStyle = window.getComputedStyle(textEl).color || '#fff';
               if (lines.length > 1) {
                 ctx.font = '600 14px Roboto, sans-serif';
                 ctx.fillText(lines[0].toUpperCase(), 0, startY + boxH / 2 + textOffY - 6);
@@ -8228,13 +8643,13 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               ctx.restore();
             }
           } 
-          else if (el.classList.contains('custom-highlight-marker')) {
-            const plate = el.querySelector('.custom-highlight-plate') as HTMLElement;
-            const textEl = el.querySelector('.custom-highlight-text') as HTMLElement;
+          else if (innerEl.classList.contains('custom-highlight-marker')) {
+            const plate = innerEl.querySelector('.custom-highlight-plate') as HTMLElement;
+            const textEl = innerEl.querySelector('.custom-highlight-text') as HTMLElement;
             
             ctx.beginPath();
             ctx.arc(0, 0, 7, 0, Math.PI * 2);
-            ctx.fillStyle = el.style.backgroundColor || '#000';
+            ctx.fillStyle = (ann && ann.color) ? ann.color : (window.getComputedStyle(innerEl).backgroundColor || '#000');
             ctx.fill();
 
             if (plate && textEl) {
@@ -8249,7 +8664,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               const startY = -boxH / 2;
               
               let clipLeft = 0;
-              const clipStr = plate.style.clipPath || '';
+              const clipStr = window.getComputedStyle(plate).clipPath || '';
               if (clipStr.includes('inset')) {
                 const parts = clipStr.replace('inset(', '').replace(')', '').split(' ');
                 if (parts.length > 1) clipLeft = parseFloat(parts[1]) || 0;
@@ -8257,7 +8672,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               const clipPx = (clipLeft / 100) * boxW;
               
               let transY = 0;
-              const transStr = textEl.style.transform || '';
+              const transStr = window.getComputedStyle(textEl).transform || '';
               if (transStr.includes('translateY')) {
                 const match = transStr.match(/translateY\(([-\d.]+)%\)/);
                 if (match) transY = parseFloat(match[1]) || 0;
@@ -8268,16 +8683,17 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               ctx.beginPath();
               ctx.rect(startX, startY, boxW - clipPx, boxH);
               ctx.clip();
-              ctx.fillStyle = plate.style.backgroundColor || '#000';
+              ctx.fillStyle = (ann && ann.color) ? ann.color : (window.getComputedStyle(plate).backgroundColor || '#000');
               ctx.fillRect(startX, startY, boxW, boxH);
-              ctx.fillStyle = textEl.style.color || '#fff';
+              ctx.fillStyle = window.getComputedStyle(textEl).color || '#fff';
               ctx.fillText(text, startX + 8, textOffY + 1.5);
               ctx.restore();
             }
           }
-          else if (el.classList.contains('custom-country-marker')) {
-            const plate = el.querySelector('.custom-country-plate') as HTMLElement;
-            const textEl = el.querySelector('.custom-country-text') as HTMLElement;
+          else if (innerEl.classList.contains('custom-country-marker')) {
+            ctx.globalAlpha = 1.0; // Force full opacity for country markers
+            const plate = innerEl.querySelector('.custom-country-plate') as HTMLElement;
+            const textEl = innerEl.querySelector('.custom-country-text') as HTMLElement;
             if (plate && textEl) {
               const text = (textEl.textContent?.trim() || '').toUpperCase();
               ctx.font = '700 14px Roboto, sans-serif';
@@ -8290,7 +8706,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               const startY = -boxH / 2;
               
               let clipRight = 0;
-              const clipStr = plate.style.clipPath || '';
+              const clipStr = window.getComputedStyle(plate).clipPath || '';
               if (clipStr.includes('inset')) {
                 const parts = clipStr.replace('inset(', '').replace(')', '').split(' ');
                 if (parts.length > 1) clipRight = parseFloat(parts[1]) || 0;
@@ -8298,7 +8714,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               const clipPx = (clipRight / 100) * boxW;
               
               let transY = 0;
-              const transStr = textEl.style.transform || '';
+              const transStr = window.getComputedStyle(textEl).transform || '';
               if (transStr.includes('translateY')) {
                 const match = transStr.match(/translateY\(([-\d.]+)%\)/);
                 if (match) transY = parseFloat(match[1]) || 0;
@@ -8309,17 +8725,17 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               ctx.beginPath();
               ctx.rect(startX, startY, boxW - clipPx, boxH);
               ctx.clip();
-              ctx.fillStyle = plate.style.backgroundColor || '#000';
+              ctx.fillStyle = (ann && ann.color) ? ann.color : (window.getComputedStyle(plate).backgroundColor || '#000');
               ctx.fillRect(startX, startY, boxW, boxH);
-              ctx.fillStyle = textEl.style.color || '#fff';
+              ctx.fillStyle = window.getComputedStyle(textEl).color || '#fff';
               ctx.fillText(text, 0, textOffY);
               ctx.restore();
             }
           }
-          else if (el.classList.contains('icon-marker')) {
+          else if (innerEl.classList.contains('icon-marker')) {
             const img = preloadedIcons.get(id);
             if (img && img.complete && img.naturalWidth > 0) {
-              const bgStr = el.style.backgroundColor || '#ffffff';
+              const bgStr = window.getComputedStyle(innerEl).backgroundColor || '#ffffff';
               ctx.beginPath();
               ctx.rect(-32, -32, 64, 64);
               ctx.fillStyle = bgStr;
@@ -8327,18 +8743,19 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               ctx.drawImage(img, -24, -24, 48, 48);
             }
           }
-          else if (el.classList.contains('label-marker')) {
+          else if (innerEl.classList.contains('label-marker')) {
             const img = preloadedLabels.get(id);
             if (img && img.complete && img.naturalWidth > 0) {
                const offset = globalLabelManager.getAnchorOffset(id);
+               const currentScale = props.settings.exportAnnotationScale ?? 1.0;
                if (offset) {
-                 ctx.drawImage(img, -offset.x, -offset.y);
+                 ctx.drawImage(img, -offset.x, -offset.y, img.naturalWidth / currentScale, img.naturalHeight / currentScale);
                }
             }
           }
-          else if (el.classList.contains('custom-marker-flat')) {
+          else if (innerEl.classList.contains('custom-marker-flat')) {
             const lines = el.innerHTML.split(/<br\s*\/?>/i).map((s: string) => s.replace(/<[^>]+>/g, '').trim());
-            ctx.font = el.classList.contains('text-xs') ? '700 12px ui-sans-serif, system-ui' : '600 12px ui-sans-serif, system-ui';
+            ctx.font = innerEl.classList.contains('text-xs') ? '700 12px ui-sans-serif, system-ui' : '600 12px ui-sans-serif, system-ui';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             
@@ -8348,9 +8765,9 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
             const startX = -boxW / 2;
             const startY = -boxH / 2;
             
-            ctx.fillStyle = el.style.backgroundColor || '#000';
+            ctx.fillStyle = (ann && ann.color) ? ann.color : (window.getComputedStyle(innerEl).backgroundColor || '#000');
             ctx.fillRect(startX, startY, boxW, boxH);
-            ctx.fillStyle = el.style.color || '#fff';
+            ctx.fillStyle = window.getComputedStyle(innerEl).color || '#fff';
             
             if (lines.length === 1) {
               ctx.fillText(lines[0], 0, 0);
@@ -8361,16 +8778,15 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               ctx.fillText(lines[1], 0, 8);
             }
           }
-          else if (el.classList.contains('custom-marker-dot') || el.classList.contains('custom-route-dot')) {
+          else if (innerEl.classList.contains('custom-marker-dot') || innerEl.classList.contains('custom-route-dot')) {
             ctx.beginPath();
             ctx.arc(0, 0, 12, 0, Math.PI * 2);
-            ctx.fillStyle = el.style.backgroundColor || '#000';
+            ctx.fillStyle = (ann && ann.color) ? ann.color : (window.getComputedStyle(innerEl).backgroundColor || '#000');
             ctx.fill();
-            ctx.restore();
           }
-          else if (el.classList.contains('custom-city-weather-marker')) {
-            const spans = el.querySelectorAll('span');
-            const svgDiv = el.querySelector('div');
+          else if (innerEl.classList.contains('custom-city-weather-marker')) {
+            const spans = innerEl.querySelectorAll('span');
+            const svgDiv = innerEl.querySelector('div');
             
             ctx.font = '700 11px system-ui, -apple-system, sans-serif';
             ctx.textAlign = 'center';
@@ -8467,9 +8883,9 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
       };
       
       // PRELOAD TILES BY JUMPING TO ALL VIEWS
-      for (let i = 0; i < viewsToVisit.length; i++) {
-        setVideoExportState(prev => prev ? { ...prev, message: `Preloading map tiles... (${i + 1}/${viewsToVisit.length})` } : null);
-        const { view } = viewsToVisit[i];
+      for (let i = 0; i < currentViewsToVisit.length; i++) {
+        setVideoExportState(prev => prev ? { ...prev, message: `Preloading map tiles... (${i + 1}/${currentViewsToVisit.length})` } : null);
+        const { view } = currentViewsToVisit[i];
         await new Promise<void>((resolve) => {
           map1!.jumpTo({
             center: view.center,
@@ -8502,7 +8918,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
       }
 
       // Jump back to the start
-      const firstView = viewsToVisit[0].view;
+      const firstView = currentViewsToVisit[0].view;
       await new Promise<void>((resolve) => {
         map1!.jumpTo({
           center: firstView.center,
@@ -8519,13 +8935,13 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
       requestAnimationFrame(captureFrame);
 
       // FLY TO VIEWS
-      for (let i = 0; i < viewsToVisit.length; i++) {
-        const { view } = viewsToVisit[i];
+      for (let i = 0; i < currentViewsToVisit.length; i++) {
+        const { view } = currentViewsToVisit[i];
         
-        setVideoExportState(prev => prev ? { ...prev, progress: i + 1, total: viewsToVisit.length } : null);
+        setVideoExportState(prev => prev ? { ...prev, progress: i + 1, total: currentViewsToVisit.length } : null);
         
         if (dynamicLabels) {
-          const currId = viewsToVisit[i].animationTriggerId || viewsToVisit[i].annotationId;
+          const currId = currentViewsToVisit[i].animationTriggerId || currentViewsToVisit[i].annotationId;
           
           if (currId && currId !== 'overview') {
             window.dispatchEvent(new CustomEvent('activateExportTrigger', { detail: { triggerId: currId } }));
@@ -8636,6 +9052,44 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
     const originalContainerHeight = containerRef.current?.clientHeight || window.innerHeight;
 
     try {
+      const applyCropToView = (view: { center: [number, number], zoom: number }, cropSetting: { scale: number, offsetX: number, offsetY: number } | undefined) => {
+        if (!cropSetting) return { ...view };
+        
+        const { scale, offsetX, offsetY } = cropSetting;
+        if (scale === 1 && offsetX === 0 && offsetY === 0) {
+          return { ...view };
+        }
+
+        const newZoom = view.zoom - Math.log2(scale);
+        
+        const lngToX = (lng: number) => (lng + 180) / 360;
+        const latToY = (lat: number) => {
+          const sinLat = Math.sin(lat * Math.PI / 180);
+          return 0.5 - 0.25 * Math.log((1 + sinLat) / (1 - sinLat)) / Math.PI;
+        };
+        const xToLng = (x: number) => x * 360 - 180;
+        const yToLat = (y: number) => {
+          const n = Math.PI - 2 * Math.PI * y;
+          return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+        };
+
+        const worldSize = 512 * Math.pow(2, view.zoom);
+        const centerX = lngToX(view.center[0]);
+        const centerY = latToY(view.center[1]);
+        
+        const mercatorDx = offsetX / worldSize;
+        const mercatorDy = offsetY / worldSize;
+        
+        const newLng = xToLng(centerX + mercatorDx);
+        const newLat = yToLat(centerY + mercatorDy);
+
+        return {
+          ...view,
+          center: [newLng, newLat] as [number, number],
+          zoom: newZoom
+        };
+      };
+
       for (let fIdx = 0; fIdx < formats.length; fIdx++) {
         const currentFmt = formats[fIdx];
         
@@ -8647,12 +9101,15 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
         // Hide earthquake dots if shakemap is visible
         window.dispatchEvent(new CustomEvent('hideEarthquakeDotsForExport'));
         
+        const cropSetting = props.settings.exportCropSettings?.[currentFmt];
+        const croppedView = applyCropToView({ center: [originalCenter.lng, originalCenter.lat] as [number, number], zoom: originalZoom }, cropSetting);
+
         const dpr = window.devicePixelRatio || 1;
         const targetWidth = outWidth / dpr;
         const targetHeight = outHeight / dpr;
         
         const scaleFactor = targetHeight / originalContainerHeight;
-        const newZoom = originalZoom + Math.log2(scaleFactor);
+        const newZoom = croppedView.zoom + Math.log2(scaleFactor);
         
         const screenW = window.innerWidth;
         const screenH = window.innerHeight;
@@ -8668,13 +9125,14 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
           duration: 0,
           scaleTransform: `scale(${scale})`,
           width: targetWidth,
-          height: targetHeight
+          height: targetHeight,
+          imageExportScale: scaleFactor
         });
 
         // Wait for React to apply CSS to map container
         await new Promise(r => setTimeout(r, 500));
         map1.resize();
-        map1.jumpTo({ center: originalCenter, zoom: newZoom });
+        map1.jumpTo({ center: croppedView.center, zoom: newZoom });
         
         // Wait for map tiles to load at the new resolution
         await new Promise(r => setTimeout(r, 2000));
@@ -8720,16 +9178,19 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
           }
         }
 
+        // Pre-rasterize SVG labels
         const preloadedLabels = new Map<string, HTMLImageElement>();
         for (const ann of props.annotations) {
           if (ann.type === 'label' || ann.type === 'highlight') {
             const el = document.querySelector(`.label-marker-${ann.id}`);
             if (el && el.classList.contains('label-marker')) {
               try {
-                const img = await globalLabelManager.getRasterizedImage(ann.id);
+                const exportScale = outHeight / originalContainerHeight;
+                const annScale = props.settings.exportAnnotationScale ?? 1.0;
+                const img = await globalLabelManager.getRasterizedImage(ann.id, exportScale * annScale);
                 if (img) preloadedLabels.set(ann.id, img);
               } catch (e) {
-                console.error('Failed to rasterize label for image export', e);
+                console.error("Failed to preload label SVG", e);
               }
             }
           }
@@ -8770,7 +9231,10 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
         ctx.drawImage(mapCanvas, 0, 0, outWidth, outHeight);
 
         // Draw DOM markers
+        
         Object.entries(map1MarkersRef.current).forEach(([id, markerInfo]) => {
+          const ann = props.annotations.find(a => a.id === id);
+
           const el = markerInfo.getElement();
           if (!el || el.style.opacity === '0' || el.style.visibility === 'hidden' || el.style.display === 'none') return;
           
@@ -8785,14 +9249,26 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
           ctx.translate(point.x * dpr, point.y * dpr);
           
           const exportScale = outHeight / originalContainerHeight;
-          ctx.scale(exportScale, exportScale);
+          const annScale = props.settings.exportAnnotationScale ?? 1.0;
+          ctx.scale(exportScale * annScale, exportScale * annScale);
           
-          const opacity = parseFloat(el.style.opacity || '1');
+          let innerEl = el;
+          if (el.className.includes('label-marker-')) {
+            innerEl = el.querySelector('.custom-marker-flat') as HTMLElement 
+              || el.querySelector('.custom-marker-dot') as HTMLElement
+              || el.querySelector('.icon-marker') as HTMLElement
+              || el.querySelector('.custom-highlight-marker') as HTMLElement
+              || el.querySelector('.custom-country-marker') as HTMLElement
+              || el;
+          }
+          
+          let opacity = parseFloat(window.getComputedStyle(innerEl).opacity || window.getComputedStyle(el).opacity || '1');
+          if (isNaN(opacity)) opacity = 1;
           ctx.globalAlpha = opacity;
           
-          if (el.classList.contains('custom-marker')) {
-            const plate = el.querySelector('.custom-marker-plate') as HTMLElement;
-            const textEl = el.querySelector('.custom-marker-text') as HTMLElement;
+          if (innerEl.classList.contains('custom-marker')) {
+            const plate = innerEl.querySelector('.custom-marker-plate') as HTMLElement;
+            const textEl = innerEl.querySelector('.custom-marker-text') as HTMLElement;
             if (plate && textEl) {
               const spans = textEl.querySelectorAll('span');
               const lines = spans.length > 0 ? Array.from(spans).map(s => s.textContent || '') : [textEl.textContent?.trim() || ''];
@@ -8809,7 +9285,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               const startX = -boxW / 2;
               const startY = -(boxH + pointerH);
               
-              const clipStr = plate.style.clipPath || '';
+              const clipStr = window.getComputedStyle(plate).clipPath || '';
               let clipTop = 0;
               if (clipStr.includes('inset')) {
                 const match = clipStr.match(/inset\(([-\d.]+)%?/);
@@ -8818,7 +9294,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               const clipPx = (clipTop / 100) * boxH;
               
               let transY = 0;
-              const transStr = textEl.style.transform || '';
+              const transStr = window.getComputedStyle(textEl).transform || '';
               if (transStr.includes('translateY')) {
                 const match = transStr.match(/translateY\(([-\d.]+)%\)/);
                 if (match) transY = parseFloat(match[1]) || 0;
@@ -8829,17 +9305,17 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               ctx.moveTo(-6, startY + boxH);
               ctx.lineTo(6, startY + boxH);
               ctx.lineTo(0, startY + boxH + pointerH);
-              ctx.fillStyle = plate.style.borderColor || '#000';
+              ctx.fillStyle = window.getComputedStyle(plate).borderColor || '#000';
               ctx.fill();
 
               ctx.save();
               ctx.beginPath();
               ctx.rect(startX, startY + clipPx, boxW, boxH - clipPx);
               ctx.clip();
-              ctx.fillStyle = plate.style.backgroundColor || '#000';
+              ctx.fillStyle = (ann && ann.color) ? ann.color : (window.getComputedStyle(plate).backgroundColor || '#000');
               ctx.fillRect(startX, startY, boxW, boxH);
               
-              ctx.fillStyle = textEl.style.color || '#fff';
+              ctx.fillStyle = window.getComputedStyle(textEl).color || '#fff';
               if (lines.length > 1) {
                 ctx.font = '600 14px Roboto, sans-serif';
                 ctx.fillText(lines[0].toUpperCase(), 0, startY + boxH / 2 + textOffY - 6);
@@ -8851,13 +9327,13 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               ctx.restore();
             }
           } 
-          else if (el.classList.contains('custom-highlight-marker')) {
-            const plate = el.querySelector('.custom-highlight-plate') as HTMLElement;
-            const textEl = el.querySelector('.custom-highlight-text') as HTMLElement;
+          else if (innerEl.classList.contains('custom-highlight-marker')) {
+            const plate = innerEl.querySelector('.custom-highlight-plate') as HTMLElement;
+            const textEl = innerEl.querySelector('.custom-highlight-text') as HTMLElement;
             
             ctx.beginPath();
             ctx.arc(0, 0, 7, 0, Math.PI * 2);
-            ctx.fillStyle = el.style.backgroundColor || '#000';
+            ctx.fillStyle = (ann && ann.color) ? ann.color : (window.getComputedStyle(innerEl).backgroundColor || '#000');
             ctx.fill();
 
             if (plate && textEl) {
@@ -8872,7 +9348,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               const startY = -boxH / 2;
               
               let clipLeft = 0;
-              const clipStr = plate.style.clipPath || '';
+              const clipStr = window.getComputedStyle(plate).clipPath || '';
               if (clipStr.includes('inset')) {
                 const parts = clipStr.replace('inset(', '').replace(')', '').split(' ');
                 if (parts.length > 1) clipLeft = parseFloat(parts[1]) || 0;
@@ -8880,7 +9356,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               const clipPx = (clipLeft / 100) * boxW;
               
               let transY = 0;
-              const transStr = textEl.style.transform || '';
+              const transStr = window.getComputedStyle(textEl).transform || '';
               if (transStr.includes('translateY')) {
                 const match = transStr.match(/translateY\(([-\d.]+)%\)/);
                 if (match) transY = parseFloat(match[1]) || 0;
@@ -8891,16 +9367,17 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               ctx.beginPath();
               ctx.rect(startX, startY, boxW - clipPx, boxH);
               ctx.clip();
-              ctx.fillStyle = plate.style.backgroundColor || '#000';
+              ctx.fillStyle = (ann && ann.color) ? ann.color : (window.getComputedStyle(plate).backgroundColor || '#000');
               ctx.fillRect(startX, startY, boxW, boxH);
-              ctx.fillStyle = textEl.style.color || '#fff';
+              ctx.fillStyle = window.getComputedStyle(textEl).color || '#fff';
               ctx.fillText(text, startX + 8, textOffY + 1.5);
               ctx.restore();
             }
           }
-          else if (el.classList.contains('custom-country-marker')) {
-            const plate = el.querySelector('.custom-country-plate') as HTMLElement;
-            const textEl = el.querySelector('.custom-country-text') as HTMLElement;
+          else if (innerEl.classList.contains('custom-country-marker')) {
+            ctx.globalAlpha = 1.0; // Force full opacity for country markers
+            const plate = innerEl.querySelector('.custom-country-plate') as HTMLElement;
+            const textEl = innerEl.querySelector('.custom-country-text') as HTMLElement;
             if (plate && textEl) {
               const text = (textEl.textContent?.trim() || '').toUpperCase();
               ctx.font = '700 14px Roboto, sans-serif';
@@ -8913,7 +9390,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               const startY = -boxH / 2;
               
               let clipRight = 0;
-              const clipStr = plate.style.clipPath || '';
+              const clipStr = window.getComputedStyle(plate).clipPath || '';
               if (clipStr.includes('inset')) {
                 const parts = clipStr.replace('inset(', '').replace(')', '').split(' ');
                 if (parts.length > 1) clipRight = parseFloat(parts[1]) || 0;
@@ -8921,7 +9398,7 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               const clipPx = (clipRight / 100) * boxW;
               
               let transY = 0;
-              const transStr = textEl.style.transform || '';
+              const transStr = window.getComputedStyle(textEl).transform || '';
               if (transStr.includes('translateY')) {
                 const match = transStr.match(/translateY\(([-\d.]+)%\)/);
                 if (match) transY = parseFloat(match[1]) || 0;
@@ -8932,17 +9409,17 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               ctx.beginPath();
               ctx.rect(startX, startY, boxW - clipPx, boxH);
               ctx.clip();
-              ctx.fillStyle = plate.style.backgroundColor || '#000';
+              ctx.fillStyle = (ann && ann.color) ? ann.color : (window.getComputedStyle(plate).backgroundColor || '#000');
               ctx.fillRect(startX, startY, boxW, boxH);
-              ctx.fillStyle = textEl.style.color || '#fff';
+              ctx.fillStyle = window.getComputedStyle(textEl).color || '#fff';
               ctx.fillText(text, 0, textOffY);
               ctx.restore();
             }
           }
-          else if (el.classList.contains('icon-marker')) {
+          else if (innerEl.classList.contains('icon-marker')) {
             const img = preloadedIcons.get(id);
             if (img && img.complete && img.naturalWidth > 0) {
-              const bgStr = el.style.backgroundColor || '#ffffff';
+              const bgStr = window.getComputedStyle(innerEl).backgroundColor || '#ffffff';
               ctx.beginPath();
               ctx.rect(-32, -32, 64, 64);
               ctx.fillStyle = bgStr;
@@ -8950,18 +9427,19 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               ctx.drawImage(img, -24, -24, 48, 48);
             }
           }
-          else if (el.classList.contains('label-marker')) {
+          else if (innerEl.classList.contains('label-marker')) {
             const img = preloadedLabels.get(id);
             if (img && img.complete && img.naturalWidth > 0) {
                const offset = globalLabelManager.getAnchorOffset(id);
+               const currentScale = exportScale * annScale;
                if (offset) {
-                 ctx.drawImage(img, -offset.x, -offset.y);
+                 ctx.drawImage(img, -offset.x, -offset.y, img.naturalWidth / currentScale, img.naturalHeight / currentScale);
                }
             }
           }
-          else if (el.classList.contains('custom-marker-flat')) {
+          else if (innerEl.classList.contains('custom-marker-flat')) {
             const lines = el.innerHTML.split(/<br\s*\/?>/i).map((s: string) => s.replace(/<[^>]+>/g, '').trim());
-            ctx.font = el.classList.contains('text-xs') ? '700 12px ui-sans-serif, system-ui' : '600 12px ui-sans-serif, system-ui';
+            ctx.font = innerEl.classList.contains('text-xs') ? '700 12px ui-sans-serif, system-ui' : '600 12px ui-sans-serif, system-ui';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             
@@ -8971,9 +9449,9 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
             const startX = -boxW / 2;
             const startY = -boxH / 2;
             
-            ctx.fillStyle = el.style.backgroundColor || '#000';
+            ctx.fillStyle = (ann && ann.color) ? ann.color : (window.getComputedStyle(innerEl).backgroundColor || '#000');
             ctx.fillRect(startX, startY, boxW, boxH);
-            ctx.fillStyle = el.style.color || '#fff';
+            ctx.fillStyle = window.getComputedStyle(innerEl).color || '#fff';
             
             if (lines.length === 1) {
               ctx.fillText(lines[0], 0, 0);
@@ -8984,16 +9462,15 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
               ctx.fillText(lines[1], 0, 8);
             }
           }
-          else if (el.classList.contains('custom-marker-dot') || el.classList.contains('custom-route-dot')) {
+          else if (innerEl.classList.contains('custom-marker-dot') || innerEl.classList.contains('custom-route-dot')) {
             ctx.beginPath();
             ctx.arc(0, 0, 12, 0, Math.PI * 2);
-            ctx.fillStyle = el.style.backgroundColor || '#000';
+            ctx.fillStyle = (ann && ann.color) ? ann.color : (window.getComputedStyle(innerEl).backgroundColor || '#000');
             ctx.fill();
-            ctx.restore();
           }
-          else if (el.classList.contains('custom-city-weather-marker')) {
-            const spans = el.querySelectorAll('span');
-            const svgDiv = el.querySelector('div');
+          else if (innerEl.classList.contains('custom-city-weather-marker')) {
+            const spans = innerEl.querySelectorAll('span');
+            const svgDiv = innerEl.querySelector('div');
             
             ctx.font = '700 11px system-ui, -apple-system, sans-serif';
             ctx.textAlign = 'center';
@@ -9212,10 +9689,11 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
           markersRef={map1MarkersRef}
           settings={settings1}
           onMapInit={setMap1}
+          isExporting={!!videoExportState} imageExportScale={videoExportState?.imageExportScale}
         />
       {isSplitActive && (
         <>
-          <MapboxMap {...props} settings={settings2} onMapInit={setMap2} isSecondary clipPath={clipPath} />
+          <MapboxMap {...props} settings={settings2} onMapInit={setMap2} isSecondary clipPath={clipPath} isExporting={!!videoExportState} imageExportScale={videoExportState?.imageExportScale} />
           <div 
              onDoubleClick={(e) => {
                const rect = containerRef.current?.getBoundingClientRect();
@@ -9269,6 +9747,30 @@ export const MapContainer: React.FC<MapContainerProps> = (props) => {
             </>
           )}
         </>
+      )}
+      
+      {props.activeCropOverlay && !videoExportState && (
+        <CropOverlay
+          format={props.activeCropOverlay}
+          cropSetting={
+            props.settings.exportCropSettings?.[props.activeCropOverlay] || 
+            { scale: 1, offsetX: 0, offsetY: 0 }
+          }
+          onChange={(newSetting) => {
+            if (props.setSettings) {
+              props.setSettings(prev => ({
+                ...prev,
+                exportCropSettings: {
+                  ...prev.exportCropSettings,
+                  landscape: prev.exportCropSettings?.landscape || { scale: 1, offsetX: 0, offsetY: 0 },
+                  portrait: prev.exportCropSettings?.portrait || { scale: 1, offsetX: 0, offsetY: 0 },
+                  square: prev.exportCropSettings?.square || { scale: 1, offsetX: 0, offsetY: 0 },
+                  [props.activeCropOverlay!]: newSetting
+                }
+              }));
+            }
+          }}
+        />
       )}
       
       {videoExportState && createPortal(

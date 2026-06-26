@@ -164,7 +164,10 @@ export const de: Record<string, string> = {
   "BASE MAP": "BASISKARTE",
   "API SETTINGS": "API-EINSTELLUNGEN",
   "VIDEO EXPORT": "VIDEO-EXPORT",
+  "STILL IMAGE FILENAME": "STANDBILD-DATEINAME",
   "FORMAT": "BILD-FORMAT",
+  "ASPECT RATIO": "SEITENVERHÄLTNIS",
+  "VIDEO FILE TYPE": "DATEITYP",
   "16x9": "16x9",
   "9x16": "9x16",
   "Both": "Beides",
@@ -269,7 +272,10 @@ export const de: Record<string, string> = {
   "Portrait": "Hochkant",
   "Square": "Quadratisch",
   "Video (mp4)": "Video (mp4)",
-  "Data package (jsx)": "Datenpaket (jsx)",
+  "After Effects data (jsx)": "After-Effects-Daten (jsx)",
   "Export image": "Bild exportieren",
-  "Export images": "Bilder exportieren"
+  "Export images": "Bilder exportieren",
+  "SCALING": "SKALIERUNG",
+  "Basemap Labels Scale": "Basiskarte Labels Skalierung",
+  "Annotations Scale": "Annotationen Skalierung",
 };

@@ -54,6 +54,10 @@ export interface MapLayer {
   nighttimeDate?: string; // YYYY-MM-DD
   nighttimeHour?: number; // 0-24
   
+  // Animation Triggers
+  animationTriggerId?: string;
+  hideAnimationTriggerId?: string;
+  
   // For split containers
   splitLayers?: MapLayer[];
   splitDirection?: 'vertical' | 'horizontal';
@@ -66,7 +70,24 @@ export interface MapLayer {
   usgsLandslideEnabled?: boolean;
   usgsLiquefactionEnabled?: boolean;
   colorCodeShakemap?: boolean;
+  shakemapEnabled?: boolean;
+  shakemapOpacity?: number;
+  copernicusOpacity?: number;
+  usgsDyfi10kmOpacity?: number;
+  usgsDyfi1kmOpacity?: number;
+  usgsLandslideOpacity?: number;
+  usgsLandslideContrast?: number;
+  usgsLandslideSaturation?: number;
+  usgsLandslideHue?: number;
+  usgsLandslideBrightness?: number;
+  usgsLiquefactionOpacity?: number;
+  usgsLiquefactionContrast?: number;
+  usgsLiquefactionSaturation?: number;
+  usgsLiquefactionHue?: number;
+  usgsLiquefactionBrightness?: number;
   
+  _effectiveOpacityVisible?: boolean;
+
   // Post-processing
   contrast?: number;
   saturation?: number;
@@ -137,6 +158,9 @@ export interface AppSettings {
     elevation?: number;
   };
   colorPalette: string[];
+  exportBasemapScale?: number;
+  exportAnnotationScale?: number;
+  exportScalePreview?: boolean;
   icons: IconCategory[];
   labelTemplates?: {
     highlightLabelTemplate?: string;
@@ -157,6 +181,11 @@ export interface AppSettings {
   labelAnimationDuration?: number;
   hideUI?: boolean;
   replaceGothamFont?: boolean;
+  exportCropSettings?: {
+    landscape: { scale: number; offsetX: number; offsetY: number };
+    portrait: { scale: number; offsetX: number; offsetY: number };
+    square: { scale: number; offsetX: number; offsetY: number };
+  };
 }
 
 export interface BaseMapStyle {

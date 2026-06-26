@@ -32,7 +32,9 @@ import {
   BookmarkPlus,
   Home,
   Tag,
-  Download
+  Download,
+  Play,
+  Crop
 } from "lucide-react";
 import { parseMapFileWithIds } from "../utils/fileUtils";
 import {
@@ -481,6 +483,8 @@ interface LayerSidebarProps {
   onExport?: () => void;
   isSaving?: boolean;
   activeMapViewId?: string;
+  activeCropOverlay: 'landscape' | 'portrait' | 'square' | null;
+  setActiveCropOverlay: React.Dispatch<React.SetStateAction<'landscape' | 'portrait' | 'square' | null>>;
 }
 
 export function LayerSidebar({
@@ -498,6 +502,8 @@ export function LayerSidebar({
   onExport,
   isSaving,
   activeMapViewId,
+  activeCropOverlay,
+  setActiveCropOverlay,
 }: LayerSidebarProps) {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -552,10 +558,9 @@ export function LayerSidebar({
       .catch(console.error);
   }, []);
 
-  // Video Export State
-  const [videoFormats, setVideoFormats] = useState<("landscape" | "portrait" | "square")[]>(["landscape"]);
+  // Export State
+  const [exportAspectRatios, setExportAspectRatios] = useState<("landscape" | "portrait" | "square")[]>(["landscape"]);
   const [videoFileTypes, setVideoFileTypes] = useState<("mp4" | "jsx")[]>(["mp4"]);
-  const [imageFormats, setImageFormats] = useState<("landscape" | "portrait" | "square")[]>(["landscape"]);
   const [videoDuration, setVideoDuration] = useState<number>(3);
 
   const [videoBitrate, setVideoBitrate] = useState<number>(15);
@@ -900,6 +905,8 @@ export function LayerSidebar({
         name: `${layerToDuplicate.name} (Copy)`,
         _isDirty: true,
         customLayer: layerToDuplicate.customLayer || layerToDuplicate.id.startsWith("upload-") || layerToDuplicate.id.startsWith("url-") || undefined,
+        animationTriggerId: undefined,
+        hideAnimationTriggerId: undefined,
       };
 
       if (parentSplitId) {
@@ -1120,6 +1127,8 @@ export function LayerSidebar({
     setShowUrlInput(false);
   };
 
+  const mapviewButtons = annotations?.filter((a: any) => (a.type === 'label' || a.type === 'highlight') && a.text && a.view) || [];
+
   return (
     <div
       className={`absolute top-0 left-0 h-full w-80 bg-[#18181b] border-r border-white/10 flex flex-col shadow-2xl z-40 text-white transition-transform duration-300 ease-in-out ${isOpen ? "translate-x-0" : "-translate-x-full"}`}
@@ -1281,6 +1290,7 @@ export function LayerSidebar({
                       handleDragEnd={handleDragEnd}
                       selectedAircraftId={selectedAircraftId}
                       selectedVesselMmsi={selectedVesselMmsi}
+                      mapviewButtons={mapviewButtons}
                       toggleVisibility={toggleLayerVisibility}
                       removeLayer={removeLayer}
                       renameLayer={renameLayer}
@@ -2119,7 +2129,7 @@ export function LayerSidebar({
         <>
           <div className="p-4 pb-2 border-b border-white/20">
             <div className="text-xs font-semibold tracking-wider text-white">
-              {t("VIDEO EXPORT")}
+              {t("EXPORT")}
             </div>
           </div>
 
@@ -2127,7 +2137,7 @@ export function LayerSidebar({
             <div className="space-y-4">
               <div>
                 <label className="text-xs text-white/60 mb-2 block font-semibold tracking-wider">
-                  {t("FORMAT")}
+                  {t("ASPECT RATIO")}
                 </label>
                 <div className="flex flex-col gap-1 mt-2">
                   {[
@@ -2135,36 +2145,57 @@ export function LayerSidebar({
                     { id: "portrait", label: "Portrait", labelDe: "Hochkant" },
                     { id: "square", label: "Square", labelDe: "Quadratisch" }
                   ].map((fmt) => {
-                    const isEnabled = videoFormats.includes(fmt.id as any);
+                    const isEnabled = exportAspectRatios.includes(fmt.id as any);
+                    const isCropping = activeCropOverlay === fmt.id;
                     return (
                       <div key={fmt.id} className="flex items-center justify-between py-1">
                         <span className="text-sm font-medium text-white">{t(fmt.label)}</span>
-                        <button
-                          onClick={() => {
-                            setVideoFormats(prev => 
-                              prev.includes(fmt.id as any) 
-                                ? prev.filter(f => f !== fmt.id) 
-                                : [...prev, fmt.id as any]
-                            );
-                          }}
-                          className={`w-9 h-5 rounded-full relative transition-colors ${isEnabled ? "bg-white" : "bg-white/20"}`}
-                        >
-                          <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${isEnabled ? "left-5 bg-black" : "left-1 bg-white"}`} />
-                        </button>
+                        <div className="flex items-center gap-3">
+                          <button
+                            title={t("Image Crop")}
+                            onClick={() => {
+                              if (isCropping) {
+                                setActiveCropOverlay(null);
+                              } else {
+                                setActiveCropOverlay(fmt.id as any);
+                                // Ensure it's enabled if they try to crop it
+                                if (!isEnabled) {
+                                  setExportAspectRatios(prev => [...prev, fmt.id as any]);
+                                }
+                              }
+                            }}
+                            className={`p-1 rounded transition-colors ${isCropping ? 'bg-white text-black' : 'text-white/50 hover:bg-white/10 hover:text-white'}`}
+                          >
+                            <Crop size={14} />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setExportAspectRatios(prev => 
+                                prev.includes(fmt.id as any) 
+                                  ? prev.filter(f => f !== fmt.id) 
+                                  : [...prev, fmt.id as any]
+                              );
+                              if (isCropping) setActiveCropOverlay(null);
+                            }}
+                            className={`w-9 h-5 rounded-full relative transition-colors ${isEnabled ? "bg-white" : "bg-white/20"}`}
+                          >
+                            <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${isEnabled ? "left-5 bg-black" : "left-1 bg-white"}`} />
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
 
-              <div>
+              <div className="mt-8 mb-6">
                 <label className="text-xs text-white/60 mb-2 block font-semibold tracking-wider">
-                  {t("FILE TYPE")}
+                  {t("VIDEO FILE TYPE")}
                 </label>
                 <div className="flex flex-col gap-1 mt-2">
                   {[
                     { id: "mp4", label: "Video (mp4)" },
-                    { id: "jsx", label: "Data package (jsx)" }
+                    { id: "jsx", label: "After Effects data (jsx)" }
                   ].map((fmt) => {
                     const isEnabled = videoFileTypes.includes(fmt.id as any);
                     return (
@@ -2220,14 +2251,11 @@ export function LayerSidebar({
                 />
               </div>
 
-              <div className="mt-8 pt-6 border-t border-white/20">
-                <div className="text-xs font-semibold tracking-wider text-white mb-4">
-                  {t("STILL IMAGE EXPORT")}
-                </div>
+              <div className="mt-6">
                 <div className="space-y-4">
                   <div>
                     <label className="text-[10px] font-bold text-white/50 tracking-wider uppercase mb-1.5 block">
-                      {t("Filename")}
+                      {t("STILL IMAGE FILENAME")}
                     </label>
                     <input
                       type="text"
@@ -2236,35 +2264,6 @@ export function LayerSidebar({
                       className="w-full bg-black/40 border border-white/20 rounded px-3 py-1.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-white transition-colors"
                       placeholder={t("Enter filename...")}
                     />
-                  </div>
-
-                  <div>
-                    <div className="flex flex-col gap-1 mt-2">
-                      {[
-                        { id: "landscape", label: "Landscape", labelDe: "Quer" },
-                        { id: "portrait", label: "Portrait", labelDe: "Hochkant" },
-                        { id: "square", label: "Square", labelDe: "Quadratisch" }
-                      ].map((fmt) => {
-                        const isEnabled = imageFormats.includes(fmt.id as any);
-                        return (
-                          <div key={fmt.id} className="flex items-center justify-between py-1">
-                            <span className="text-sm font-medium text-white">{t(fmt.label)}</span>
-                            <button
-                              onClick={() => {
-                                setImageFormats(prev => 
-                                  prev.includes(fmt.id as any) 
-                                    ? prev.filter(f => f !== fmt.id) 
-                                    : [...prev, fmt.id as any]
-                                );
-                              }}
-                              className={`w-9 h-5 rounded-full relative transition-colors ${isEnabled ? "bg-white" : "bg-white/20"}`}
-                            >
-                              <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${isEnabled ? "left-5 bg-black" : "left-1 bg-white"}`} />
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
                   </div>
                 </div>
               </div>
@@ -2286,7 +2285,7 @@ export function LayerSidebar({
             )}
             <button
               disabled={
-                videoFormats.length === 0 || videoFileTypes.length === 0 ||
+                exportAspectRatios.length === 0 || videoFileTypes.length === 0 ||
                 !annotations?.some(
                   (a) =>
                     (a.type === "label" || a.type === "highlight") &&
@@ -2297,7 +2296,7 @@ export function LayerSidebar({
               onClick={() => {
                 const event = new CustomEvent("startVideoExport", {
                   detail: {
-                    formats: videoFormats,
+                    formats: exportAspectRatios,
                     fileTypes: videoFileTypes,
                     duration: videoDuration,
                     dynamicLabels: true,
@@ -2322,21 +2321,21 @@ export function LayerSidebar({
               <Video size={16} /> {t("Export Video")}
             </button>
             <button
-              disabled={imageFormats.length === 0}
+              disabled={exportAspectRatios.length === 0}
               onClick={() => {
                 const event = new CustomEvent("startImageExport", {
-                  detail: { formats: imageFormats, filenamePrefix: imageFilenamePrefix },
+                  detail: { formats: exportAspectRatios, filenamePrefix: imageFilenamePrefix },
                 });
                 window.dispatchEvent(event);
                 setIsOpen(false);
               }}
               className={`w-full py-2 flex items-center justify-center gap-2 text-sm transition-colors ${
-                imageFormats.length > 0
+                exportAspectRatios.length > 0
                   ? "bg-white/5 hover:bg-white/10"
                   : "bg-white/5 text-white/30 cursor-not-allowed"
               } rounded-full`}
             >
-              <ImageIcon size={16} /> {imageFormats.length > 1 ? t("Export images") : t("Export image")}
+              <ImageIcon size={16} /> {exportAspectRatios.length > 1 ? t("Export images") : t("Export image")}
             </button>
             {annotations?.some(a => a.coordinates || a.polygonGeometry || a.routeGeometry) && (
               <button
@@ -2692,6 +2691,62 @@ export function LayerSidebar({
             </div>
           </details>
 
+          {/* SCALING */}
+          <details className="group flex flex-col gap-[2px] w-full mb-6">
+            <summary className="relative p-3 flex items-center gap-2 bg-black text-xs text-white font-semibold tracking-wider cursor-pointer list-none outline-none [&::-webkit-details-marker]:hidden">
+              <ChevronRight
+                size={14}
+                className="text-white/50 group-hover:text-white transition-colors group-open:hidden shrink-0"
+              />
+              <ChevronDown
+                size={14}
+                className="text-white/50 group-hover:text-white transition-colors hidden group-open:block shrink-0"
+              />
+              <span>{t("SCALING")}</span>
+            </summary>
+            <div className="p-3 flex flex-col gap-4 bg-black mt-[2px]">
+              <div className="flex flex-col gap-2 px-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] text-white font-semibold tracking-wider">
+                    {t("Basemap Labels Scale")}
+                  </label>
+                  <span className="text-[10px] text-white/50 font-mono">
+                    {settings.exportBasemapScale ?? 1.0}x
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="5"
+                  step="0.1"
+                  value={settings.exportBasemapScale ?? 1.0}
+                  onChange={(e) => setSettings(prev => ({ ...prev, exportBasemapScale: parseFloat(e.target.value) }))}
+                  className="w-full h-1 bg-white/20 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
+                />
+              </div>
+
+              <div className="flex flex-col gap-2 px-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] text-white font-semibold tracking-wider">
+                    {t("Annotations Scale")}
+                  </label>
+                  <span className="text-[10px] text-white/50 font-mono">
+                    {settings.exportAnnotationScale ?? 1.0}x
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="5"
+                  step="0.1"
+                  value={settings.exportAnnotationScale ?? 1.0}
+                  onChange={(e) => setSettings(prev => ({ ...prev, exportAnnotationScale: parseFloat(e.target.value) }))}
+                  className="w-full h-1 bg-white/20 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
+                />
+              </div>
+            </div>
+          </details>
+
           {/* ANIMATIONS */}
           <details className="group flex flex-col gap-[2px] w-full mb-6">
             <summary className="relative p-3 flex items-center gap-2 bg-black text-xs text-white font-semibold tracking-wider cursor-pointer list-none outline-none [&::-webkit-details-marker]:hidden">
@@ -2922,8 +2977,11 @@ function LayerItem(props: {
   setIsDraggingLayer?: (isDragging: boolean) => void;
   selectedAircraftId?: string | null;
   selectedVesselMmsi?: string | null;
+  mapviewButtons: any[];
 }) {
   const { t } = useTranslation();
+  const [activeTriggerDropdown, setActiveTriggerDropdown] = React.useState<'reveal' | 'hide' | null>(null);
+  
   const {
     layer,
     isNestedChild = false,
@@ -2945,6 +3003,7 @@ function LayerItem(props: {
     setIsDraggingLayer,
     selectedAircraftId,
     selectedVesselMmsi,
+    mapviewButtons,
   } = props;
   const isActiveEdit = activeGeojsonLayerId === layer.id;
   const setActiveEdit = () => {
@@ -3237,6 +3296,102 @@ function LayerItem(props: {
             <div
               className={`bg-black p-3 pt-2 flex flex-col gap-4 text-sm animate-in slide-in-from-top-2 relative z-0 transition-opacity duration-200 ${!layer.visible ? "opacity-40" : "opacity-100"} ${isNestedChild ? "ml-6" : ""}`}
             >
+              <div className="flex justify-between items-center gap-2 mb-[-4px] relative">
+                {/* Reveal Trigger */}
+                <div className="relative flex-1">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveTriggerDropdown(activeTriggerDropdown === 'reveal' ? null : 'reveal');
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold rounded-full border transition-colors w-max max-w-full ${layer.animationTriggerId ? 'bg-white text-black border-white' : 'bg-transparent text-white/50 border-white/20 hover:text-white hover:border-white/50'}`}
+                    title={t("Set Reveal Trigger")}
+                  >
+                    <Play size={10} fill={layer.animationTriggerId ? "currentColor" : "none"} className={`shrink-0 ${layer.animationTriggerId ? "" : "ml-0.5"}`} />
+                    <span className="truncate uppercase tracking-wider">
+                      {layer.animationTriggerId ? (mapviewButtons.find(b => b.id === layer.animationTriggerId)?.text || "Trigger") : t("REVEAL")}
+                    </span>
+                  </button>
+                  {activeTriggerDropdown === 'reveal' && (
+                    <div className="absolute top-full left-0 mt-1 w-48 bg-[#222] border border-white/20 rounded-md shadow-2xl z-[60] flex flex-col py-1 max-h-48 overflow-y-auto">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateLayerProperty(layer.id, "animationTriggerId", undefined);
+                          setActiveTriggerDropdown(null);
+                        }}
+                        className="text-left px-3 py-2 text-xs font-semibold text-white/50 hover:bg-white/10 hover:text-white transition-colors uppercase tracking-wider"
+                      >
+                        {t("NONE")}
+                      </button>
+                      {mapviewButtons.map(b => (
+                        <button
+                          key={b.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            updateLayerProperty(layer.id, "animationTriggerId", b.id);
+                            if (layer.hideAnimationTriggerId === b.id) {
+                              updateLayerProperty(layer.id, "hideAnimationTriggerId", undefined);
+                            }
+                            setActiveTriggerDropdown(null);
+                          }}
+                          className={`text-left px-3 py-2 text-xs transition-colors font-semibold uppercase tracking-wider ${layer.animationTriggerId === b.id ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
+                        >
+                          <span className="truncate block w-full">{b.text}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Hide Trigger */}
+                <div className="relative flex-1 flex justify-end">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveTriggerDropdown(activeTriggerDropdown === 'hide' ? null : 'hide');
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-semibold rounded-full border transition-colors w-max max-w-full ${layer.hideAnimationTriggerId ? 'bg-white text-black border-white' : 'bg-transparent text-white/50 border-white/20 hover:text-white hover:border-white/50'}`}
+                    title={t("Set Hide Trigger")}
+                  >
+                    <span className="truncate uppercase tracking-wider">
+                      {layer.hideAnimationTriggerId ? (mapviewButtons.find(b => b.id === layer.hideAnimationTriggerId)?.text || "Trigger") : t("HIDE")}
+                    </span>
+                    <Play size={10} fill={layer.hideAnimationTriggerId ? "currentColor" : "none"} className={`shrink-0 ${layer.hideAnimationTriggerId ? "scale-x-[-1]" : "scale-x-[-1] ml-[-1px]"}`} />
+                  </button>
+                  {activeTriggerDropdown === 'hide' && (
+                    <div className="absolute top-full right-0 mt-1 w-48 bg-[#222] border border-white/20 rounded-md shadow-2xl z-[60] flex flex-col py-1 max-h-48 overflow-y-auto">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          updateLayerProperty(layer.id, "hideAnimationTriggerId", undefined);
+                          setActiveTriggerDropdown(null);
+                        }}
+                        className="text-left px-3 py-2 text-xs font-semibold text-white/50 hover:bg-white/10 hover:text-white transition-colors uppercase tracking-wider"
+                      >
+                        {t("NONE")}
+                      </button>
+                      {mapviewButtons.map(b => (
+                        <button
+                          key={b.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            updateLayerProperty(layer.id, "hideAnimationTriggerId", b.id);
+                            if (layer.animationTriggerId === b.id) {
+                              updateLayerProperty(layer.id, "animationTriggerId", undefined);
+                            }
+                            setActiveTriggerDropdown(null);
+                          }}
+                          className={`text-left px-3 py-2 text-xs transition-colors font-semibold uppercase tracking-wider ${layer.hideAnimationTriggerId === b.id ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
+                        >
+                          <span className="truncate block w-full">{b.text}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {layer.type === "raster" ||
               layer.type === "satellite" ||
               layer.type === "deepstate" ||
@@ -3405,75 +3560,224 @@ function LayerItem(props: {
                         {t("EARTHQUAKE OVERLAYS")}
                       </label>
                       <div className="flex flex-col gap-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-white/80">{t("Show GDACS Shakemap")}</span>
-                          <button
-                            onClick={() => updateLayerProperty(layer.id, "shakemapEnabled", layer.shakemapEnabled === false ? true : false)}
-                            className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none"
-                            style={{ backgroundColor: layer.shakemapEnabled !== false ? "#ffffff" : "rgba(255, 255, 255, 0.2)" }}
-                          >
-                            <span className={`inline-block h-3 w-3 transform rounded-full bg-black transition-transform ${layer.shakemapEnabled !== false ? "translate-x-4" : "translate-x-1"}`} />
-                          </button>
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-white/80">{t("Shakemap")}</span>
+                            <button
+                              onClick={() => updateLayerProperty(layer.id, "shakemapEnabled", layer.shakemapEnabled === false ? true : false)}
+                              className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none"
+                              style={{ backgroundColor: layer.shakemapEnabled !== false ? "#ffffff" : "rgba(255, 255, 255, 0.2)" }}
+                            >
+                              <span className={`inline-block h-3 w-3 transform rounded-full bg-black transition-transform ${layer.shakemapEnabled !== false ? "translate-x-4" : "translate-x-1"}`} />
+                            </button>
+                          </div>
+                          {layer.shakemapEnabled !== false && (
+                            <div className="flex items-center justify-between pl-4">
+                              <span className="text-[10px] text-white/60">{t("Color-code")}</span>
+                              <button
+                                onClick={() => updateLayerProperty(layer.id, "colorCodeShakemap", layer.colorCodeShakemap === false ? true : false)}
+                                className="relative inline-flex h-3 w-6 items-center rounded-full transition-colors focus:outline-none"
+                                style={{ backgroundColor: layer.colorCodeShakemap !== false ? "#ffffff" : "rgba(255, 255, 255, 0.2)" }}
+                              >
+                                <span className={`inline-block h-2 w-2 transform rounded-full bg-black transition-transform ${layer.colorCodeShakemap !== false ? "translate-x-3" : "translate-x-1"}`} />
+                              </button>
+                            </div>
+                          )}
+                          {layer.shakemapEnabled !== false && (
+                            <div className="flex flex-col gap-1 mt-1">
+                              <div className="flex justify-between items-end">
+                                <label className="text-[10px] text-white/60 font-semibold tracking-wider uppercase">{t("OPACITY")}</label>
+                                <span className="text-[10px] text-white/50 font-mono">{Math.round((layer.shakemapOpacity ?? 1.0) * 100)}%</span>
+                              </div>
+                              <input type="range" min="0" max="100" value={(layer.shakemapOpacity ?? 1.0) * 100} onChange={(e) => updateLayerProperty(layer.id, "shakemapOpacity", Number(e.target.value) / 100)} className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer" />
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-white/80">{t("Color-code GDACS Shakemap")}</span>
-                          <button
-                            onClick={() => updateLayerProperty(layer.id, "colorCodeShakemap", layer.colorCodeShakemap === false ? true : false)}
-                            className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none"
-                            style={{ backgroundColor: layer.colorCodeShakemap !== false ? "#ffffff" : "rgba(255, 255, 255, 0.2)" }}
-                          >
-                            <span className={`inline-block h-3 w-3 transform rounded-full bg-black transition-transform ${layer.colorCodeShakemap !== false ? "translate-x-4" : "translate-x-1"}`} />
-                          </button>
+
+                        <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-white/80">{t("Infrastructure Damage")}</span>
+                            <button
+                              onClick={() => updateLayerProperty(layer.id, "copernicusEnabled", layer.copernicusEnabled ? false : true)}
+                              className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none"
+                              style={{ backgroundColor: layer.copernicusEnabled ? "#ffffff" : "rgba(255, 255, 255, 0.2)" }}
+                            >
+                              <span className={`inline-block h-3 w-3 transform rounded-full bg-black transition-transform ${layer.copernicusEnabled ? "translate-x-4" : "translate-x-1"}`} />
+                            </button>
+                          </div>
+                          {layer.copernicusEnabled && (
+                            <div className="flex flex-col gap-1 mt-1">
+                              <div className="flex justify-between items-end">
+                                <label className="text-[10px] text-white/60 font-semibold tracking-wider uppercase">{t("OPACITY")}</label>
+                                <span className="text-[10px] text-white/50 font-mono">{Math.round((layer.copernicusOpacity ?? 1.0) * 100)}%</span>
+                              </div>
+                              <input type="range" min="0" max="100" value={(layer.copernicusOpacity ?? 1.0) * 100} onChange={(e) => updateLayerProperty(layer.id, "copernicusOpacity", Number(e.target.value) / 100)} className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer" />
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-white/80">{t("Copernicus EMS Damage Data")}</span>
-                          <button
-                            onClick={() => updateLayerProperty(layer.id, "copernicusEnabled", layer.copernicusEnabled ? false : true)}
-                            className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none"
-                            style={{ backgroundColor: layer.copernicusEnabled ? "#ffffff" : "rgba(255, 255, 255, 0.2)" }}
-                          >
-                            <span className={`inline-block h-3 w-3 transform rounded-full bg-black transition-transform ${layer.copernicusEnabled ? "translate-x-4" : "translate-x-1"}`} />
-                          </button>
+
+                        <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-white/80">{t("Did You Feel It? (10km)")}</span>
+                            <button
+                              onClick={() => updateLayerProperty(layer.id, "usgsDyfi10kmEnabled", layer.usgsDyfi10kmEnabled ? false : true)}
+                              className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none"
+                              style={{ backgroundColor: layer.usgsDyfi10kmEnabled ? "#ffffff" : "rgba(255, 255, 255, 0.2)" }}
+                            >
+                              <span className={`inline-block h-3 w-3 transform rounded-full bg-black transition-transform ${layer.usgsDyfi10kmEnabled ? "translate-x-4" : "translate-x-1"}`} />
+                            </button>
+                          </div>
+                          {layer.usgsDyfi10kmEnabled && (
+                            <div className="flex flex-col gap-1 mt-1">
+                              <div className="flex justify-between items-end">
+                                <label className="text-[10px] text-white/60 font-semibold tracking-wider uppercase">{t("OPACITY")}</label>
+                                <span className="text-[10px] text-white/50 font-mono">{Math.round((layer.usgsDyfi10kmOpacity ?? 0.6) * 100)}%</span>
+                              </div>
+                              <input type="range" min="0" max="100" value={(layer.usgsDyfi10kmOpacity ?? 0.6) * 100} onChange={(e) => updateLayerProperty(layer.id, "usgsDyfi10kmOpacity", Number(e.target.value) / 100)} className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer" />
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-white/80">{t("USGS Did You Feel It? (10km resolution)")}</span>
-                          <button
-                            onClick={() => updateLayerProperty(layer.id, "usgsDyfi10kmEnabled", layer.usgsDyfi10kmEnabled ? false : true)}
-                            className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none"
-                            style={{ backgroundColor: layer.usgsDyfi10kmEnabled ? "#ffffff" : "rgba(255, 255, 255, 0.2)" }}
-                          >
-                            <span className={`inline-block h-3 w-3 transform rounded-full bg-black transition-transform ${layer.usgsDyfi10kmEnabled ? "translate-x-4" : "translate-x-1"}`} />
-                          </button>
+
+                        <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-white/80">{t("Did You Feel It? (1km)")}</span>
+                            <button
+                              onClick={() => updateLayerProperty(layer.id, "usgsDyfi1kmEnabled", layer.usgsDyfi1kmEnabled ? false : true)}
+                              className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none"
+                              style={{ backgroundColor: layer.usgsDyfi1kmEnabled ? "#ffffff" : "rgba(255, 255, 255, 0.2)" }}
+                            >
+                              <span className={`inline-block h-3 w-3 transform rounded-full bg-black transition-transform ${layer.usgsDyfi1kmEnabled ? "translate-x-4" : "translate-x-1"}`} />
+                            </button>
+                          </div>
+                          {layer.usgsDyfi1kmEnabled && (
+                            <div className="flex flex-col gap-1 mt-1">
+                              <div className="flex justify-between items-end">
+                                <label className="text-[10px] text-white/60 font-semibold tracking-wider uppercase">{t("OPACITY")}</label>
+                                <span className="text-[10px] text-white/50 font-mono">{Math.round((layer.usgsDyfi1kmOpacity ?? 0.6) * 100)}%</span>
+                              </div>
+                              <input type="range" min="0" max="100" value={(layer.usgsDyfi1kmOpacity ?? 0.6) * 100} onChange={(e) => updateLayerProperty(layer.id, "usgsDyfi1kmOpacity", Number(e.target.value) / 100)} className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer" />
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-white/80">{t("USGS Did You Feel It? (1km resolution)")}</span>
-                          <button
-                            onClick={() => updateLayerProperty(layer.id, "usgsDyfi1kmEnabled", layer.usgsDyfi1kmEnabled ? false : true)}
-                            className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none"
-                            style={{ backgroundColor: layer.usgsDyfi1kmEnabled ? "#ffffff" : "rgba(255, 255, 255, 0.2)" }}
-                          >
-                            <span className={`inline-block h-3 w-3 transform rounded-full bg-black transition-transform ${layer.usgsDyfi1kmEnabled ? "translate-x-4" : "translate-x-1"}`} />
-                          </button>
+
+                        <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-white/80">{t("Landslides")}</span>
+                            <button
+                              onClick={() => updateLayerProperty(layer.id, "usgsLandslideEnabled", layer.usgsLandslideEnabled ? false : true)}
+                              className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none"
+                              style={{ backgroundColor: layer.usgsLandslideEnabled ? "#ffffff" : "rgba(255, 255, 255, 0.2)" }}
+                            >
+                              <span className={`inline-block h-3 w-3 transform rounded-full bg-black transition-transform ${layer.usgsLandslideEnabled ? "translate-x-4" : "translate-x-1"}`} />
+                            </button>
+                          </div>
+                          {layer.usgsLandslideEnabled && (
+                            <>
+                              <div className="flex flex-col gap-1 mt-1">
+                                <div className="flex justify-between items-end">
+                                  <label className="text-[10px] text-white/60 font-semibold tracking-wider uppercase">{t("OPACITY")}</label>
+                                  <span className="text-[10px] text-white/50 font-mono">{Math.round((layer.usgsLandslideOpacity ?? 0.8) * 100)}%</span>
+                                </div>
+                                <input type="range" min="0" max="100" value={(layer.usgsLandslideOpacity ?? 0.8) * 100} onChange={(e) => updateLayerProperty(layer.id, "usgsLandslideOpacity", Number(e.target.value) / 100)} className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer" />
+                              </div>
+                              <details className="mt-2 group">
+                                <summary className="text-[10px] text-white/80 font-semibold tracking-wider cursor-pointer select-none hover:text-white transition-colors flex items-center justify-between uppercase">
+                                  {t("Adjustments")}
+                                  <span className="group-open:rotate-180 transition-transform text-xs">▼</span>
+                                </summary>
+                                <div className="pt-3 pb-1 flex flex-col gap-3">
+                                  <div className="flex flex-col gap-1">
+                                    <div className="flex justify-between items-end">
+                                      <label className="text-[10px] text-white font-semibold tracking-wider">{t("BRIGHTNESS")}</label>
+                                      <span className="text-[10px] text-white/70 font-mono">{Math.round(((layer.usgsLandslideBrightness ?? 0) + 1) * 100)}%</span>
+                                    </div>
+                                    <input type="range" min="-100" max="100" value={(layer.usgsLandslideBrightness ?? 0) * 100} onChange={(e) => updateLayerProperty(layer.id, "usgsLandslideBrightness", Number(e.target.value) / 100)} className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer" />
+                                  </div>
+                                  <div className="flex flex-col gap-1">
+                                    <div className="flex justify-between items-end">
+                                      <label className="text-[10px] text-white font-semibold tracking-wider">{t("CONTRAST")}</label>
+                                      <span className="text-[10px] text-white/70 font-mono">{Math.round(((layer.usgsLandslideContrast ?? 0) + 1) * 100)}%</span>
+                                    </div>
+                                    <input type="range" min="-100" max="100" value={(layer.usgsLandslideContrast ?? 0) * 100} onChange={(e) => updateLayerProperty(layer.id, "usgsLandslideContrast", Number(e.target.value) / 100)} className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer" />
+                                  </div>
+                                  <div className="flex flex-col gap-1">
+                                    <div className="flex justify-between items-end">
+                                      <label className="text-[10px] text-white font-semibold tracking-wider">{t("SATURATION")}</label>
+                                      <span className="text-[10px] text-white/70 font-mono">{Math.round(((layer.usgsLandslideSaturation ?? 0) + 1) * 100)}%</span>
+                                    </div>
+                                    <input type="range" min="-100" max="100" value={(layer.usgsLandslideSaturation ?? 0) * 100} onChange={(e) => updateLayerProperty(layer.id, "usgsLandslideSaturation", Number(e.target.value) / 100)} className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer" />
+                                  </div>
+                                  <div className="flex flex-col gap-1">
+                                    <div className="flex justify-between items-end">
+                                      <label className="text-[10px] text-white font-semibold tracking-wider">{t("HUE ROTATION")}</label>
+                                      <span className="text-[10px] text-white/70 font-mono">{Math.round(layer.usgsLandslideHue ?? 0)}°</span>
+                                    </div>
+                                    <input type="range" min="0" max="360" value={layer.usgsLandslideHue ?? 0} onChange={(e) => updateLayerProperty(layer.id, "usgsLandslideHue", Number(e.target.value))} className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer" />
+                                  </div>
+                                </div>
+                              </details>
+                            </>
+                          )}
                         </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-white/80">{t("USGS Ground Failure: Landslides")}</span>
-                          <button
-                            onClick={() => updateLayerProperty(layer.id, "usgsLandslideEnabled", layer.usgsLandslideEnabled ? false : true)}
-                            className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none"
-                            style={{ backgroundColor: layer.usgsLandslideEnabled ? "#ffffff" : "rgba(255, 255, 255, 0.2)" }}
-                          >
-                            <span className={`inline-block h-3 w-3 transform rounded-full bg-black transition-transform ${layer.usgsLandslideEnabled ? "translate-x-4" : "translate-x-1"}`} />
-                          </button>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-white/80">{t("USGS Ground Failure: Liquefaction")}</span>
-                          <button
-                            onClick={() => updateLayerProperty(layer.id, "usgsLiquefactionEnabled", layer.usgsLiquefactionEnabled ? false : true)}
-                            className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none"
-                            style={{ backgroundColor: layer.usgsLiquefactionEnabled ? "#ffffff" : "rgba(255, 255, 255, 0.2)" }}
-                          >
-                            <span className={`inline-block h-3 w-3 transform rounded-full bg-black transition-transform ${layer.usgsLiquefactionEnabled ? "translate-x-4" : "translate-x-1"}`} />
-                          </button>
+
+                        <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-white/80">{t("Ground Liquefaction")}</span>
+                            <button
+                              onClick={() => updateLayerProperty(layer.id, "usgsLiquefactionEnabled", layer.usgsLiquefactionEnabled ? false : true)}
+                              className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none"
+                              style={{ backgroundColor: layer.usgsLiquefactionEnabled ? "#ffffff" : "rgba(255, 255, 255, 0.2)" }}
+                            >
+                              <span className={`inline-block h-3 w-3 transform rounded-full bg-black transition-transform ${layer.usgsLiquefactionEnabled ? "translate-x-4" : "translate-x-1"}`} />
+                            </button>
+                          </div>
+                          {layer.usgsLiquefactionEnabled && (
+                            <>
+                              <div className="flex flex-col gap-1 mt-1">
+                                <div className="flex justify-between items-end">
+                                  <label className="text-[10px] text-white/60 font-semibold tracking-wider uppercase">{t("OPACITY")}</label>
+                                  <span className="text-[10px] text-white/50 font-mono">{Math.round((layer.usgsLiquefactionOpacity ?? 0.8) * 100)}%</span>
+                                </div>
+                                <input type="range" min="0" max="100" value={(layer.usgsLiquefactionOpacity ?? 0.8) * 100} onChange={(e) => updateLayerProperty(layer.id, "usgsLiquefactionOpacity", Number(e.target.value) / 100)} className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer" />
+                              </div>
+                              <details className="mt-2 group">
+                                <summary className="text-[10px] text-white/80 font-semibold tracking-wider cursor-pointer select-none hover:text-white transition-colors flex items-center justify-between uppercase">
+                                  {t("Adjustments")}
+                                  <span className="group-open:rotate-180 transition-transform text-xs">▼</span>
+                                </summary>
+                                <div className="pt-3 pb-1 flex flex-col gap-3">
+                                  <div className="flex flex-col gap-1">
+                                    <div className="flex justify-between items-end">
+                                      <label className="text-[10px] text-white font-semibold tracking-wider">{t("BRIGHTNESS")}</label>
+                                      <span className="text-[10px] text-white/70 font-mono">{Math.round(((layer.usgsLiquefactionBrightness ?? 0) + 1) * 100)}%</span>
+                                    </div>
+                                    <input type="range" min="-100" max="100" value={(layer.usgsLiquefactionBrightness ?? 0) * 100} onChange={(e) => updateLayerProperty(layer.id, "usgsLiquefactionBrightness", Number(e.target.value) / 100)} className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer" />
+                                  </div>
+                                  <div className="flex flex-col gap-1">
+                                    <div className="flex justify-between items-end">
+                                      <label className="text-[10px] text-white font-semibold tracking-wider">{t("CONTRAST")}</label>
+                                      <span className="text-[10px] text-white/70 font-mono">{Math.round(((layer.usgsLiquefactionContrast ?? 0) + 1) * 100)}%</span>
+                                    </div>
+                                    <input type="range" min="-100" max="100" value={(layer.usgsLiquefactionContrast ?? 0) * 100} onChange={(e) => updateLayerProperty(layer.id, "usgsLiquefactionContrast", Number(e.target.value) / 100)} className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer" />
+                                  </div>
+                                  <div className="flex flex-col gap-1">
+                                    <div className="flex justify-between items-end">
+                                      <label className="text-[10px] text-white font-semibold tracking-wider">{t("SATURATION")}</label>
+                                      <span className="text-[10px] text-white/70 font-mono">{Math.round(((layer.usgsLiquefactionSaturation ?? 0) + 1) * 100)}%</span>
+                                    </div>
+                                    <input type="range" min="-100" max="100" value={(layer.usgsLiquefactionSaturation ?? 0) * 100} onChange={(e) => updateLayerProperty(layer.id, "usgsLiquefactionSaturation", Number(e.target.value) / 100)} className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer" />
+                                  </div>
+                                  <div className="flex flex-col gap-1">
+                                    <div className="flex justify-between items-end">
+                                      <label className="text-[10px] text-white font-semibold tracking-wider">{t("HUE ROTATION")}</label>
+                                      <span className="text-[10px] text-white/70 font-mono">{Math.round(layer.usgsLiquefactionHue ?? 0)}°</span>
+                                    </div>
+                                    <input type="range" min="0" max="360" value={layer.usgsLiquefactionHue ?? 0} onChange={(e) => updateLayerProperty(layer.id, "usgsLiquefactionHue", Number(e.target.value))} className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer" />
+                                  </div>
+                                </div>
+                              </details>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -3569,6 +3873,7 @@ function LayerItem(props: {
                     </div>
                   )}
 
+                  {layer.type !== "gdacs_earthquakes" && (
                   <div
                     className={`flex flex-col gap-1 mt-1 ${layer.type === "deepstate" ? "" : "pt-2 border-t border-white/10"}`}
                   >
@@ -3608,6 +3913,7 @@ function LayerItem(props: {
                       className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
                     />
                   </div>
+                  )}
 
                   {(layer.type === "raster" || layer.type === "satellite") && (
                     <details className="mt-3 group">

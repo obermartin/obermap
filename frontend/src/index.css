@@ -361,3 +361,5 @@ html, body, #root {
 .is-recording .react-ui-overlay {
   display: none !important;
 }
+
+/* Export Annotation Scaling handled via DOM wrappers in MapContainer.tsx */

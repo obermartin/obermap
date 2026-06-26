@@ -79,6 +79,7 @@ export function App() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [currentView, setCurrentView] = useState<'overview' | 'map'>('overview');
   const [currentShow, setCurrentShow] = useState<string | null>(null);
+  const [activeCropOverlay, setActiveCropOverlay] = useState<'landscape' | 'portrait' | 'square' | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -385,7 +386,7 @@ export function App() {
       setAnnotations(prev => {
         const positionCount = prev.filter(a => a.type === 'label' && a.text?.startsWith('POSITION ')).length + 1;
         return [...prev, {
-          id: `position-${Date.now()}`,
+          id: `position-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
           type: 'label',
           color: currentColor,
           text: `POSITION ${positionCount}`,
@@ -613,6 +614,7 @@ export function App() {
         routeMode={routeMode}
         isSidebarOpen={isLayerSidebarOpen}
         isToolbarOpen={isToolbarOpen}
+        activeCropOverlay={activeCropOverlay}
       />
       <SavedViews 
         annotations={annotations}
@@ -702,6 +704,8 @@ export function App() {
         onSaveAndExit={() => handleSave(true)}
         onExport={handleExport}
         isSaving={isSaving}
+        activeCropOverlay={activeCropOverlay}
+        setActiveCropOverlay={setActiveCropOverlay}
       />
 
       {/* Show Title & Accreditation Overlay */}
