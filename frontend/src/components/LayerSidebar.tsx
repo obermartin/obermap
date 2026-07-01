@@ -225,6 +225,21 @@ const DEFAULT_LAYERS: MapLayer[] = [
     showCityWeatherIcons: true,
   },
   {
+    id: "wildfires",
+    name: "Wildfires",
+    type: "wildfires",
+    visible: false,
+
+    url: "https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}",
+  },
+  {
+    id: "floods",
+    name: "Floods",
+    type: "raster",
+    visible: false,
+    url: "https://geoserver.gfm.eodc.eu/geoserver/gfm/wms?service=WMS&request=GetMap&layers=observed_flood_extent&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}T00:00:00.000Z/{date-end}T23:59:59.000Z",
+  },
+  {
     id: "gdacs_earthquakes",
     name: "Earthquakes",
     type: "gdacs_earthquakes",
@@ -1298,6 +1313,9 @@ export function LayerSidebar({
                       activeGeojsonLayerId={activeGeojsonLayerId}
                       setActiveGeojsonLayerId={setActiveGeojsonLayerId}
                       selectedFeatureId={selectedGeojsonFeatureId}
+                      globalDateMode={settings.globalDateMode}
+                      globalStartDate={settings.globalStartDate}
+                      globalEndDate={settings.globalEndDate}
                       saveAsPreset={saveAsPreset}
                       updateLayerStyle={(layerId, featureId, styleChanges) => {
                         setSettings((prev) => ({
@@ -1344,6 +1362,19 @@ export function LayerSidebar({
                           ),
                         }));
                       }}
+                      syncGlobalDate={(layerId) => {
+                        setSettings((prev) => ({
+                          ...prev,
+                          layers: updateLayerRecursively(prev.layers, layerId, (l) => ({
+                            ...l,
+                            startDate: undefined,
+                            endDate: undefined,
+                            nighttimeDate: undefined,
+                            useGlobalDate: true,
+                            _isDirty: true,
+                          }))
+                        }));
+                      }}
                       updateLayerDates={(layerId, startDate, endDate) => {
                         setSettings((prev) => ({
                           ...prev,
@@ -1360,14 +1391,15 @@ export function LayerSidebar({
                                   ? `UKRAINE ${(startDate || new Date().toISOString().split("T")[0]).split("-").reverse().join(".")}`
                                   : l.name;
                               return {
-                                ...l,
-                                startDate,
-                                endDate,
-                                name: newName,
-                                isLive: false,
-                                _isDirty: true,
-                              };
-                            },
+                                  ...l,
+                                  startDate,
+                                  endDate,
+                                  name: newName,
+                                  isLive: false,
+                                  useGlobalDate: false,
+                                  _isDirty: true,
+                                };
+                              },
                           ),
                         }));
                       }}
@@ -2966,6 +2998,7 @@ function LayerItem(props: {
     startDate?: string,
     endDate?: string,
   ) => void;
+  syncGlobalDate?: (layerId: string) => void;
   duplicateLayer?: (id: string) => void;
   saveAsPreset?: (layer: MapLayer) => void;
   toggleLive?: (layerId: string) => void;
@@ -2978,6 +3011,9 @@ function LayerItem(props: {
   selectedAircraftId?: string | null;
   selectedVesselMmsi?: string | null;
   mapviewButtons: any[];
+  globalDateMode?: 'single' | 'range';
+  globalStartDate?: string;
+  globalEndDate?: string;
 }) {
   const { t } = useTranslation();
   const [activeTriggerDropdown, setActiveTriggerDropdown] = React.useState<'reveal' | 'hide' | null>(null);
@@ -3004,6 +3040,10 @@ function LayerItem(props: {
     selectedAircraftId,
     selectedVesselMmsi,
     mapviewButtons,
+    globalDateMode,
+    globalStartDate,
+    globalEndDate,
+    syncGlobalDate,
   } = props;
   const isActiveEdit = activeGeojsonLayerId === layer.id;
   const setActiveEdit = () => {
@@ -3027,12 +3067,35 @@ function LayerItem(props: {
 
   let defaultStartDate = "";
   let defaultEndDate = "";
+  const todayStr = new Date().toISOString().split("T")[0];
   if (layer.type === "wildfires") {
-    const today = new Date();
-    defaultEndDate = today.toISOString().split("T")[0];
-    const past7d = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    defaultEndDate = todayStr;
+    const past7d = new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000);
     defaultStartDate = past7d.toISOString().split("T")[0];
+  } else {
+    defaultStartDate = todayStr;
+    defaultEndDate = todayStr;
   }
+
+  const useGlobal = layer.useGlobalDate !== false;
+  const isGlobalRange = globalDateMode === 'range';
+  
+  let effectiveStartDate = layer.startDate || defaultStartDate;
+  let effectiveEndDate = layer.endDate || defaultEndDate;
+
+  if (useGlobal) {
+    if (layer.type === 'deepstate' || layer.type === 'nighttime') {
+      // Single date layers
+      effectiveStartDate = isGlobalRange ? (globalEndDate || defaultStartDate) : (globalStartDate || defaultStartDate);
+    } else {
+      // Range layers
+      effectiveStartDate = globalStartDate || defaultStartDate;
+      effectiveEndDate = isGlobalRange ? (globalEndDate || defaultEndDate) : (globalStartDate || defaultEndDate);
+    }
+  }
+
+  if (effectiveStartDate === 'today') effectiveStartDate = todayStr;
+  if (effectiveEndDate === 'today') effectiveEndDate = todayStr;
 
   const [editTarget, setEditTarget] = useState<"fill" | "outline">("fill");
 
@@ -3444,31 +3507,34 @@ function LayerItem(props: {
                         <Radio size={16} />
                       </button>
                     )}
-                    {(layer.type === "deepstate" ||
-                      (layer.type === "wildfires" &&
-                        layer.wildfireMode === "gdacs")) &&
+                    {layer.type === "deepstate" &&
                       updateLayerDates && (
-                        <div className="flex-1 flex justify-end">
+                        <div className="flex-1 flex justify-end items-center gap-1">
                           <input
                             type="date"
-                            max={new Date().toISOString().split("T")[0]}
-                            value={
-                              layer.startDate ||
-                              new Date().toISOString().split("T")[0]
-                            }
+                            max={todayStr}
+                            value={effectiveStartDate}
                             onChange={(e) =>
                               updateLayerDates(layer.id, e.target.value)
                             }
-                            className="bg-black border border-white/20 px-2 py-1 text-xs text-white outline-none focus:border-white/50 w-full max-w-[140px]"
+                            className={`bg-black border ${!useGlobal ? 'border-yellow-500/50' : 'border-white/20'} px-2 py-1 text-xs text-white outline-none focus:border-white/50 w-full max-w-[140px]`}
                             style={{ colorScheme: "dark" }}
                           />
+                          {!useGlobal && syncGlobalDate && (
+                            <button 
+                              onClick={() => syncGlobalDate(layer.id)}
+                              className="text-white/40 hover:text-white"
+                              title={t("Sync with Global Date")}
+                            >
+                              <X size={14} />
+                            </button>
+                          )}
                         </div>
                       )}
                     {(layer.type === "gdacs_earthquakes" ||
                       layer.type === "gdacs_volcanoes" ||
                       layer.type === "gdacs_cyclones" ||
-                      (layer.type === "wildfires" &&
-                        layer.wildfireMode === "effis")) &&
+                      layer.type === "wildfires") &&
                       updateLayerDates && (
                         <div className="flex-1 flex flex-col items-end gap-2">
                           <div className="flex items-center gap-2">
@@ -3477,21 +3543,27 @@ function LayerItem(props: {
                             </span>
                             <input
                               type="date"
-                              max={new Date().toISOString().split("T")[0]}
-                              value={
-                                layer.startDate ||
-                                new Date().toISOString().split("T")[0]
-                              }
+                              max={todayStr}
+                              value={effectiveStartDate}
                               onChange={(e) =>
                                 updateLayerDates(
                                   layer.id,
                                   e.target.value,
-                                  layer.endDate,
+                                  layer.endDate || effectiveEndDate,
                                 )
                               }
-                              className="bg-black border border-white/20 px-2 py-1 text-xs text-white outline-none focus:border-white/50 w-full max-w-[110px]"
+                              className={`bg-black border ${!useGlobal ? 'border-yellow-500/50' : 'border-white/20'} px-2 py-1 text-xs text-white outline-none focus:border-white/50 w-full max-w-[110px]`}
                               style={{ colorScheme: "dark" }}
                             />
+                            {!useGlobal && syncGlobalDate && (
+                              <button 
+                                onClick={() => syncGlobalDate(layer.id)}
+                                className="text-white/40 hover:text-white"
+                                title={t("Sync with Global Date")}
+                              >
+                                <X size={14} />
+                              </button>
+                            )}
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] text-white/50 min-w-[70px] text-right uppercase">
@@ -3499,19 +3571,16 @@ function LayerItem(props: {
                             </span>
                             <input
                               type="date"
-                              max={new Date().toISOString().split("T")[0]}
-                              value={
-                                layer.endDate ||
-                                new Date().toISOString().split("T")[0]
-                              }
+                              max={todayStr}
+                              value={effectiveEndDate}
                               onChange={(e) =>
                                 updateLayerDates(
                                   layer.id,
-                                  layer.startDate,
+                                  layer.startDate || effectiveStartDate,
                                   e.target.value,
                                 )
                               }
-                              className="bg-black border border-white/20 px-2 py-1 text-xs text-white outline-none focus:border-white/50 w-full max-w-[110px]"
+                              className={`bg-black border ${!useGlobal ? 'border-yellow-500/50' : 'border-white/20'} px-2 py-1 text-xs text-white outline-none focus:border-white/50 w-full max-w-[110px]`}
                               style={{ colorScheme: "dark" }}
                             />
                           </div>
@@ -3520,36 +3589,27 @@ function LayerItem(props: {
                   </div>
                   {layer.type === "wildfires" && updateLayerProperty && (
                     <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[10px] text-white font-semibold tracking-wider">
-                          {t("DATA SOURCE")}
-                        </label>
-                        <div className="flex bg-white/10 rounded-full p-0.5">
+
+                      <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/80">{t("Infrastructure Damage")}</span>
                           <button
-                            onClick={() =>
-                              updateLayerProperty(
-                                layer.id,
-                                "wildfireMode",
-                                "effis",
-                              )
-                            }
-                            className={`text-[10px] px-3 py-1 rounded-full transition-colors ${layer.wildfireMode !== "gdacs" ? "bg-white text-black font-medium" : "text-white/60 hover:text-white"}`}
+                            onClick={() => updateLayerProperty(layer.id, "copernicusEnabled", layer.copernicusEnabled ? false : true)}
+                            className="relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none"
+                            style={{ backgroundColor: layer.copernicusEnabled ? "#ffffff" : "rgba(255, 255, 255, 0.2)" }}
                           >
-                            {t("All")} (EFFIS)
-                          </button>
-                          <button
-                            onClick={() =>
-                              updateLayerProperty(
-                                layer.id,
-                                "wildfireMode",
-                                "gdacs",
-                              )
-                            }
-                            className={`text-[10px] px-3 py-1 rounded-full transition-colors ${layer.wildfireMode === "gdacs" ? "bg-white text-black font-medium" : "text-white/60 hover:text-white"}`}
-                          >
-                            {t("Catastrophic")} (GDACS)
+                            <span className={`inline-block h-3 w-3 transform rounded-full bg-black transition-transform ${layer.copernicusEnabled ? "translate-x-4" : "translate-x-1"}`} />
                           </button>
                         </div>
+                        {layer.copernicusEnabled && (
+                          <div className="flex flex-col gap-1 mt-1">
+                            <div className="flex justify-between items-end">
+                              <label className="text-[10px] text-white/60 font-semibold tracking-wider uppercase">{t("OPACITY")}</label>
+                              <span className="text-[10px] text-white/50 font-mono">{Math.round((layer.copernicusOpacity ?? 1.0) * 100)}%</span>
+                            </div>
+                            <input type="range" min="0" max="100" value={(layer.copernicusOpacity ?? 1.0) * 100} onChange={(e) => updateLayerProperty(layer.id, "copernicusOpacity", Number(e.target.value) / 100)} className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer" />
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -3791,17 +3851,27 @@ function LayerItem(props: {
                         </label>
                         <input
                           type="date"
-                          value={layer.startDate || defaultStartDate}
+                          max={todayStr}
+                          value={effectiveStartDate}
                           onChange={(e) =>
                             updateLayerDates(
                               layer.id,
                               e.target.value,
-                              layer.endDate || defaultEndDate,
+                              layer.endDate || effectiveEndDate,
                             )
                           }
-                          className="bg-black border border-white/20 px-2 py-1 text-xs text-white outline-none focus:border-white/50"
+                          className={`bg-black border ${!useGlobal ? 'border-yellow-500/50' : 'border-white/20'} px-2 py-1 text-xs text-white outline-none focus:border-white/50 w-[140px]`}
                           style={{ colorScheme: "dark" }}
                         />
+                        {!useGlobal && syncGlobalDate && (
+                          <button 
+                            onClick={() => syncGlobalDate(layer.id)}
+                            className="text-white/40 hover:text-white"
+                            title={t("Sync with Global Date")}
+                          >
+                            <X size={14} />
+                          </button>
+                        )}
                       </div>
                       <div className="flex items-center justify-between">
                         <label className="text-[10px] text-white font-semibold tracking-wider">
@@ -3809,15 +3879,16 @@ function LayerItem(props: {
                         </label>
                         <input
                           type="date"
-                          value={layer.endDate || defaultEndDate}
+                          max={todayStr}
+                          value={effectiveEndDate}
                           onChange={(e) =>
                             updateLayerDates(
                               layer.id,
-                              layer.startDate || defaultStartDate,
+                              layer.startDate || effectiveStartDate,
                               e.target.value,
                             )
                           }
-                          className="bg-black border border-white/20 px-2 py-1 text-xs text-white outline-none focus:border-white/50"
+                          className={`bg-black border ${!useGlobal ? 'border-yellow-500/50' : 'border-white/20'} px-2 py-1 text-xs text-white outline-none focus:border-white/50 w-[140px]`}
                           style={{ colorScheme: "dark" }}
                         />
                       </div>
@@ -3826,26 +3897,38 @@ function LayerItem(props: {
 
                   {layer.type === "nighttime" && (
                     <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <label className="text-[10px] text-white font-semibold tracking-wider">
                           {t("DATE")}
                         </label>
-                        <input
-                          type="date"
-                          value={
-                            layer.nighttimeDate ||
-                            new Date().toISOString().split("T")[0]
-                          }
-                          onChange={(e) =>
-                            updateLayerProperty(
-                              layer.id,
-                              "nighttimeDate",
-                              e.target.value,
-                            )
-                          }
-                          className="bg-black border border-white/20 px-2 py-1 text-xs text-white outline-none focus:border-white/50 rounded"
-                          style={{ colorScheme: "dark" }}
-                        />
+                        <div className="flex items-center gap-1 flex-1 justify-end">
+                          <input
+                            type="date"
+                            max={todayStr}
+                            value={
+                              layer.nighttimeDate || effectiveStartDate
+                            }
+                            onChange={(e) => {
+                              updateLayerProperty(
+                                layer.id,
+                                "nighttimeDate",
+                                e.target.value,
+                              );
+                              updateLayerProperty(layer.id, "useGlobalDate", false);
+                            }}
+                            className={`bg-black border ${!useGlobal ? 'border-yellow-500/50' : 'border-white/20'} px-2 py-1 text-xs text-white outline-none focus:border-white/50 rounded`}
+                            style={{ colorScheme: "dark" }}
+                          />
+                          {!useGlobal && syncGlobalDate && (
+                            <button 
+                              onClick={() => syncGlobalDate(layer.id)}
+                              className="text-white/40 hover:text-white"
+                              title={t("Sync with Global Date")}
+                            >
+                              <X size={14} />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -4271,6 +4354,29 @@ function LayerItem(props: {
               ) : layer.type === "weather_forecast" ? (
                 <div className="flex flex-col gap-4 pb-2">
 
+                  {updateLayerDates && (
+                    <div className="flex-1 flex justify-end items-center gap-1">
+                      <input
+                        type="date"
+                        value={effectiveStartDate}
+                        onChange={(e) =>
+                          updateLayerDates(layer.id, e.target.value)
+                        }
+                        className={`bg-black border ${!useGlobal ? 'border-yellow-500/50' : 'border-white/20'} px-2 py-1 text-xs text-white outline-none focus:border-white/50 w-full max-w-[140px]`}
+                        style={{ colorScheme: "dark" }}
+                      />
+                      {!useGlobal && syncGlobalDate && (
+                        <button 
+                          onClick={() => syncGlobalDate(layer.id)}
+                          className="text-white/40 hover:text-white"
+                          title={t("Sync with Global Date")}
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex flex-col gap-1.5">
                     <div className="flex justify-between items-end">
                       <label className="text-[10px] text-white/50 font-semibold tracking-wider uppercase">
@@ -4305,7 +4411,7 @@ function LayerItem(props: {
                           updateLayerProperty(
                             layer.id,
                             "showCityTemperatures",
-                            layer.showCityTemperatures !== false,
+                            layer.showCityTemperatures === false,
                           )
                         }
                         className="flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-[10px] font-semibold tracking-wider uppercase text-left"
@@ -4324,7 +4430,7 @@ function LayerItem(props: {
                           updateLayerProperty(
                             layer.id,
                             "showCityWeatherIcons",
-                            layer.showCityWeatherIcons !== false,
+                            layer.showCityWeatherIcons === false,
                           )
                         }
                         className={`flex items-center justify-between px-3 py-2 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer text-[10px] font-semibold tracking-wider uppercase text-left ${layer.showCityTemperatures === false && layer.showCityWeatherIcons === false ? "opacity-50" : ""}`}

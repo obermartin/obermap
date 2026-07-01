@@ -3,6 +3,7 @@ import { MapContainer } from './components/MapContainer';
 import { Toolbar } from './components/Toolbar';
 import { SavedViews } from './components/SavedViews';
 import { OverviewScreen } from './components/OverviewScreen';
+import { motion, AnimatePresence } from 'framer-motion';
 import { customAlert } from './utils/dialogService';
 import type { Annotation, ToolType, StrokeType, AppSettings, MapLayer, RouteMode } from './types';
 import { createArrowFeatures, calculateDistance } from './utils/mapUtils';
@@ -21,6 +22,9 @@ const DEFAULT_SETTINGS: AppSettings = {
   icons: DEFAULT_ICON_CATEGORIES,
   labelDensity: 50,
   replaceGothamFont: true,
+  globalDateMode: 'single',
+  globalStartDate: 'today',
+  globalEndDate: 'today',
   layers: [
     { id: 'split-container', name: 'Split View Container', type: 'split', visible: false, splitPosition: 0.5, splitDirection: 'vertical', splitLayers: [] },
     { id: 'deepstate', name: 'Ukraine', type: 'deepstate', visible: false, isLive: true },
@@ -31,7 +35,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     { id: 'population_density', name: 'Population Density', type: 'raster', visible: false, url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GPW_Population_Density_2020/default/default/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png' },
     { id: 'weather_forecast', name: 'Weather', type: 'weather_forecast', visible: false, showTemperature: true, showPrecipitation: false, windOpacity: 1, windParticleSize: 1.5, windParticleTrail: 94, showWindParticles: true, showWindLegend: true, windParticleSizeBySpeed: true, windParticleSpeedBySpeed: true, windParticleTrailBySpeed: false, windParticleColorBySpeed: false, showCityTemperatures: true, showCityWeatherIcons: true },
     { id: 'gdacs_cyclones', name: 'Tropical Cyclones', type: 'gdacs_cyclones', visible: false },
-    { id: 'wildfires', name: 'Wildfires', type: 'wildfires', visible: false, wildfireMode: 'effis', url: 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}' },
+    { id: 'wildfires', name: 'Wildfires', type: 'wildfires', visible: false, url: 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}' },
     { id: 'floods', name: 'Floods', type: 'raster', visible: false, url: 'https://geoserver.gfm.eodc.eu/geoserver/gfm/wms?service=WMS&request=GetMap&layers=observed_flood_extent&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}T00:00:00.000Z/{date-end}T23:59:59.000Z' },
     { id: 'gdacs_earthquakes', name: 'Earthquakes', type: 'gdacs_earthquakes', visible: false },
     { id: 'gdacs_volcanoes', name: 'Volcanoes', type: 'gdacs_volcanoes', visible: false }
@@ -39,6 +43,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 import { LayerSidebar } from './components/LayerSidebar';
+import { GlobalDateControl } from './components/GlobalDateControl';
 import { Loader2, Menu } from 'lucide-react';
 import { useTranslation } from './contexts/I18nContext';
 import { globalLabelManager } from './labels/LabelMarkerManager';
@@ -546,10 +551,6 @@ export function App() {
           identifier = language === 'de' ? preset.de : preset.en;
           source = preset.source;
           
-          // Dynamically adjust source for wildfires layer based on mode
-          if ((layer.id === 'copernicus' || layer.type === 'wildfires') && layer.wildfireMode === 'gdacs') {
-            source = "Global Disaster Alert and Coordination System (GDACS)";
-          }
         }
       }
 
@@ -587,6 +588,10 @@ export function App() {
   };
 
   const accreditationLines = getAccreditations();
+
+  const hasDateLayers = settings.layers.some(
+    layer => ["deepstate", "gdacs_earthquakes", "gdacs_volcanoes", "gdacs_cyclones", "wildfires", "nighttime", "weather_forecast"].includes(layer.type) || layer.id === "floods"
+  );
 
   return (
     <div className="w-dvw h-dvh relative bg-black overflow-hidden">
@@ -657,7 +662,7 @@ export function App() {
       )}
 
       {/* Bottom Left UI Controls */}
-      <div className={`absolute bottom-6 left-6 z-10 flex items-end gap-2 transition-transform duration-300 ease-in-out ${isLayerSidebarOpen ? 'translate-x-[20rem]' : 'translate-x-0'}`}>
+      <div id="global-toolbar-container" className={`absolute bottom-6 left-6 z-10 flex items-end gap-2 transition-transform duration-300 ease-in-out ${isLayerSidebarOpen ? 'translate-x-[20rem]' : 'translate-x-0'}`}>
         <button 
           onClick={() => setIsLayerSidebarOpen(!isLayerSidebarOpen)}
           className="bg-black w-12 h-12 flex flex-shrink-0 items-center justify-center hover:bg-white hover:text-black transition-colors text-white shadow-lg rounded-full"
@@ -689,6 +694,31 @@ export function App() {
         />
       </div>
 
+      {/* Bottom Center UI Controls */}
+      <AnimatePresence>
+        {hasDateLayers && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            className="absolute bottom-6 z-10 pointer-events-none transition-all duration-300 ease-in-out"
+            style={{ left: `calc(50% + ${(isLayerSidebarOpen ? 160 : 0) + (isToolbarOpen ? 230 : 0)}px)`, transform: 'translateX(-50%)' }}
+          >
+            <div id="global-date-control-container" className="pointer-events-auto flex justify-center">
+              <GlobalDateControl 
+                mode={settings.globalDateMode || 'single'}
+                onModeChange={(m) => setSettings(s => ({ ...s, globalDateMode: m, layers: s.layers.map(l => ({ ...l, _isDirty: true })) }))}
+                startDate={settings.globalStartDate || 'today'}
+                onStartDateChange={(d) => setSettings(s => ({ ...s, globalStartDate: d, layers: s.layers.map(l => ({ ...l, _isDirty: true })) }))}
+                endDate={settings.globalEndDate || 'today'}
+                onEndDateChange={(d) => setSettings(s => ({ ...s, globalEndDate: d, layers: s.layers.map(l => ({ ...l, _isDirty: true })) }))}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <LayerSidebar 
         activeMapViewId={activeMapViewId}
         settings={settings} 
@@ -709,7 +739,7 @@ export function App() {
       />
 
       {/* Show Title & Accreditation Overlay */}
-      <div className="absolute bottom-8 right-8 z-40 flex flex-col items-end gap-[2px] pointer-events-none">
+      <div className="absolute bottom-20 right-8 z-40 flex flex-col items-end gap-[2px] pointer-events-none">
         <div className="bg-white px-4 py-2 mb-1">
           <span className="text-black font-bold tracking-widest uppercase text-xs">
             {settings.title || currentShow}

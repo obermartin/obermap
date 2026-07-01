@@ -47,12 +47,13 @@ export interface MapLayer {
   startDate?: string;
   endDate?: string;
   isLive?: boolean;
-  wildfireMode?: 'effis' | 'gdacs';
+
   _isDirty?: boolean;
   _keepExistingData?: boolean;
   customLayer?: boolean;
   nighttimeDate?: string; // YYYY-MM-DD
   nighttimeHour?: number; // 0-24
+  useGlobalDate?: boolean;
   
   // Animation Triggers
   animationTriggerId?: string;
@@ -186,6 +187,9 @@ export interface AppSettings {
     portrait: { scale: number; offsetX: number; offsetY: number };
     square: { scale: number; offsetX: number; offsetY: number };
   };
+  globalDateMode?: 'single' | 'range';
+  globalStartDate?: string;
+  globalEndDate?: string;
 }
 
 export interface BaseMapStyle {

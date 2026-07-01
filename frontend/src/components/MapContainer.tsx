@@ -6,7 +6,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { length, along, lineSlice } from '@turf/turf';
 import MapboxGeocoder from '@maplibre/maplibre-gl-geocoder';
 import '@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css';
-import type { Annotation, ToolType, AppSettings, StrokeType, RouteMode } from '../types';
+import type { Annotation, ToolType, AppSettings, StrokeType, RouteMode, MapLayer } from '../types';
 import * as turf from '@turf/turf';
 import { useTranslation } from '../contexts/I18nContext';
 import { createCirclePolygon, calculateDistance, simplifyLine, transliterateToGerman, createArrowFeatures, decodePolyline, parseWKT, haversineDistance } from '../utils/mapUtils';
@@ -160,7 +160,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   isExporting,
   imageExportScale
 }) => {
-  const { t, language } = useTranslation();
+  const { t } = useTranslation();
   const mapContainer = useRef<HTMLDivElement>(null);
   const initialTerrainLoaded = useRef(false);
   const windCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -185,6 +185,43 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const [selectedCemsEarthquake, setSelectedCemsEarthquakeState] = useState<{ id: string, code: string, properties: any, coordinates: [number, number] } | null>(null);
   const selectedCemsEarthquakeRef = useRef<{ id: string, code: string, properties: any, coordinates: [number, number] } | null>(null);
   const [selectedCemsEarthquakeFeatures, setSelectedCemsEarthquakeFeatures] = useState<any>(null);
+  const [activeCemsWildfireFeatures, setActiveCemsWildfireFeatures] = useState<any>(null);
+  const cemsFeatureCacheRef = useRef<Record<string, any>>({});
+  const allCemsActivationsRef = useRef<Promise<any[]> | null>(null);
+
+
+  const weatherToggleRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let animationFrameId: number;
+
+    const updatePosition = () => {
+      const toggle = weatherToggleRef.current;
+      if (!toggle) {
+        animationFrameId = requestAnimationFrame(updatePosition);
+        return;
+      }
+      
+      const toolbar = document.getElementById('global-toolbar-container');
+      const dateControl = document.getElementById('global-date-control-container');
+      
+      if (toolbar && dateControl) {
+        const toolbarRect = toolbar.getBoundingClientRect();
+        const dateRect = dateControl.getBoundingClientRect();
+        
+        toggle.style.left = `${toolbarRect.right}px`;
+        toggle.style.right = `${window.innerWidth - dateRect.left}px`;
+      }
+      
+      animationFrameId = requestAnimationFrame(updatePosition);
+    };
+    
+    updatePosition();
+    
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
 
   const [selectedVolcano, setSelectedVolcanoState] = useState<{ id: string, ep: string, geomUrl: string, coordinates: [number, number], properties: any } | null>(null);
   const selectedVolcanoRef = useRef<{ id: string, ep: string, geomUrl: string, coordinates: [number, number], properties: any } | null>(null);
@@ -208,7 +245,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const weatherCityFetchCacheRef = useRef<Set<string>>(new Set());
   const weatherCityMarkersRef = useRef<{ [name: string]: maplibregl.Marker }>({});
   const lastActiveWeatherTimeRef = useRef<string | null>(null);
-  const [selectedWeatherTime, setSelectedWeatherTime] = useState<string | null>(null);
+  // selectedWeatherTime is now derived from weatherLayer's effectiveStartDate
   const [revealedTriggers, setRevealedTriggers] = useState<Set<string>>(new Set());
   const [hiddenTriggers, setHiddenTriggers] = useState<Set<string>>(new Set());
   const [isDraggingHeadlineId, setIsDraggingHeadlineId] = useState<string | null>(null);
@@ -226,6 +263,48 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     setAnnotationsRef.current = setAnnotations;
     settingsRef.current = settings;
   }, [currentColor, setAnnotations, settings]);
+
+  const getEffectiveLayerDates = useCallback((layer: MapLayer) => {
+    let defaultStartDate = "";
+    let defaultEndDate = "";
+    const todayStr = new Date().toISOString().split("T")[0];
+    if (layer.type === "wildfires") {
+      defaultEndDate = todayStr;
+      const past7d = new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000);
+      defaultStartDate = past7d.toISOString().split("T")[0];
+    } else {
+      defaultStartDate = todayStr;
+      defaultEndDate = todayStr;
+    }
+
+    const useGlobal = layer.useGlobalDate !== false;
+    const isGlobalRange = settings.globalDateMode === 'range';
+    
+    let effectiveStartDate = layer.startDate || defaultStartDate;
+    let effectiveEndDate = layer.endDate || defaultEndDate;
+
+    if (useGlobal) {
+      if (layer.type === 'deepstate' || layer.type === 'nighttime' || layer.type === 'weather_forecast') {
+        // Single date layers
+        effectiveStartDate = isGlobalRange ? (settings.globalEndDate || defaultStartDate) : (settings.globalStartDate || defaultStartDate);
+      } else {
+        // Range layers
+        effectiveStartDate = settings.globalStartDate || defaultStartDate;
+        effectiveEndDate = isGlobalRange ? (settings.globalEndDate || defaultEndDate) : (settings.globalStartDate || defaultEndDate);
+      }
+    }
+
+    if (effectiveStartDate === 'today') effectiveStartDate = todayStr;
+    if (effectiveEndDate === 'today') effectiveEndDate = todayStr;
+
+    return { effectiveStartDate, effectiveEndDate };
+  }, [settings.globalDateMode, settings.globalStartDate, settings.globalEndDate]);
+
+  const weatherLayerForTime = settings.layers.find(l => l.type === 'weather_forecast');
+  const weatherLayerEffectiveDate = weatherLayerForTime ? getEffectiveLayerDates(weatherLayerForTime).effectiveStartDate : null;
+  const selectedWeatherTime = weatherLayerEffectiveDate && weatherValidTimes.length > 0
+    ? (weatherValidTimes.find(t => t.startsWith(weatherLayerEffectiveDate)) || weatherValidTimes[0])
+    : null;
 
   useEffect(() => {
     const handleHide = () => {
@@ -2999,9 +3078,11 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           if (map.getLayer(layerId)) map.removeLayer(layerId);
           if (map.getLayer(lineId)) map.removeLayer(lineId);
           map.removeSource(sourceId);
+          layer._isDirty = false;
         } else if (layer.type === 'wildfires' && map.getSource(`${sourceId}-effis`)) {
           if (map.getLayer(`${layerId}-effis`)) map.removeLayer(`${layerId}-effis`);
           map.removeSource(`${sourceId}-effis`);
+          layer._isDirty = false;
         }
       }
 
@@ -3130,16 +3211,14 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           // Add both sources, we will toggle visibility
           if (!map.getSource(`${sourceId}-effis`)) {
             let processedUrl = layer.url || 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}';
-            const today = new Date();
-            const past7d = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-            processedUrl = processedUrl.replace(/{date-start}/g, layer.startDate || past7d.toISOString().split('T')[0]).replace(/{date-end}/g, layer.endDate || today.toISOString().split('T')[0]);
+            const { effectiveStartDate, effectiveEndDate } = getEffectiveLayerDates(layer);
+            processedUrl = processedUrl.replace(/{date-start}/g, effectiveStartDate).replace(/{date-end}/g, effectiveEndDate);
             map.addSource(`${sourceId}-effis`, { type: 'raster', tiles: [processedUrl], tileSize: 256 });
           } else {
              // update url
             let processedUrl = layer.url || 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}';
-            const today = new Date();
-            const past7d = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-            processedUrl = processedUrl.replace(/{date-start}/g, layer.startDate || past7d.toISOString().split('T')[0]).replace(/{date-end}/g, layer.endDate || today.toISOString().split('T')[0]);
+            const { effectiveStartDate, effectiveEndDate } = getEffectiveLayerDates(layer);
+            processedUrl = processedUrl.replace(/{date-start}/g, effectiveStartDate).replace(/{date-end}/g, effectiveEndDate);
             
             // Mapbox GL JS doesn't allow updating raster source tiles directly without removing/adding, but we can do it if we remove layer/source in cleanup. Let's rely on that or recreate.
             // Wait, actually, the easiest way to force tile reload in mapbox without removing is not supported.
@@ -3153,13 +3232,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         } else if (layer.type === 'raster' && layer.url) {
           let processedUrl = layer.url;
           
-          const today = new Date();
-          const todayStr = today.toISOString().split('T')[0];
-          const past7d = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-          const past7dStr = past7d.toISOString().split('T')[0];
-          
-          const startVal = layer.startDate || past7dStr;
-          const endVal = layer.endDate || todayStr;
+          const { effectiveStartDate: startVal, effectiveEndDate: endVal } = getEffectiveLayerDates(layer);
           
           processedUrl = processedUrl.replace(/%7Bdate-today%7D/g, '{date-end}').replace(/%7Bdate-7d%7D/g, '{date-start}');
           processedUrl = processedUrl.replace(/{date-today}/g, '{date-end}').replace(/{date-7d}/g, '{date-start}');
@@ -3298,28 +3371,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               id: `${layerId}-effis`,
               type: 'raster',
               source: `${sourceId}-effis`,
-              layout: { visibility: layer.visible && layer.wildfireMode !== 'gdacs' ? 'visible' : 'none' },
+              layout: { visibility: layer.visible ? 'visible' : 'none' },
               paint: { 'raster-opacity': layer.opacity ?? 0.75 }
-            }, firstAdminId);
-          }
-
-          if (!map.getLayer(`${layerId}-gdacs-fill`)) {
-            map.addLayer({
-              id: `${layerId}-gdacs-fill`,
-              type: 'fill',
-              source: `${sourceId}-gdacs`,
-              layout: { visibility: layer.visible && layer.wildfireMode === 'gdacs' ? 'visible' : 'none' },
-              paint: { 'fill-color': '#ff0000', 'fill-opacity': layer.opacity ?? 0.3 }
-            }, firstAdminId);
-          }
-
-          if (!map.getLayer(`${layerId}-gdacs-line`)) {
-            map.addLayer({
-              id: `${layerId}-gdacs-line`,
-              type: 'line',
-              source: `${sourceId}-gdacs`,
-              layout: { visibility: layer.visible && layer.wildfireMode === 'gdacs' ? 'visible' : 'none' },
-              paint: { 'line-color': '#ff0000', 'line-width': 2, 'line-opacity': layer.opacity ?? 0.8 }
             }, firstAdminId);
           }
         } else if (layer.type === 'deepstate') {
@@ -3520,15 +3573,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         } else if (layer.type === 'wildfires') {
           if (map.getLayer(`${layerId}-effis`)) {
             setLayerFade(`${layerId}-effis`, 'raster', layer._effectiveOpacityVisible ?? true, layer.opacity ?? 0.75, layer.visible);
-            map.setLayoutProperty(`${layerId}-effis`, 'visibility', layer.visible && layer.wildfireMode !== 'gdacs' ? 'visible' : 'none');
-          }
-          if (map.getLayer(`${layerId}-gdacs-fill`)) {
-            setLayerFade(`${layerId}-gdacs-fill`, 'fill', layer._effectiveOpacityVisible ?? true, layer.opacity ?? 0.3, layer.visible);
-            map.setLayoutProperty(`${layerId}-gdacs-fill`, 'visibility', layer.visible && layer.wildfireMode === 'gdacs' ? 'visible' : 'none');
-          }
-          if (map.getLayer(`${layerId}-gdacs-line`)) {
-            setLayerFade(`${layerId}-gdacs-line`, 'line', layer._effectiveOpacityVisible ?? true, layer.opacity ?? 0.8, layer.visible);
-            map.setLayoutProperty(`${layerId}-gdacs-line`, 'visibility', layer.visible && layer.wildfireMode === 'gdacs' ? 'visible' : 'none');
+            map.setLayoutProperty(`${layerId}-effis`, 'visibility', layer.visible ? 'visible' : 'none');
           }
         } else if (layer.type === 'gdacs_earthquakes' || layer.type === 'gdacs_volcanoes') {
           if (map.getLayer(layerId)) {
@@ -3613,8 +3658,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
       // Fetch data for deepstate if needed
       if (layer.type === 'deepstate') {
-        const todayDateStr = new Date().toISOString().split('T')[0];
-        const targetDate = layer.startDate || todayDateStr;
+        const { effectiveStartDate: targetDate } = getEffectiveLayerDates(layer);
         
         const cacheKey = `${layer.id}-${targetDate}`;
         if (deepstateDataCacheRef.current[cacheKey]) {
@@ -3697,12 +3741,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     // Fetch data for GDACS if needed
     for (const layer of layers) {
       if (!layer.visible) continue;
-      if (layer.type.startsWith('gdacs_') || layer.type === 'cems_rapid_mapping' || (layer.type === 'wildfires' && layer.wildfireMode === 'gdacs')) {
-        const sourceId = layer.type === 'wildfires' ? `dynamic-source-${layer.id}-gdacs` : `dynamic-source-${layer.id}`;
-        const todayDateStr = new Date().toISOString().split('T')[0];
-        const startDate = layer.startDate || todayDateStr;
-        const isPolygonLayer = layer.type === 'wildfires' && layer.wildfireMode === 'gdacs';
-        const endDate = isPolygonLayer ? startDate : (layer.endDate || todayDateStr);
+      if (layer.type.startsWith('gdacs_') || layer.type === 'cems_rapid_mapping') {
+        const sourceId = `dynamic-source-${layer.id}`;
+        let { effectiveStartDate: startDate, effectiveEndDate: endDate } = getEffectiveLayerDates(layer);
         const cacheKey = `${layer.type}-${startDate}-${endDate}`;
         if (gdacsDataCacheRef.current[cacheKey]) {
           const source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
@@ -3732,7 +3773,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                     }).filter(Boolean);
                 }
               } else {
-                const eventlist = layer.type.includes('earthquake') || layer.type.includes('shakemap') ? 'EQ' : layer.type.includes('wildfires') ? 'WF' : layer.type === 'gdacs_cyclones' ? 'TC' : 'VO';
+                const eventlist = layer.type.includes('earthquake') || layer.type.includes('shakemap') ? 'EQ' : layer.type === 'gdacs_cyclones' ? 'TC' : 'VO';
                 const url = `https://www.gdacs.org/gdacsapi/api/Events/geteventlist/search?eventlist=${eventlist}&fromDate=${startDate}&toDate=${endDate}`;
                 const res = await fetch(url);
                 if (!res.ok) throw new Error(`Failed to fetch GDACS data: ${res.statusText}`);
@@ -3746,30 +3787,30 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                     f.properties.severity_numeric = f.properties.severitydata?.severity ?? f.properties.severity ?? 0;
                   }
                 });
-              }
 
-              if (isPolygonLayer && data && data.features) {
-                 const polygonFeatures = [];
-                 for (const feature of data.features) {
-                   const geomUrl = feature.properties?.url?.geometry;
-                   if (geomUrl) {
-                     try {
-                        const polyRes = await fetch(geomUrl.replace('http:', 'https:'));
-                        if (polyRes.ok) {
-                           const polyData = await polyRes.json();
-                           if (polyData && polyData.features) {
-                             polygonFeatures.push(...polyData.features);
-                           }
+                const isPolygonLayer = layer.type === 'gdacs_volcanoes' || layer.type === 'gdacs_cyclones';
+                if (isPolygonLayer) {
+                  const polygonPromises = geojsonData.features.map(async (feature: any) => {
+                    const { eventtype, eventid, episodeid } = feature.properties;
+                    try {
+                      const geomRes = await fetch(`https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=${eventtype}&eventid=${eventid}&episodeid=${episodeid}`);
+                      if (geomRes.ok) {
+                        const geomData = await geomRes.json();
+                        if (geomData && geomData.features) {
+                          return geomData.features;
                         }
-                     } catch(e) {
-                        console.error('Failed to fetch shakemap polygon', e);
-                     }
-                   }
-                 }
-                  geojsonData = { type: 'FeatureCollection', features: polygonFeatures };
-               }
+                      }
+                    } catch (e) {
+                      console.warn('Failed to fetch polygon for', eventid);
+                    }
+                    return [feature];
+                  });
+                  const allPolygons = await Promise.all(polygonPromises);
+                  geojsonData.features = allPolygons.flat();
+                }
               }
-              gdacsDataCacheRef.current[cacheKey] = geojsonData;
+            }
+            gdacsDataCacheRef.current[cacheKey] = geojsonData;
               const map = mapRef.current;
               if (map && map.getSource(sourceId)) {
                 (map.getSource(sourceId) as maplibregl.GeoJSONSource).setData(geojsonData);
@@ -3797,9 +3838,11 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       if (layer.type === 'weather_forecast') {
         idsToMoveTop.push(...weatherForecastLayerIdsRef.current);
       } else if (layer.type === 'wildfires') {
+        idsToMoveTop.push('active-wildfire-cems-vt-lines');
+        idsToMoveTop.push('active-wildfire-cems-vt-points');
+        idsToMoveAdmin.push('active-wildfire-cems-vt-extent');
+        idsToMoveAdmin.push('active-wildfire-cems-vt-polygons');
         idsToMoveAdmin.push(`dynamic-layer-${layer.id}-effis`);
-        idsToMoveAdmin.push(`dynamic-layer-${layer.id}-gdacs-fill`);
-        idsToMoveAdmin.push(`dynamic-layer-${layer.id}-gdacs-line`);
       } else if (layer.type === 'gdacs_earthquakes' || layer.type === 'cems_rapid_mapping') {
         idsToMoveAdmin.push('selected-earthquake-shakemap-fill');
         idsToMoveAdmin.push('selected-earthquake-shakemap-line');
@@ -5122,6 +5165,141 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     return () => { isSubscribed = false; };
   }, [selectedCemsEarthquake]);
 
+  // Fetch detailed CEMS activations for wildfires in the date range
+  useEffect(() => {
+    const wildfireLayer = settings.layers.find(l => l.type === 'wildfires');
+    if (!wildfireLayer || !wildfireLayer.visible || !wildfireLayer.copernicusEnabled) {
+      if (activeCemsWildfireFeatures) setActiveCemsWildfireFeatures(null);
+      return;
+    }
+
+    let isSubscribed = true;
+    const { effectiveStartDate, effectiveEndDate } = getEffectiveLayerDates(wildfireLayer);
+    
+    (async () => {
+      try {
+        if (!allCemsActivationsRef.current) {
+          allCemsActivationsRef.current = fetch(`https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations-info/?limit=2000`)
+            .then(res => {
+              if (!res.ok) throw new Error('Failed to fetch CEMS activations');
+              return res.json();
+            })
+            .then(data => data?.results || []);
+        }
+        
+        let activations;
+        try {
+          // Await the promise (it might be already resolved, or currently fetching)
+          activations = await allCemsActivationsRef.current;
+          console.log('[CEMS Debug] Fetched global activations count:', activations?.length);
+        } catch (err) {
+          console.error('[CEMS Debug] Failed to fetch global activations:', err);
+          allCemsActivationsRef.current = null; // reset on error
+          return;
+        }
+        if (!activations) return;
+
+        // Filter for Wildfires in date range
+        const sDate = new Date(effectiveStartDate).getTime();
+        const eDate = new Date(effectiveEndDate).getTime() + 24*60*60*1000 - 1; // End of day
+
+        const matchingActivations = activations.filter((act: any) => {
+          if (act.category !== 'Wildfire') return false;
+          const actTime = new Date(act.eventTime || act.activationTime).getTime();
+          // allow a small buffer, e.g., 7 days before and after
+          const buffer = 7 * 24 * 60 * 60 * 1000;
+          return actTime >= sDate - buffer && actTime <= eDate + buffer;
+        });
+
+        console.log(`[CEMS Debug] Matching wildfire activations in range (${new Date(sDate).toISOString()} to ${new Date(eDate).toISOString()}):`, matchingActivations.map((a: any) => a.code));
+
+        if (matchingActivations.length === 0) {
+          if (isSubscribed) setActiveCemsWildfireFeatures(null);
+          return;
+        }
+
+        const fetchPromises = matchingActivations.map((act: any) => {
+          if (!cemsFeatureCacheRef.current[act.code]) {
+            cemsFeatureCacheRef.current[act.code] = (async () => {
+              const res = await fetch(`https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations/?code=${act.code}`);
+              if (!res.ok) throw new Error('Failed to fetch specific activation');
+              const data = await res.json();
+              
+              const actFeatures: any[] = [];
+              if (data && data.results && data.results.length > 0 && data.results[0].aois) {
+                for (const aoi of data.results[0].aois) {
+                  if (aoi.extent) {
+                    const aoiGeom = parseWKT(aoi.extent);
+                    if (aoiGeom) {
+                      actFeatures.push({
+                        type: 'Feature',
+                        geometry: aoiGeom.geometry,
+                        properties: { aoiName: aoi.aoiName, isExtent: true }
+                      });
+                    }
+                  }
+                  if (aoi.products) {
+                    // Fetch VT layers concurrently as well
+                    const vtPromises: Promise<any>[] = [];
+                    for (const product of aoi.products) {
+                      if (product.layers) {
+                        for (const layer of product.layers) {
+                          if (layer.format === 'vt' && layer.json) {
+                            vtPromises.push(
+                              fetch(layer.json)
+                                .then(res => res.ok ? res.json() : null)
+                                .then(layerData => {
+                                  if (layerData && layerData.features) {
+                                    return layerData.features;
+                                  }
+                                  return [];
+                                })
+                                .catch(err => {
+                                  console.warn('Failed to fetch CEMS VT layer', err);
+                                  return [];
+                                })
+                            );
+                          }
+                        }
+                      }
+                    }
+                    const vtResults = await Promise.all(vtPromises);
+                    for (const vtFeatures of vtResults) {
+                      actFeatures.push(...vtFeatures);
+                    }
+                  }
+                }
+              }
+              return actFeatures;
+            })();
+          }
+
+          return cemsFeatureCacheRef.current[act.code].catch((e: any) => {
+            console.error('[CEMS Debug] Failed to fetch detailed CEMS activation', e);
+            delete cemsFeatureCacheRef.current[act.code];
+            return [];
+          });
+        });
+
+        const allResults = await Promise.all(fetchPromises);
+        const allFeatures = allResults.flat();
+
+        console.log(`[CEMS Debug] Total features to render:`, allFeatures.length);
+
+        if (isSubscribed) {
+          setActiveCemsWildfireFeatures({
+            type: 'FeatureCollection',
+            features: allFeatures
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching CEMS wildfire data', err);
+      }
+    })();
+
+    return () => { isSubscribed = false; };
+  }, [settings.layers, settings.globalDateMode, settings.globalStartDate, settings.globalEndDate, getEffectiveLayerDates]);
+
   // Fetch shakemap when selectedEarthquake changes
   useEffect(() => {
     if (!selectedEarthquake) {
@@ -5550,7 +5728,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       }
     })();
 
-    return () => { isSubscribed = false; };
+    return () => {
+      isSubscribed = false;
+    };
   }, [selectedEarthquake]);
 
   // Fetch danger zone polygon when selectedVolcano changes
@@ -5908,9 +6088,10 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     }
 
     const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
-    const isCemsEnabled = !!eqLayer?.copernicusEnabled;
+    const isEqCemsEnabled = !!eqLayer?.copernicusEnabled;
+    const isCemsEnabled = selectedEarthquake ? isEqCemsEnabled : isEqCemsEnabled;
     const cemsVisibility = isCemsEnabled ? 'visible' : 'none';
-    const cemsOpacity = eqLayer?.copernicusOpacity ?? 1.0;
+    const cemsOpacity = selectedEarthquake ? (eqLayer?.copernicusOpacity ?? 1.0) : 1.0;
     
     if (map.getLayer('selected-cems-vt-extent')) {
       map.setLayoutProperty('selected-cems-vt-extent', 'visibility', cemsVisibility);
@@ -5947,6 +6128,179 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     }
 
   }, [selectedCemsEarthquakeFeatures, mapLoaded, settings.layers]);
+
+  // Render CEMS Wildfire Features
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    let beforeId = 'custom-polygons';
+    const style = map.getStyle();
+    if (style && style.layers) {
+      for (const l of style.layers) {
+        if (l.id.includes('admin') || l.id.includes('border') || l.type === 'symbol') {
+          beforeId = l.id;
+          break;
+        }
+      }
+    }
+
+    if (!map.getSource('active-wildfire-cems-vt-source')) {
+      map.addSource('active-wildfire-cems-vt-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+      });
+
+      // Add Extent Layer
+      map.addLayer({
+        id: 'active-wildfire-cems-vt-extent',
+        type: 'line',
+        source: 'active-wildfire-cems-vt-source',
+        filter: ['==', 'isExtent', true],
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
+        paint: {
+          'line-color': '#ff9900',
+          'line-width': 2,
+          'line-dasharray': [2, 2]
+        }
+      }, beforeId);
+
+      // Add Polygons
+      map.addLayer({
+        id: 'active-wildfire-cems-vt-polygons',
+        type: 'fill',
+        source: 'active-wildfire-cems-vt-source',
+        filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'isExtent', true]],
+        paint: {
+          'fill-color': [
+            'match',
+            ['coalesce', ['get', 'damage_gra'], 'none'],
+            'Destroyed', '#ff0000',
+            'Damaged', '#ff9900',
+            'Possibly damaged', '#ffff00',
+            'No visible damage', '#888888',
+            '#ff0000'
+          ]
+        }
+      }, beforeId);
+
+      // Add Lines
+      map.addLayer({
+        id: 'active-wildfire-cems-vt-lines',
+        type: 'line',
+        source: 'active-wildfire-cems-vt-source',
+        filter: ['all', 
+          ['!=', 'isExtent', true], 
+          ['==', '$type', 'LineString'],
+          ['any',
+            ['==', 'damage_gra', 'Destroyed'],
+            ['==', 'damage_gra', 'Damaged'],
+            ['==', 'damage_gra', 'Possibly damaged']
+          ]
+        ],
+        paint: {
+          'line-color': [
+            'match',
+            ['get', 'damage_gra'],
+            'Destroyed', '#ff0000',
+            'Damaged', '#ff9900',
+            'Possibly damaged', '#ffff00',
+            'No visible damage', '#888888',
+            '#888888'
+          ],
+          'line-width': 3
+        }
+      }, beforeId);
+
+      // Add Points
+      map.addLayer({
+        id: 'active-wildfire-cems-vt-points',
+        type: 'circle',
+        source: 'active-wildfire-cems-vt-source',
+        filter: ['all', 
+          ['!=', 'isExtent', true], 
+          ['==', '$type', 'Point'],
+          ['any',
+            ['==', 'damage_gra', 'Destroyed'],
+            ['==', 'damage_gra', 'Damaged'],
+            ['==', 'damage_gra', 'Possibly damaged']
+          ]
+        ],
+        paint: {
+          'circle-color': [
+            'match',
+            ['get', 'damage_gra'],
+            'Destroyed', '#ff0000',
+            'Damaged', '#ff9900',
+            'Possibly damaged', '#ffff00',
+            'No visible damage', '#888888',
+            '#888888'
+          ],
+          'circle-radius': 4,
+          'circle-stroke-width': 1,
+          'circle-stroke-color': '#ffffff'
+        }
+      }, beforeId);
+    }
+
+    const source = map.getSource('active-wildfire-cems-vt-source') as maplibregl.GeoJSONSource;
+    if (source) {
+      source.setData(activeCemsWildfireFeatures || { type: 'FeatureCollection', features: [] });
+    }
+
+    const wfLayer = settings.layers.find(l => l.type === 'wildfires');
+    const isCemsEnabled = !!wfLayer?.copernicusEnabled && !!activeCemsWildfireFeatures;
+    const cemsVisibility = isCemsEnabled ? 'visible' : 'none';
+    const cemsOpacity = wfLayer?.copernicusOpacity ?? 1.0;
+    
+    if (map.getLayer('active-wildfire-cems-vt-extent')) {
+      map.setLayoutProperty('active-wildfire-cems-vt-extent', 'visibility', cemsVisibility);
+      map.setPaintProperty('active-wildfire-cems-vt-extent', 'line-opacity', cemsOpacity);
+    }
+    if (map.getLayer('active-wildfire-cems-vt-polygons')) {
+      map.setLayoutProperty('active-wildfire-cems-vt-polygons', 'visibility', cemsVisibility);
+      map.setPaintProperty('active-wildfire-cems-vt-polygons', 'fill-opacity', [
+        'case',
+        ['==', ['coalesce', ['get', 'obj_type'], ''], 'Not Analysed'], 0,
+        ['match',
+          ['coalesce', ['get', 'damage_gra'], 'none'],
+          'Destroyed', 0.6 * cemsOpacity,
+          'Damaged', 0.6 * cemsOpacity,
+          'Possibly damaged', 0.6 * cemsOpacity,
+          'No visible damage', 0.6 * cemsOpacity,
+          0.6 * cemsOpacity
+        ]
+      ]);
+    }
+    if (map.getLayer('active-wildfire-cems-vt-lines')) {
+      map.setLayoutProperty('active-wildfire-cems-vt-lines', 'visibility', cemsVisibility);
+      map.setPaintProperty('active-wildfire-cems-vt-lines', 'line-opacity', [
+        'match',
+        ['get', 'damage_gra'],
+        'Destroyed', cemsOpacity,
+        'Damaged', cemsOpacity,
+        'Possibly damaged', cemsOpacity,
+        'No visible damage', cemsOpacity,
+        0.25 * cemsOpacity
+      ]);
+    }
+    if (map.getLayer('active-wildfire-cems-vt-points')) {
+      map.setLayoutProperty('active-wildfire-cems-vt-points', 'visibility', cemsVisibility);
+      map.setPaintProperty('active-wildfire-cems-vt-points', 'circle-opacity', [
+        'match',
+        ['get', 'damage_gra'],
+        'Destroyed', cemsOpacity,
+        'Damaged', cemsOpacity,
+        'Possibly damaged', cemsOpacity,
+        'No visible damage', cemsOpacity,
+        0.25 * cemsOpacity
+      ]);
+    }
+
+  }, [activeCemsWildfireFeatures, mapLoaded, settings.layers]);
 
   // Render selected volcano DOM label
   useEffect(() => {
@@ -7533,11 +7887,21 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
   const activeWeatherLayer = settings.layers.find(l => l.type === 'weather_forecast' && l.visible);
   const weatherLayerVisible = Boolean(activeWeatherLayer);
-
   const isCycloneLayerVisible = settings.layers.some(l => l.type === 'gdacs_cyclones' && l.visible);
+  const isNighttimeLayerVisible = settings.layers.some(l => l.type === 'nighttime' && l.visible);
   const activeNighttimeLayer = settings.layers.find(l => l.type === 'nighttime' && l.visible);
-  const isNighttimeLayerVisible = Boolean(activeNighttimeLayer);
-  const nighttimeHour = activeNighttimeLayer?.nighttimeHour ?? 12;
+  const nighttimeHour = activeNighttimeLayer?.nighttimeHour ?? 0;
+
+  const hasDateLayers = settings.layers.some(l => 
+    l.visible && (
+      l.type === 'weather_forecast' || 
+      l.type === 'gdacs_earthquakes' || 
+      l.type === 'gdacs_volcanoes' || 
+      l.type === 'gdacs_cyclones' || 
+      l.type === 'wildfires' || 
+      l.type === 'deepstate'
+    )
+  );
 
   // 3D Terrain & Environment
   useEffect(() => {
@@ -7750,11 +8114,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           {windLayerVisible && <canvas ref={windCanvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-[2]" />}
           {weatherLayerVisible && (
             <div 
-              className={`absolute z-30 transition-all duration-300 ease-in-out flex gap-2 items-center justify-center pointer-events-none ${(selectedCycloneId && isCycloneLayerVisible) && isNighttimeLayerVisible ? 'bottom-[7.5rem]' : (selectedCycloneId && isCycloneLayerVisible) || isNighttimeLayerVisible ? 'bottom-[4.5rem]' : 'bottom-6'}`}
-              style={{
-                left: `calc(104px + ${isSidebarOpen ? '320px' : '0px'} + ${isToolbarOpen ? '640px' : '48px'})`,
-                right: '160px',
-              }}
+              ref={weatherToggleRef}
+              className="absolute z-30 flex items-center justify-center pointer-events-none bottom-6"
             >
               <div className="flex border border-white/20 rounded-full p-1 relative bg-black shadow-xl shrink-0 pointer-events-auto">
                 <button
@@ -7796,38 +8157,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                   {t("Precipitation")}
                 </button>
               </div>
-              <div className="flex border border-white/20 rounded-full p-1 relative bg-black shadow-xl pointer-events-auto overflow-x-auto no-scrollbar shrink">
-                {weatherValidTimes.length === 0 ? (
-                  <span className="text-sm text-white/50 whitespace-nowrap px-4 py-2">Loading...</span>
-                ) : (
-                  weatherValidTimes.map((time, index) => {
-                    const actualActiveTime = selectedWeatherTime || weatherValidTimes[0];
-                    const isActive = actualActiveTime === time;
-                    const isConstrained = isSidebarOpen && isToolbarOpen;
-                    let weekdayLabel = new Date(time).toLocaleDateString(language, { weekday: isConstrained ? 'short' : 'long' });
-                    if (isConstrained) weekdayLabel = weekdayLabel.toUpperCase().replace(/\.$/, '');
 
-                    return (
-                      <button
-                        key={time}
-                        onClick={() => setSelectedWeatherTime(time)}
-                        className={`flex-1 px-4 py-2 text-sm relative z-10 transition-colors whitespace-nowrap font-normal ${
-                          isActive ? 'text-black' : 'text-white/60 hover:text-white/80'
-                        }`}
-                      >
-                        {isActive && (
-                          <motion.div
-                            layoutId="weather-active-bg"
-                            className="absolute inset-0 bg-white rounded-full -z-10"
-                            transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                          />
-                        )}
-                        {index === 0 ? t("Today") : weekdayLabel}
-                      </button>
-                    );
-                  })
-                )}
-              </div>
             </div>
           )}
 
@@ -7967,7 +8297,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
       {(selectedCycloneId && isCycloneLayerVisible) && (
         <div 
-          className="absolute bottom-6 h-12 z-40 flex justify-center items-center transition-all duration-300 ease-in-out pointer-events-none"
+          className="absolute bottom-[5rem] h-12 z-40 flex justify-center items-center transition-all duration-300 ease-in-out pointer-events-none"
           style={{
             left: `calc(104px + ${isSidebarOpen ? '320px' : '0px'} + ${isToolbarOpen ? '640px' : '48px'})`,
             right: '160px',
@@ -8028,7 +8358,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
       {isNighttimeLayerVisible && (
         <div 
-          className={`absolute h-12 z-40 flex justify-center items-center transition-all duration-300 ease-in-out pointer-events-none ${(selectedCycloneId && isCycloneLayerVisible) ? 'bottom-[4.5rem]' : 'bottom-6'}`}
+          className={`absolute h-12 z-40 flex justify-center items-center transition-all duration-300 ease-in-out pointer-events-none ${(selectedCycloneId && isCycloneLayerVisible) ? 'bottom-[8.5rem]' : (hasDateLayers ? 'bottom-[5rem]' : 'bottom-6')}`}
           style={{
             left: `calc(104px + ${isSidebarOpen ? '320px' : '0px'} + ${isToolbarOpen ? '640px' : '48px'})`,
             right: '160px',
