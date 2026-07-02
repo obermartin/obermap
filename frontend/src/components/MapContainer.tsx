@@ -3876,7 +3876,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                   }
                 });
 
-                const isPolygonLayer = layer.type === 'gdacs_volcanoes' || layer.type === 'gdacs_cyclones';
+                const isPolygonLayer = layer.type === 'gdacs_cyclones';
                 if (isPolygonLayer) {
                   const polygonPromises = geojsonData.features.map(async (feature: any) => {
                     const { eventtype, eventid, episodeid } = feature.properties;
