@@ -5334,7 +5334,8 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
                   if (aoi.products) {
                     // Fetch VT layers concurrently as well
                     const vtPromises: Promise<any>[] = [];
-                    const latestProduct = [...aoi.products].sort((a: any, b: any) => (b.monitoringNumber || 0) - (a.monitoringNumber || 0))[0];
+                    const productsWithVt = aoi.products.filter((p: any) => p.layers && p.layers.some((l: any) => l.format === 'vt'));
+                    const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b: any) => (b.monitoringNumber || 0) - (a.monitoringNumber || 0))[0] : null;
                     const productsToProcess = latestProduct ? [latestProduct] : [];
                     for (const product of productsToProcess) {
                       if (product.layers) {
@@ -5460,7 +5461,8 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
                   if (aoi.products) {
                     // Fetch VT layers concurrently as well
                     const vtPromises: Promise<any>[] = [];
-                    const latestProduct = [...aoi.products].sort((a: any, b: any) => (b.monitoringNumber || 0) - (a.monitoringNumber || 0))[0];
+                    const productsWithVt = aoi.products.filter((p: any) => p.layers && p.layers.some((l: any) => l.format === 'vt'));
+                    const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b: any) => (b.monitoringNumber || 0) - (a.monitoringNumber || 0))[0] : null;
                     const productsToProcess = latestProduct ? [latestProduct] : [];
                     for (const product of productsToProcess) {
                       if (product.layers) {
@@ -6502,6 +6504,15 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
 
   }, [activeCemsWildfireFeatures, mapLoaded, settings.layers]);
 
+
+  // Heavy setData operation isolated to prevent memory leaks on settings save
+  useEffect(() => {
+    if (!mapLoaded || !mapRef.current) return;
+    const source = mapRef.current.getSource('active-wildfire-cems-vt-source') as maplibregl.GeoJSONSource;
+    if (source) {
+      source.setData(activeCemsWildfireFeatures || { type: 'FeatureCollection', features: [] });
+    }
+  }, [activeCemsWildfireFeatures, mapLoaded]);
 
   // Heavy setData operation isolated to prevent memory leaks on settings save
   useEffect(() => {
