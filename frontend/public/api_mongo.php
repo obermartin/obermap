@@ -233,7 +233,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['ac
 // Handle list_shows action
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'list_shows') {
     $query = new MongoDB\Driver\Query([], [
-        'projection' => ['id' => 1, 'title' => 1, 'updated_at' => 1],
+        'projection' => ['id' => 1, 'title' => 1, 'updated_at' => 1, 'data' => 1],
         'sort' => ['updated_at' => -1]
     ]);
     $cursor = $manager->executeQuery('obermap.shows', $query);
@@ -247,9 +247,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
         } else {
             $updatedAt = date('c');
         }
+        
+        $isTemplate = false;
+        $previewData = null;
+        if (isset($arr['data']) && is_string($arr['data'])) {
+            $parsed = json_decode($arr['data'], true);
+            if ($parsed && isset($parsed['settings'])) {
+                $isTemplate = !empty($parsed['settings']['isTemplate']);
+                $previewData = $parsed['settings']['previewData'] ?? null;
+            }
+        }
+
         $shows[] = [
             'id' => $arr['id'] ?? '',
             'title' => $arr['title'] ?? '',
+            'isTemplate' => $isTemplate,
+            'previewData' => $previewData,
             'updatedAt' => $updatedAt
         ];
     }

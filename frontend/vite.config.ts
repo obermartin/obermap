@@ -581,14 +581,23 @@ function mockPhpBackend(env: Record<string, string>) {
           if (action === "list_shows" && req.method === "GET") {
             try {
               const docs = await showsCol
-                .find({}, { projection: { id: 1, title: 1, updated_at: 1 } })
+                .find({}, { projection: { id: 1, title: 1, updated_at: 1, data: 1 } })
                 .sort({ updated_at: -1 })
                 .toArray();
-              const shows = docs.map((doc: any) => ({
-                id: doc.id,
-                title: doc.title,
-                updatedAt: new Date(doc.updated_at).toISOString(),
-              }));
+              const shows = docs.map((doc: any) => {
+                let parsed = { settings: { isTemplate: false, previewData: null } };
+                try {
+                  if (doc.data) parsed = JSON.parse(doc.data);
+                } catch (e) {}
+                
+                return {
+                  id: doc.id,
+                  title: doc.title,
+                  isTemplate: parsed.settings?.isTemplate || false,
+                  previewData: parsed.settings?.previewData || null,
+                  updatedAt: new Date(doc.updated_at).toISOString(),
+                };
+              });
               res.setHeader("Content-Type", "application/json");
               res.statusCode = 200;
               res.end(JSON.stringify(shows));

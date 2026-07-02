@@ -119,6 +119,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
             $shows[] = [
                 'id' => $id,
                 'title' => $data['settings']['title'] ?? $id,
+                'isTemplate' => $data['settings']['isTemplate'] ?? false,
+                'previewData' => $data['settings']['previewData'] ?? null,
                 'updatedAt' => date('c', $mtime)
             ];
         }

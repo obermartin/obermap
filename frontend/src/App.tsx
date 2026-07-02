@@ -208,8 +208,17 @@ export function App() {
     };
 
     try {
+      let previewData = settings.previewData;
+      if (settings.isTemplate || currentShow === '_DEFAULT') {
+        const canvas = document.querySelector('canvas.maplibregl-canvas') as HTMLCanvasElement;
+        if (canvas) {
+          previewData = canvas.toDataURL('image/jpeg', 0.5);
+        }
+      }
+
       const optimizedSettings = {
         ...settings,
+        previewData,
         layers: settings.layers.map(optimizeLayer)
       };
 

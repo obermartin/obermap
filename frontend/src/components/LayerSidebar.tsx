@@ -2381,74 +2381,124 @@ export function LayerSidebar({
         </>
       ) : (
         <div className="p-4 flex flex-col gap-6 flex-1 overflow-y-auto custom-scrollbar">
-          {/* 1. COLOR PALETTE */}
-          <div>
-            <label className="text-xs text-white mb-2 block font-semibold tracking-wider">
-              {t("COLOR PALETTE")}
-            </label>
-            <div className="flex flex-wrap gap-2 items-center">
-              {settings.colorPalette.map((c, index) => (
-                <div
-                  key={c}
-                  className="w-8 h-8 border border-white/20 relative group cursor-grab active:cursor-grabbing"
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, index)}
-                  onDragEnter={() => handleDragEnter(index)}
-                  onDragEnd={handleColorDragEnd}
-                  onDragOver={(e) => e.preventDefault()}
-                >
-                  <div
-                    className="w-full h-full"
-                    style={{ backgroundColor: c }}
-                  />
-                  <button
-                    onClick={() => removeColor(c)}
-                    className="absolute inset-0 bg-black/60 text-white hidden group-hover:flex items-center justify-center text-xs font-bold transition-opacity"
-                    title={t("Remove color")}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-              {!addingColor ? (
+          {/* GENERAL SETTINGS */}
+          <details className="group flex flex-col gap-[2px] w-full" open>
+            <summary className="relative p-3 flex items-center gap-2 bg-black text-xs text-white font-semibold tracking-wider cursor-pointer list-none outline-none [&::-webkit-details-marker]:hidden">
+              <ChevronRight
+                size={14}
+                className="text-white/50 group-hover:text-white transition-colors group-open:hidden shrink-0"
+              />
+              <ChevronDown
+                size={14}
+                className="text-white/50 group-hover:text-white transition-colors hidden group-open:block shrink-0"
+              />
+              <span>{t("GENERAL SETTINGS")}</span>
+            </summary>
+            <div className="p-3 flex flex-col gap-4 bg-black mt-[2px]">
+              <div>
+                <label className="text-[10px] text-white/50 mb-1 block font-semibold tracking-wider">
+                  {t("MAP NAME")}
+                </label>
+                <input 
+                  type="text" 
+                  value={settings.title || currentShow || ''} 
+                  onChange={(e) => setSettings(p => ({ ...p, title: e.target.value }))} 
+                  className="w-full bg-white/5 border border-white/20 rounded px-3 py-1.5 text-sm text-white focus:border-white transition-colors" 
+                  placeholder={t("Map Name")} 
+                />
+              </div>
+              <div className="flex items-center justify-between px-1">
+                <label className="text-[10px] text-white font-semibold tracking-wider">
+                  {t("This map is a template")}
+                </label>
                 <button
-                  onClick={() => setAddingColor(true)}
-                  className="w-8 h-8 border border-white/20 flex items-center justify-center hover:bg-white hover:text-black transition-colors shrink-0"
-                  title={t("Add color")}
+                  onClick={() => setSettings(p => ({ ...p, isTemplate: !p.isTemplate }))}
+                  className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${settings.isTemplate ? "bg-white" : "bg-white/20"}`}
                 >
-                  +
+                  <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${settings.isTemplate ? "left-5 bg-black" : "left-1 bg-white"}`} />
                 </button>
-              ) : (
-                <div className="flex gap-1 items-center shrink-0 bg-white/5 border border-white/20 p-1">
-                  <input
-                    type="color"
-                    className="w-8 h-8 p-0 border-0 cursor-pointer bg-transparent"
-                    value={newColorHex}
-                    onChange={(e) =>
-                      setNewColorHex(e.target.value.toUpperCase())
-                    }
-                    title={t("Choose a color")}
-                  />
-                  <input
-                    autoFocus
-                    className="w-24 bg-transparent px-1 outline-none font-mono text-xs border border-transparent focus:border-white/50 transition-colors h-8 uppercase"
-                    value={newColorHex}
-                    onChange={(e) => setNewColorHex(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") confirmAddColor();
-                      if (e.key === "Escape") setAddingColor(false);
-                    }}
-                  />
-                  <button
-                    onClick={confirmAddColor}
-                    className="text-white hover:bg-white hover:text-black px-3 font-semibold border border-white/20 text-xs h-8 rounded-full"
-                  >
-                    {t("OK")}
-                  </button>
-                </div>
-              )}
+              </div>
             </div>
-          </div>
+          </details>
+
+          {/* 1. COLOR PALETTE */}
+          <details className="group flex flex-col gap-[2px] w-full" open>
+            <summary className="relative p-3 flex items-center gap-2 bg-black text-xs text-white font-semibold tracking-wider cursor-pointer list-none outline-none [&::-webkit-details-marker]:hidden">
+              <ChevronRight
+                size={14}
+                className="text-white/50 group-hover:text-white transition-colors group-open:hidden shrink-0"
+              />
+              <ChevronDown
+                size={14}
+                className="text-white/50 group-hover:text-white transition-colors hidden group-open:block shrink-0"
+              />
+              <span>{t("COLOR PALETTE")}</span>
+            </summary>
+            <div className="p-3 flex flex-col gap-4 bg-black mt-[2px]">
+              <div className="flex flex-wrap gap-2 items-center">
+                {settings.colorPalette.map((c, index) => (
+                  <div
+                    key={c}
+                    className="w-8 h-8 border border-white/20 relative group cursor-grab active:cursor-grabbing"
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragEnter={() => handleDragEnter(index)}
+                    onDragEnd={handleColorDragEnd}
+                    onDragOver={(e) => e.preventDefault()}
+                  >
+                    <div
+                      className="w-full h-full"
+                      style={{ backgroundColor: c }}
+                    />
+                    <button
+                      onClick={() => removeColor(c)}
+                      className="absolute inset-0 bg-black/60 text-white hidden group-hover:flex items-center justify-center text-xs font-bold transition-opacity"
+                      title={t("Remove color")}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                {!addingColor ? (
+                  <button
+                    onClick={() => setAddingColor(true)}
+                    className="w-8 h-8 border border-white/20 flex items-center justify-center hover:bg-white hover:text-black transition-colors shrink-0"
+                    title={t("Add color")}
+                  >
+                    +
+                  </button>
+                ) : (
+                  <div className="flex gap-1 items-center shrink-0 bg-white/5 border border-white/20 p-1">
+                    <input
+                      type="color"
+                      className="w-8 h-8 p-0 border-0 cursor-pointer bg-transparent"
+                      value={newColorHex}
+                      onChange={(e) =>
+                        setNewColorHex(e.target.value.toUpperCase())
+                      }
+                      title={t("Choose a color")}
+                    />
+                    <input
+                      autoFocus
+                      className="w-24 bg-transparent px-1 outline-none font-mono text-xs border border-transparent focus:border-white/50 transition-colors h-8 uppercase"
+                      value={newColorHex}
+                      onChange={(e) => setNewColorHex(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") confirmAddColor();
+                        if (e.key === "Escape") setAddingColor(false);
+                      }}
+                    />
+                    <button
+                      onClick={confirmAddColor}
+                      className="text-white hover:bg-white hover:text-black px-3 font-semibold border border-white/20 text-xs h-8 rounded-full"
+                    >
+                      {t("OK")}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </details>
 
           {/* 5. BASE MAP */}
           <details className="group flex flex-col gap-[2px] w-full">
@@ -2570,7 +2620,7 @@ export function LayerSidebar({
           </details>
 
           {/* 3D TERRAIN */}
-          <details className="group flex flex-col gap-[2px] w-full mb-6">
+          <details className="group flex flex-col gap-[2px] w-full">
             <summary className="relative p-3 flex items-center gap-2 bg-black text-xs text-white font-semibold tracking-wider cursor-pointer list-none outline-none [&::-webkit-details-marker]:hidden">
               <ChevronRight size={14} className="text-white/50 group-hover:text-white transition-colors group-open:hidden shrink-0" />
               <ChevronDown size={14} className="text-white/50 group-hover:text-white transition-colors hidden group-open:block shrink-0" />
@@ -2724,7 +2774,7 @@ export function LayerSidebar({
           </details>
 
           {/* SCALING */}
-          <details className="group flex flex-col gap-[2px] w-full mb-6">
+          <details className="group flex flex-col gap-[2px] w-full">
             <summary className="relative p-3 flex items-center gap-2 bg-black text-xs text-white font-semibold tracking-wider cursor-pointer list-none outline-none [&::-webkit-details-marker]:hidden">
               <ChevronRight
                 size={14}
@@ -2780,7 +2830,7 @@ export function LayerSidebar({
           </details>
 
           {/* ANIMATIONS */}
-          <details className="group flex flex-col gap-[2px] w-full mb-6">
+          <details className="group flex flex-col gap-[2px] w-full">
             <summary className="relative p-3 flex items-center gap-2 bg-black text-xs text-white font-semibold tracking-wider cursor-pointer list-none outline-none [&::-webkit-details-marker]:hidden">
               <ChevronRight
                 size={14}
@@ -2864,7 +2914,7 @@ export function LayerSidebar({
           </details>
 
           {/* 6. API SETTINGS */}
-          <details className="group flex flex-col gap-[2px] w-full mb-6">
+          <details className="group flex flex-col gap-[2px] w-full">
             <summary className="relative p-3 flex items-center gap-2 bg-black text-xs text-white font-semibold tracking-wider cursor-pointer list-none outline-none [&::-webkit-details-marker]:hidden">
               <ChevronRight
                 size={14}

@@ -142,6 +142,8 @@ export interface LabelTemplateVariation {
 
 export interface AppSettings {
   title?: string;
+  isTemplate?: boolean;
+  previewData?: string;
   mapStyle: string;
   enable3dTerrain?: boolean;
   terrainExaggeration?: number;
