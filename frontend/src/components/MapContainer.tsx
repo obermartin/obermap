@@ -20,6 +20,93 @@ import excludedCitiesData from '../assets/excluded-cities.json';
 import { scaleMapboxExpression } from "../utils/mapboxScaleHelper";
 import { CropOverlay } from "./CropOverlay";
 
+
+// Simple concurrency limiter for CEMS fetches
+const cemsFetchQueue: (() => Promise<void>)[] = [];
+let activeCemsFetches = 0;
+const MAX_CONCURRENT_CEMS_FETCHES = 10;
+
+async function enqueueCemsFetch<T>(task: () => Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    cemsFetchQueue.push(async () => {
+      try {
+        resolve(await task());
+      } catch (e) {
+        reject(e);
+      }
+    });
+    processCemsFetchQueue();
+  });
+}
+
+// @ts-ignore
+window.cemsDebugInfo = () => ({ q: cemsFetchQueue.length, active: activeCemsFetches });
+
+function processCemsFetchQueue() {
+  while (activeCemsFetches < MAX_CONCURRENT_CEMS_FETCHES && cemsFetchQueue.length > 0) {
+    const task = cemsFetchQueue.shift();
+    if (task) {
+      activeCemsFetches++;
+      task().finally(() => {
+        activeCemsFetches--;
+        processCemsFetchQueue();
+      });
+    }
+  }
+}
+
+async function safeFetchCemsJson(url: string) {
+  return enqueueCemsFetch(async () => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return [];
+      const text = await res.text();
+      try {
+        const data = JSON.parse(text);
+        return data && data.features ? data.features : (data.type === 'Feature' ? [data] : []);
+      } catch (err: any) {
+        const features: any[] = [];
+        let depth = 0;
+        let startIdx = -1;
+        let inString = false;
+        let escape = false;
+
+        for (let i = 0; i < text.length; i++) {
+          const char = text[i];
+          if (inString) {
+            if (escape) escape = false;
+            else if (char === '\\') escape = true;
+            else if (char === '"') inString = false;
+          } else {
+            if (char === '"') inString = true;
+            else if (char === '{') {
+              if (depth === 0) startIdx = i;
+              depth++;
+            }
+            else if (char === '}') {
+              depth--;
+              if (depth === 0 && startIdx !== -1) {
+                try {
+                  const obj = JSON.parse(text.substring(startIdx, i + 1));
+                  if (obj.type === 'FeatureCollection' && obj.features) {
+                    features.push(...obj.features);
+                  } else if (obj.type === 'Feature') {
+                    features.push(obj);
+                  }
+                } catch (e) {}
+                startIdx = -1;
+              }
+            }
+          }
+        }
+        return features;
+      }
+    } catch (e) {
+      return [];
+    }
+  });
+}
+
 let omProtocolRegistered = false;
 let globalDeepstateHistory: { id: number; createdAt: string }[] | null = null;
 let globalDeepstateHistoryPromise: Promise<{ id: number; createdAt: string; }[] | null> | null = null;
@@ -186,6 +273,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const selectedCemsEarthquakeRef = useRef<{ id: string, code: string, properties: any, coordinates: [number, number] } | null>(null);
   const [selectedCemsEarthquakeFeatures, setSelectedCemsEarthquakeFeatures] = useState<any>(null);
   const [activeCemsWildfireFeatures, setActiveCemsWildfireFeatures] = useState<any>(null);
+  const [activeCemsFloodFeatures, setActiveCemsFloodFeatures] = useState<any>(null);
   const cemsFeatureCacheRef = useRef<Record<string, any>>({});
   const allCemsActivationsRef = useRef<Promise<any[]> | null>(null);
 
@@ -3842,6 +3930,10 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         idsToMoveTop.push('active-wildfire-cems-vt-points');
         idsToMoveAdmin.push('active-wildfire-cems-vt-extent');
         idsToMoveAdmin.push('active-wildfire-cems-vt-polygons');
+        idsToMoveTop.push('active-flood-cems-vt-lines');
+        idsToMoveTop.push('active-flood-cems-vt-points');
+        idsToMoveAdmin.push('active-flood-cems-vt-extent');
+        idsToMoveAdmin.push('active-flood-cems-vt-polygons');
         idsToMoveAdmin.push(`dynamic-layer-${layer.id}-effis`);
       } else if (layer.type === 'gdacs_earthquakes' || layer.type === 'cems_rapid_mapping') {
         idsToMoveAdmin.push('selected-earthquake-shakemap-fill');
@@ -5129,17 +5221,18 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             }
 
             if (aoi.products) {
-              for (const product of aoi.products) {
+              // Find the latest product that actually contains VT layers!
+const productsWithVt = aoi.products.filter((p: any) => p.layers && p.layers.some((l: any) => l.format === 'vt'));
+const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b: any) => (b.monitoringNumber || 0) - (a.monitoringNumber || 0))[0] : null;
+                    const productsToProcess = latestProduct ? [latestProduct] : [];
+                    for (const product of productsToProcess) {
                 if (product.layers) {
                   for (const layer of product.layers) {
                     if (layer.format === 'vt' && layer.json) {
                       try {
-                        const layerRes = await fetch(layer.json);
-                        if (layerRes.ok) {
-                          const layerData = await layerRes.json();
-                          if (layerData && layerData.features) {
-                            allFeatures.push(...layerData.features);
-                          }
+                        const features = await safeFetchCemsJson(layer.json);
+                        if (features && features.length) {
+                          allFeatures.push(...features);
                         }
                       } catch (err) {
                         console.error('Failed to fetch CEMS VT layer', err);
@@ -5241,24 +5334,13 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                   if (aoi.products) {
                     // Fetch VT layers concurrently as well
                     const vtPromises: Promise<any>[] = [];
-                    for (const product of aoi.products) {
+                    const latestProduct = [...aoi.products].sort((a: any, b: any) => (b.monitoringNumber || 0) - (a.monitoringNumber || 0))[0];
+                    const productsToProcess = latestProduct ? [latestProduct] : [];
+                    for (const product of productsToProcess) {
                       if (product.layers) {
                         for (const layer of product.layers) {
                           if (layer.format === 'vt' && layer.json) {
-                            vtPromises.push(
-                              fetch(layer.json)
-                                .then(res => res.ok ? res.json() : null)
-                                .then(layerData => {
-                                  if (layerData && layerData.features) {
-                                    return layerData.features;
-                                  }
-                                  return [];
-                                })
-                                .catch(err => {
-                                  console.warn('Failed to fetch CEMS VT layer', err);
-                                  return [];
-                                })
-                            );
+                            vtPromises.push(safeFetchCemsJson(layer.json));
                           }
                         }
                       }
@@ -5283,6 +5365,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
         const allResults = await Promise.all(fetchPromises);
         const allFeatures = allResults.flat();
+        console.log('[CEMS Debug] FLOOD FEATURES RESOLVED:', allFeatures.length);
 
         console.log(`[CEMS Debug] Total features to render:`, allFeatures.length);
 
@@ -5294,6 +5377,130 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         }
       } catch (err) {
         console.error('Error fetching CEMS wildfire data', err);
+      }
+    })();
+
+    return () => { isSubscribed = false; };
+  }, [settings.layers, settings.globalDateMode, settings.globalStartDate, settings.globalEndDate, getEffectiveLayerDates]);
+
+  // Fetch detailed CEMS activations for floods in the date range
+  useEffect(() => {
+    const floodLayer = settings.layers.find(l => l.id === 'floods');
+    if (!floodLayer || !floodLayer.visible || !floodLayer.copernicusEnabled) {
+      if (activeCemsFloodFeatures) setActiveCemsFloodFeatures(null);
+      // cemsFeatureCacheRef.current = {}; // Removed to prevent memory leaks from dangling promises
+      return;
+    }
+
+    let isSubscribed = true;
+    const { effectiveStartDate, effectiveEndDate } = getEffectiveLayerDates(floodLayer);
+    
+    (async () => {
+      try {
+        if (!allCemsActivationsRef.current) {
+          allCemsActivationsRef.current = fetch(`https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations-info/?limit=2000`)
+            .then(res => {
+              if (!res.ok) throw new Error('Failed to fetch CEMS activations');
+              return res.json();
+            })
+            .then(data => data?.results || []);
+        }
+        
+        let activations;
+        try {
+          // Await the promise (it might be already resolved, or currently fetching)
+          activations = await allCemsActivationsRef.current;
+          console.log('[CEMS Debug] Fetched global activations count:', activations?.length);
+        } catch (err) {
+          console.error('[CEMS Debug] Failed to fetch global activations:', err);
+          allCemsActivationsRef.current = null; // reset on error
+          return;
+        }
+        if (!activations) return;
+
+        // Filter for Floods in date range
+        const sDate = new Date(effectiveStartDate).getTime();
+        const eDate = new Date(effectiveEndDate).getTime() + 24*60*60*1000 - 1; // End of day
+
+        const matchingActivations = activations.filter((act: any) => {
+          if (act.category !== 'Flood') return false;
+          const actTime = new Date(act.eventTime || act.activationTime).getTime();
+          // allow a small buffer, e.g., 7 days before and after
+          const buffer = 7 * 24 * 60 * 60 * 1000;
+          return actTime >= sDate - buffer && actTime <= eDate + buffer;
+        });
+
+        console.log(`[CEMS Debug] Matching flood activations in range (${new Date(sDate).toISOString()} to ${new Date(eDate).toISOString()}):`, matchingActivations.map((a: any) => a.code));
+
+        if (matchingActivations.length === 0) {
+          if (isSubscribed) setActiveCemsFloodFeatures(null);
+          return;
+        }
+
+        const fetchPromises = matchingActivations.map((act: any) => {
+          if (!cemsFeatureCacheRef.current[act.code]) {
+            cemsFeatureCacheRef.current[act.code] = (async () => {
+              const res = await fetch(`https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations/?code=${act.code}`);
+              if (!res.ok) throw new Error('Failed to fetch specific activation');
+              const data = await res.json();
+              
+              const actFeatures: any[] = [];
+              if (data && data.results && data.results.length > 0 && data.results[0].aois) {
+                for (const aoi of data.results[0].aois) {
+                  if (aoi.extent) {
+                    const aoiGeom = parseWKT(aoi.extent);
+                    if (aoiGeom) {
+                      actFeatures.push({
+                        type: 'Feature',
+                        geometry: aoiGeom.geometry,
+                        properties: { aoiName: aoi.aoiName, isExtent: true }
+                      });
+                    }
+                  }
+                  if (aoi.products) {
+                    // Fetch VT layers concurrently as well
+                    const vtPromises: Promise<any>[] = [];
+                    const latestProduct = [...aoi.products].sort((a: any, b: any) => (b.monitoringNumber || 0) - (a.monitoringNumber || 0))[0];
+                    const productsToProcess = latestProduct ? [latestProduct] : [];
+                    for (const product of productsToProcess) {
+                      if (product.layers) {
+                        for (const layer of product.layers) {
+                          if (layer.format === 'vt' && layer.json) {
+                            vtPromises.push(safeFetchCemsJson(layer.json));
+                          }
+                        }
+                      }
+                    }
+                    const vtResults = await Promise.all(vtPromises);
+                    for (const vtFeatures of vtResults) {
+                      actFeatures.push(...vtFeatures);
+                    }
+                  }
+                }
+              }
+              return actFeatures;
+            })();
+          }
+
+          return cemsFeatureCacheRef.current[act.code].catch((e: any) => {
+            console.error('[CEMS Debug] Failed to fetch detailed CEMS activation', e);
+            delete cemsFeatureCacheRef.current[act.code];
+            return [];
+          });
+        });
+
+        const allResults = await Promise.all(fetchPromises);
+        const allFeatures = allResults.flat();
+        console.log('[CEMS Debug] FLOOD FEATURES RESOLVED:', allFeatures.length);
+
+        if (isSubscribed) {
+          setActiveCemsFloodFeatures({
+            type: 'FeatureCollection',
+            features: allFeatures
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching CEMS flood data', err);
       }
     })();
 
@@ -6239,16 +6446,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             'No visible damage', '#888888',
             '#888888'
           ],
-          'circle-radius': 4,
-          'circle-stroke-width': 1,
-          'circle-stroke-color': '#ffffff'
+          'circle-radius': 4
         }
       }, beforeId);
-    }
-
-    const source = map.getSource('active-wildfire-cems-vt-source') as maplibregl.GeoJSONSource;
-    if (source) {
-      source.setData(activeCemsWildfireFeatures || { type: 'FeatureCollection', features: [] });
     }
 
     const wfLayer = settings.layers.find(l => l.type === 'wildfires');
@@ -6301,6 +6501,183 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     }
 
   }, [activeCemsWildfireFeatures, mapLoaded, settings.layers]);
+
+
+  // Heavy setData operation isolated to prevent memory leaks on settings save
+  useEffect(() => {
+    if (!mapLoaded || !mapRef.current) return;
+    const source = mapRef.current.getSource('active-flood-cems-vt-source') as maplibregl.GeoJSONSource;
+    if (source) {
+      source.setData(activeCemsFloodFeatures || { type: 'FeatureCollection', features: [] });
+    }
+  }, [activeCemsFloodFeatures, mapLoaded]);
+
+  // Flood CEMS VT rendering
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    let beforeId: string | undefined;
+    const style = map.getStyle();
+    if (style && style.layers) {
+      for (const l of style.layers) {
+        if (l.id.includes('admin') || l.id.includes('border') || l.type === 'symbol') {
+          beforeId = l.id;
+          break;
+        }
+      }
+    }
+
+    if (!map.getSource('active-flood-cems-vt-source')) {
+      map.addSource('active-flood-cems-vt-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+        tolerance: 0.5 // Reduce geometry complexity to save Web Worker RAM
+      });
+
+      // Add Extent Layer
+      map.addLayer({
+        id: 'active-flood-cems-vt-extent',
+        type: 'line',
+        source: 'active-flood-cems-vt-source',
+        filter: ['==', 'isExtent', true],
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round'
+        },
+        paint: {
+          'line-color': '#3366ff',
+          'line-width': 2,
+          'line-dasharray': [2, 2]
+        }
+      }, beforeId);
+
+      // Add Polygons
+      map.addLayer({
+        id: 'active-flood-cems-vt-polygons',
+        type: 'fill',
+        source: 'active-flood-cems-vt-source',
+        filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'isExtent', true]],
+        paint: {
+          'fill-color': [
+            'match',
+            ['coalesce', ['get', 'damage_gra'], 'none'],
+            'Destroyed', '#ff0000',
+            'Damaged', '#ff8c00',
+            'Possibly damaged', '#ffff00',
+            'No visible damage', '#888888',
+            '#0000ff'
+          ]
+        }
+      }, beforeId);
+
+      // Add Lines
+      map.addLayer({
+        id: 'active-flood-cems-vt-lines',
+        type: 'line',
+        source: 'active-flood-cems-vt-source',
+        filter: ['all', 
+          ['!=', 'isExtent', true], 
+          ['==', '$type', 'LineString'],
+          ['any',
+            ['==', 'damage_gra', 'Destroyed'],
+            ['==', 'damage_gra', 'Damaged'],
+            ['==', 'damage_gra', 'Possibly damaged']
+          ]
+        ],
+        paint: {
+          'line-color': [
+            'match',
+            ['get', 'damage_gra'],
+            'Destroyed', '#ff0000',
+            'Damaged', '#ff8c00',
+            'Possibly damaged', '#ffff00',
+            'No visible damage', '#888888',
+            '#888888'
+          ],
+          'line-width': 3
+        }
+      }, beforeId);
+
+      // Add Points
+      map.addLayer({
+        id: 'active-flood-cems-vt-points',
+        type: 'circle',
+        source: 'active-flood-cems-vt-source',
+        filter: ['all', 
+          ['!=', 'isExtent', true], 
+          ['==', '$type', 'Point'],
+          ['any',
+            ['==', 'damage_gra', 'Destroyed'],
+            ['==', 'damage_gra', 'Damaged'],
+            ['==', 'damage_gra', 'Possibly damaged']
+          ]
+        ],
+        paint: {
+          'circle-color': [
+            'match',
+            ['get', 'damage_gra'],
+            'Destroyed', '#ff0000',
+            'Damaged', '#ff8c00',
+            'Possibly damaged', '#ffff00',
+            'No visible damage', '#888888',
+            '#888888'
+          ],
+          'circle-radius': 4
+        }
+      }, beforeId);
+    }
+
+    const floodLayer = settings.layers.find(l => l.id === 'floods');
+    const isCemsEnabled = !!floodLayer?.copernicusEnabled && !!activeCemsFloodFeatures;
+    const cemsVisibility = isCemsEnabled ? 'visible' : 'none';
+    const cemsOpacity = floodLayer?.copernicusOpacity ?? 1.0;
+    
+    if (map.getLayer('active-flood-cems-vt-extent')) {
+      map.setLayoutProperty('active-flood-cems-vt-extent', 'visibility', cemsVisibility);
+      map.setPaintProperty('active-flood-cems-vt-extent', 'line-opacity', cemsOpacity);
+    }
+    if (map.getLayer('active-flood-cems-vt-polygons')) {
+      map.setLayoutProperty('active-flood-cems-vt-polygons', 'visibility', cemsVisibility);
+      map.setPaintProperty('active-flood-cems-vt-polygons', 'fill-opacity', [
+        'case',
+        ['==', ['coalesce', ['get', 'obj_type'], ''], 'Not Analysed'], 0,
+        ['match',
+          ['coalesce', ['get', 'damage_gra'], 'none'],
+          'Destroyed', 0.6 * cemsOpacity,
+          'Damaged', 0.6 * cemsOpacity,
+          'Possibly damaged', 0.6 * cemsOpacity,
+          'No visible damage', 0.6 * cemsOpacity,
+          0.6 * cemsOpacity
+        ]
+      ]);
+    }
+    if (map.getLayer('active-flood-cems-vt-lines')) {
+      map.setLayoutProperty('active-flood-cems-vt-lines', 'visibility', cemsVisibility);
+      map.setPaintProperty('active-flood-cems-vt-lines', 'line-opacity', [
+        'match',
+        ['get', 'damage_gra'],
+        'Destroyed', cemsOpacity,
+        'Damaged', cemsOpacity,
+        'Possibly damaged', cemsOpacity,
+        'No visible damage', cemsOpacity,
+        0.25 * cemsOpacity
+      ]);
+    }
+    if (map.getLayer('active-flood-cems-vt-points')) {
+      map.setLayoutProperty('active-flood-cems-vt-points', 'visibility', cemsVisibility);
+      map.setPaintProperty('active-flood-cems-vt-points', 'circle-opacity', [
+        'match',
+        ['get', 'damage_gra'],
+        'Destroyed', cemsOpacity,
+        'Damaged', cemsOpacity,
+        'Possibly damaged', cemsOpacity,
+        'No visible damage', cemsOpacity,
+        0.25 * cemsOpacity
+      ]);
+    }
+
+  }, [activeCemsFloodFeatures, mapLoaded, settings.layers]);
 
   // Render selected volcano DOM label
   useEffect(() => {

@@ -3587,7 +3587,7 @@ function LayerItem(props: {
                         </div>
                       )}
                   </div>
-                  {layer.type === "wildfires" && updateLayerProperty && (
+                  {(layer.type === "wildfires" || layer.id === "floods") && updateLayerProperty && (
                     <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
 
                       <div className="flex flex-col gap-2 pt-2 border-t border-white/10">
