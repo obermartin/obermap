@@ -217,6 +217,77 @@ const fetchOpenMeteo = async (url: string) => {
   return res;
 };
 
+const HeadlineSVGTemplateRenderer: React.FC<{ ann: Annotation }> = ({ ann }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const handleRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (!containerRef.current || !ann.template) return;
+    
+    let isMounted = true;
+    let handle: any = null;
+
+    const init = async () => {
+      try {
+        if (!globalLabelManager.templates.has(ann.template!)) {
+          await globalLabelManager.loadTemplates([ann.template!]);
+        }
+        if (!isMounted) return;
+
+        handle = globalLabelManager.createLabel({
+           id: `headline-${ann.id}`,
+           lngLat: [0, 0], // irrelevant for headline since it's absolutely positioned
+           text: { primary: ann.text || '', secondary: ann.secondaryText },
+           template: ann.template!,
+           theme: ann.theme,
+           hidePointer: true
+        });
+
+        handleRef.current = handle;
+        const el = handle.getElement();
+        el.style.position = 'relative'; // reset position to relative within container
+        el.style.transform = 'none'; // reset transform since we don't need pointer tip anchor
+        
+        if (containerRef.current) {
+          containerRef.current.innerHTML = ''; // Ensure container is empty to prevent duplication in React 18 Strict Mode
+          containerRef.current.appendChild(el);
+        }
+      } catch (e) {
+        console.error("Error creating headline label:", e);
+      }
+    };
+
+    init();
+
+    return () => {
+       isMounted = false;
+       if (handle) {
+          handle.remove();
+       }
+       if (handleRef.current) {
+          const el = handleRef.current.getElement();
+          if (containerRef.current && el.parentNode === containerRef.current) {
+             containerRef.current.removeChild(el);
+          }
+       }
+    };
+  }, [ann.id, ann.template]); // Recreate entirely if template changes
+
+  useEffect(() => {
+     if (handleRef.current) {
+        // LabelMarkerManager handles these updates correctly (we'll implement setText/setTheme if needed, or recreate if they don't exist)
+        if (handleRef.current.setText) handleRef.current.setText({ primary: ann.text || '', secondary: ann.secondaryText });
+        if (ann.theme && handleRef.current.setTheme) handleRef.current.setTheme(ann.theme);
+        
+        // Ensure LabelMarkerManager doesn't apply its own negative offsets which overshoot the container bounding box
+        const el = handleRef.current.getElement();
+        if (el) el.style.transform = 'none';
+     }
+  }, [ann.text, ann.secondaryText, ann.theme]);
+
+  return <div ref={containerRef} className="pointer-events-none" />;
+};
+
 export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, clipPath?: string, onMapInit?: (map: maplibregl.Map) => void, isExporting?: boolean, imageExportScale?: number }> = ({
   activeTool,
   currentColor,
@@ -875,14 +946,18 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       const rawName = e.result.text || e.result.place_name || '';
       const name = rawName.split(',')[0].trim();
       const annotationId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-      
       if (setAnnotationsRef.current && mapRef.current) {
+        const selectedId = settingsRef.current?.labelTemplates?.highlightLabelTemplate;
+        const variation = settingsRef.current?.labelTemplates?.variations?.find(v => v.id === selectedId);
+        const actualTemplate = variation ? variation.baseTemplate : selectedId;
+        const actualTheme = settingsRef.current?.labelTemplates?.savedThemes?.[selectedId || ''];
+
         setAnnotationsRef.current(prev => [...prev, {
           id: annotationId,
           type: 'highlight',
           color: currentColorRef.current || '#ffffff',
-          template: settingsRef.current?.labelTemplates?.highlightLabelTemplate,
-          theme: settingsRef.current?.labelTemplates?.theme,
+          template: actualTemplate,
+          theme: actualTheme,
           coordinates: coords,
           text: name,
           animationTriggerId: annotationId,
@@ -1664,8 +1739,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         const selectedId = settingsRef.current?.labelTemplates?.regularLabelTemplate;
         const variation = settingsRef.current?.labelTemplates?.variations?.find(v => v.id === selectedId);
         const actualTemplate = variation ? variation.baseTemplate : selectedId;
-        const actualTheme = settingsRef.current?.labelTemplates?.savedThemes?.[selectedId || ''] || settingsRef.current?.labelTemplates?.theme;
-
+        const actualTheme = settingsRef.current?.labelTemplates?.savedThemes?.[selectedId || ''];
         const newId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
         const newLabel: Annotation = {
           id: newId,
@@ -1701,6 +1775,11 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         setAnnotations(prev => prev.map(a => a.id === id ? { ...a, text, secondaryText } : a));
       } else {
         const map = mapRef.current;
+        const selectedId = settingsRef.current?.labelTemplates?.headlineTemplate || settingsRef.current?.labelTemplates?.regularLabelTemplate;
+        const variation = settingsRef.current?.labelTemplates?.variations?.find(v => v.id === selectedId);
+        const actualTemplate = variation ? variation.baseTemplate : selectedId;
+        const actualTheme = settingsRef.current?.labelTemplates?.savedThemes?.[selectedId || ''] || settingsRef.current?.labelTemplates?.theme;
+
         const newId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
         setAnnotations(prev => [...prev, {
           id: newId,
@@ -1708,6 +1787,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           color: currentColor,
           text,
           secondaryText,
+          template: actualTemplate,
+          theme: actualTheme,
           screenPosition: { x: window.innerWidth / 2 - 200, y: 100 },
           view: map ? {
             center: [map.getCenter().lng, map.getCenter().lat],
@@ -7313,7 +7394,7 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
         const selectedId = settings.labelTemplates?.highlightLabelTemplate;
         const variation = settings.labelTemplates?.variations?.find(v => v.id === selectedId);
         const actualTemplate = variation ? variation.baseTemplate : selectedId;
-        const actualTheme = settings.labelTemplates?.savedThemes?.[selectedId || ''] || settings.labelTemplates?.theme;
+        const actualTheme = settings.labelTemplates?.savedThemes?.[selectedId || ''];
         const evaluateExpression = (expr: any, zoom: number, feature: maplibregl.MapGeoJSONFeature): any => {
           if (typeof expr !== 'object' || expr === null) return expr;
           if (!Array.isArray(expr)) return expr;
@@ -8575,6 +8656,7 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
       <AnimatePresence>
         {isDraggingHeadlineId && (
           <motion.div
+            key="headline-dropzone"
             initial={{ y: -64, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -64, opacity: 0 }}
@@ -8588,7 +8670,7 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
         )}
       </AnimatePresence>
 
-      {annotations.filter(a => a.type === 'headline').map((ann) => {
+      {!isSecondary && annotations.filter(a => a.type === 'headline').map((ann) => {
         const overrideVisible = activeTool !== 'none';
         const isHidden = !overrideVisible && (hiddenTriggers.has(ann.id) || (ann.hideAnimationTriggerId && hiddenTriggers.has(ann.hideAnimationTriggerId)));
         const isRevealed = overrideVisible || (!ann.animationTriggerId || revealedTriggers.has(ann.animationTriggerId));
@@ -8628,10 +8710,9 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
               
               setAnnotations(prev => prev.map(a => {
                 if (a.id === ann.id) {
-                  const el = document.querySelector(`.headline-overlay-element[data-id="${ann.id}"]`) as HTMLElement;
                   let currentX = a.screenPosition?.x || 0;
-                  if (a.isCentered && el) {
-                    currentX = window.innerWidth / 2 - el.offsetWidth / 2;
+                  if (a.isCentered) {
+                    currentX = window.innerWidth / 2;
                   }
                   let newX = currentX + info.offset.x;
                   let newY = (a.screenPosition?.y || 0) + info.offset.y;
@@ -8640,7 +8721,7 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
                   if (isDropZone) {
                     isCentered = true;
                     newX = 0;
-                    newY = 12; // Centered vertically in the drop zone
+                    newY = 40; // Centered vertically in the drop zone
                   }
                   return { ...a, screenPosition: { x: newX, y: newY }, isCentered };
                 }
@@ -8666,19 +8747,11 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
             style={{
               left: ann.isCentered ? '50vw' : (ann.screenPosition?.x || 0),
               top: ann.screenPosition?.y || 0,
-              x: ann.isCentered ? '-50%' : 0,
+              x: '-50%',
+              y: '-50%',
             }}
           >
-            {ann.text && (
-              <div className="font-['Gotham_Condensed'] text-[3em] font-black text-black" style={{ lineHeight: 1 }}>
-                {ann.text}
-              </div>
-            )}
-            {ann.secondaryText && (
-              <div className="bg-[#FF0000] font-['Gotham_Condensed'] text-[3em] font-black text-white px-2 h-[1.1em] flex items-center justify-center" style={{ lineHeight: 1 }}>
-                {ann.secondaryText}
-              </div>
-            )}
+            <HeadlineSVGTemplateRenderer ann={ann} />
           </motion.div>
         );
       })}

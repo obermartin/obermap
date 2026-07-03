@@ -35,6 +35,7 @@ export interface PrimaryBackplate {
   paddingY: number;
   typography: Typography;
   pointer: Pointer;
+  anchor?: "center" | "top" | "bottom" | "left" | "right";
 }
 
 export interface SecondaryBackplate {
@@ -46,16 +47,17 @@ export interface SecondaryBackplate {
   paddingX: number;
   paddingY: number;
   typography: Typography;
-  position: "above" | "below";
-  align: "left" | "center" | "right";
+  position: "above" | "below" | "left" | "right";
+  align: "left" | "center" | "right" | "top" | "bottom";
   gap: number;
 }
 
 export interface TemplateManifest {
   name: string;
-  kind: "highlight" | "regular" | "both";
+  kind: string[];
   primary: PrimaryBackplate;
   secondary?: SecondaryBackplate;
+  fonts?: { family: string; file: string }[];
 }
 
 export interface Theme {
@@ -91,6 +93,7 @@ interface LoadedTemplate {
   secondaryMiddleSrcWidth?: number;
   secondaryMiddleSrcHeight?: number;
   secondaryRightCap?: string;
+  fontCss?: string;
 }
 
 function extractSvgInner(svgString: string): string {
@@ -236,23 +239,40 @@ export class LabelMarkerManager {
         const cb = `?t=${Date.now()}`;
         const manifestRes = await fetch(`${base}/manifest.json${cb}`);
         if (!manifestRes.ok) throw new Error(`Template not found: ${name}`);
+        const contentType = manifestRes.headers.get("content-type");
+        if (contentType && contentType.includes("text/html")) {
+          throw new Error(`Template ${name} manifest is missing or invalid (Server returned HTML instead of JSON). Make sure the folder and manifest.json exist.`);
+        }
         const manifest: TemplateManifest = await manifestRes.json();
 
         // Validate
-        if (manifest.kind === "highlight" && manifest.secondary)
-          throw new Error(`highlight template ${name} cannot have secondary`);
-        if (manifest.kind !== "highlight" && !manifest.secondary)
+        // Legacy conversion
+        if (typeof manifest.kind === "string") {
+          if (manifest.kind === "both") manifest.kind = ["highlight", "regular"];
+          else manifest.kind = [manifest.kind as string];
+        }
+
+        const hasRegularOrHeadline = manifest.kind.includes("regular") || manifest.kind.includes("headline");
+        const hasPointer = manifest.kind.includes("regular") || manifest.kind.includes("highlight");
+
+        if (manifest.kind.includes("highlight") && !manifest.kind.includes("regular") && !manifest.kind.includes("headline") && manifest.secondary)
+          console.warn(
+            `Template ${name} is highlight only but has secondary backplate`,
+          );
+        if (hasRegularOrHeadline && !manifest.secondary)
           throw new Error(
-            `${manifest.kind} template ${name} must have secondary`,
+            `Template ${name} supports regular or headline but has no secondary`,
           );
 
         const required = [
           "primary_left-cap.svg",
           "primary_middle.svg",
           "primary_right-cap.svg",
-          "primary_pointer.svg",
         ];
-        if (manifest.kind !== "highlight") {
+        if (hasPointer) {
+          required.push("primary_pointer.svg");
+        }
+        if (hasRegularOrHeadline) {
           required.push(
             "secondary_left-cap.svg",
             "secondary_middle.svg",
@@ -261,53 +281,90 @@ export class LabelMarkerManager {
         }
 
         const fetches = await Promise.all(
-          required.map((f) =>
-            fetch(`${base}/${f}${cb}`).then((r) => {
+          required.map((f) => {
+            return fetch(`${base}/${f}${cb}`).then((r) => {
               if (!r.ok) throw new Error(`Missing required asset: ${f}`);
               return r.text();
-            }),
-          ),
+            });
+          }),
         );
-
-        if (manifest.kind !== "highlight") {
-          const stray = await fetch(`${base}/secondary_pointer.svg${cb}`);
-          if (stray.ok && stray.headers.get("content-type")?.includes("svg"))
-            console.warn(
-              `Template "${name}" contains secondary_pointer.svg. Secondary backplates never have pointers. This file is ignored.`,
-            );
-        }
 
         const normalizedFetches = fetches.map((svgString, idx) => {
           let cssVar: string | null = "--primary-backplate-fill";
-          if (manifest.kind !== "highlight" && idx >= 4) {
-            cssVar = manifest.secondary?.overrideColor ? "--secondary-backplate-fill" : null;
-          } else if (idx === 3) {
-            cssVar = manifest.primary.pointer?.overrideColor ? "--pointer-fill" : null;
-          } else {
-            cssVar = manifest.primary?.overrideColor ? "--primary-backplate-fill" : null;
+          if (idx >= (hasPointer ? 4 : 3)) {
+            cssVar = "--secondary-backplate-fill";
+          } else if (hasPointer && idx === 3) {
+            cssVar = "--pointer-fill";
           }
           return normalizeSvg(svgString, cssVar);
         });
 
-        const pmDim = parseMiddleSourceDimensions(normalizedFetches[1]);
+        if (!hasPointer && !manifest.primary.pointer) {
+          manifest.primary.pointer = { width: 0, height: 0, attachEdge: "bottom", attachFrom: "center", attachOffset: 0, tipX: 0, tipY: 0 };
+        }
+
+        const pmIdx = 1;
+        const pmDim = parseMiddleSourceDimensions(normalizedFetches[pmIdx]);
         const template: LoadedTemplate = {
           manifest,
           primaryLeftCap: normalizedFetches[0],
-          primaryMiddleInner: extractSvgInner(normalizedFetches[1]),
+          primaryMiddleInner: extractSvgInner(normalizedFetches[pmIdx]),
           primaryMiddleSrcWidth: pmDim.sourceWidth,
           primaryMiddleSrcHeight: pmDim.sourceHeight,
           primaryRightCap: normalizedFetches[2],
-          primaryPointer: normalizedFetches[3],
+          primaryPointer: hasPointer ? normalizedFetches[3] : "",
         };
 
-        if (manifest.kind !== "highlight") {
-          const smDim = parseMiddleSourceDimensions(normalizedFetches[5]);
-          template.secondaryLeftCap = normalizedFetches[4];
-          template.secondaryMiddleInner = extractSvgInner(normalizedFetches[5]);
+        if (hasRegularOrHeadline) {
+          const sIdx = hasPointer ? 4 : 3;
+          const smDim = parseMiddleSourceDimensions(normalizedFetches[sIdx + 1]);
+          template.secondaryLeftCap = normalizedFetches[sIdx];
+          template.secondaryMiddleInner = extractSvgInner(normalizedFetches[sIdx + 1]);
           template.secondaryMiddleSrcWidth = smDim.sourceWidth;
           template.secondaryMiddleSrcHeight = smDim.sourceHeight;
-          template.secondaryRightCap = normalizedFetches[6];
+          template.secondaryRightCap = normalizedFetches[sIdx + 2];
         }
+
+        let fontCss = "";
+        if (manifest.fonts && manifest.fonts.length > 0) {
+          const fontFetches = await Promise.all(
+            manifest.fonts.map(async (font) => {
+              const res = await fetch(`${base}/${font.file}${cb}`);
+              if (!res.ok) throw new Error(`Missing font: ${font.file}`);
+              const buffer = await res.arrayBuffer();
+              const base64 = btoa(
+                new Uint8Array(buffer).reduce(
+                  (data, byte) => data + String.fromCharCode(byte),
+                  ""
+                )
+              );
+              const ext = font.file.split(".").pop()?.toLowerCase();
+              const mime = ext === "otf" ? "font/otf" : "font/ttf";
+              const format = ext === "otf" ? "opentype" : "truetype";
+              const dataUrl = `data:${mime};base64,${base64}`;
+              
+              const css = `
+                @font-face {
+                  font-family: '${font.family}';
+                  src: url('${dataUrl}') format('${format}');
+                }
+              `;
+              
+              const styleId = `template-font-${font.family.replace(/\s+/g, '-')}`;
+              if (!document.getElementById(styleId)) {
+                const styleEl = document.createElement('style');
+                styleEl.id = styleId;
+                styleEl.textContent = css;
+                document.head.appendChild(styleEl);
+              }
+              
+              return css;
+            })
+          );
+          fontCss = fontFetches.join("\n");
+        }
+
+        template.fontCss = fontCss;
 
         this.templates.set(name, template);
       } catch (err) {
@@ -385,6 +442,7 @@ export class LabelMarkerManager {
     text: string | { primary: string; secondary?: string };
     template: string;
     theme?: Theme;
+    hidePointer?: boolean;
     onClick?: (id: string) => void;
   }): LabelHandle {
     if (!this.templates.has(opts.template)) {
@@ -402,24 +460,23 @@ export class LabelMarkerManager {
     markerEl.dataset.template = opts.template;
 
     // Apply colors:
-    // 1. If overrideColor is true, use theme overrides or manifest default color.
-    // 2. Text colors use theme overrides or manifest default typography color.
-    if (man.primary.overrideColor) {
-      markerEl.style.setProperty(
-        "--primary-backplate-fill",
-        opts.theme?.primaryBackplateFill || man.primary.color || "#ffffff",
-      );
-    }
-    if (man.secondary?.overrideColor) {
+    // If overrideColor is true, use theme overrides. Otherwise, force the manifest default color.
+    markerEl.style.setProperty(
+      "--primary-backplate-fill",
+      (man.primary.overrideColor && opts.theme?.primaryBackplateFill) ? opts.theme.primaryBackplateFill : (man.primary.color || "#ffffff"),
+    );
+
+    if (man.secondary) {
       markerEl.style.setProperty(
         "--secondary-backplate-fill",
-        opts.theme?.secondaryBackplateFill || man.secondary.color || "#ffffff",
+        (man.secondary.overrideColor && opts.theme?.secondaryBackplateFill) ? opts.theme.secondaryBackplateFill : (man.secondary.color || "#ffffff"),
       );
     }
-    if (man.primary.pointer?.overrideColor) {
+
+    if (man.primary.pointer) {
       markerEl.style.setProperty(
         "--pointer-fill",
-        opts.theme?.pointerFill || man.primary.pointer.color || "#ffffff",
+        (man.primary.pointer.overrideColor && opts.theme?.pointerFill) ? opts.theme.pointerFill : (man.primary.pointer.color || "#ffffff"),
       );
     }
 
@@ -443,13 +500,13 @@ export class LabelMarkerManager {
       id: opts.id,
       setText: (text: string | { primary: string; secondary?: string }) => {
         opts.text = text;
-        this.render(handle, opts.template, opts.text, opts.onClick);
+        this.render(handle, opts.template, opts.text, opts.hidePointer, opts.onClick);
       },
       setTemplate: (name: string) => {
         if (!this.templates.has(name)) return;
         opts.template = name;
         markerEl.dataset.template = name;
-        this.render(handle, opts.template, opts.text, opts.onClick);
+        this.render(handle, opts.template, opts.text, opts.hidePointer, opts.onClick);
       },
       setTheme: (theme: Partial<Theme>) => {
         opts.theme = { ...opts.theme, ...theme };
@@ -503,6 +560,7 @@ export class LabelMarkerManager {
             tpl,
             opts.text,
             opts.theme,
+            opts.hidePointer,
             scale
           );
 
@@ -517,7 +575,7 @@ export class LabelMarkerManager {
       },
     };
 
-    this.render(handle, opts.template, opts.text, opts.onClick);
+    this.render(handle, opts.template, opts.text, opts.hidePointer, opts.onClick);
     this.handles.set(opts.id, handle);
     return handle;
   }
@@ -525,6 +583,7 @@ export class LabelMarkerManager {
   private buildTemplateHtml(
     tpl: LoadedTemplate,
     textInput: string | { primary: string; secondary?: string },
+    hidePointer?: boolean
   ): {
     html: string;
     width: number;
@@ -543,7 +602,7 @@ export class LabelMarkerManager {
       secondaryText = textInput.secondary || "";
     }
 
-    if (manifest.kind === "highlight" && secondaryText !== "") {
+    if (!manifest.kind.includes("regular") && !manifest.kind.includes("headline") && secondaryText !== "") {
       throw new Error("Highlight templates cannot have secondary text");
     }
 
@@ -572,7 +631,7 @@ export class LabelMarkerManager {
     let secondaryMiddleStretched = 0;
     let secondaryEffectiveCapWidth = 0;
     const secondaryVisible =
-      manifest.kind !== "highlight" && secondaryText !== "";
+      (manifest.kind.includes("regular") || manifest.kind.includes("headline")) && secondaryText !== "";
     if (secondaryVisible && secondary) {
       const secondaryTextWidth = this.measureWithLetterSpacing(
         secondaryText,
@@ -592,113 +651,105 @@ export class LabelMarkerManager {
       );
     }
 
-    const { pointer } = primary;
+    let { pointer } = primary;
+    if (hidePointer) {
+      pointer = { ...pointer, width: 0, height: 0 };
+    }
     const pointerOverhang = pointer.height;
 
     // Dimensions
     const gap = secondaryVisible && secondary ? secondary.gap : 0;
-    const hasAbove = secondaryVisible && secondary?.position === "above";
-    const hasBelow = secondaryVisible && secondary?.position === "below";
+    const sPos = secondaryVisible && secondary ? secondary.position : null;
+    const hasAbove = sPos === "above";
+    const hasBelow = sPos === "below";
+    const hasLeft = sPos === "left";
+    const hasRight = sPos === "right";
 
-    const heightAbove = hasAbove ? secondary!.height + gap : 0;
-    // Removed unused heightBelow
+    const pointerOverhangTop = pointer.attachEdge === "top" ? pointerOverhang : 0;
+    const pointerOverhangBottom = pointer.attachEdge === "bottom" ? pointerOverhang : 0;
+    const pointerOverhangLeft = pointer.attachEdge === "left" ? pointer.width : 0;
+    const pointerOverhangRight = pointer.attachEdge === "right" ? pointer.width : 0;
 
-    // The final marker height is returned below
+    let secondaryAboveBlock = hasAbove ? secondary!.height + gap : 0;
+    let secondaryBelowBlock = hasBelow ? secondary!.height + gap : 0;
+    let secondaryLeftBlock = hasLeft ? secondaryWidth + gap : 0;
+    let secondaryRightBlock = hasRight ? secondaryWidth + gap : 0;
 
-    // We compute max width including overhang later.
-    // First, align backplates.
-    let primaryLeft = 0;
+    const initialMarkerWidth = Math.max(
+      secondaryLeftBlock + pointerOverhangLeft + primaryWidth + pointerOverhangRight + secondaryRightBlock,
+      hasAbove || hasBelow ? secondaryWidth : 0
+    );
+
+    const initialMarkerHeight = Math.max(
+      secondaryAboveBlock + pointerOverhangTop + primary.height + pointerOverhangBottom + secondaryBelowBlock,
+      hasLeft || hasRight ? secondary!.height : 0
+    );
+
+    // Initial offsets (might be negative if pointer tips overhang)
+    let primaryTop = secondaryAboveBlock + pointerOverhangTop + (hasLeft || hasRight ? Math.max(0, (initialMarkerHeight - primary.height) / 2) : 0);
+    let primaryLeft = hasLeft || hasRight ? secondaryLeftBlock + pointerOverhangLeft : (initialMarkerWidth - primaryWidth) / 2;
+
+    let secondaryTop = 0;
     let secondaryLeft = 0;
 
     if (secondaryVisible && secondary) {
-      if (secondary.align === "left") {
-        primaryLeft = 0;
-        secondaryLeft = 0;
-      } else if (secondary.align === "right") {
-        const maxW = Math.max(primaryWidth, secondaryWidth);
-        primaryLeft = maxW - primaryWidth;
-        secondaryLeft = maxW - secondaryWidth;
+      if (hasAbove || hasBelow) {
+        if (secondary.align === "left") secondaryLeft = primaryLeft;
+        else if (secondary.align === "right") secondaryLeft = primaryLeft + primaryWidth - secondaryWidth;
+        else secondaryLeft = primaryLeft + (primaryWidth - secondaryWidth) / 2;
+        
+        secondaryTop = hasAbove ? 0 : primaryTop + primary.height + pointerOverhangBottom + gap;
       } else {
-        // center
-        const maxW = Math.max(primaryWidth, secondaryWidth);
-        primaryLeft = (maxW - primaryWidth) / 2;
-        secondaryLeft = (maxW - secondaryWidth) / 2;
+        if (secondary.align === "top") secondaryTop = primaryTop;
+        else if (secondary.align === "bottom") secondaryTop = primaryTop + primary.height - secondary.height;
+        else secondaryTop = primaryTop + (primary.height - secondary.height) / 2;
+        
+        secondaryLeft = hasLeft ? primaryLeft - pointerOverhangLeft - gap - secondaryWidth : primaryLeft + primaryWidth + pointerOverhangRight + gap;
       }
     }
 
-    // Now compute pointer position relative to primaryLeft/primaryTop
-    const primaryTop = hasAbove
-      ? heightAbove + (pointer.attachEdge === "top" ? pointerOverhang : 0)
-      : pointer.attachEdge === "top"
-        ? pointerOverhang
-        : 0;
-
+    // Now compute pointer position relative to primary
     let ptrLeft = 0;
     let ptrTop = 0;
 
     if (pointer.attachEdge === "bottom") {
       ptrTop = primaryTop + primary.height - 1;
-      if (pointer.attachFrom === "left")
-        ptrLeft = primaryLeft + pointer.attachOffset - pointer.tipX;
-      else if (pointer.attachFrom === "right")
-        ptrLeft =
-          primaryLeft + primaryWidth - pointer.attachOffset - pointer.tipX;
-      else if (pointer.attachFrom === "center")
-        ptrLeft =
-          primaryLeft + primaryWidth / 2 + pointer.attachOffset - pointer.tipX;
+      if (pointer.attachFrom === "left") ptrLeft = primaryLeft + pointer.attachOffset - pointer.tipX;
+      else if (pointer.attachFrom === "right") ptrLeft = primaryLeft + primaryWidth - pointer.attachOffset - pointer.tipX;
+      else if (pointer.attachFrom === "center") ptrLeft = primaryLeft + primaryWidth / 2 + pointer.attachOffset - pointer.tipX;
     } else if (pointer.attachEdge === "top") {
       ptrTop = primaryTop - pointer.height + 1;
-      if (pointer.attachFrom === "left")
-        ptrLeft = primaryLeft + pointer.attachOffset - pointer.tipX;
-      else if (pointer.attachFrom === "right")
-        ptrLeft =
-          primaryLeft + primaryWidth - pointer.attachOffset - pointer.tipX;
-      else if (pointer.attachFrom === "center")
-        ptrLeft =
-          primaryLeft + primaryWidth / 2 + pointer.attachOffset - pointer.tipX;
+      if (pointer.attachFrom === "left") ptrLeft = primaryLeft + pointer.attachOffset - pointer.tipX;
+      else if (pointer.attachFrom === "right") ptrLeft = primaryLeft + primaryWidth - pointer.attachOffset - pointer.tipX;
+      else if (pointer.attachFrom === "center") ptrLeft = primaryLeft + primaryWidth / 2 + pointer.attachOffset - pointer.tipX;
     } else if (pointer.attachEdge === "left") {
       ptrLeft = primaryLeft - pointer.width + 1;
-      if (pointer.attachFrom === "top")
-        ptrTop = primaryTop + pointer.attachOffset - pointer.tipY;
-      else if (pointer.attachFrom === "bottom")
-        ptrTop =
-          primaryTop + primary.height - pointer.attachOffset - pointer.tipY;
-      else if (pointer.attachFrom === "center")
-        ptrTop =
-          primaryTop + primary.height / 2 + pointer.attachOffset - pointer.tipY;
+      if (pointer.attachFrom === "top") ptrTop = primaryTop + pointer.attachOffset - pointer.tipY;
+      else if (pointer.attachFrom === "bottom") ptrTop = primaryTop + primary.height - pointer.attachOffset - pointer.tipY;
+      else if (pointer.attachFrom === "center") ptrTop = primaryTop + primary.height / 2 + pointer.attachOffset - pointer.tipY;
     } else if (pointer.attachEdge === "right") {
       ptrLeft = primaryLeft + primaryWidth - 1;
-      if (pointer.attachFrom === "top")
-        ptrTop = primaryTop + pointer.attachOffset - pointer.tipY;
-      else if (pointer.attachFrom === "bottom")
-        ptrTop =
-          primaryTop + primary.height - pointer.attachOffset - pointer.tipY;
-      else if (pointer.attachFrom === "center")
-        ptrTop =
-          primaryTop + primary.height / 2 + pointer.attachOffset - pointer.tipY;
+      if (pointer.attachFrom === "top") ptrTop = primaryTop + pointer.attachOffset - pointer.tipY;
+      else if (pointer.attachFrom === "bottom") ptrTop = primaryTop + primary.height - pointer.attachOffset - pointer.tipY;
+      else if (pointer.attachFrom === "center") ptrTop = primaryTop + primary.height / 2 + pointer.attachOffset - pointer.tipY;
     }
 
-    // Shift everything if pointer goes negative
-    const minLeft = Math.min(primaryLeft, secondaryLeft, ptrLeft);
+    // Shift everything if pointer tips go negative
+    const minLeft = Math.min(primaryLeft, secondaryVisible ? secondaryLeft : 99999, ptrLeft);
     if (minLeft < 0) {
       primaryLeft -= minLeft;
       secondaryLeft -= minLeft;
       ptrLeft -= minLeft;
     }
 
-    const minTop = Math.min(primaryTop, hasAbove ? 0 : 99999, ptrTop);
+    const minTop = Math.min(primaryTop, secondaryVisible ? secondaryTop : 99999, ptrTop);
     let shiftY = 0;
     if (minTop < 0) {
       shiftY = -minTop;
     }
 
     const finalPrimaryTop = primaryTop + shiftY;
-    const finalSecondaryTop = hasAbove
-      ? shiftY
-      : finalPrimaryTop +
-        primary.height +
-        (pointer.attachEdge === "bottom" ? pointerOverhang : 0) +
-        gap;
+    const finalSecondaryTop = secondaryTop + shiftY;
     const finalPtrTop = ptrTop + shiftY;
 
     const markerWidth = Math.ceil(
@@ -729,18 +780,6 @@ export class LabelMarkerManager {
 
     let html = "";
 
-    // Secondary Above
-    if (secondaryVisible && hasAbove && secondary) {
-      html += `
-        <div class="backplate secondary" style="position: absolute; z-index: 2; left: ${secondaryLeft}px; top: ${finalSecondaryTop}px; width: ${secondaryWidth}px; height: ${secondary.height}px; display: flex; flex-direction: row; pointer-events: none;">
-          <div class="cap left" style="width: ${secondaryEffectiveCapWidth}px; height: ${secondary.height}px; flex-shrink: 0; overflow: hidden; pointer-events: none;">${tpl.secondaryLeftCap}</div>
-          ${secondaryMiddleStretched > 0 ? `<svg class="middle" width="${secondaryMiddleStretched}" height="${secondary.height}" viewBox="0 0 ${tpl.secondaryMiddleSrcWidth} ${tpl.secondaryMiddleSrcHeight}" preserveAspectRatio="none" style="display: block; flex-shrink: 0; pointer-events: none;">${tpl.secondaryMiddleInner}</svg>` : ""}
-          <div class="cap right" style="width: ${secondaryEffectiveCapWidth}px; height: ${secondary.height}px; flex-shrink: 0; overflow: hidden; pointer-events: none; display: flex; justify-content: flex-end;">${tpl.secondaryRightCap}</div>
-          <span class="text" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; user-select: none; ${buildTypographyCss(secondary.typography, "--secondary-text-color")}">${transformText(secondaryText, secondary.typography.textTransform)}</span>
-        </div>
-      `;
-    }
-
     // Primary
     html += `
       <div class="backplate primary" style="position: absolute; left: ${primaryLeft}px; top: ${finalPrimaryTop}px; width: ${primaryWidth}px; height: ${primary.height}px; display: flex; flex-direction: row; pointer-events: auto;">
@@ -760,8 +799,8 @@ export class LabelMarkerManager {
       `;
     }
 
-    // Secondary Below
-    if (secondaryVisible && hasBelow && secondary) {
+    // Secondary
+    if (secondaryVisible && secondary) {
       html += `
         <div class="backplate secondary" style="position: absolute; z-index: 2; left: ${secondaryLeft}px; top: ${finalSecondaryTop}px; width: ${secondaryWidth}px; height: ${secondary.height}px; display: flex; flex-direction: row; pointer-events: none;">
           <div class="cap left" style="width: ${secondaryEffectiveCapWidth}px; height: ${secondary.height}px; flex-shrink: 0; overflow: hidden; pointer-events: none;">${tpl.secondaryLeftCap}</div>
@@ -772,9 +811,30 @@ export class LabelMarkerManager {
       `;
     }
 
-    // Compute pointer tip mapbox offset. The pointer tip is at (ptrLeft + pointer.tipX, finalPtrTop + pointer.tipY)
-    const anchorX = ptrLeft + pointer.tipX;
-    const anchorY = finalPtrTop + pointer.tipY;
+    // Compute pointer tip mapbox offset.
+    let anchorX = ptrLeft + pointer.tipX;
+    let anchorY = finalPtrTop + pointer.tipY;
+
+    if (pointer.width === 0 || hidePointer) {
+      // No pointer (e.g. headline), fallback to primary anchor
+      const pAnchor = primary.anchor || "center";
+      if (pAnchor === "center") {
+        anchorX = primaryLeft + primaryWidth / 2;
+        anchorY = finalPrimaryTop + primary.height / 2;
+      } else if (pAnchor === "bottom") {
+        anchorX = primaryLeft + primaryWidth / 2;
+        anchorY = finalPrimaryTop + primary.height;
+      } else if (pAnchor === "top") {
+        anchorX = primaryLeft + primaryWidth / 2;
+        anchorY = finalPrimaryTop;
+      } else if (pAnchor === "left") {
+        anchorX = primaryLeft;
+        anchorY = finalPrimaryTop + primary.height / 2;
+      } else if (pAnchor === "right") {
+        anchorX = primaryLeft + primaryWidth;
+        anchorY = finalPrimaryTop + primary.height / 2;
+      }
+    }
 
     return {
       html,
@@ -789,6 +849,7 @@ export class LabelMarkerManager {
     tpl: LoadedTemplate,
     textInput: string | { primary: string; secondary?: string },
     theme: Theme | undefined,
+    hidePointer?: boolean,
     scale: number = 1
   ): {
     svg: string;
@@ -833,7 +894,7 @@ export class LabelMarkerManager {
     let secondaryMiddleStretched = 0;
     let secondaryEffectiveCapWidth = 0;
     const secondaryVisible =
-      manifest.kind !== "highlight" && secondaryText !== "";
+      (manifest.kind.includes("regular") || manifest.kind.includes("headline")) && secondaryText !== "";
     if (secondaryVisible && secondary) {
       const secondaryTextWidth = this.measureWithLetterSpacing(
         secondaryText,
@@ -853,7 +914,10 @@ export class LabelMarkerManager {
       );
     }
 
-    const { pointer } = primary;
+    let { pointer } = primary;
+    if (hidePointer) {
+      pointer = { ...pointer, width: 0, height: 0 };
+    }
     const pointerOverhang = pointer.height;
 
     // Dimensions
@@ -968,6 +1032,9 @@ export class LabelMarkerManager {
     );
 
     let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${markerWidth * scale}" height="${finalMarkerHeight * scale}">`;
+    if (tpl.fontCss) {
+      svg += `<defs><style>${tpl.fontCss}</style></defs>`;
+    }
     svg += `<g transform="scale(${scale})">`;
 
     svg += `
@@ -1085,13 +1152,14 @@ export class LabelMarkerManager {
     handle: LabelHandle,
     templateName: string,
     text: string | { primary: string; secondary?: string },
+    hidePointer?: boolean,
     onClick?: (id: string) => void,
   ) {
     const tpl = this.templates.get(templateName);
     if (!tpl) return;
     const markerEl = handle.getElement();
 
-    const data = this.buildTemplateHtml(tpl, text);
+    const data = this.buildTemplateHtml(tpl, text, hidePointer);
 
     markerEl.style.width = `${data.width}px`;
     markerEl.style.height = `${data.height}px`;

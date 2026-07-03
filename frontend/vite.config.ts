@@ -829,6 +829,26 @@ function mockPhpBackend(env: Record<string, string>) {
           return;
         }
 
+        if (urlObj.pathname.startsWith("/label-templates/")) {
+          try {
+            const filePath = path.join(__dirname, "public", decodeURIComponent(urlObj.pathname));
+            if (fs.existsSync(filePath)) {
+              const stat = fs.statSync(filePath);
+              if (stat.isFile()) {
+                const content = fs.readFileSync(filePath);
+                const ext = path.extname(filePath);
+                const mimeType = ext === ".json" ? "application/json" : ext === ".svg" ? "image/svg+xml" : "text/plain";
+                res.setHeader("Content-Type", mimeType);
+                res.statusCode = 200;
+                res.end(content);
+                return;
+              }
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+
         next();
       });
     },

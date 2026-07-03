@@ -469,7 +469,7 @@ export function App() {
       };
       setAnnotations(prev => prev.map(a => {
         if (a.id === selectedAnnotationId) {
-          if ((type === 'regular' && a.type === 'label') || (type === 'highlight' && a.type === 'highlight')) {
+          if ((type === 'regular' && a.type === 'label') || (type === 'highlight' && a.type === 'highlight') || (type === 'headline' && a.type === 'headline')) {
             return { ...a, template: actualTemplate, theme: { ...(a.theme || {}), ...actualTheme } };
           }
         }
@@ -481,7 +481,7 @@ export function App() {
     const handleUpdateTheme = ((e: Event) => {
       const { key, value } = (e as CustomEvent).detail;
       setAnnotations(prev => prev.map(a => {
-        if (a.id === selectedAnnotationId && (a.type === 'label' || a.type === 'highlight')) {
+        if (a.id === selectedAnnotationId && (a.type === 'label' || a.type === 'highlight' || a.type === 'headline')) {
           return { ...a, theme: { ...(a.theme || {}), [key]: value } };
         }
         return a;

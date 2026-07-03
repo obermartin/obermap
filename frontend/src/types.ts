@@ -17,13 +17,13 @@ export interface Annotation {
   template?: string;
   theme?: Theme;
   radius?: number;
+  screenPosition?: { x: number; y: number };
   iconId?: string;
   routeGeometry?: any;
   routeMode?: RouteMode;
   routeLegs?: { distance: number; duration: number }[];
   animationTriggerId?: string;
   hideAnimationTriggerId?: string;
-  screenPosition?: { x: number; y: number };
   view?: {
     center: [number, number];
     zoom: number;
@@ -168,7 +168,8 @@ export interface AppSettings {
   labelTemplates?: {
     highlightLabelTemplate?: string;
     regularLabelTemplate?: string;
-    availableTemplates: Array<string | { id: string; kind: 'regular' | 'highlight' }>;
+    headlineTemplate?: string;
+    availableTemplates: Array<string | { id: string; kind: string[] }>;
     hiddenTemplates?: string[];
     theme?: Theme; // Kept for legacy/global fallback
     variations?: LabelTemplateVariation[];

@@ -47,9 +47,9 @@ import { LabelMarkerManager, globalLabelManager, type Theme } from "../labels/La
 
 const TemplatePreview: React.FC<{
   templateName?: string;
-  isRegular: boolean;
+  hasSecondary: boolean;
   theme?: Theme;
-}> = ({ templateName, isRegular, theme }) => {
+}> = ({ templateName, hasSecondary, theme }) => {
   const [html, setHtml] = useState<string | null>(null);
   const [manifest, setManifest] = useState<any>(null);
 
@@ -75,7 +75,7 @@ const TemplatePreview: React.FC<{
       const contrastColor = getContrastYIQ(primaryColor);
 
       let defaultHtml = "";
-      if (isRegular) {
+      if (hasSecondary) {
         defaultHtml = `
           <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
             <div class="custom-marker" style="pointer-events: none;">
@@ -114,7 +114,7 @@ const TemplatePreview: React.FC<{
         await manager.loadTemplates([templateName]);
         const p = manager.getPreviewHtml(
           templateName,
-          isRegular ? { primary: "Preview", secondary: "Label" } : "Preview",
+          hasSecondary ? { primary: "Preview", secondary: "Label" } : "Preview",
         );
         if (!p) throw new Error("Preview html is null");
         const tpl = manager.templates.get(templateName);
@@ -130,7 +130,7 @@ const TemplatePreview: React.FC<{
       }
     };
     tryLoad();
-  }, [templateName, isRegular, theme]);
+  }, [templateName, hasSecondary, theme]);
 
   if (!html)
     return (
@@ -542,7 +542,7 @@ export function LayerSidebar({
   const [activeTab, setActiveTab] = useState<
     "layers" | "icons" | "labels" | "basemap" | "video"
   >("layers");
-  const [activeLabelTab, setActiveLabelTab] = useState<"regular" | "highlight">(
+  const [activeLabelTab, setActiveLabelTab] = useState<"regular" | "highlight" | "headline">(
     "regular",
   );
   const [isDraggingLayer, setIsDraggingLayer] = useState(false);
@@ -1693,6 +1693,24 @@ export function LayerSidebar({
                 )}
                 {t("Highlight")}
               </button>
+              
+              <button
+                onClick={() => setActiveLabelTab("headline")}
+                className={`flex-1 px-4 py-2 text-sm relative z-10 transition-colors ${
+                  activeLabelTab === "headline"
+                    ? "text-black"
+                    : "text-white/60 hover:text-white/80"
+                }`}
+              >
+                {activeLabelTab === "headline" && (
+                  <motion.div
+                    layoutId="labeltab-active-bg"
+                    className="absolute inset-0 bg-white rounded-full -z-10"
+                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  />
+                )}
+                {t("Headline")}
+              </button>
             </div>
 
             <div>
@@ -1704,7 +1722,9 @@ export function LayerSidebar({
                   const currentTemplate =
                     activeLabelTab === "regular"
                       ? settings.labelTemplates?.regularLabelTemplate
-                      : settings.labelTemplates?.highlightLabelTemplate;
+                      : activeLabelTab === "highlight"
+                      ? settings.labelTemplates?.highlightLabelTemplate
+                      : settings.labelTemplates?.headlineTemplate;
                   const availableRaw = Array.isArray(
                     settings.labelTemplates?.availableTemplates,
                   )
@@ -1719,9 +1739,13 @@ export function LayerSidebar({
                       typeof t === "string" ? { id: t, kind: "regular" } : t,
                     )
                     .filter(
-                      (t) =>
-                        (t.kind === activeLabelTab || t.kind === "both") &&
-                        !hidden.includes(t.id),
+                      (t) => {
+                        const kinds = Array.isArray(t.kind) ? t.kind : [t.kind];
+                        return (activeLabelTab === "headline"
+                          ? kinds.includes("headline")
+                          : kinds.includes(activeLabelTab) || kinds.includes("both")) &&
+                        !hidden.includes(t.id);
+                      }
                     );
 
                   const allItems = [
@@ -1786,17 +1810,19 @@ export function LayerSidebar({
                           className="relative p-2 flex justify-center items-center cursor-pointer w-full"
                           onClick={() => {
                             const val = item.id === "" ? undefined : item.id;
-                            const key =
+                            const updateField =
                               activeLabelTab === "regular"
                                 ? "regularLabelTemplate"
-                                : "highlightLabelTemplate";
+                                : activeLabelTab === "highlight"
+                                ? "highlightLabelTemplate"
+                                : "headlineTemplate";
                             setSettings((prev) => ({
                               ...prev,
                               labelTemplates: {
                                 ...prev.labelTemplates,
                                 availableTemplates:
                                   prev.labelTemplates?.availableTemplates || [],
-                                [key]: val,
+                                [updateField]: val,
                               },
                             }));
                             window.dispatchEvent(
@@ -1808,7 +1834,7 @@ export function LayerSidebar({
                         >
                           <TemplatePreview
                             templateName={item.baseTemplate}
-                            isRegular={activeLabelTab === "regular"}
+                            hasSecondary={activeLabelTab === "regular" || activeLabelTab === "headline"}
                             theme={currentTheme}
                           />
                           <div className="absolute top-2 right-2 flex gap-1">
@@ -2067,7 +2093,7 @@ export function LayerSidebar({
                                       </span>
                                     </div>
 
-                                    {activeLabelTab === "regular" &&
+                                    {(activeLabelTab === "regular" || activeLabelTab === "headline") &&
                                       man?.secondary && (
                                         <div className="flex flex-col items-center gap-1 mt-3">
                                           <div className="flex w-12 h-6 rounded-full overflow-hidden border border-white/20">

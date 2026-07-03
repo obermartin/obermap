@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Label Template Manifest Builder</title>
+    <title>OBERMAP TEMPLATE BUILDER</title>
     <style>
       :root {
         --bg: #000000;
@@ -349,28 +349,55 @@
         accent-color: var(--accent);
       }
 
+      /* Switch toggles */
+      .switch-field {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 11px;
+        color: var(--text-dim);
+        cursor: pointer;
+        user-select: none;
+      }
+      .switch-field input {
+        display: none;
+      }
+      .switch-track {
+        position: relative;
+        width: 32px;
+        height: 18px;
+        background: var(--bg);
+        border: 1px solid var(--border-strong);
+        border-radius: 999px;
+        transition: background 0.2s, border-color 0.2s;
+      }
+      .switch-thumb {
+        position: absolute;
+        top: 1px;
+        left: 2px;
+        width: 14px;
+        height: 14px;
+        background: var(--text-dim);
+        border-radius: 50%;
+        transition: transform 0.2s, background 0.2s;
+      }
+      .switch-field input:checked + .switch-track {
+        background: var(--accent);
+        border-color: var(--accent);
+      }
+      .switch-field input:checked + .switch-track .switch-thumb {
+        transform: translateX(12px);
+        background: #000;
+      }
+
       .kind-toggle {
         display: flex;
-        border: 1px solid var(--border-strong);
+        gap: 16px;
         margin-bottom: 4px;
-        border-radius: 9999px;
-        overflow: hidden;
-      }
-      .kind-toggle button {
-        flex: 1;
-        background: transparent;
-        border: none;
-        padding: 8px;
-        font-size: 11px;
-        text-transform: capitalize;
-        letter-spacing: 0.5px;
-        color: var(--text-dim);
-        border-radius: 0;
-      }
-      .kind-toggle button.active {
-        background: var(--accent);
-        color: #000000;
-        font-weight: 600;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid var(--border);
+        border-radius: 8px;
       }
 
       /* Preview area */
@@ -752,8 +779,7 @@
   <body>
     <div class="app">
       <header>
-        <div class="logo">Label Template Builder</div>
-        <div class="header-meta">map label manifest authoring</div>
+        <div class="logo">OBERMAP TEMPLATE BUILDER</div>
         <div class="header-actions">
           <button id="loadExampleBtn">Load Example</button>
           <button id="loadManifestBtn">Load Manifest…</button>
@@ -776,11 +802,28 @@
             <div class="group-header">Template</div>
 
             <div class="field full">
-              <label>kind</label>
-              <div class="kind-toggle">
-                <button class="active" data-kind="highlight">Highlight</button>
-                <button data-kind="regular">Label</button>
-                <button data-kind="both">Both</button>
+              <div class="kind-toggle" style="flex-direction: column; gap: 8px;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                  <div class="toggle-switch">
+                    <input type="checkbox" data-kind="highlight" checked />
+                    <span class="toggle-slider"></span>
+                  </div>
+                  Highlight
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                  <div class="toggle-switch">
+                    <input type="checkbox" data-kind="regular" />
+                    <span class="toggle-slider"></span>
+                  </div>
+                  Label
+                </label>
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                  <div class="toggle-switch">
+                    <input type="checkbox" data-kind="headline" />
+                    <span class="toggle-slider"></span>
+                  </div>
+                  Headline
+                </label>
               </div>
               <div class="help-text">
                 Highlight = 1 line. Label = 2 lines (primary + secondary).
@@ -1048,14 +1091,15 @@
                 class="field"
                 style="margin-bottom: 8px; grid-template-columns: auto 1fr"
               >
-                <label>fontFamily</label
-                ><input
+                <label>fontFamily</label>
+                <input
                   type="text"
                   id="secondaryFontFamily"
                   value="Inter"
                   style="width: 100%; text-align: left"
                 />
               </div>
+
               <div
                 style="
                   display: flex;
@@ -1255,6 +1299,46 @@
                 /><span class="unit">px</span>
               </div>
             </div>
+            <div class="field" id="primaryAnchorField" style="display: none; align-items: center; justify-content: space-between;">
+              <label>anchor</label>
+              <div
+                class="icon-toggle"
+                id="primaryAnchorGrp"
+                data-target="primaryAnchor"
+              >
+                <button class="active" data-val="center" title="Center">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                    <rect x="2" y="2" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" />
+                    <circle cx="8" cy="8" r="2.5" />
+                  </svg>
+                </button>
+                <button data-val="top" title="Top">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                    <rect x="2" y="2" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" />
+                    <circle cx="8" cy="3" r="2.5" />
+                  </svg>
+                </button>
+                <button data-val="bottom" title="Bottom">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                    <rect x="2" y="2" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" />
+                    <circle cx="8" cy="13" r="2.5" />
+                  </svg>
+                </button>
+                <button data-val="left" title="Left">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                    <rect x="2" y="2" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" />
+                    <circle cx="3" cy="8" r="2.5" />
+                  </svg>
+                </button>
+                <button data-val="right" title="Right">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                    <rect x="2" y="2" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" />
+                    <circle cx="13" cy="8" r="2.5" />
+                  </svg>
+                </button>
+              </div>
+              <input type="hidden" id="primaryAnchor" value="center" />
+            </div>
             <div
               class="field"
               style="display: flex; align-items: center; gap: 8px"
@@ -1272,7 +1356,7 @@
               />
             </div>
           </div>
-          <div class="group">
+          <div class="group" id="pointerSettingsGroup">
             <div class="group-header">Pointer</div>
             <div class="field">
               <label>width</label>
@@ -1517,6 +1601,18 @@
                     <rect x="4" y="8" width="8" height="6" opacity="0.3" />
                   </svg>
                 </button>
+                <button data-val="left" title="Left">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                    <rect x="1" y="3" width="4" height="10" opacity="0.3" />
+                    <rect x="6" y="2" width="8" height="12" />
+                  </svg>
+                </button>
+                <button data-val="right" title="Right">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                    <rect x="2" y="2" width="8" height="12" />
+                    <rect x="11" y="3" width="4" height="10" opacity="0.3" />
+                  </svg>
+                </button>
               </div>
               <input type="hidden" id="secondaryPosition" value="below" />
             </div>
@@ -1626,8 +1722,9 @@
       ];
 
       const state = {
-        kind: "highlight",
+        kind: ["highlight"],
         files: {}, // key: 'primary_left-cap' → { text, sourceWidth, sourceHeight }
+        fonts: [], // [{ family: "FontName", file: "font.ttf", css: "..." }]
         primaryText: "Berlin Hbf",
         secondaryText: "STATION",
       };
@@ -1802,7 +1899,7 @@
         return filename.replace(/\.svg$/i, "").toLowerCase();
       }
 
-      async function handleFiles(fileList) {
+      async function handleFiles(fileList, targetInput = null) {
         const files = Array.from(fileList);
         let manifestLoaded = false;
         for (const file of files) {
@@ -1838,6 +1935,54 @@
                 `Could not load manifest from ${file.name}: ${err.message}`,
               );
             }
+          } else if (lower.endsWith(".ttf") || lower.endsWith(".otf")) {
+            const ext = lower.split('.').pop();
+            const format = ext === "otf" ? "opentype" : "truetype";
+            const mime = ext === "otf" ? "font/otf" : "font/ttf";
+            // For fonts, we create a base64 data URL to inject it into the preview immediately
+            const reader = new FileReader();
+            reader.onload = function(e) {
+              const dataUrl = e.target.result;
+              // Extract family name from file name (replace hyphens and underscores with spaces, then PascalCase)
+              const familyNameMatch = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              
+              const css = `
+                @font-face {
+                  font-family: '${familyNameMatch}';
+                  src: url('${dataUrl}') format('${format}');
+                }
+              `;
+              
+              const newFontObj = {
+                family: familyNameMatch,
+                file: file.name,
+                css: css
+              };
+              
+              const existingIndex = state.fonts.findIndex(f => f.family === familyNameMatch);
+              if (existingIndex >= 0) {
+                state.fonts[existingIndex] = newFontObj;
+              } else {
+                state.fonts.push(newFontObj);
+              }
+              
+              // Inject into DOM for preview
+              const styleId = `preview-font-${familyNameMatch.replace(/\\s+/g, '-')}`;
+              if (!document.getElementById(styleId)) {
+                const styleEl = document.createElement('style');
+                styleEl.id = styleId;
+                styleEl.textContent = css;
+                document.head.appendChild(styleEl);
+              }
+              
+              if (targetInput) {
+                targetInput.value = familyNameMatch;
+              }
+              
+              updateFileList();
+              rerender();
+            };
+            reader.readAsDataURL(file);
           }
         }
         updateFileList();
@@ -1872,21 +2017,29 @@
         };
 
         // Kind toggle
-        if (
-          manifest.kind === "highlight" ||
-          manifest.kind === "regular" ||
-          manifest.kind === "both"
-        ) {
-          state.kind = manifest.kind;
-          document.querySelectorAll(".kind-toggle button").forEach((b) => {
-            if (b.dataset.kind === manifest.kind) b.classList.add("active");
-            else b.classList.remove("active");
+        if (manifest.kind) {
+          if (Array.isArray(manifest.kind)) {
+            state.kind = manifest.kind;
+          } else {
+            // Legacy string support
+            if (manifest.kind === "both") state.kind = ["highlight", "regular"];
+            else state.kind = [manifest.kind];
+          }
+          
+          document.querySelectorAll(".kind-toggle input[type='checkbox']").forEach((cb) => {
+            cb.checked = state.kind.includes(cb.dataset.kind);
           });
-          const disp = manifest.kind !== "highlight" ? "block" : "none";
-          document.getElementById("secondaryGroup").style.display = disp;
-          document.getElementById("secondaryTypoPanel").style.display = disp;
-          document.getElementById("previewSecondary").disabled =
-            manifest.kind === "highlight";
+          
+          const hasRegularOrHeadline = state.kind.includes("regular") || state.kind.includes("headline");
+          const dispSecondary = hasRegularOrHeadline ? "block" : "none";
+          document.getElementById("secondaryGroup").style.display = dispSecondary;
+          document.getElementById("secondaryTypoPanel").style.display = dispSecondary;
+          document.getElementById("previewSecondary").disabled = !hasRegularOrHeadline;
+          
+          const hasPointer = state.kind.includes("regular") || state.kind.includes("highlight");
+          const dispPointer = hasPointer ? "block" : "none";
+          document.getElementById("pointerSettingsGroup").style.display = dispPointer;
+          document.getElementById("primaryAnchorField").style.display = hasPointer ? "none" : "flex";
         }
 
         // Primary
@@ -1898,6 +2051,12 @@
           set("primaryCapWidth", p.capWidth);
           set("primaryMinWidth", p.minWidth);
           set("primaryPaddingX", p.paddingX);
+          if (p.anchor) {
+            set("primaryAnchor", p.anchor);
+            document.querySelectorAll("#primaryAnchorGrp button").forEach((b) => {
+              b.classList.toggle("active", b.dataset.val === p.anchor);
+            });
+          }
           if (p.pointer) {
             set("pointerOverrideColor", p.pointer.overrideColor);
             if (p.pointer.color) set("pointerColor", p.pointer.color);
@@ -2080,8 +2239,17 @@
       // ============================================================================
 
       function buildManifest() {
+        const usedFonts = new Set();
+        usedFonts.add(document.getElementById("primaryFontFamily").value);
+        if (state.kind.includes("regular") || state.kind.includes("headline")) {
+          usedFonts.add(document.getElementById("secondaryFontFamily").value);
+        }
+        
         const m = {
           kind: state.kind,
+          fonts: state.fonts
+            .filter(f => usedFonts.has(f.family))
+            .map(f => ({ family: f.family, file: f.file })),
           primary: {
             overrideColor: document.getElementById("primaryOverrideColor")
               .checked,
@@ -2102,27 +2270,26 @@
               document.getElementById("primaryPaddingX").value,
               10,
             ),
-            pointer: {
-              overrideColor: document.getElementById("pointerOverrideColor")
-                .checked,
-              color: document.getElementById("pointerColor").value,
-              width: parseInt(
-                document.getElementById("pointerWidth").value,
-                10,
-              ),
-              height: parseInt(
-                document.getElementById("pointerHeight").value,
-                10,
-              ),
-              attachEdge: document.getElementById("pointerAttachEdge").value,
-              attachFrom: document.getElementById("pointerAttachFrom").value,
-              attachOffset: parseInt(
-                document.getElementById("pointerAttachOffset").value,
-                10,
-              ),
-              tipX: parseInt(document.getElementById("pointerTipX").value, 10),
-              tipY: parseInt(document.getElementById("pointerTipY").value, 10),
-            },
+            paddingY: 0,
+            anchor: document.getElementById("primaryAnchor").value,
+            ...(state.kind.includes("regular") || state.kind.includes("highlight") ? {
+              pointer: {
+                overrideColor: document.getElementById("pointerOverrideColor")
+                  .checked,
+                color: document.getElementById("pointerColor").value,
+                width: parseFloat(document.getElementById("pointerWidth").value),
+                height: parseFloat(
+                  document.getElementById("pointerHeight").value,
+                ),
+                attachEdge: document.getElementById("pointerAttachEdge").value,
+                attachFrom: document.getElementById("pointerAttachFrom").value,
+                attachOffset: parseFloat(
+                  document.getElementById("pointerAttachOffset").value,
+                ),
+                tipX: parseFloat(document.getElementById("pointerTipX").value),
+                tipY: parseFloat(document.getElementById("pointerTipY").value),
+              },
+            } : {}),
             typography: {
               fontFamily: document.getElementById("primaryFontFamily").value,
               fontSize: parseInt(
@@ -2147,7 +2314,7 @@
           },
         };
 
-        if (state.kind !== "highlight") {
+        if (state.kind.includes("regular") || state.kind.includes("headline")) {
           m.secondary = {
             overrideColor: document.getElementById("secondaryOverrideColor")
               .checked,
@@ -2200,11 +2367,13 @@
       function validate(manifest) {
         const errors = [];
 
+        const hasPointer = state.kind.includes("regular") || state.kind.includes("highlight");
         REQUIRED_PRIMARY.forEach((k) => {
+          if (!hasPointer && k === "primary_pointer") return;
           if (!state.files[k]) errors.push(`Missing file: ${k}.svg`);
         });
 
-        if (manifest.kind !== "highlight") {
+        if (state.kind.includes("regular") || state.kind.includes("headline")) {
           REQUIRED_SECONDARY.forEach((k) => {
             if (!state.files[k]) errors.push(`Missing file: ${k}.svg`);
           });
@@ -2247,7 +2416,7 @@
           );
         }
 
-        if (manifest.kind !== "highlight") {
+        if (state.kind.includes("regular") || state.kind.includes("headline")) {
           checkHeight(
             "secondary_left-cap",
             manifest.secondary.height,
@@ -2285,7 +2454,7 @@
           el.style.setProperty("--secondary-backplate-fill", m.secondary.color);
         else el.style.removeProperty("--secondary-backplate-fill");
 
-        if (m.primary.pointer.overrideColor)
+        if (m.primary.pointer && m.primary.pointer.overrideColor)
           el.style.setProperty("--pointer-fill", m.primary.pointer.color);
         else el.style.removeProperty("--pointer-fill");
 
@@ -2426,7 +2595,7 @@
         if (!primary) return null;
 
         const secondary =
-          manifest.kind !== "highlight" && secondaryText.trim()
+          (state.kind.includes("regular") || state.kind.includes("headline")) && secondaryText.trim()
             ? renderBackplate("secondary", manifest, secondaryText)
             : null;
 
@@ -2438,32 +2607,42 @@
 
         // Compute marker layout
         const p = manifest.primary.pointer;
-        const pointerOverhangTop = p.attachEdge === "top" ? p.height : 0;
-        const pointerOverhangBottom = p.attachEdge === "bottom" ? p.height : 0;
+        const pointerOverhangTop = p && p.attachEdge === "top" ? p.height : 0;
+        const pointerOverhangBottom = p && p.attachEdge === "bottom" ? p.height : 0;
+        const pointerOverhangLeft = p && p.attachEdge === "left" ? p.width : 0;
+        const pointerOverhangRight = p && p.attachEdge === "right" ? p.width : 0;
 
         let secondaryAboveBlock = 0,
-          secondaryBelowBlock = 0;
+          secondaryBelowBlock = 0,
+          secondaryLeftBlock = 0,
+          secondaryRightBlock = 0;
+        
         if (secondary) {
-          const sBlock = secondary.height + manifest.secondary.gap;
           if (manifest.secondary.position === "above")
-            secondaryAboveBlock = sBlock;
-          else secondaryBelowBlock = sBlock;
+            secondaryAboveBlock = secondary.height + manifest.secondary.gap;
+          else if (manifest.secondary.position === "below")
+            secondaryBelowBlock = secondary.height + manifest.secondary.gap;
+          else if (manifest.secondary.position === "left")
+            secondaryLeftBlock = secondary.width + manifest.secondary.gap;
+          else if (manifest.secondary.position === "right")
+            secondaryRightBlock = secondary.width + manifest.secondary.gap;
         }
 
         const markerWidth = Math.max(
-          primary.width,
-          secondary ? secondary.width : 0,
+          secondaryLeftBlock + pointerOverhangLeft + primary.width + pointerOverhangRight + secondaryRightBlock,
+          manifest.secondary && (manifest.secondary.position === "above" || manifest.secondary.position === "below") ? (secondary ? secondary.width : 0) : 0
         );
-        const markerHeight =
-          secondaryAboveBlock +
-          pointerOverhangTop +
-          primary.height +
-          pointerOverhangBottom +
-          secondaryBelowBlock;
+
+        const markerHeight = Math.max(
+          secondaryAboveBlock + pointerOverhangTop + primary.height + pointerOverhangBottom + secondaryBelowBlock,
+          manifest.secondary && (manifest.secondary.position === "left" || manifest.secondary.position === "right") ? (secondary ? secondary.height : 0) : 0
+        );
 
         // Primary's offset within the marker
-        const primaryOffsetY = secondaryAboveBlock + pointerOverhangTop;
-        const primaryOffsetX = (markerWidth - primary.width) / 2; // center primary horizontally in marker
+        const primaryOffsetY = secondaryAboveBlock + pointerOverhangTop + (manifest.secondary && (manifest.secondary.position === "left" || manifest.secondary.position === "right") ? Math.max(0, (markerHeight - primary.height) / 2) : 0);
+        const primaryOffsetX = manifest.secondary && (manifest.secondary.position === "left" || manifest.secondary.position === "right")
+          ? secondaryLeftBlock + pointerOverhangLeft
+          : (markerWidth - primary.width) / 2; // center primary horizontally in marker
 
         // Marker container
         const marker = document.createElement("div");
@@ -2481,22 +2660,31 @@
 
         // Place secondary
         let secondaryOffsetX = 0;
+        let secondaryOffsetY = 0;
         if (secondary) {
-          if (manifest.secondary.align === "left") {
-            secondaryOffsetX = primaryOffsetX;
-          } else if (manifest.secondary.align === "right") {
-            secondaryOffsetX = primaryOffsetX + primary.width - secondary.width;
+          if (manifest.secondary.position === "above" || manifest.secondary.position === "below") {
+            if (manifest.secondary.align === "left") {
+              secondaryOffsetX = primaryOffsetX;
+            } else if (manifest.secondary.align === "right") {
+              secondaryOffsetX = primaryOffsetX + primary.width - secondary.width;
+            } else {
+              secondaryOffsetX = primaryOffsetX + (primary.width - secondary.width) / 2;
+            }
+            secondaryOffsetY = manifest.secondary.position === "above" ? 0 : primaryOffsetY + primary.height + pointerOverhangBottom + manifest.secondary.gap;
           } else {
-            secondaryOffsetX =
-              primaryOffsetX + (primary.width - secondary.width) / 2;
+            // Left or Right
+            if (manifest.secondary.align === "top") { // For horizontal layouts, "align" might act as vertical alignment, but we'll use center by default unless we add top/bottom align. Let's just center it vertically for now, or match the primary.
+              secondaryOffsetY = primaryOffsetY;
+            } else {
+              secondaryOffsetY = primaryOffsetY + (primary.height - secondary.height) / 2; // default center align vertically
+            }
+            secondaryOffsetX = manifest.secondary.position === "left" ? primaryOffsetX - pointerOverhangLeft - manifest.secondary.gap - secondary.width : primaryOffsetX + primary.width + pointerOverhangRight + manifest.secondary.gap;
           }
+
           secondary.el.style.position = "absolute";
           secondary.el.style.zIndex = "2";
           secondary.el.style.left = `${secondaryOffsetX}px`;
-          secondary.el.style.top =
-            manifest.secondary.position === "above"
-              ? `0px`
-              : `${primaryOffsetY + primary.height + pointerOverhangBottom + manifest.secondary.gap}px`;
+          secondary.el.style.top = `${secondaryOffsetY}px`;
           marker.appendChild(secondary.el);
         }
 
@@ -2550,6 +2738,24 @@
           marker.appendChild(pointerInfo.el);
           tipMarkerX = pointerLeft + pt.tipX;
           tipMarkerY = pointerTop + pt.tipY;
+        } else {
+          const pAnchor = manifest.primary.anchor || "center";
+          if (pAnchor === "center") {
+            tipMarkerX = primaryOffsetX + primary.width / 2;
+            tipMarkerY = primaryOffsetY + primary.height / 2;
+          } else if (pAnchor === "bottom") {
+            tipMarkerX = primaryOffsetX + primary.width / 2;
+            tipMarkerY = primaryOffsetY + primary.height;
+          } else if (pAnchor === "top") {
+            tipMarkerX = primaryOffsetX + primary.width / 2;
+            tipMarkerY = primaryOffsetY;
+          } else if (pAnchor === "left") {
+            tipMarkerX = primaryOffsetX;
+            tipMarkerY = primaryOffsetY + primary.height / 2;
+          } else if (pAnchor === "right") {
+            tipMarkerX = primaryOffsetX + primary.width;
+            tipMarkerY = primaryOffsetY + primary.height / 2;
+          }
         }
 
         // Crosshair at the tip (the lng/lat anchor)
@@ -2590,10 +2796,11 @@
         // Status indicator
         const status = document.getElementById("outputStatus");
         const downloadBtn = document.getElementById("downloadBtn");
+        const hasPointer = state.kind.includes("regular") || state.kind.includes("highlight");
+        const hasSecondary = state.kind.includes("regular") || state.kind.includes("headline");
         const allFilesPresent =
-          REQUIRED_PRIMARY.every((k) => state.files[k]) &&
-          (state.kind === "highlight" ||
-            REQUIRED_SECONDARY.every((k) => state.files[k]));
+          REQUIRED_PRIMARY.every((k) => state.files[k] || (!hasPointer && k === 'primary_pointer')) &&
+          (!hasSecondary || REQUIRED_SECONDARY.every((k) => state.files[k]));
 
         if (errors.length === 0 && allFilesPresent) {
           status.innerHTML =
@@ -2648,7 +2855,7 @@
           },
         ];
 
-        if (state.kind === "highlight") {
+        if (!state.kind.includes("regular") && !state.kind.includes("headline")) {
           testCases.forEach((tc) => (tc.secondary = ""));
         }
 
@@ -2730,19 +2937,51 @@
         handleFiles(e.dataTransfer.files),
       );
 
+      // Font inputs drag and drop
+      ['primaryFontFamily', 'secondaryFontFamily'].forEach(id => {
+        const input = document.getElementById(id);
+        if (!input) return;
+        ['dragenter', 'dragover'].forEach(ev => input.addEventListener(ev, e => {
+          e.preventDefault();
+          input.style.outline = "2px dashed #007aff";
+        }));
+        ['dragleave', 'drop'].forEach(ev => input.addEventListener(ev, e => {
+          e.preventDefault();
+          input.style.outline = "";
+        }));
+        input.addEventListener('drop', e => {
+          handleFiles(e.dataTransfer.files, input);
+        });
+      });
+
       // Kind toggle
-      document.querySelectorAll(".kind-toggle button").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          document
-            .querySelectorAll(".kind-toggle button")
-            .forEach((b) => b.classList.remove("active"));
-          btn.classList.add("active");
-          state.kind = btn.dataset.kind;
-          const disp = state.kind !== "highlight" ? "block" : "none";
-          document.getElementById("secondaryGroup").style.display = disp;
-          document.getElementById("secondaryTypoPanel").style.display = disp;
-          document.getElementById("previewSecondary").disabled =
-            state.kind === "highlight";
+      document.querySelectorAll(".kind-toggle input[type='checkbox']").forEach((cb) => {
+        cb.addEventListener("change", (e) => {
+          const kind = cb.dataset.kind;
+          if (state.kind.includes(kind)) {
+            // Require at least one selection
+            if (state.kind.length > 1) {
+              state.kind = state.kind.filter((k) => k !== kind);
+            } else {
+              e.preventDefault();
+              cb.checked = true; // force back to true
+              return;
+            }
+          } else {
+            state.kind.push(kind);
+          }
+          
+          const hasRegularOrHeadline = state.kind.includes("regular") || state.kind.includes("headline");
+          const dispSecondary = hasRegularOrHeadline ? "block" : "none";
+          document.getElementById("secondaryGroup").style.display = dispSecondary;
+          document.getElementById("secondaryTypoPanel").style.display = dispSecondary;
+          document.getElementById("previewSecondary").disabled = !hasRegularOrHeadline;
+            
+          const hasPointer = state.kind.includes("regular") || state.kind.includes("highlight");
+          const dispPointer = hasPointer ? "block" : "none";
+          document.getElementById("pointerSettingsGroup").style.display = dispPointer;
+          document.getElementById("primaryAnchorField").style.display = hasPointer ? "none" : "flex";
+          
           rerender();
         });
       });
