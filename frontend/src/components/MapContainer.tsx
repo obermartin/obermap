@@ -19,6 +19,8 @@ import { globalLabelManager } from '../labels/LabelMarkerManager';
 import excludedCitiesData from '../assets/excluded-cities.json';
 import { scaleMapboxExpression } from "../utils/mapboxScaleHelper";
 import { CropOverlay } from "./CropOverlay";
+import { MapboxOverlay } from '@deck.gl/mapbox';
+import { PathLayer, IconLayer, TextLayer } from '@deck.gl/layers';
 
 
 // Simple concurrency limiter for CEMS fetches
@@ -588,6 +590,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const weatherAllValidTimesRef = useRef<string[]>([]);
   const selectedAircraftIdRef = useRef<string | null>(null);
   const selectedFlightTrackRef = useRef<number[][]>([]);
+  const flightHistoryRef = useRef<Record<string, { lastFetched: number; track: [number, number, number, number][] }>>({});
+  const deckOverlayRef = useRef<any>(null);
 
   useEffect(() => {
     selectedAircraftIdRef.current = selectedAircraftId;
@@ -605,6 +609,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const activeDrawMarkersRef = useRef<{ [id: string]: maplibregl.Marker }>({});
   const selectionMarkersRef = useRef<{ [id: string]: maplibregl.Marker }>({});
   const openSkyTokenRef = useRef<{ token: string, expires: number } | null>(null);
+  const updateDeckGLRef = useRef<(() => void) | null>(null);
   const aircraftPopupRef = useRef<maplibregl.Popup | null>(null);
   const selectedAircraftMetaRef = useRef<any>(null);
   const vesselsRef = useRef<Map<string, any>>(new Map());
@@ -2343,10 +2348,12 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     const activeHiddenTriggers = overrideVisible ? [] : Array.from(hiddenTriggers).filter(t => (triggerProgressRef.current[t] ?? 0) < 1);
     const allActiveTriggers = [...activeTriggers, ...activeHiddenTriggers];
     
+    const triggerExists = (id: string | undefined) => id ? annotations.some(a => a.id === id) : false;
+    
     // First, sync feature-state and static opacities
     annotations.forEach(ann => {
-      const hasRevealTrigger = !!ann.animationTriggerId;
-      const hasHideTrigger = !!ann.hideAnimationTriggerId;
+      const hasRevealTrigger = !!ann.animationTriggerId && triggerExists(ann.animationTriggerId);
+      const hasHideTrigger = !!ann.hideAnimationTriggerId && triggerExists(ann.hideAnimationTriggerId);
       const hasTriggers = hasRevealTrigger || hasHideTrigger;
       
       const isRevealTriggered = hasRevealTrigger && revealedTriggers.has(ann.animationTriggerId!);
@@ -2457,8 +2464,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       const currentFeatures = activeFeaturesRef.current;
       
       annotations.forEach(ann => {
-        const hasRevealTrigger = !!ann.animationTriggerId;
-        const hasHideTrigger = !!ann.hideAnimationTriggerId;
+        const hasRevealTrigger = !!ann.animationTriggerId && triggerExists(ann.animationTriggerId);
+        const hasHideTrigger = !!ann.hideAnimationTriggerId && triggerExists(ann.hideAnimationTriggerId);
         const hasTriggers = hasRevealTrigger || hasHideTrigger;
         
         const isRevealTriggered = hasRevealTrigger && revealedTriggers.has(ann.animationTriggerId!);
@@ -3161,8 +3168,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     }
     
     const layers = (settings.layers || []).map(layer => {
-      const hasRevealTrigger = !!layer.animationTriggerId;
-      const hasHideTrigger = !!layer.hideAnimationTriggerId;
+      const triggerExists = (id: string | undefined) => id ? annotations.some(a => a.id === id) : false;
+      const hasRevealTrigger = !!layer.animationTriggerId && triggerExists(layer.animationTriggerId);
+      const hasHideTrigger = !!layer.hideAnimationTriggerId && triggerExists(layer.hideAnimationTriggerId);
       
       const overrideVisible = activeTool !== 'none';
       const isRevealed = overrideVisible || (!hasRevealTrigger || revealedTriggers.has(layer.animationTriggerId!));
@@ -3599,18 +3607,20 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                 'airplane' // default
               ],
               'icon-size': 1.6,
+              'icon-anchor': 'bottom',
               'icon-rotate': ['get', 'true_track'],
               'icon-rotation-alignment': 'map',
+              'icon-pitch-alignment': layer.is3DMode ? 'map' : 'auto',
               'icon-allow-overlap': true,
               'icon-ignore-placement': true
             },
             paint: {
-              'icon-opacity': selectedAircraftId 
+              'icon-opacity': layer.is3DMode ? 0.4 : (selectedAircraftId 
                 ? ['case', ['==', ['to-string', ['get', 'icao24']], selectedAircraftId], 1.0, 0.5]
-                : 1.0,
-              'icon-color': layer.aircraftColors && Object.keys(layer.aircraftColors).length > 0 
+                : 1.0),
+              'icon-color': layer.is3DMode ? '#000000' : (layer.aircraftColors && Object.keys(layer.aircraftColors).length > 0 
                 ? ['match', ['to-string', ['get', 'icao24']], ...Object.entries(layer.aircraftColors).flat(), layer.globalAircraftColor || '#ffffff'] as any
-                : (layer.globalAircraftColor || '#ffffff')
+                : (layer.globalAircraftColor || '#ffffff'))
             }
           }, firstSymbolId);
           
@@ -3619,8 +3629,10 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             type: 'symbol',
             source: sourceId,
             layout: {
-              visibility: layer.visible && layer.showCallsigns ? 'visible' : 'none',
-              'text-field': ['case', ['==', ['get', 'callsign'], ''], ['get', 'icao24'], ['get', 'callsign']],
+              visibility: (layer.visible && !layer.is3DMode && layer.showCallsigns) ? 'visible' : 'none',
+              'text-field': layer.is3DMode 
+                ? ['concat', ['case', ['==', ['get', 'callsign'], ''], ['get', 'icao24'], ['get', 'callsign']], '\n', ['to-string', ['get', 'altitude']], 'm | ', ['to-string', ['get', 'velocity']], 'km/h']
+                : ['case', ['==', ['get', 'callsign'], ''], ['get', 'icao24'], ['get', 'callsign']],
               'text-font': fallbackFont,
               'text-size': 10,
               'text-offset': [0, 1.5],
@@ -3636,7 +3648,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                 ? ['case', ['==', ['to-string', ['get', 'icao24']], selectedAircraftId], 1.0, 0.5]
                 : 1.0
             }
-          }, firstSymbolId);
+          });
         } else if (layer.type === 'vessels') {
           map.addLayer({
             id: layerId,
@@ -3702,28 +3714,35 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               ] 
             : (layer.globalAircraftColor || '#ffffff');
             
-          const iconOpacityBase = selectedAircraftId 
+          const iconOpacityBase = layer.is3DMode ? 0.4 : (selectedAircraftId 
             ? ['case', ['==', ['to-string', ['get', 'icao24']], selectedAircraftId], 1.0, 0.5]
-            : 1.0;
+            : 1.0);
           setLayerFade(layerId, 'icon', layer._effectiveOpacityVisible ?? true, iconOpacityBase, layer.visible);
-          map.setPaintProperty(layerId, 'icon-color', colorExp as any);
+          map.setPaintProperty(layerId, 'icon-color', layer.is3DMode ? '#000000' : colorExp as any);
           
           if (map.getLayer(`${layerId}-labels`)) {
-            map.setLayoutProperty(`${layerId}-labels`, 'visibility', layer.visible && layer.showCallsigns ? 'visible' : 'none');
+            map.setLayoutProperty(`${layerId}-labels`, 'visibility', (layer.visible && !layer.is3DMode && layer.showCallsigns) ? 'visible' : 'none');
+            map.setLayoutProperty(`${layerId}-labels`, 'text-field', layer.is3DMode 
+                ? ['concat', ['case', ['==', ['get', 'callsign'], ''], ['get', 'icao24'], ['get', 'callsign']], '\n', ['to-string', ['get', 'altitude']], 'm | ', ['to-string', ['get', 'velocity']], 'km/h']
+                : ['case', ['==', ['get', 'callsign'], ''], ['get', 'icao24'], ['get', 'callsign']]);
+            map.setLayoutProperty(layerId, 'icon-pitch-alignment', layer.is3DMode ? 'map' : 'auto');
             const labelOpacityBase = selectedAircraftId 
               ? ['case', ['==', ['to-string', ['get', 'icao24']], selectedAircraftId], 1.0, 0.5]
               : 1.0;
-            setLayerFade(`${layerId}-labels`, 'text', layer._effectiveOpacityVisible ?? true, labelOpacityBase, layer.visible);
+            const isLabelVisible = (layer._effectiveOpacityVisible ?? true) && !layer.is3DMode;
+            setLayerFade(`${layerId}-labels`, 'text', isLabelVisible, labelOpacityBase, layer.visible);
             map.setPaintProperty(`${layerId}-labels`, 'text-color', colorExp as any);
-          } else if (layer.showCallsigns) {
+          } else if (layer.showCallsigns && !layer.is3DMode) {
             const firstSymbolId = map.getStyle().layers?.find(l => l.type === 'symbol')?.id;
             map.addLayer({
               id: `${layerId}-labels`,
               type: 'symbol',
               source: `dynamic-source-${layer.id}`,
               layout: {
-                visibility: layer.visible ? 'visible' : 'none',
-                'text-field': ['case', ['==', ['get', 'callsign'], ''], ['get', 'icao24'], ['get', 'callsign']],
+                visibility: (layer.visible && !layer.is3DMode) ? 'visible' : 'none',
+                'text-field': layer.is3DMode 
+                ? ['concat', ['case', ['==', ['get', 'callsign'], ''], ['get', 'icao24'], ['get', 'callsign']], '\n', ['to-string', ['get', 'altitude']], 'm | ', ['to-string', ['get', 'velocity']], 'km/h']
+                : ['case', ['==', ['get', 'callsign'], ''], ['get', 'icao24'], ['get', 'callsign']],
                 'text-font': fallbackFont,
                 'text-size': 10,
                 'text-offset': [0, 1.5],
@@ -3778,8 +3797,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                 ] 
               : (layer.globalAircraftColor || '#ffffff');
               
-            map.setPaintProperty('selected-flight-track-layer', 'line-opacity', opacity);
-            map.setPaintProperty('selected-flight-track-layer', 'line-color', colorExp as any);
+            map.setPaintProperty('selected-flight-track-layer', 'line-opacity', layer.is3DMode ? 0.3 : opacity);
+            map.setPaintProperty('selected-flight-track-layer', 'line-color', layer.is3DMode ? '#000000' : colorExp as any);
           }
         } else if (layer.type === 'vessels') {
           const colorExp = layer.vesselColors && Object.keys(layer.vesselColors).length > 0 
@@ -4571,13 +4590,28 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     };
   }, [settings.layers, mapLoaded, windGeojson, isSecondary, selectedWeatherTime]);
 
+
+  // Flights Layer Visibility
+  const flightsLayer = settings.layers.find(l => l.type === 'flights');
+  const triggerExistsForFlights = (id: string | undefined) => id ? annotations.some(a => a.id === id) : false;
+  const hasRevealTriggerForFlights = flightsLayer ? !!flightsLayer.animationTriggerId && triggerExistsForFlights(flightsLayer.animationTriggerId) : false;
+  const hasHideTriggerForFlights = flightsLayer ? !!flightsLayer.hideAnimationTriggerId && triggerExistsForFlights(flightsLayer.hideAnimationTriggerId) : false;
+  const isRevealedForFlights = activeTool !== 'none' || (!hasRevealTriggerForFlights || (flightsLayer && revealedTriggers.has(flightsLayer.animationTriggerId!)));
+  const isHiddenForFlights = activeTool === 'none' && flightsLayer && ((hasHideTriggerForFlights && hiddenTriggers.has(flightsLayer.hideAnimationTriggerId!)) || hiddenTriggers.has(flightsLayer.id));
+  const isFlightsVisible = flightsLayer?.visible && isRevealedForFlights && !isHiddenForFlights;
+
   // Polling for flights
+
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapLoaded) return;
-
-    const flightsLayer = settings.layers.find(l => l.type === 'flights');
-    if (!flightsLayer || !flightsLayer.visible) return;
+    if (!map || !mapLoaded || !flightsLayer || !isFlightsVisible) {
+      if (map && deckOverlayRef.current) {
+        map.removeControl(deckOverlayRef.current);
+        deckOverlayRef.current.finalize();
+        deckOverlayRef.current = null;
+      }
+      return;
+    }
 
     let timeoutId: ReturnType<typeof setTimeout>;
     let isActive = true;
@@ -4621,10 +4655,305 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         if (!res.ok) throw new Error(`OpenSky API error: ${res.statusText}`);
         
         const data = await res.json();
-        if (data.states && data.states.length > 0) {
 
+        if (data.states && data.states.length > 0) {
+            // Calculate eligible aircraft for paths
+            const visibleStates = data.states.filter((s: any) => s[5] !== null && s[6] !== null && s[5] >= lomin && s[5] <= lomax && s[6] >= lamin && s[6] <= lamax);
+            let eligiblePlanes: any[] = [];
+            if (flightsLayer.is3DMode) {
+                const center = map.getCenter();
+                if (center) {
+                    visibleStates.sort((a: any, b: any) => {
+                        const distA = haversineDistance([center.lng, center.lat], [a[5], a[6]]);
+                        const distB = haversineDistance([center.lng, center.lat], [b[5], b[6]]);
+                        return distA - distB;
+                    });
+                }
+                eligiblePlanes = visibleStates.slice(0, 20);
+            } else {
+                if (visibleStates.length <= 20) {
+                    eligiblePlanes = visibleStates;
+                }
+            }
+            
+            const now = Date.now() / 1000;
+            
+            // Fetch track for new eligible planes
+            for (const p of eligiblePlanes) {
+                const icao24 = p[0];
+                const history = flightHistoryRef.current[icao24];
+                if (!history || (now - history.lastFetched > 60)) { // fetch if no history or older than 60s
+                    // Fetch from opensky_track
+                    try {
+                        const tRes = await fetch(`./api.php?action=opensky_track&icao24=${icao24}&time=0${token ? '&token=' + encodeURIComponent(token) : ''}`);
+                        if (tRes.ok) {
+                            const tData = await tRes.json();
+                            if (tData.path) {
+                                let lastValidAlt = 0;
+                                // Pre-scanner for first valid altitude
+                                for (let i = 0; i < tData.path.length; i++) {
+                                    if (tData.path[i][3] !== null) {
+                                        lastValidAlt = tData.path[i][3];
+                                        break;
+                                    }
+                                }
+                                
+                                const validPath = tData.path.filter((pt: any) => pt[0] <= p[3]).map((pt: any) => {
+                                    if (pt[3] !== null) lastValidAlt = pt[3];
+                                    return [pt[2], pt[1], lastValidAlt, pt[0]]; // [lon, lat, alt, time]
+                                });
+                                
+                                flightHistoryRef.current[icao24] = {
+                                    lastFetched: now,
+                                    track: validPath
+                                };
+                            }
+                        } else {
+                            // Cache empty track to avoid spamming 404 requests
+                            flightHistoryRef.current[icao24] = {
+                                lastFetched: now,
+                                track: flightHistoryRef.current[icao24]?.track || []
+                            };
+                        }
+                    } catch(e) {}
+                }
+            }
+            
+            // Append live state to all tracks (both eligible and not, we prune later)
+            for (const s of data.states) {
+                const icao24 = s[0];
+                if (flightHistoryRef.current[icao24]) {
+                    const hist = flightHistoryRef.current[icao24];
+                    let lastValidAlt = hist.track.length > 0 ? hist.track[hist.track.length - 1][2] : 0;
+                    let currentAlt = s[7] !== null ? s[7] : lastValidAlt;
+                    
+                    // Only append if it's newer than the last point
+                    if (hist.track.length === 0 || s[3] > hist.track[hist.track.length - 1][3]) {
+                        hist.track.push([s[5], s[6], currentAlt, s[3]]);
+                    }
+                    
+                    // Prune older than 5 minutes (300 seconds)
+                    const cutoff = s[3] - 300;
+                    hist.track = hist.track.filter((pt: any) => pt[3] >= cutoff);
+                }
+                
+                if (icao24 === selectedAircraftIdRef.current) {
+                    const lastPt = selectedFlightTrackRef.current[selectedFlightTrackRef.current.length - 1];
+                    if (!lastPt || lastPt[0] !== s[5] || lastPt[1] !== s[6]) {
+                        selectedFlightTrackRef.current = [...selectedFlightTrackRef.current, [s[5], s[6], s[7] !== null ? s[7] : 0, s[3]]];
+                        const trackSource = map.getSource('selected-flight-track') as maplibregl.GeoJSONSource;
+                        if (trackSource) {
+                            trackSource.setData({
+                                type: 'FeatureCollection',
+                                features: [{
+                                    type: 'Feature',
+                                    geometry: { type: 'LineString', coordinates: selectedFlightTrackRef.current },
+                                    properties: {}
+                                }]
+                            });
+                        }
+                    }
+                }
+            }
+            
+            // Clean up history for planes no longer eligible
+            const eligibleIds = new Set(eligiblePlanes.map(p => p[0]));
+            for (const id of Object.keys(flightHistoryRef.current)) {
+                if (!eligibleIds.has(id)) {
+                    delete flightHistoryRef.current[id];
+                }
+            }
+
+            updateDeckGLRef.current = () => {
+                if (flightsLayer.is3DMode) {
+                    const pathData = Object.entries(flightHistoryRef.current)
+                  .filter(([icao24]) => icao24 !== selectedAircraftIdRef.current)
+                  .map(([icao24, h]: [string, any]) => {
+                    const aircraftColor = flightsLayer.aircraftColors && Object.keys(flightsLayer.aircraftColors).length > 0 
+                      ? (flightsLayer.aircraftColors[icao24] || flightsLayer.globalAircraftColor || '#ffffff') 
+                      : (flightsLayer.globalAircraftColor || '#ffffff');
+                    
+                    // Parse hex to rgb
+                    let r = 255, g = 255, b = 255;
+                    if (aircraftColor.startsWith('#') && aircraftColor.length === 7) {
+                        r = parseInt(aircraftColor.slice(1, 3), 16);
+                        g = parseInt(aircraftColor.slice(3, 5), 16);
+                        b = parseInt(aircraftColor.slice(5, 7), 16);
+                    }
+                    
+                    return {
+                        path: h.track.map((pt: any) => [pt[0], pt[1], pt[2]]),
+                        color: [r, g, b, 128]
+                    };
+                });
+                
+                const firstSymbolId = map.getStyle().layers?.find(l => l.type === 'symbol')?.id;
+                const pathLayer = new PathLayer({
+                    id: 'flight-paths-3d',
+                    data: pathData,
+                    getPath: (d: any) => d.path,
+                    getColor: (d: any) => d.color,
+                    getWidth: 3,
+                    widthUnits: 'pixels',
+                    jointRounded: true,
+                    capRounded: true,
+                    billboard: true,
+                    beforeId: firstSymbolId
+                });
+
+                const iconData = data.states.map((state: any) => {
+                    const icao24 = state[0];
+                    const callsign = state[1] ? state[1].trim() : '';
+                    const lon = state[5];
+                    const lat = state[6];
+                    const alt = state[7] !== null ? state[7] : 0;
+                    const trueTrack = state[10] !== null ? state[10] : 0;
+                    const velocity = state[9] !== null ? Math.round(state[9] * 3.6) : 0;
+
+                    const aircraftColor = flightsLayer.aircraftColors && Object.keys(flightsLayer.aircraftColors).length > 0 
+                      ? (flightsLayer.aircraftColors[icao24] || flightsLayer.globalAircraftColor || '#ffffff') 
+                      : (flightsLayer.globalAircraftColor || '#ffffff');
+                    
+                    let r = 255, g = 255, b = 255;
+                    if (aircraftColor.startsWith('#') && aircraftColor.length === 7) {
+                        r = parseInt(aircraftColor.slice(1, 3), 16);
+                        g = parseInt(aircraftColor.slice(3, 5), 16);
+                        b = parseInt(aircraftColor.slice(5, 7), 16);
+                    }
+                    
+                    const isSelected = icao24 === selectedAircraftIdRef.current;
+                    const opacity = isSelected ? 255 : (selectedAircraftIdRef.current ? 128 : 255);
+
+                    return {
+                        position: [lon, lat, alt],
+                        angle: -trueTrack,
+                        color: [r, g, b, opacity],
+                        callsign: callsign || icao24,
+                        icao24: icao24,
+                        altitude: alt,
+                        velocity: velocity,
+                        isSelected: isSelected
+                    };
+                });
+
+                const shadowPathLayer = new PathLayer({
+                    id: 'flight-paths-shadow',
+                    data: pathData,
+                    getPath: (d: any) => d.path.map((pt: any) => [pt[0], pt[1], 0]),
+                    getColor: [0, 0, 0, 100],
+                    getWidth: 3,
+                    widthUnits: 'pixels',
+                    jointRounded: true,
+                    capRounded: true,
+                    billboard: true,
+                    beforeId: firstSymbolId
+                });
+
+                const iconLayer = new IconLayer({
+                    id: 'flight-icons-3d',
+                    data: iconData,
+                    iconAtlas: 'data:image/svg+xml;charset=utf-8,%3Csvg%20width%3D%22512%22%20height%3D%22512%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22white%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M21%2016v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10%202.67%2010%203.5V9l-8%205v2l8-2.5V19l-2%201.5V22l3.5-1%203.5%201v-1.5L13%2019v-5.5l8%202.5z%22%2F%3E%3C%2Fsvg%3E',
+                    iconMapping: {
+                        airplane: { x: 0, y: 0, width: 512, height: 512, mask: true, anchorY: 512 }
+                    },
+                    getIcon: () => 'airplane',
+                    getPosition: (d: any) => d.position,
+                    getSize: 32,
+                    getColor: (d: any) => d.color,
+                    getAngle: (d: any) => d.angle,
+                    billboard: false,
+                    pickable: true,
+                    onClick: (info) => {
+                        if (info.object) {
+                            setSelectedAircraftId(info.object.icao24);
+                        }
+                    },
+                    parameters: { depthTest: true },
+                    beforeId: firstSymbolId
+                });
+
+                const textLayer = new TextLayer({
+                    id: 'flight-labels-3d',
+                    data: flightsLayer.showCallsigns ? iconData : [],
+                    getPosition: (d: any) => d.position,
+                    getText: (d: any) => `${d.callsign}\n${Math.round(d.altitude)}m | ${d.velocity}km/h`,
+                    getSize: 12,
+                    getColor: (d: any) => d.color,
+                    getAlignmentBaseline: 'bottom',
+                    getPixelOffset: [0, -15],
+                    billboard: true,
+                    background: false,
+                    parameters: { depthTest: true },
+                    beforeId: firstSymbolId
+                });
+                
+                const latestTime = flightHistoryRef.current[selectedAircraftIdRef.current || '']?.track.slice(-1)[0]?.[3] || Infinity;
+                const selectedPathData = (selectedAircraftIdRef.current && selectedFlightTrackRef.current.length > 0) ? [{
+                    path: (() => {
+                        let finalPath = selectedFlightTrackRef.current
+                            .filter((pt: any) => !pt[3] || pt[3] <= latestTime)
+                            .map((pt: any) => [pt[0], pt[1], pt[2] || 0]);
+                        
+                        // Guarantee the path physically touches the current live icon
+                        const liveState = data.states.find((s: any) => s[0] === selectedAircraftIdRef.current);
+                        if (liveState && liveState[5] !== null && liveState[6] !== null) {
+                            const livePt = [liveState[5], liveState[6], liveState[7] || 0];
+                            const lastPathPt = finalPath[finalPath.length - 1];
+                            if (!lastPathPt || lastPathPt[0] !== livePt[0] || lastPathPt[1] !== livePt[1]) {
+                                finalPath.push(livePt);
+                            }
+                        }
+                        return finalPath;
+                    })(),
+                    color: (() => {
+                        const aircraftColor = flightsLayer.aircraftColors && Object.keys(flightsLayer.aircraftColors).length > 0 
+                          ? (flightsLayer.aircraftColors[selectedAircraftIdRef.current || ''] || flightsLayer.globalAircraftColor || '#ffffff') 
+                          : (flightsLayer.globalAircraftColor || '#ffffff');
+                        let r = 255, g = 255, b = 255;
+                        if (aircraftColor.startsWith('#') && aircraftColor.length === 7) {
+                            r = parseInt(aircraftColor.slice(1, 3), 16);
+                            g = parseInt(aircraftColor.slice(3, 5), 16);
+                            b = parseInt(aircraftColor.slice(5, 7), 16);
+                        }
+                        return [r, g, b, 255];
+                    })()
+                }] : [];
+
+                const selectedPathLayer = new PathLayer({
+                    id: 'selected-flight-path-3d',
+                    data: selectedPathData,
+                    getPath: (d: any) => d.path,
+                    getColor: (d: any) => d.color,
+                    getWidth: 5,
+                    widthUnits: 'pixels',
+                    jointRounded: true,
+                    capRounded: true,
+                    billboard: true,
+                    beforeId: firstSymbolId
+                });
+
+                if (!deckOverlayRef.current) {
+                    deckOverlayRef.current = new MapboxOverlay({
+                        interleaved: true,
+                        layers: [pathLayer, shadowPathLayer, selectedPathLayer, iconLayer, textLayer]
+                    });
+                    map.addControl(deckOverlayRef.current);
+                } else {
+                    deckOverlayRef.current.setProps({
+                        layers: [pathLayer, shadowPathLayer, selectedPathLayer, iconLayer, textLayer]
+                    });
+                }
+            } else {
+                if (deckOverlayRef.current) {
+                    map.removeControl(deckOverlayRef.current);
+                    deckOverlayRef.current.finalize();
+                    deckOverlayRef.current = null;
+                }
+            }
+          };
+          updateDeckGLRef.current();
         }
-        
+
         const features = (data.states || []).map((state: any) => {
           const lon = state[5];
           const lat = state[6];
@@ -4634,22 +4963,6 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           let category = Number(state[17]) || 0;
 
           if (state[0] === selectedAircraftIdRef.current) {
-            const lastPt = selectedFlightTrackRef.current[selectedFlightTrackRef.current.length - 1];
-            if (!lastPt || lastPt[0] !== lon || lastPt[1] !== lat) {
-              selectedFlightTrackRef.current = [...selectedFlightTrackRef.current, [lon, lat]];
-              const trackSource = map.getSource('selected-flight-track') as maplibregl.GeoJSONSource;
-              if (trackSource) {
-                trackSource.setData({
-                  type: 'FeatureCollection',
-                  features: [{
-                    type: 'Feature',
-                    geometry: { type: 'LineString', coordinates: selectedFlightTrackRef.current },
-                    properties: {}
-                  }]
-                });
-              }
-            }
-            
             // Update Popup and Route
             const callsign = state[1] ? state[1].trim() : '';
             if (callsign && (!selectedAircraftMetaRef.current || selectedAircraftMetaRef.current.callsign !== callsign)) {
@@ -4667,40 +4980,47 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                 .catch(() => {});
             }
 
-            if (!aircraftPopupRef.current) {
-              aircraftPopupRef.current = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'flight-popup' })
-                .setLngLat([lon, lat])
-                .addTo(map);
+            if (flightsLayer.is3DMode) {
+              if (aircraftPopupRef.current) {
+                aircraftPopupRef.current.remove();
+                aircraftPopupRef.current = null;
+              }
             } else {
-              aircraftPopupRef.current.setLngLat([lon, lat]);
+              if (!aircraftPopupRef.current) {
+                aircraftPopupRef.current = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'flight-popup' })
+                  .setLngLat([lon, lat])
+                  .addTo(map);
+              } else {
+                aircraftPopupRef.current.setLngLat([lon, lat]);
+              }
+              
+              const meta = selectedAircraftMetaRef.current?.icao24 === state[0] ? selectedAircraftMetaRef.current : {};
+              const flag = getFlagHtml(state[2]);
+              const alt = state[7] !== null ? Math.round(state[7]) + 'm' : 'N/A';
+              const spd = state[9] !== null ? Math.round(state[9] * 3.6) + 'km/h' : 'N/A';
+              
+              const popupHtml = `
+                <div style="background-color: #09090b; padding: 12px; border-radius: 0; color: white; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11px; min-width: 180px; text-transform: uppercase;">
+                  <div style="font-size: 14px; font-weight: 700; margin-bottom: 8px; color: #ffffff; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;">
+                    <span>${callsign || 'UNKNOWN'}</span>
+                    <span style="font-size: 16px;">${flag}</span>
+                  </div>
+                  <div style="display: grid; grid-template-columns: 40px 1fr; gap: 6px; font-weight: 500;">
+                    <span style="color: rgba(255,255,255,0.5);">REG:</span> <span style="text-align: right; font-family: monospace;">${meta.registration || 'Loading...'}</span>
+                    <span style="color: rgba(255,255,255,0.5);">TYPE:</span> <span style="text-align: right; font-family: monospace;">${meta.type || 'Loading...'}</span>
+                    <span style="color: rgba(255,255,255,0.5);">RTE:</span> <span style="text-align: right; font-family: monospace;">${meta.route || 'Loading...'}</span>
+                    <span style="color: rgba(255,255,255,0.5);">ALT:</span> <span style="text-align: right; font-family: monospace;">${alt}</span>
+                    <span style="color: rgba(255,255,255,0.5);">SPD:</span> <span style="text-align: right; font-family: monospace;">${spd}</span>
+                  </div>
+                </div>
+              `;
+              // Add custom style block to override Mapbox default popup padding and background
+              const style = document.createElement('style');
+              style.innerHTML = '.flight-popup .maplibregl-popup-content { padding: 0; background: transparent; box-shadow: none; } .flight-popup .maplibregl-popup-tip { border-top-color: #09090b; }';
+              document.head.appendChild(style);
+              
+              aircraftPopupRef.current.setHTML(popupHtml);
             }
-            
-            const meta = selectedAircraftMetaRef.current?.icao24 === state[0] ? selectedAircraftMetaRef.current : {};
-            const flag = getFlagHtml(state[2]);
-            const alt = state[7] !== null ? Math.round(state[7]) + 'm' : 'N/A';
-            const spd = state[9] !== null ? Math.round(state[9] * 3.6) + 'km/h' : 'N/A';
-            
-            const popupHtml = `
-              <div style="background-color: #09090b; padding: 12px; border-radius: 0; color: white; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11px; min-width: 180px; text-transform: uppercase;">
-                <div style="font-size: 14px; font-weight: 700; margin-bottom: 8px; color: #ffffff; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 4px;">
-                  <span>${callsign || 'UNKNOWN'}</span>
-                  <span style="font-size: 16px;">${flag}</span>
-                </div>
-                <div style="display: grid; grid-template-columns: 40px 1fr; gap: 6px; font-weight: 500;">
-                  <span style="color: rgba(255,255,255,0.5);">REG:</span> <span style="text-align: right; font-family: monospace;">${meta.registration || 'Loading...'}</span>
-                  <span style="color: rgba(255,255,255,0.5);">TYPE:</span> <span style="text-align: right; font-family: monospace;">${meta.type || 'Loading...'}</span>
-                  <span style="color: rgba(255,255,255,0.5);">RTE:</span> <span style="text-align: right; font-family: monospace;">${meta.route || 'Loading...'}</span>
-                  <span style="color: rgba(255,255,255,0.5);">ALT:</span> <span style="text-align: right; font-family: monospace;">${alt}</span>
-                  <span style="color: rgba(255,255,255,0.5);">SPD:</span> <span style="text-align: right; font-family: monospace;">${spd}</span>
-                </div>
-              </div>
-            `;
-            // Add custom style block to override Mapbox default popup padding and background
-            const style = document.createElement('style');
-            style.innerHTML = '.flight-popup .maplibregl-popup-content { padding: 0; background: transparent; box-shadow: none; } .flight-popup .maplibregl-popup-tip { border-top-color: #09090b; }';
-            document.head.appendChild(style);
-            
-            aircraftPopupRef.current.setHTML(popupHtml);
           }
 
           return {
@@ -4739,7 +5059,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       isActive = false;
       clearTimeout(timeoutId);
     };
-  }, [settings.layers, mapLoaded]);
+  }, [settings.layers, mapLoaded, isFlightsVisible]);
 
   // Polling for vessels
   useEffect(() => {
@@ -4987,8 +5307,11 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     const source = map.getSource('selected-flight-track') as maplibregl.GeoJSONSource;
     if (!source) return;
 
+    selectedFlightTrackRef.current = [];
+    source.setData({ type: 'FeatureCollection', features: [] });
+    if (updateDeckGLRef.current) updateDeckGLRef.current();
+
     if (!selectedAircraftId) {
-      source.setData({ type: 'FeatureCollection', features: [] });
       if (aircraftPopupRef.current) {
         aircraftPopupRef.current.remove();
         aircraftPopupRef.current = null;
@@ -5028,7 +5351,15 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         
         const data = await res.json();
         if (data && data.path && data.path.length > 0) {
-          const coordinates = data.path.map((pt: any) => [pt[2], pt[1]]); // longitude, latitude
+          const coordinates = data.path.map((pt: any) => [pt[2], pt[1], pt[3] || 0, pt[0]]); // lon, lat, alt, time
+          
+          const hist = flightHistoryRef.current[selectedAircraftId];
+          if (hist && hist.track.length > 0) {
+              const lastApiTime = coordinates[coordinates.length - 1][3];
+              const newerLocalPoints = hist.track.filter((pt: any) => pt[3] > lastApiTime);
+              coordinates.push(...newerLocalPoints);
+          }
+          
           selectedFlightTrackRef.current = coordinates;
           source.setData({
             type: 'FeatureCollection',
@@ -5038,6 +5369,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
               properties: {}
             }]
           });
+          if (updateDeckGLRef.current) updateDeckGLRef.current();
         } else {
           selectedFlightTrackRef.current = [];
           source.setData({ type: 'FeatureCollection', features: [] });
@@ -7021,6 +7353,14 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
     const flightsLayer = settings.layers.find(l => l.type === 'flights');
     if (!flightsLayer || !flightsLayer.visible) return;
     
+    if (flightsLayer.is3DMode) {
+      if (aircraftPopupRef.current) {
+        aircraftPopupRef.current.remove();
+        aircraftPopupRef.current = null;
+      }
+      return;
+    }
+
     const sourceId = `dynamic-source-${flightsLayer.id}`;
     const features = mapRef.current.querySourceFeatures(sourceId);
     const found = features.find(f => f.properties?.icao24 === selectedAircraftId);
@@ -8672,8 +9012,11 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
 
       {!isSecondary && annotations.filter(a => a.type === 'headline').map((ann) => {
         const overrideVisible = activeTool !== 'none';
-        const isHidden = !overrideVisible && (hiddenTriggers.has(ann.id) || (ann.hideAnimationTriggerId && hiddenTriggers.has(ann.hideAnimationTriggerId)));
-        const isRevealed = overrideVisible || (!ann.animationTriggerId || revealedTriggers.has(ann.animationTriggerId));
+        const triggerExists = (id: string | undefined) => id ? annotations.some(a => a.id === id) : false;
+        const hasRevealTrigger = !!ann.animationTriggerId && triggerExists(ann.animationTriggerId);
+        const hasHideTrigger = !!ann.hideAnimationTriggerId && triggerExists(ann.hideAnimationTriggerId);
+        const isHidden = !overrideVisible && ((hasHideTrigger && hiddenTriggers.has(ann.hideAnimationTriggerId!)) || hiddenTriggers.has(ann.id));
+        const isRevealed = overrideVisible || (!hasRevealTrigger || revealedTriggers.has(ann.animationTriggerId!));
         const opacity = isRevealed && !isHidden ? 1 : 0;
         const isSelected = selectedAnnotationId === ann.id;
         

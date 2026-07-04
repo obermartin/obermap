@@ -58,6 +58,9 @@ export interface MapLayer {
   // Animation Triggers
   animationTriggerId?: string;
   hideAnimationTriggerId?: string;
+
+  // Domain specific settings
+  is3DMode?: boolean;
   
   // For split containers
   splitLayers?: MapLayer[];

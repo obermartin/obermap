@@ -4203,30 +4203,28 @@ function LayerItem(props: {
                 <div className="flex flex-col gap-4 pb-2">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] text-white font-semibold tracking-wider uppercase">
-                      {t("tail labels")}
+                      {t("3d mode")}
                     </span>
                     <button
                       onClick={() =>
                         updateLayerProperty(
                           layer.id,
-                          "showCallsigns",
-                          !layer.showCallsigns,
+                          "is3DMode",
+                          !layer.is3DMode,
                         )
                       }
-                      className={`transition-colors ${layer.showCallsigns ? "text-white" : "text-white/50 hover:text-white"}`}
-                      title={
-                        layer.showCallsigns
-                          ? "Hide Callsigns"
-                          : "Show Callsigns"
-                      }
+                      className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${
+                        layer.is3DMode ? "bg-white" : "bg-white/20"
+                      }`}
                     >
-                      {layer.showCallsigns ? (
-                        <Eye size={18} />
-                      ) : (
-                        <EyeOff size={18} />
-                      )}
+                      <span
+                        className={`inline-block h-3 w-3 transform rounded-full bg-black transition-transform ${
+                          layer.is3DMode ? "translate-x-3.5" : "translate-x-0.5"
+                        }`}
+                      />
                     </button>
                   </div>
+
 
                   <div className="flex flex-col gap-2">
                     <label className="text-[10px] text-white font-semibold tracking-wider">
