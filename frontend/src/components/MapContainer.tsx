@@ -4820,8 +4820,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                     widthUnits: 'pixels',
                     jointRounded: true,
                     capRounded: true,
-                    billboard: true,
-                    beforeId: firstSymbolId
+                    billboard: true
                 });
 
                 const iconData = data.states.map((state: any) => {
@@ -4947,8 +4946,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                     widthUnits: 'pixels',
                     jointRounded: true,
                     capRounded: true,
-                    billboard: true,
-                    beforeId: firstSymbolId
+                    billboard: true
                 });
 
                 if (!deckOverlayRef.current) {
