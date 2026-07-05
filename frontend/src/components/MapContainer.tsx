@@ -1239,6 +1239,27 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         }
       });
 
+      // Add Automated Flight Tracks shadow source and layer
+      map.addSource('automated-flight-tracks-shadow', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+      });
+      
+      map.addLayer({
+        id: 'automated-flight-tracks-shadow-layer',
+        type: 'line',
+        source: 'automated-flight-tracks-shadow',
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round'
+        },
+        paint: {
+          'line-color': '#000000',
+          'line-width': 3,
+          'line-opacity': 0.4
+        }
+      });
+
       // Add Cyclone Geometry source and layers
       map.addSource('selected-cyclone-geometry', {
         type: 'geojson',
@@ -3608,8 +3629,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                 12, 'small_aircraft',
                 'airplane' // default
               ],
-              'icon-size': 1.6,
-              'icon-anchor': 'bottom',
+              'icon-size': layer.is3DMode ? 3.2 : 1.6,
+              'icon-anchor': 'center',
               'icon-rotate': ['get', 'true_track'],
               'icon-rotation-alignment': 'map',
               'icon-pitch-alignment': layer.is3DMode ? 'map' : 'auto',
@@ -4824,7 +4845,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                     }
                     
                     const isSelected = icao24 === selectedAircraftIdRef.current;
-                    const opacity = isSelected ? 255 : (selectedAircraftIdRef.current ? 128 : 255);
+                    const opacity = 255;
 
                     return {
                         position: [lon, lat, alt],
@@ -4838,18 +4859,17 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                     };
                 });
 
-                const shadowPathLayer = new PathLayer({
-                    id: 'flight-paths-shadow',
-                    data: pathData,
-                    getPath: (d: any) => d.path.map((pt: any) => [pt[0], pt[1], 0]),
-                    getColor: [0, 0, 0, 100],
-                    getWidth: 3,
-                    widthUnits: 'pixels',
-                    jointRounded: true,
-                    capRounded: true,
-                    billboard: true,
-                    beforeId: firstSymbolId
-                });
+                const shadowSource = map.getSource('automated-flight-tracks-shadow') as maplibregl.GeoJSONSource;
+                if (shadowSource) {
+                    shadowSource.setData({
+                        type: 'FeatureCollection',
+                        features: pathData.map((d: any) => ({
+                            type: 'Feature',
+                            geometry: { type: 'LineString', coordinates: d.path.map((pt: any) => [pt[0], pt[1]]) },
+                            properties: {}
+                        }))
+                    });
+                }
 
                 const currentZoom = map.getZoom();
                 const dynamicScale = 250000 / Math.pow(2, currentZoom);
@@ -4869,8 +4889,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                             setSelectedAircraftId(info.object.icao24);
                         }
                     },
-                    parameters: { depthTest: true },
-                    beforeId: firstSymbolId
+                    parameters: { depthTest: true }
                 });
 
                 const textLayer = new TextLayer({
@@ -4884,8 +4903,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                     getPixelOffset: [0, -15],
                     billboard: true,
                     background: false,
-                    parameters: { depthTest: true },
-                    beforeId: firstSymbolId
+                    parameters: { depthTest: true }
                 });
                 
                 const latestTime = flightHistoryRef.current[selectedAircraftIdRef.current || '']?.track.slice(-1)[0]?.[3] || Infinity;
@@ -4936,12 +4954,12 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                 if (!deckOverlayRef.current) {
                     deckOverlayRef.current = new MapboxOverlay({
                         interleaved: true,
-                        layers: [pathLayer, shadowPathLayer, selectedPathLayer, iconLayer, textLayer]
+                        layers: [pathLayer, selectedPathLayer, iconLayer, textLayer]
                     });
                     map.addControl(deckOverlayRef.current);
                 } else {
                     deckOverlayRef.current.setProps({
-                        layers: [pathLayer, shadowPathLayer, selectedPathLayer, iconLayer, textLayer]
+                        layers: [pathLayer, selectedPathLayer, iconLayer, textLayer]
                     });
                 }
             } else {
@@ -4949,6 +4967,10 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
                     map.removeControl(deckOverlayRef.current);
                     deckOverlayRef.current.finalize();
                     deckOverlayRef.current = null;
+                }
+                const shadowSource = map.getSource('automated-flight-tracks-shadow') as maplibregl.GeoJSONSource;
+                if (shadowSource) {
+                    shadowSource.setData({ type: 'FeatureCollection', features: [] });
                 }
             }
           };
