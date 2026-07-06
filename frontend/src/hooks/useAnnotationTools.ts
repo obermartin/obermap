@@ -1,9 +1,10 @@
+import { fetchRouteSegment } from '../utils/routingUtils';
 import React, { useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import * as turf from '@turf/turf';
 import type { Annotation, ToolType, StrokeType, RouteMode, AppSettings } from '../types';
 
-import { createCirclePolygon, calculateDistance, simplifyLine, transliterateToGerman, decodePolyline, createArrowFeatures } from '../utils/mapUtils';
+import { createCirclePolygon, calculateDistance, simplifyLine, transliterateToGerman, createArrowFeatures } from '../utils/mapUtils';
 import { getContrastYIQ } from '../utils/colorUtils';
 import anyAscii from 'any-ascii';
 import { getMmsiFlagHtml } from '../utils/mapUtils';
@@ -831,133 +832,38 @@ export function useAnnotationTools({
           const currentIdx = currentShapeCoords.current.length;
           currentShapeCoords.current.push(point);
           
-          if (routeMode === 'train') {
-            const fallbackTrain = (p1: [number, number], p2: [number, number], idx: number) => {
-              const distKm = turf.distance(turf.point(p1), turf.point(p2), { units: 'kilometers' });
-              const speedKmph = 100;
-              const durationSec = (distKm / speedKmph) * 3600;
-              
-              routeSegmentsRef.current[idx] = [p2];
-              routeLegsSegmentsRef.current[idx] = { distance: distKm * 1000, duration: durationSec };
-              
-              const fullCoords = [currentShapeCoords.current[0]];
-              const fullLegs = [];
-              for (let i = 1; i <= currentShapeCoords.current.length; i++) {
-                if (routeSegmentsRef.current[i]) {
-                  fullCoords.push(...routeSegmentsRef.current[i]);
-                  fullLegs.push(routeLegsSegmentsRef.current[i]);
-                }
-              }
-              routeGeometryRef.current.coordinates = fullCoords;
-              routeLegsRef.current = fullLegs;
-              
-              updateActiveDrawing({
-                type: 'Feature',
-                geometry: routeGeometryRef.current,
-                properties: { color: currentColor }
-              });
-              addRouteMarker(p2, fullLegs, idx);
-            };
-
-            if (settings.googleMapsToken) {
-              const sessionId = currentDrawSessionRef.current;
-              pendingFetchesRef.current += 1;
-              fetch(`./api.php?action=google_directions&origin=${lastPoint[1]},${lastPoint[0]}&destination=${point[1]},${point[0]}&key=${settings.googleMapsToken}`)
-                .then(res => res.json())
-                .then(data => {
-                  pendingFetchesRef.current -= 1;
-                  if (sessionId !== currentDrawSessionRef.current) return;
-                  if (data.routes && data.routes[0]) {
-                    const route = data.routes[0];
-                    const leg = route.legs[0];
-                    let points: [number, number][] = [];
-                    if (leg.steps && leg.steps.length > 0) {
-                      const transitSteps = leg.steps.filter((s: any) => s.travel_mode === 'TRANSIT');
-                      if (transitSteps.length > 0) {
-                        transitSteps.forEach((step: any) => {
-                          points.push(...decodePolyline(step.polyline.points));
-                        });
-                      } else {
-                        points = decodePolyline(route.overview_polyline.points);
-                      }
-                    } else {
-                      points = decodePolyline(route.overview_polyline.points);
-                    }
-                    
-                    routeSegmentsRef.current[currentIdx] = points;
-                    routeLegsSegmentsRef.current[currentIdx] = { distance: leg.distance.value, duration: leg.duration.value };
-                    
-                    const fullCoords = [currentShapeCoords.current[0]];
-                    const fullLegs = [];
-                    for (let i = 1; i <= currentShapeCoords.current.length; i++) {
-                      if (routeSegmentsRef.current[i]) {
-                        fullCoords.push(...routeSegmentsRef.current[i]);
-                        fullLegs.push(routeLegsSegmentsRef.current[i]);
-                      }
-                    }
-                    routeGeometryRef.current.coordinates = fullCoords;
-                    routeLegsRef.current = fullLegs;
-                    
-                    updateActiveDrawing({
-                      type: 'Feature',
-                      geometry: routeGeometryRef.current,
-                      properties: { color: currentColor }
-                    });
-                    addRouteMarker(point, fullLegs, currentIdx);
-                  } else {
-                    fallbackTrain(lastPoint, point, currentIdx);
-                  }
-                })
-                .catch(err => {
-                  pendingFetchesRef.current -= 1;
-                  if (sessionId !== currentDrawSessionRef.current) return;
-                  console.error('Google Transit API error:', err);
-                  fallbackTrain(lastPoint, point, currentIdx);
-                });
-            } else {
-              fallbackTrain(lastPoint, point, currentIdx);
-            }
-          } else {
-            const endpoint = routeMode === 'walking' 
-              ? 'https://routing.openstreetmap.de/routed-foot/route/v1/driving' 
-              : 'https://router.project-osrm.org/route/v1/driving';
             const sessionId = currentDrawSessionRef.current;
             pendingFetchesRef.current += 1;
-            fetch(`${endpoint}/${lastPoint[0]},${lastPoint[1]};${point[0]},${point[1]}?overview=full&geometries=geojson`)
-              .then(res => res.json())
-              .then(data => {
+            fetchRouteSegment(lastPoint, point, routeMode || 'driving', settings.googleMapsToken)
+              .then(({ coords, leg }) => {
                 pendingFetchesRef.current -= 1;
                 if (sessionId !== currentDrawSessionRef.current) return;
-                if (data.routes && data.routes[0]) {
-                  const route = data.routes[0];
-                  const newCoords = route.geometry.coordinates.slice(1);
-                  
-                  routeSegmentsRef.current[currentIdx] = newCoords;
-                  routeLegsSegmentsRef.current[currentIdx] = { distance: route.distance, duration: route.duration };
-                  
-                  const fullCoords = [currentShapeCoords.current[0]];
-                  const fullLegs = [];
-                  for (let i = 1; i <= currentShapeCoords.current.length; i++) {
-                    if (routeSegmentsRef.current[i]) {
-                      fullCoords.push(...routeSegmentsRef.current[i]);
-                      fullLegs.push(routeLegsSegmentsRef.current[i]);
-                    }
+                
+                routeSegmentsRef.current[currentIdx] = coords;
+                routeLegsSegmentsRef.current[currentIdx] = leg;
+                
+                const fullCoords = [currentShapeCoords.current[0]];
+                const fullLegs = [];
+                for (let i = 1; i <= currentShapeCoords.current.length; i++) {
+                  if (routeSegmentsRef.current[i]) {
+                    fullCoords.push(...routeSegmentsRef.current[i]);
+                    fullLegs.push(routeLegsSegmentsRef.current[i]);
                   }
-                  routeGeometryRef.current.coordinates = fullCoords;
-                  routeLegsRef.current = fullLegs;
-                  
-                  updateActiveDrawing({
-                    type: 'Feature',
-                    geometry: routeGeometryRef.current,
-                    properties: { color: currentColor }
-                  });
-                  addRouteMarker(point, fullLegs, currentIdx);
                 }
-              }).catch(err => {
+                routeGeometryRef.current.coordinates = fullCoords;
+                routeLegsRef.current = fullLegs;
+                
+                updateActiveDrawing({
+                  type: 'Feature',
+                  geometry: routeGeometryRef.current,
+                  properties: { color: currentColor }
+                });
+                addRouteMarker(point, fullLegs, currentIdx);
+              })
+              .catch((err: any) => {
                 pendingFetchesRef.current -= 1;
                 console.error('Routing error:', err);
               });
-          }
         }
         }, 250);
       }

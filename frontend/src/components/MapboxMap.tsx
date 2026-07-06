@@ -10,7 +10,8 @@ import '@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css';
 import type { Annotation, ToolType, AppSettings, StrokeType, RouteMode, MapLayer } from '../types';
 import * as turf from '@turf/turf';
 import { useTranslation } from '../contexts/I18nContext';
-import { createCirclePolygon, calculateDistance, createArrowFeatures, decodePolyline, parseWKT, haversineDistance } from '../utils/mapUtils';
+import { createCirclePolygon, calculateDistance, createArrowFeatures, parseWKT, haversineDistance } from '../utils/mapUtils';
+import { fetchFullRoute } from '../utils/routingUtils';
 import { getTerminatorPolygon } from '../utils/terminatorUtils';
 
 import { customPrompt } from '../utils/dialogService';
@@ -632,74 +633,6 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const terrestrialCountriesRef = useRef<any>(null);
   const cachedTurfDataRef = useRef<{[id: string]: any}>({});
   const activeFeaturesRef = useRef<GeoJSON.Feature[]>([]);
-
-  const fetchFullRoute = async (coords: [number, number][], rMode: RouteMode, googleMapsToken?: string) => {
-    const fullCoords = [coords[0]];
-    const fullLegs: { distance: number, duration: number }[] = [];
-  
-    const fetchSegment = async (p1: [number, number], p2: [number, number]): Promise<{ coords: [number, number][], leg: { distance: number, duration: number } }> => {
-      if (rMode === 'train') {
-        if (googleMapsToken) {
-          try {
-            const res = await fetch(`./api.php?action=google_directions&origin=${p1[1]},${p1[0]}&destination=${p2[1]},${p2[0]}&key=${googleMapsToken}`);
-            const data = await res.json();
-            if (data.routes && data.routes[0]) {
-              const route = data.routes[0];
-              const leg = route.legs[0];
-              let points: [number, number][] = [];
-              if (leg.steps && leg.steps.length > 0) {
-                const transitSteps = leg.steps.filter((s: any) => s.travel_mode === 'TRANSIT');
-                if (transitSteps.length > 0) {
-                  transitSteps.forEach((step: any) => {
-                    points.push(...decodePolyline(step.polyline.points));
-                  });
-                } else {
-                  points = decodePolyline(route.overview_polyline.points);
-                }
-              } else {
-                points = decodePolyline(route.overview_polyline.points);
-              }
-              return { coords: points, leg: { distance: leg.distance.value, duration: leg.duration.value } };
-            }
-          } catch (err) {
-            console.error('Google Transit API error:', err);
-          }
-        }
-        const distKm = turf.distance(turf.point(p1), turf.point(p2), { units: 'kilometers' });
-        return { coords: [p2], leg: { distance: distKm * 1000, duration: (distKm / 100) * 3600 } };
-      } else {
-        const endpoint = rMode === 'walking' 
-          ? 'https://routing.openstreetmap.de/routed-foot/route/v1/driving' 
-          : 'https://router.project-osrm.org/route/v1/driving';
-        try {
-          const res = await fetch(`${endpoint}/${p1[0]},${p1[1]};${p2[0]},${p2[1]}?overview=full&geometries=geojson`);
-          const data = await res.json();
-          if (data.routes && data.routes[0]) {
-            const route = data.routes[0];
-            return { coords: route.geometry.coordinates.slice(1), leg: { distance: route.distance, duration: route.duration } };
-          }
-        } catch (err) {
-          console.error('OSRM API error:', err);
-        }
-        const distKm = turf.distance(turf.point(p1), turf.point(p2), { units: 'kilometers' });
-        return { coords: [p2], leg: { distance: distKm * 1000, duration: (distKm / (rMode === 'walking' ? 5 : 60)) * 3600 } };
-      }
-    };
-  
-    const segmentPromises = [];
-    for (let i = 1; i < coords.length; i++) {
-      segmentPromises.push(fetchSegment(coords[i - 1], coords[i]));
-    }
-    
-    const segments = await Promise.all(segmentPromises);
-    
-    for (const seg of segments) {
-      fullCoords.push(...seg.coords);
-      fullLegs.push(seg.leg);
-    }
-  
-    return { fullCoords, fullLegs };
-  };
 
   const handleRouteWaypointDragEnd = async (annId: string, wpIdx: number, newLngLat: [number, number]) => {
     const ann = annotations.find(a => a.id === annId);
