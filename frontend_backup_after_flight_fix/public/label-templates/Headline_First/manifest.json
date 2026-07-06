@@ -1,0 +1,46 @@
+{
+  "kind": [
+    "headline"
+  ],
+  "primary": {
+    "overrideColor": false,
+    "color": "#ffffff",
+    "height": 32,
+    "capWidth": 8,
+    "minWidth": 16,
+    "paddingX": 8,
+    "paddingY": 0,
+    "anchor": "right",
+    "typography": {
+      "fontFamily": "GOtham Condensed",
+      "fontSize": 28,
+      "fontWeight": 600,
+      "letterSpacing": 0,
+      "lineHeight": 1.3,
+      "textTransform": "none",
+      "textAlign": "center",
+      "color": "#000000"
+    }
+  },
+  "secondary": {
+    "overrideColor": false,
+    "color": "#ffffff",
+    "height": 32,
+    "capWidth": 8,
+    "minWidth": 16,
+    "paddingX": 4,
+    "position": "right",
+    "align": "center",
+    "gap": -4,
+    "typography": {
+      "fontFamily": "Gotham Condensed",
+      "fontSize": 28,
+      "fontWeight": 600,
+      "letterSpacing": 0.3,
+      "lineHeight": 1.3,
+      "textTransform": "none",
+      "textAlign": "center",
+      "color": "#ffffff"
+    }
+  }
+}

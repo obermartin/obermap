@@ -1,0 +1,365 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'Gotham Condensed';
+  font-style: normal;
+  font-weight: 500;
+  src: url('/fonts/GothamCond-Medium.otf') format('opentype');
+}
+
+@font-face {
+  font-family: 'Gotham Condensed';
+  font-style: normal;
+  font-weight: 700;
+  src: url('/fonts/GothamCond-Bold.otf') format('opentype');
+}
+
+@font-face {
+  font-family: 'Gotham Condensed';
+  font-style: normal;
+  font-weight: 900;
+  src: url('/fonts/GothamCond-Black.otf') format('opentype');
+}
+
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 400;
+  src: url('/fonts/Roboto-Regular.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 500;
+  src: url('/fonts/Roboto-Medium.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 700;
+  src: url('/fonts/Roboto-Bold.ttf') format('truetype');
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: 'Roboto', sans-serif;
+  background-color: #000;
+}
+
+/* Mapbox specific styles for our labels */
+.custom-marker {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: auto;
+}
+
+.custom-marker-plate {
+  background-color: #000;
+  border: 1px solid rgba(255,255,255,0.1);
+  overflow: hidden;
+}
+
+.custom-marker-text {
+  color: white;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.custom-marker-pointer {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid #000;
+}
+
+.custom-marker-flat {
+  color: white;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+
+.custom-marker-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  pointer-events: auto;
+}
+
+.custom-highlight-marker {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  position: relative;
+  pointer-events: auto;
+}
+
+.custom-highlight-plate {
+  position: absolute;
+  left: 22px;
+  top: 50%;
+  transform: translateY(-50%);
+  overflow: hidden;
+}
+
+.custom-highlight-text {
+  padding: 4px 8px;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-transform: uppercase;
+  pointer-events: auto;
+}
+
+.custom-country-marker {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: auto;
+}
+
+.custom-country-plate {
+  overflow: hidden;
+}
+
+.custom-country-text {
+  padding: 4px 8px;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-transform: uppercase;
+  pointer-events: auto;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) rgba(255, 255, 255, 0.05);
+}
+
+/* Mapbox UI overrides */
+.maplibregl-ctrl-logo {
+  display: none !important;
+}
+
+.maplibregl-ctrl-top-right .maplibregl-ctrl {
+  margin-top: 8px !important;
+  margin-right: 24px !important;
+  margin-bottom: 0 !important;
+}
+
+.maplibregl-ctrl-top-right .maplibregl-ctrl:first-child {
+  margin-top: 24px !important;
+}
+
+.maplibregl-ctrl-group {
+  background: #000 !important;
+  border-radius: 9999px !important;
+  border: none !important;
+  box-shadow: none !important;
+  width: 48px !important;
+  height: 48px !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+}
+
+.maplibregl-ctrl-group button {
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.maplibregl-ctrl-compass {
+  background-color: #000 !important;
+  transition: all 0.2s !important;
+}
+
+.maplibregl-ctrl-compass .maplibregl-ctrl-icon {
+  filter: invert(1) !important;
+}
+
+.maplibregl-ctrl-compass:hover {
+  background-color: #fff !important;
+}
+
+.maplibregl-ctrl-compass:hover .maplibregl-ctrl-icon {
+  filter: none !important;
+}
+
+/* Force SVG icons to be solid filled shapes */
+.icon-svg-wrapper svg * {
+  stroke: none !important;
+  fill: currentColor !important;
+}
+.icon-svg-wrapper svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Scale Control Styling */
+.maplibregl-ctrl-top-right .maplibregl-ctrl.maplibregl-ctrl-scale {
+  position: absolute !important;
+  top: 24px !important;
+  right: 80px !important; /* compass right margin (24px) + compass width (48px) + gap (8px) = 80px */
+  margin: 0 !important;
+  background-color: transparent !important;
+  border: 2px solid #fff !important;
+  border-bottom: none !important;
+  color: #fff !important;
+  font-family: 'Inter', sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  padding: 4px 6px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+/* Geocoder UI Overrides to match strict design rules */
+.maplibregl-ctrl-geocoder {
+  background: #000 !important;
+  border-radius: 9999px !important;
+  border: none !important;
+  box-shadow: none !important;
+  min-width: 48px !important;
+  font-family: 'Inter', sans-serif !important;
+}
+
+.maplibregl-ctrl-geocoder.maplibregl-ctrl-geocoder--collapsed {
+  width: 48px !important;
+  height: 48px !important;
+  transition: all 0.2s !important;
+}
+
+.maplibregl-ctrl-geocoder--input,
+.maplibregl-ctrl-geocoder input[type="text"] {
+  color: #fff !important;
+  height: 48px !important;
+  padding: 6px 48px !important;
+  background-color: transparent !important;
+}
+
+.maplibregl-ctrl-geocoder--input::placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.maplibregl-ctrl-geocoder--icon {
+  fill: #fff !important;
+}
+
+/* Adjust search icon position to center in the 48x48 box */
+.maplibregl-ctrl-geocoder--icon-search {
+  top: 12px !important;
+  left: 12px !important;
+  width: 24px !important;
+  height: 24px !important;
+}
+
+.maplibregl-ctrl-geocoder--clear,
+.maplibregl-ctrl-geocoder--button {
+  background: transparent !important;
+  top: 12px !important;
+  right: 12px !important;
+}
+
+.maplibregl-ctrl-geocoder--button:hover {
+  background: transparent !important;
+}
+
+/* Hover effect only for the collapsed button state */
+.maplibregl-ctrl-geocoder.maplibregl-ctrl-geocoder--collapsed:hover {
+  background: #fff !important;
+  cursor: pointer !important;
+}
+
+.maplibregl-ctrl-geocoder.maplibregl-ctrl-geocoder--collapsed:hover .maplibregl-ctrl-geocoder--icon {
+  fill: #000 !important;
+}
+
+/* Expanded state width */
+.maplibregl-ctrl-geocoder:not(.maplibregl-ctrl-geocoder--collapsed) {
+  width: 300px !important;
+  max-width: 300px !important;
+}
+
+/* Suggestions Dropdown */
+.maplibregl-ctrl-geocoder .suggestions {
+  background-color: #000 !important;
+  border-radius: 24px !important;
+  box-shadow: none !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-top: none !important;
+}
+
+.maplibregl-ctrl-geocoder .suggestions > li > a {
+  color: #fff !important;
+  padding: 12px 16px !important;
+}
+
+.maplibregl-ctrl-geocoder .suggestions > li > a:hover,
+.maplibregl-ctrl-geocoder .suggestions > .active > a {
+  background-color: #fff !important;
+  color: #000 !important;
+}
+
+.maplibregl-ctrl-geocoder .suggestions > li > a:hover .maplibregl-ctrl-geocoder--suggestion-title,
+.maplibregl-ctrl-geocoder .suggestions > .active > a .maplibregl-ctrl-geocoder--suggestion-title,
+.maplibregl-ctrl-geocoder .suggestions > li > a:hover .maplibregl-ctrl-geocoder--suggestion-address,
+.maplibregl-ctrl-geocoder .suggestions > .active > a .maplibregl-ctrl-geocoder--suggestion-address {
+  color: #000 !important;
+}
+
+.maplibregl-ctrl-geocoder--suggestion-title {
+  color: #fff !important;
+  font-weight: 600 !important;
+}
+
+.maplibregl-ctrl-geocoder--suggestion-address {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* Video Export Hide Rules */
+.is-recording .maplibregl-control-container,
+.is-recording .react-ui-overlay {
+  display: none !important;
+}
+
+/* Export Annotation Scaling handled via DOM wrappers in MapContainer.tsx */

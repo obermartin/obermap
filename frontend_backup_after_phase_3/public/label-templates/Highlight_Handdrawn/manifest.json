@@ -1,0 +1,42 @@
+{
+  "kind": [
+    "highlight"
+  ],
+  "fonts": [
+    {
+      "family": "Permanent Marker Regular",
+      "file": "permanent-marker-regular.ttf"
+    }
+  ],
+  "primary": {
+    "overrideColor": true,
+    "color": "#ffc800",
+    "height": 32,
+    "capWidth": 16,
+    "minWidth": 32,
+    "paddingX": 14,
+    "paddingY": 0,
+    "anchor": "center",
+    "pointer": {
+      "overrideColor": true,
+      "color": "#fac800",
+      "width": 32,
+      "height": 32,
+      "attachEdge": "left",
+      "attachFrom": "left",
+      "attachOffset": 16,
+      "tipX": 16,
+      "tipY": 15
+    },
+    "typography": {
+      "fontFamily": "Permanent Marker Regular",
+      "fontSize": 20,
+      "fontWeight": 500,
+      "letterSpacing": 0,
+      "lineHeight": 1.3,
+      "textTransform": "none",
+      "textAlign": "center",
+      "color": "#ff00b4"
+    }
+  }
+}

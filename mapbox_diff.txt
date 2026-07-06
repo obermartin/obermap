@@ -1,0 +1,26 @@
+22a23
+> import { useFlightStream } from '../hooks/useFlightStream';
+28d28
+< import { MapboxOverlay } from '@deck.gl/mapbox';
+30d29
+< import { ScenegraphLayer } from '@deck.gl/mesh-layers';
+406d404
+<   const flightHistoryRef = useRef<Record<string, { lastFetched: number; track: [number, number, number, number][] }>>({});
+422,423d419
+<   const openSkyTokenRef = useRef<{ token: string, expires: number } | null>(null);
+<   const updateDeckGLRef = useRef<(() => void) | null>(null);
+504,517d499
+<   const getFlagHtml = (countryName: string) => {
+<     if (!countryName) return '';
+<     const mappings: Record<string, string> = {
+<       'United States': 'US', 'Germany': 'DE', 'United Kingdom': 'GB', 'France': 'FR',
+<       'Italy': 'IT', 'Spain': 'ES', 'Canada': 'CA', 'Australia': 'AU', 'Japan': 'JP',
+<       'China': 'CN', 'Russia': 'RU', 'Ukraine': 'UA', 'Poland': 'PL', 'Turkey': 'TR',
+<       'Netherlands': 'NL', 'Switzerland': 'CH', 'Sweden': 'SE', 'Norway': 'NO',
+<       'Denmark': 'DK', 'Finland': 'FI', 'Austria': 'AT', 'Belgium': 'BE', 'Brazil': 'BR',
+<       'Mexico': 'MX', 'India': 'IN', 'South Africa': 'ZA', 'Ireland': 'IE', 'Greece': 'GR',
+<       'Portugal': 'PT', 'New Zealand': 'NZ', 'Singapore': 'SG', 'United Arab Emirates': 'AE',
+<       'Saudi Arabia': 'SA', 'Israel': 'IL', 'South Korea': 'KR', 'Taiwan': 'TW',
+<       'Hong Kong': 'HK', 'Thailand': 'TH', 'Malaysia': 'MY', 'Indonesia': 'ID',
+<       'Vietnam': 'VN', 'Philippines': 'PH', 'Egypt': 'EG', 'Morocco': 'MA'
+<     };

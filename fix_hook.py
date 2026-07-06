@@ -1,49 +1,13 @@
-import re
-
-with open('frontend/src/hooks/useAnnotationTools.ts', 'r') as f:
+with open('frontend_backup_after_flight_fix/src/components/MapboxMap.tsx', 'r') as f:
     content = f.read()
 
-# We need to add the imports for utils
-content = content.replace(
-    "import { createCirclePolygon, calculateDistance, simplifyLine, transliterateToGerman, decodePolyline, parseWKT, haversineDistance } from '../utils/mapUtils';",
-    "import { createCirclePolygon, calculateDistance, simplifyLine, transliterateToGerman, decodePolyline, parseWKT, haversineDistance, createArrowFeatures } from '../utils/mapUtils';\nimport { getContrastYIQ } from '../utils/colorUtils';"
-)
+start_idx = content.find("  // Polling for flights\n")
+end_idx = content.find("  // Fetch geometry when selectedCycloneId changes\n")
 
-# We need to add the missing props to UseAnnotationToolsProps
-props_to_add = """
-  isDrawing: React.MutableRefObject<boolean>;
-  currentShapeCoords: React.MutableRefObject<[number, number][]>;
-  circleCenter: React.MutableRefObject<[number, number] | null>;
-  arrowStart: React.MutableRefObject<[number, number] | null>;
-  pendingFetchesRef: React.MutableRefObject<number>;
-  setActiveDistance: React.Dispatch<React.SetStateAction<number | null>>;
-  updateActiveDrawing: (geojson: any) => void;
-  clearActiveDrawMarkers: () => void;
-"""
-content = content.replace(
-    "  currentDrawSessionRef: React.MutableRefObject<string | null>;\n}",
-    "  currentDrawSessionRef: React.MutableRefObject<string | null>;" + props_to_add + "}"
-)
-
-# And add them to the destructuring
-args_to_add = """
-  isDrawing,
-  currentShapeCoords,
-  circleCenter,
-  arrowStart,
-  pendingFetchesRef,
-  setActiveDistance,
-  updateActiveDrawing,
-  clearActiveDrawMarkers
-"""
-content = content.replace(
-    "  currentDrawSessionRef\n}: UseAnnotationToolsProps",
-    "  currentDrawSessionRef," + args_to_add + "}: UseAnnotationToolsProps"
-)
-
-# And replace `isDrawing.current` etc inside if they are missing? They are already `.current` where needed.
-
-with open('frontend/src/hooks/useAnnotationTools.ts', 'w') as f:
-    f.write(content)
-
-print("Hook fixed.")
+if start_idx != -1 and end_idx != -1:
+    flights_logic = content[start_idx:end_idx]
+    
+    with open('flights_logic.txt', 'w') as out:
+        out.write(flights_logic)
+else:
+    print("Could not find start or end idx")

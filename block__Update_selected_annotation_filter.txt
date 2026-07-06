@@ -1,0 +1,8 @@
+  // Update selected annotation filter
+  useEffect(() => {
+    if (!mapRef.current || !mapRef.current.getLayer('custom-selected-line')) return;
+    mapRef.current.setFilter('custom-selected-line', ['==', 'id', selectedAnnotationId || 'none']);
+    if (mapRef.current.getLayer('custom-selected-glow')) {
+      mapRef.current.setFilter('custom-selected-glow', ['==', 'id', selectedAnnotationId || 'none']);
+    }
+  }, [selectedAnnotationId]);

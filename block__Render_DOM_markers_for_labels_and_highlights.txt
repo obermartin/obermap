@@ -1,0 +1,10 @@
+  // Render DOM markers for labels and highlights
+  useEffect(() => {
+    if (!mapRef.current || !mapLoaded) return;
+    mapRef.current.getCanvas().style.cursor = activeTool !== 'none' ? 'crosshair' : 'grab';
+    clearActiveDrawMarkers();
+    isDrawing.current = false;
+    mapRef.current.dragPan.enable();
+    const source = mapRef.current.getSource('active-drawing') as maplibregl.GeoJSONSource;
+    if (source) source.setData({ type: 'FeatureCollection', features: [] });
+  }, [activeTool, mapLoaded]);

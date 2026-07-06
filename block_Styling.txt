@@ -1,0 +1,15 @@
+  // Water Layer Styling
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+    
+    // Only apply to styles that use the standard 'water' fill layer
+    if (map.getLayer('water')) {
+      if (settings.waterColor !== undefined) {
+        map.setPaintProperty('water', 'fill-color', settings.waterColor);
+      }
+      if (settings.waterOpacity !== undefined) {
+        map.setPaintProperty('water', 'fill-opacity', settings.waterOpacity);
+      }
+    }
+  }, [mapLoaded, settings.waterColor, settings.waterOpacity, settings.mapStyle]);

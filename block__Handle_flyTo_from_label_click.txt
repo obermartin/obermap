@@ -1,0 +1,18 @@
+  // Handle flyTo from label click
+  useEffect(() => {
+    const handleFlyToLabel = ((e: CustomEvent<string>) => {
+      if (activeTool !== 'none' || !mapRef.current) return;
+      const annId = e.detail;
+      const ann = annotations.find(a => a.id === annId);
+      if (ann && ann.view) {
+        mapRef.current.flyTo({
+          center: ann.view.center,
+          zoom: ann.view.zoom,
+          pitch: ann.view.pitch,
+          bearing: ann.view.bearing
+        });
+      }
+    }) as EventListener;
+    window.addEventListener('flyToLabel', handleFlyToLabel);
+    return () => window.removeEventListener('flyToLabel', handleFlyToLabel);
+  }, [activeTool, annotations]);

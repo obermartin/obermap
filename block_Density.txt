@@ -1,0 +1,107 @@
+  // Handle Map Label Density
+  useEffect(() => {
+    if (!mapRef.current || !mapLoaded || settings.labelDensity === undefined) return;
+    
+    const density = settings.labelDensity;
+    let style;
+    try {
+      style = mapRef.current.getStyle();
+    } catch(e) {
+      return; // Style not loaded yet, ignore
+    }
+
+    if (style && style.layers) {
+      style.layers.forEach(layer => {
+        if (layer.type === 'symbol' && !layer.id.startsWith('custom-')) {
+          const origFilter = originalFiltersRef.current[layer.id];
+          let extraCondition: any = null;
+
+          const id = layer.id.toLowerCase();
+          const sourceLayer = layer['source-layer'] ? layer['source-layer'].toLowerCase() : '';
+
+          if (id.includes('ukraine')) {
+            if (density < 100) {
+              // Smooth population curve: density 0 = 2,000,000 (shows only Kyiv); density 50 = ~125,000; density 80 = ~3,200; density 100 = 0
+              const minPopulation = Math.floor(2000000 * Math.pow((100 - density) / 100, 4));
+              
+              const popCondition = ['>=', ['coalesce', ['to-number', ['get', 'population']], 0], minPopulation];
+              
+              // Fallback for capitals if they exist in this dataset
+              let capCondition: any[] = ['==', '1', '2'];
+              if (density === 0) {
+                 capCondition = ['all', ['has', 'capital'], ['==', ['get', 'capital'], 2]];
+              } else if (density < 10) {
+                 capCondition = ['all', ['has', 'capital'], ['<=', ['get', 'capital'], 3]]; 
+              } else {
+                 capCondition = ['all', ['has', 'capital'], ['>', ['get', 'capital'], 0]];
+              }
+              
+              extraCondition = ['any', popCondition, capCondition];
+            }
+          } else if (id.includes('place') || sourceLayer.includes('place') || id.includes('settlement') || sourceLayer.includes('settlement') || id.includes('village') || id.includes('town') || id.includes('cit') || id.includes('capital')) {
+            if (density < 100) {
+              let maxRank = 1;
+              if (density > 0) {
+                // Use an exponential curve so that the slider is immediately sensitive.
+                // At density 100: maxRank = 15
+                // At density 50: maxRank = 4
+                // At density 0: maxRank = 1
+                maxRank = 1 + Math.floor(Math.pow(density / 100, 2) * 14);
+              }
+
+              // If a place has no rank, assign it a virtual rank based on its class
+              const classBasedRank = ['case',
+                ['==', ['get', 'class'], 'city'], 5,
+                ['==', ['get', 'class'], 'town'], 10,
+                ['==', ['get', 'class'], 'village'], 15,
+                ['any',
+                  ['==', ['get', 'class'], 'hamlet'],
+                  ['==', ['get', 'class'], 'suburb'],
+                  ['==', ['get', 'class'], 'neighbourhood'],
+                  ['==', ['get', 'class'], 'isolated_dwelling']
+                ], 20,
+                30
+              ];
+
+              const rankCondition = ['<=', ['to-number', ['coalesce', ['get', 'symbolrank'], ['get', 'scalerank'], ['get', 'rank'], classBasedRank]], maxRank];
+              
+              let capCondition: any[] = ['==', '1', '2'];
+              if (density === 0) {
+                 capCondition = ['all', ['has', 'capital'], ['==', ['get', 'capital'], 2]]; // National capitals only
+              } else if (density < 10) {
+                 capCondition = ['all', ['has', 'capital'], ['<=', ['get', 'capital'], 3]]; // National + State capitals
+              } else {
+                 capCondition = ['all', ['has', 'capital'], ['>', ['get', 'capital'], 0]];   // All capitals
+              }
+              
+              const isCountry = ['any', ['==', ['get', 'class'], 'country'], ['==', ['get', 'type'], 'country']];
+
+              extraCondition = ['any', rankCondition, capCondition, isCountry];
+            }
+          } else if (id.includes('poi') || id.includes('transit') || sourceLayer.includes('poi') || id.includes('amenity') || id.includes('shop') || id.includes('tourism') || id.includes('leisure') || id.includes('sport') || id.includes('attraction') || id.includes('airport') || id.includes('station') || id.includes('historic') || sourceLayer.includes('amenity') || sourceLayer.includes('shop') || sourceLayer.includes('tourism') || sourceLayer.includes('leisure')) {
+            if (density < 15) {
+              extraCondition = ['==', 1, 2]; // Hide
+            } else if (density < 100) {
+              const maxScaleRank = 1 + Math.floor(((density - 15) / 85) * 9);
+              extraCondition = ['<=', ['coalesce', ['get', 'scalerank'], ['get', 'rank'], 10], maxScaleRank];
+            }
+          } else if (id.includes('road') || id.includes('water') || id.includes('natural') || id.includes('highway') || id.includes('path') || id.includes('trail')) {
+            if (density < 5) {
+              extraCondition = ['==', 1, 2]; // Hide
+            }
+          }
+
+          let finalFilter = origFilter;
+          if (extraCondition) {
+            finalFilter = origFilter ? ['all', upgradeLegacyFilter(origFilter), extraCondition] : extraCondition;
+          }
+          
+          try {
+            mapRef.current!.setFilter(layer.id, finalFilter);
+          } catch(e) {
+            console.error('Label density filter error:', e, layer.id, finalFilter);
+          }
+        }
+      });
+    }
+  }, [settings.labelDensity, mapLoaded, styleLoadedTick]);

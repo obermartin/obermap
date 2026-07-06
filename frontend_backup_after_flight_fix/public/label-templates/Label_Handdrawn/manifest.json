@@ -1,0 +1,65 @@
+{
+  "kind": [
+    "highlight",
+    "regular",
+    "headline"
+  ],
+  "fonts": [
+    {
+      "family": "Permanent Marker Regular",
+      "file": "permanent-marker-regular.ttf"
+    }
+  ],
+  "primary": {
+    "overrideColor": true,
+    "color": "#ffc800",
+    "height": 32,
+    "capWidth": 16,
+    "minWidth": 32,
+    "paddingX": 14,
+    "paddingY": 0,
+    "anchor": "center",
+    "pointer": {
+      "overrideColor": true,
+      "color": "#fac800",
+      "width": 32,
+      "height": 32,
+      "attachEdge": "bottom",
+      "attachFrom": "left",
+      "attachOffset": 0,
+      "tipX": 4,
+      "tipY": 30
+    },
+    "typography": {
+      "fontFamily": "Permanent Marker Regular",
+      "fontSize": 20,
+      "fontWeight": 500,
+      "letterSpacing": 0,
+      "lineHeight": 1.3,
+      "textTransform": "none",
+      "textAlign": "center",
+      "color": "#fac800"
+    }
+  },
+  "secondary": {
+    "overrideColor": true,
+    "color": "#fac800",
+    "height": 24,
+    "capWidth": 16,
+    "minWidth": 32,
+    "paddingX": 11,
+    "position": "below",
+    "align": "left",
+    "gap": -42,
+    "typography": {
+      "fontFamily": "Permanent Marker Regular",
+      "fontSize": 12,
+      "fontWeight": 600,
+      "letterSpacing": 0.3,
+      "lineHeight": 1.3,
+      "textTransform": "uppercase",
+      "textAlign": "center",
+      "color": "#ff00b4"
+    }
+  }
+}
