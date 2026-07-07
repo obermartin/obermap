@@ -5,20 +5,21 @@ import { parseWKT, haversineDistance, safeFetchCemsJson } from '../utils/mapUtil
 export const useDisasterAlerts = (
   map: maplibregl.Map | null,
   mapLoaded: boolean,
-  settings: AppSettings
+  settings: AppSettings,
+  setSettings?: React.Dispatch<React.SetStateAction<AppSettings>>
 ) => {
-  const [selectedEarthquake, setSelectedEarthquakeState] = useState<{ id: string, ep: string, geomUrl: string, coordinates: [number, number], properties: any } | null>(null);
+  const selectedEarthquake = settings.layers.find(l => l.type === 'gdacs_earthquakes')?.selectedFeatureData || null;
   const [selectedEarthquakeShakemap, setSelectedEarthquakeShakemap] = useState<any>(null);
   const [selectedEarthquakeUsgsDyfi10km, setSelectedEarthquakeUsgsDyfi10km] = useState<any>(null);
   const [selectedEarthquakeUsgsDyfi1km, setSelectedEarthquakeUsgsDyfi1km] = useState<any>(null);
   const [selectedEarthquakeUsgsLandslide, setSelectedEarthquakeUsgsLandslide] = useState<{ url: string, extent: [number, number, number, number] } | null>(null);
   const [selectedEarthquakeUsgsLiquefaction, setSelectedEarthquakeUsgsLiquefaction] = useState<{ url: string, extent: [number, number, number, number] } | null>(null);
-  const [selectedCemsEarthquake, setSelectedCemsEarthquakeState] = useState<{ id: string, code: string, properties: any, coordinates: [number, number] } | null>(null);
+  const selectedCemsEarthquake = settings.layers.find(l => l.type === 'cems_rapid_mapping')?.selectedFeatureData || null;
   const [selectedCemsEarthquakeFeatures, setSelectedCemsEarthquakeFeatures] = useState<any>(null);
   const [activeCemsWildfireFeatures, setActiveCemsWildfireFeatures] = useState<any>(null);
   const [activeCemsFloodFeatures, setActiveCemsFloodFeatures] = useState<any>(null);
 
-  const [selectedVolcano, setSelectedVolcanoState] = useState<{ id: string, ep: string, geomUrl: string, coordinates: [number, number], properties: any } | null>(null);
+  const selectedVolcano = settings.layers.find(l => l.type === 'gdacs_volcanoes')?.selectedFeatureData || null;
   const [selectedVolcanoPolygon, setSelectedVolcanoPolygon] = useState<any>(null);
 
 
@@ -227,35 +228,41 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
      
     if (!map || !mapLoaded) return;
 
-    if (!map.getSource('selected-usgs-dyfi-10km-source')) {
+    const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
+    const isVisible = eqLayer?._effectiveOpacityVisible ?? true;
+    const targetOpacity = isVisible ? (eqLayer?.usgsDyfi10kmOpacity ?? 0.6) : 0;
+    
+    if (!map.getSource('selected-usgs-dyfi-10km-source') && selectedEarthquakeUsgsDyfi10km) {
       map.addSource('selected-usgs-dyfi-10km-source', {
         type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] }
+        data: selectedEarthquakeUsgsDyfi10km
       });
-
-      const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
       const beforeId = (eqLayer && map.getLayer(`dynamic-layer-${eqLayer.id}`)) ? `dynamic-layer-${eqLayer.id}` : 'custom-polygons';
-
       map.addLayer({
         id: 'selected-usgs-dyfi-10km-fill',
         type: 'fill',
         source: 'selected-usgs-dyfi-10km-source',
+        layout: {
+          'visibility': eqLayer?.usgsDyfi10kmEnabled ? 'visible' : 'none'
+        },
         paint: {
           'fill-color': [
             'step',
-            ['to-number', ['coalesce', ['get', 'cdi'], 0]],
-            '#ffffff', 1,
-            '#bfccff', 2,
-            '#a0e6ff', 3,
-            '#80ffff', 4,
-            '#7aff93', 5,
-            '#ffff00', 6,
-            '#ffc800', 7,
-            '#ff9100', 8,
-            '#ff0000', 9,
-            '#c80000'
+            ['get', 'cdi'],
+            'rgba(255, 255, 255, 0)', // 0 or unknown
+            1, 'rgba(255, 255, 255, 0)',
+            2, '#bfccff',
+            3, '#a0e6ff',
+            4, '#80ffff',
+            5, '#7aff93',
+            6, '#ffff00',
+            7, '#ffc800',
+            8, '#ff9100',
+            9, '#ff0000',
+            10, '#c80000'
           ],
-          'fill-opacity': eqLayer?.usgsDyfi10kmOpacity ?? 0.6
+          'fill-opacity': targetOpacity,
+          'fill-opacity-transition': { duration: 300 }
         }
       }, beforeId);
     }
@@ -265,11 +272,10 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
       source.setData(selectedEarthquakeUsgsDyfi10km || { type: 'FeatureCollection', features: [] });
     }
 
-    const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
     const visibility = eqLayer?.usgsDyfi10kmEnabled ? 'visible' : 'none';
     if (map.getLayer('selected-usgs-dyfi-10km-fill')) {
       map.setLayoutProperty('selected-usgs-dyfi-10km-fill', 'visibility', visibility);
-      map.setPaintProperty('selected-usgs-dyfi-10km-fill', 'fill-opacity', eqLayer?.usgsDyfi10kmOpacity ?? 0.6);
+      map.setPaintProperty('selected-usgs-dyfi-10km-fill', 'fill-opacity', targetOpacity);
     }
   }, [selectedEarthquakeUsgsDyfi10km, mapLoaded, settings.layers]);
 
@@ -285,12 +291,17 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
       });
 
       const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
+      const isVisible = eqLayer?._effectiveOpacityVisible ?? true;
+      const targetOpacity = isVisible ? (eqLayer?.usgsDyfi1kmOpacity ?? 0.6) : 0;
       const beforeId = (eqLayer && map.getLayer(`dynamic-layer-${eqLayer.id}`)) ? `dynamic-layer-${eqLayer.id}` : 'custom-polygons';
 
       map.addLayer({
         id: 'selected-usgs-dyfi-1km-fill',
         type: 'fill',
         source: 'selected-usgs-dyfi-1km-source',
+        layout: {
+          'visibility': eqLayer?.usgsDyfi1kmEnabled ? 'visible' : 'none'
+        },
         paint: {
           'fill-color': [
             'step',
@@ -306,7 +317,8 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
             '#ff0000', 9,
             '#c80000'
           ],
-          'fill-opacity': eqLayer?.usgsDyfi1kmOpacity ?? 0.6
+          'fill-opacity': targetOpacity,
+          'fill-opacity-transition': { duration: 300 }
         }
       }, beforeId);
     }
@@ -318,9 +330,12 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
 
     const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
     const visibility = eqLayer?.usgsDyfi1kmEnabled ? 'visible' : 'none';
+    const isVisible = eqLayer?._effectiveOpacityVisible ?? true;
+    const targetOpacity = isVisible ? (eqLayer?.usgsDyfi1kmOpacity ?? 0.6) : 0;
+    
     if (map.getLayer('selected-usgs-dyfi-1km-fill')) {
       map.setLayoutProperty('selected-usgs-dyfi-1km-fill', 'visibility', visibility);
-      map.setPaintProperty('selected-usgs-dyfi-1km-fill', 'fill-opacity', eqLayer?.usgsDyfi1kmOpacity ?? 0.6);
+      map.setPaintProperty('selected-usgs-dyfi-1km-fill', 'fill-opacity', targetOpacity);
     }
   }, [selectedEarthquakeUsgsDyfi1km, mapLoaded, settings.layers]);
 
@@ -342,6 +357,8 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
       });
 
       const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
+      const isVisible = eqLayer?._effectiveOpacityVisible ?? true;
+      const targetOpacity = isVisible ? (eqLayer?.usgsLandslideOpacity ?? 0.8) : 0;
       const beforeId = (eqLayer && map.getLayer(`dynamic-layer-${eqLayer.id}`)) ? `dynamic-layer-${eqLayer.id}` : 'custom-polygons';
 
       map.addLayer({
@@ -349,7 +366,8 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
         type: 'raster',
         source: 'selected-usgs-landslide-source',
         paint: {
-          'raster-opacity': eqLayer?.usgsLandslideOpacity ?? 0.8
+          'raster-opacity': targetOpacity,
+          'raster-opacity-transition': { duration: 300 }
         }
       }, beforeId);
     } else if (map.getSource('selected-usgs-landslide-source') && selectedEarthquakeUsgsLandslide) {
@@ -366,9 +384,12 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
 
     const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
     const visibility = (eqLayer?.usgsLandslideEnabled && selectedEarthquakeUsgsLandslide) ? 'visible' : 'none';
+    const isVisible = eqLayer?._effectiveOpacityVisible ?? true;
+    const targetOpacity = isVisible ? (eqLayer?.usgsLandslideOpacity ?? 0.8) : 0;
+    
     if (map.getLayer('selected-usgs-landslide-raster')) {
       map.setLayoutProperty('selected-usgs-landslide-raster', 'visibility', visibility);
-      map.setPaintProperty('selected-usgs-landslide-raster', 'raster-opacity', eqLayer?.usgsLandslideOpacity ?? 0.8);
+      map.setPaintProperty('selected-usgs-landslide-raster', 'raster-opacity', targetOpacity);
       
       const bMin = eqLayer?.usgsLandslideBrightness !== undefined && eqLayer.usgsLandslideBrightness > 0 ? eqLayer.usgsLandslideBrightness : 0;
       const bMax = eqLayer?.usgsLandslideBrightness !== undefined && eqLayer.usgsLandslideBrightness < 0 ? 1 + eqLayer.usgsLandslideBrightness : 1;
@@ -398,6 +419,8 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
       });
 
       const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
+      const isVisible = eqLayer?._effectiveOpacityVisible ?? true;
+      const targetOpacity = isVisible ? (eqLayer?.usgsLiquefactionOpacity ?? 0.8) : 0;
       const beforeId = (eqLayer && map.getLayer(`dynamic-layer-${eqLayer.id}`)) ? `dynamic-layer-${eqLayer.id}` : 'custom-polygons';
 
       map.addLayer({
@@ -405,7 +428,8 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
         type: 'raster',
         source: 'selected-usgs-liquefaction-source',
         paint: {
-          'raster-opacity': eqLayer?.usgsLiquefactionOpacity ?? 0.8
+          'raster-opacity': targetOpacity,
+          'raster-opacity-transition': { duration: 300 }
         }
       }, beforeId);
     } else if (map.getSource('selected-usgs-liquefaction-source') && selectedEarthquakeUsgsLiquefaction) {
@@ -422,9 +446,12 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
 
     const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
     const visibility = (eqLayer?.usgsLiquefactionEnabled && selectedEarthquakeUsgsLiquefaction) ? 'visible' : 'none';
+    const isVisible = eqLayer?._effectiveOpacityVisible ?? true;
+    const targetOpacity = isVisible ? (eqLayer?.usgsLiquefactionOpacity ?? 0.8) : 0;
+    
     if (map.getLayer('selected-usgs-liquefaction-raster')) {
       map.setLayoutProperty('selected-usgs-liquefaction-raster', 'visibility', visibility);
-      map.setPaintProperty('selected-usgs-liquefaction-raster', 'raster-opacity', eqLayer?.usgsLiquefactionOpacity ?? 0.8);
+      map.setPaintProperty('selected-usgs-liquefaction-raster', 'raster-opacity', targetOpacity);
       
       const bMin = eqLayer?.usgsLiquefactionBrightness !== undefined && eqLayer.usgsLiquefactionBrightness > 0 ? eqLayer.usgsLiquefactionBrightness : 0;
       const bMax = eqLayer?.usgsLiquefactionBrightness !== undefined && eqLayer.usgsLiquefactionBrightness < 0 ? 1 + eqLayer.usgsLiquefactionBrightness : 1;
@@ -444,7 +471,12 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
 
     // Always clear old CEMS selection when selecting a new earthquake
     if (selectedCemsEarthquake) {
-      setSelectedCemsEarthquakeState(null);
+      if (setSettings) {
+        setSettings(prev => ({
+          ...prev,
+          layers: prev.layers.map(l => l.type === 'cems_rapid_mapping' ? { ...l, selectedFeatureData: null } : l)
+        }));
+      }
     }
 
     let isSubscribed = true;
@@ -505,12 +537,20 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
         }
 
         if (act && isSubscribed) {
-           setSelectedCemsEarthquakeState({
-             id: act.code,
-             code: act.code,
-             properties: act,
-             coordinates: selectedEarthquake.coordinates
-           });
+           if (setSettings) {
+             setSettings(prev => ({
+               ...prev,
+               layers: prev.layers.map(l => l.type === 'cems_rapid_mapping' ? { 
+                 ...l, 
+                 selectedFeatureData: {
+                   id: act.code,
+                   code: act.code,
+                   properties: act,
+                   coordinates: selectedEarthquake.coordinates
+                 } 
+               } : l)
+             }));
+           }
         }
       } catch (err) {
         console.error('Error fetching correlated CEMS activation:', err);
@@ -552,21 +592,18 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
 
   return {
     selectedEarthquake,
-    setSelectedEarthquakeState,
     selectedEarthquakeShakemap,
     selectedEarthquakeUsgsDyfi10km,
     selectedEarthquakeUsgsDyfi1km,
     selectedEarthquakeUsgsLandslide,
     selectedEarthquakeUsgsLiquefaction,
     selectedCemsEarthquake,
-    setSelectedCemsEarthquakeState,
     selectedCemsEarthquakeFeatures,
     activeCemsWildfireFeatures,
     setActiveCemsWildfireFeatures,
     activeCemsFloodFeatures,
     setActiveCemsFloodFeatures,
     selectedVolcano,
-    setSelectedVolcanoState,
     selectedVolcanoPolygon,
   };
 };

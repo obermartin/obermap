@@ -967,17 +967,22 @@ export const useLayerVisibility = (props: LayerVisibilityProps) => {
       const idsToMoveTop: string[] = [];
       
       if (layer.type === 'weather_forecast') {
-        idsToMoveTop.push(...weatherForecastLayerIdsRef.current);
+        idsToMoveAdmin.push(...weatherForecastLayerIdsRef.current);
       } else if (layer.type === 'wildfires') {
-        idsToMoveTop.push('active-wildfire-cems-vt-lines');
-        idsToMoveTop.push('active-wildfire-cems-vt-points');
         idsToMoveAdmin.push('active-wildfire-cems-vt-extent');
         idsToMoveAdmin.push('active-wildfire-cems-vt-polygons');
-        idsToMoveTop.push('active-flood-cems-vt-lines');
-        idsToMoveTop.push('active-flood-cems-vt-points');
+        idsToMoveAdmin.push('active-wildfire-cems-vt-lines');
+        idsToMoveAdmin.push('active-wildfire-cems-vt-points');
+        idsToMoveAdmin.push(`dynamic-layer-${layer.id}-effis`);
+      } else if (layer.id === 'floods') {
         idsToMoveAdmin.push('active-flood-cems-vt-extent');
         idsToMoveAdmin.push('active-flood-cems-vt-polygons');
-        idsToMoveAdmin.push(`dynamic-layer-${layer.id}-effis`);
+        idsToMoveAdmin.push('active-flood-cems-vt-lines');
+        idsToMoveAdmin.push('active-flood-cems-vt-points');
+        idsToMoveAdmin.push(`dynamic-layer-${layer.id}`);
+        if (map.getLayer(`dynamic-line-${layer.id}`)) {
+          idsToMoveAdmin.push(`dynamic-line-${layer.id}`);
+        }
       } else if (layer.type === 'gdacs_earthquakes' || layer.type === 'cems_rapid_mapping') {
         idsToMoveAdmin.push('selected-earthquake-shakemap-fill');
         idsToMoveAdmin.push('selected-earthquake-shakemap-line');
@@ -988,6 +993,7 @@ export const useLayerVisibility = (props: LayerVisibilityProps) => {
         idsToMoveAdmin.push('selected-cems-vt-extent');
         idsToMoveAdmin.push('selected-cems-vt-polygons');
         idsToMoveAdmin.push('selected-cems-vt-lines');
+        idsToMoveAdmin.push('selected-cems-vt-points');
         idsToMoveTop.push(`dynamic-layer-${layer.id}`); // circles on top
         if (map.getLayer(`dynamic-layer-${layer.id}-label`)) {
           idsToMoveTop.push(`dynamic-layer-${layer.id}-label`); // labels on top

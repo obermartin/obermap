@@ -23,6 +23,7 @@ interface UseAnnotationToolsProps {
   setSelectedGeojsonFeatureId: (id: string | number | null) => void;
   selectedAircraftId: string | null;
   settings: AppSettings;
+  setSettings: React.Dispatch<React.SetStateAction<AppSettings>>;
   selectedIconId: string | null | undefined;
   routeMode: RouteMode | undefined;
   activeDrawMarkersRef: React.MutableRefObject<{[key: string]: maplibregl.Marker}>;
@@ -37,13 +38,9 @@ interface UseAnnotationToolsProps {
   clearActiveDrawMarkers: () => void;
   setSelectedAircraftId: (id: string | null) => void;
   selectedCycloneIdRef: React.MutableRefObject<{ id: string, ep: string } | null>;
-  setSelectedCycloneIdState: (id: { id: string, ep: string } | null) => void;
   selectedEarthquakeRef: React.MutableRefObject<{ id: string, ep: string, geomUrl: string, coordinates: [number, number], properties: any } | null>;
-  setSelectedEarthquakeState: (id: { id: string, ep: string, geomUrl: string, coordinates: [number, number], properties: any } | null) => void;
   selectedVolcanoRef: React.MutableRefObject<{ id: string, ep: string, geomUrl: string, coordinates: [number, number], properties: any } | null>;
-  setSelectedVolcanoState: (id: { id: string, ep: string, geomUrl: string, coordinates: [number, number], properties: any } | null) => void;
   selectedCemsEarthquakeRef: React.MutableRefObject<{ id: string, code: string, properties: any, coordinates: [number, number] } | null>;
-  setSelectedCemsEarthquakeState: (id: { id: string, code: string, properties: any, coordinates: [number, number] } | null) => void;
   activeVesselMmsiRef: React.MutableRefObject<string | null>;
   vesselPopupRef: React.MutableRefObject<maplibregl.Popup | null>;
   vesselsRef: React.MutableRefObject<any>;
@@ -67,6 +64,7 @@ export function useAnnotationTools({
   setSelectedGeojsonFeatureId,
   selectedAircraftId,
   settings,
+  setSettings,
   selectedIconId,
   routeMode,
   activeDrawMarkersRef,
@@ -81,13 +79,9 @@ export function useAnnotationTools({
 
   setSelectedAircraftId,
   selectedCycloneIdRef,
-  setSelectedCycloneIdState,
   selectedEarthquakeRef,
-  setSelectedEarthquakeState,
   selectedVolcanoRef,
-  setSelectedVolcanoState,
   selectedCemsEarthquakeRef,
-  setSelectedCemsEarthquakeState,
   activeVesselMmsiRef,
   vesselPopupRef,
   vesselsRef,
@@ -163,38 +157,53 @@ export function useAnnotationTools({
 
       // Handle cyclone click
       let clickedCycloneId: { id: string, ep: string } | null = null;
+      let clickedCycloneLayerId: string | null = null;
       try {
-        const cycloneLayers = settings.layers.filter(l => l.type === 'gdacs_cyclones').map(l => `dynamic-layer-${l.id}`);
-        if (cycloneLayers.length > 0) {
-          const cycloneFeatures = map.queryRenderedFeatures(e.point, { layers: cycloneLayers });
+        const cycloneLayers = settings.layers.filter(l => l.type === 'gdacs_cyclones');
+        const cycloneLayerIds = cycloneLayers.map(l => `dynamic-layer-${l.id}`);
+        if (cycloneLayerIds.length > 0) {
+          const cycloneFeatures = map.queryRenderedFeatures(e.point, { layers: cycloneLayerIds });
           if (cycloneFeatures.length > 0) {
             const props = cycloneFeatures[0].properties;
             if (props && props.eventid && props.episodeid) {
               clickedCycloneId = { id: props.eventid.toString(), ep: props.episodeid.toString() };
+              clickedCycloneLayerId = cycloneFeatures[0].layer.id.replace('dynamic-layer-', '');
             }
           }
         }
       } catch (err) {}
 
-      if (clickedCycloneId) {
+      if (clickedCycloneId && clickedCycloneLayerId) {
         if (selectedCycloneIdRef.current?.id === clickedCycloneId.id) {
-          setSelectedCycloneIdState(null);
+          setSettings(prev => ({
+            ...prev,
+            layers: prev.layers.map(l => l.id === clickedCycloneLayerId ? { ...l, selectedFeatureData: null } : l)
+          }));
         } else {
-          setSelectedCycloneIdState(clickedCycloneId);
+          const feat = clickedCycloneId;
+          setSettings(prev => ({
+            ...prev,
+            layers: prev.layers.map(l => l.id === clickedCycloneLayerId ? { ...l, selectedFeatureData: feat } : l)
+          }));
         }
         return; // Prevent drawing
       } else {
         if (selectedCycloneIdRef.current) {
-          setSelectedCycloneIdState(null);
+          setSettings(prev => ({
+            ...prev,
+            layers: prev.layers.map(l => l.type === 'gdacs_cyclones' ? { ...l, selectedFeatureData: null } : l)
+          }));
         }
       }
 
       // Handle earthquake click
       let clickedEarthquake: { id: string, ep: string, geomUrl: string, coordinates: [number, number], properties: any } | null = null;
+      let clickedEqLayerId: string | null = null;
       try {
-        const earthquakeLayers = settings.layers.filter(l => l.type === 'gdacs_earthquakes').map(l => `dynamic-layer-${l.id}`);
-        if (earthquakeLayers.length > 0) {
-          const eqFeatures = map.queryRenderedFeatures(e.point, { layers: earthquakeLayers });
+        const earthquakeLayers = settings.layers.filter(l => l.type === 'gdacs_earthquakes');
+        const eqLayerIds = earthquakeLayers.map(l => `dynamic-layer-${l.id}`);
+        if (eqLayerIds.length > 0) {
+          const eqFeatures = map.queryRenderedFeatures(e.point, { layers: eqLayerIds });
           if (eqFeatures.length > 0) {
             const props = eqFeatures[0].properties;
             const geom = eqFeatures[0].geometry as GeoJSON.Point;
@@ -208,31 +217,44 @@ export function useAnnotationTools({
                   coordinates: geom.coordinates as [number, number],
                   properties: props
                 };
+                clickedEqLayerId = eqFeatures[0].layer.id.replace('dynamic-layer-', '');
               }
             }
           }
         }
       } catch (err) {}
 
-      if (clickedEarthquake) {
+      if (clickedEarthquake && clickedEqLayerId) {
         if (selectedEarthquakeRef.current?.id === clickedEarthquake.id) {
-          setSelectedEarthquakeState(null);
+          setSettings(prev => ({
+            ...prev,
+            layers: prev.layers.map(l => l.id === clickedEqLayerId ? { ...l, selectedFeatureData: null } : l)
+          }));
         } else {
-          setSelectedEarthquakeState(clickedEarthquake);
+          const feat = clickedEarthquake;
+          setSettings(prev => ({
+            ...prev,
+            layers: prev.layers.map(l => l.id === clickedEqLayerId ? { ...l, selectedFeatureData: feat } : l)
+          }));
         }
         return; // Prevent drawing
       } else {
         if (selectedEarthquakeRef.current) {
-          setSelectedEarthquakeState(null);
+          setSettings(prev => ({
+            ...prev,
+            layers: prev.layers.map(l => l.type === 'gdacs_earthquakes' ? { ...l, selectedFeatureData: null } : l)
+          }));
         }
       }
 
       // Handle volcano click
       let clickedVolcano: { id: string, ep: string, geomUrl: string, coordinates: [number, number], properties: any } | null = null;
+      let clickedVolLayerId: string | null = null;
       try {
-        const volcanoLayers = settings.layers.filter(l => l.type === 'gdacs_volcanoes').map(l => `dynamic-layer-${l.id}`);
-        if (volcanoLayers.length > 0) {
-          const volFeatures = map.queryRenderedFeatures(e.point, { layers: volcanoLayers });
+        const volcanoLayers = settings.layers.filter(l => l.type === 'gdacs_volcanoes');
+        const volLayerIds = volcanoLayers.map(l => `dynamic-layer-${l.id}`);
+        if (volLayerIds.length > 0) {
+          const volFeatures = map.queryRenderedFeatures(e.point, { layers: volLayerIds });
           if (volFeatures.length > 0) {
             const props = volFeatures[0].properties;
             const geom = volFeatures[0].geometry as GeoJSON.Point;
@@ -246,31 +268,44 @@ export function useAnnotationTools({
                   coordinates: geom.coordinates as [number, number],
                   properties: props
                 };
+                clickedVolLayerId = volFeatures[0].layer.id.replace('dynamic-layer-', '');
               }
             }
           }
         }
       } catch (err) {}
 
-      if (clickedVolcano) {
+      if (clickedVolcano && clickedVolLayerId) {
         if (selectedVolcanoRef.current?.id === clickedVolcano.id) {
-          setSelectedVolcanoState(null);
+          setSettings(prev => ({
+            ...prev,
+            layers: prev.layers.map(l => l.id === clickedVolLayerId ? { ...l, selectedFeatureData: null } : l)
+          }));
         } else {
-          setSelectedVolcanoState(clickedVolcano);
+          const feat = clickedVolcano;
+          setSettings(prev => ({
+            ...prev,
+            layers: prev.layers.map(l => l.id === clickedVolLayerId ? { ...l, selectedFeatureData: feat } : l)
+          }));
         }
         return; // Prevent drawing
       } else {
         if (selectedVolcanoRef.current) {
-          setSelectedVolcanoState(null);
+          setSettings(prev => ({
+            ...prev,
+            layers: prev.layers.map(l => l.type === 'gdacs_volcanoes' ? { ...l, selectedFeatureData: null } : l)
+          }));
         }
       }
 
       // Handle CEMS earthquake click
       let clickedCemsEarthquake: { id: string, code: string, properties: any, coordinates: [number, number] } | null = null;
+      let clickedCemsLayerId: string | null = null;
       try {
-        const cemsLayers = settings.layers.filter(l => l.type === 'cems_rapid_mapping').map(l => `dynamic-layer-${l.id}`);
-        if (cemsLayers.length > 0) {
-          const cemsFeatures = map.queryRenderedFeatures(e.point, { layers: cemsLayers });
+        const cemsLayers = settings.layers.filter(l => l.type === 'cems_rapid_mapping');
+        const cemsLayerIds = cemsLayers.map(l => `dynamic-layer-${l.id}`);
+        if (cemsLayerIds.length > 0) {
+          const cemsFeatures = map.queryRenderedFeatures(e.point, { layers: cemsLayerIds });
           if (cemsFeatures.length > 0) {
             const props = cemsFeatures[0].properties;
             const geom = cemsFeatures[0].geometry as GeoJSON.Point;
@@ -281,21 +316,32 @@ export function useAnnotationTools({
                 properties: props,
                 coordinates: geom.coordinates as [number, number]
               };
+              clickedCemsLayerId = cemsFeatures[0].layer.id.replace('dynamic-layer-', '');
             }
           }
         }
       } catch (err) {}
 
-      if (clickedCemsEarthquake) {
+      if (clickedCemsEarthquake && clickedCemsLayerId) {
         if (selectedCemsEarthquakeRef.current?.id === clickedCemsEarthquake.id) {
-          setSelectedCemsEarthquakeState(null);
+          setSettings(prev => ({
+            ...prev,
+            layers: prev.layers.map(l => l.id === clickedCemsLayerId ? { ...l, selectedFeatureData: null } : l)
+          }));
         } else {
-          setSelectedCemsEarthquakeState(clickedCemsEarthquake);
+          const feat = clickedCemsEarthquake;
+          setSettings(prev => ({
+            ...prev,
+            layers: prev.layers.map(l => l.id === clickedCemsLayerId ? { ...l, selectedFeatureData: feat } : l)
+          }));
         }
         return; // Prevent drawing
       } else {
         if (selectedCemsEarthquakeRef.current) {
-          setSelectedCemsEarthquakeState(null);
+          setSettings(prev => ({
+            ...prev,
+            layers: prev.layers.map(l => l.type === 'cems_rapid_mapping' ? { ...l, selectedFeatureData: null } : l)
+          }));
         }
       }
 

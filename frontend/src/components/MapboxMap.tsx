@@ -152,19 +152,16 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
   const {
     selectedEarthquake,
-    setSelectedEarthquakeState,
     selectedEarthquakeShakemap,
-                    selectedCemsEarthquake,
-    setSelectedCemsEarthquakeState,
+    selectedCemsEarthquake,
     selectedCemsEarthquakeFeatures,
     activeCemsWildfireFeatures,
     setActiveCemsWildfireFeatures,
     activeCemsFloodFeatures,
     setActiveCemsFloodFeatures,
     selectedVolcano,
-    setSelectedVolcanoState,
     selectedVolcanoPolygon,
-  } = useDisasterAlerts(mapRef.current, mapLoaded, settings);
+  } = useDisasterAlerts(mapRef.current, mapLoaded, settings, setSettings);
 
   const selectedEarthquakeRef = useRef(selectedEarthquake);
   const selectedCemsEarthquakeRef = useRef(selectedCemsEarthquake);
@@ -216,7 +213,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const [styleLoadedTick, setStyleLoadedTick] = useState(0);
   const [selectedAircraftId, setSelectedAircraftIdState] = useState<string | null>(null);
   const [selectedVesselMmsi, setSelectedVesselMmsi] = useState<string | null>(null);
-  const [selectedCycloneId, setSelectedCycloneIdState] = useState<{ id: string, ep: string } | null>(null);
+  const selectedCycloneId = settings.layers.find(l => l.type === 'gdacs_cyclones')?.selectedFeatureData || null;
   const selectedCycloneIdRef = useRef<{ id: string, ep: string } | null>(null);
   const [cycloneTimelinePercent, setCycloneTimelinePercent] = useState<number>(100);
   const [windGeojson, setWindGeojson] = useState<GeoJSON.FeatureCollection<GeoJSON.Point> | null>(null);
@@ -1351,6 +1348,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     setSelectedGeojsonFeatureId,
     selectedAircraftId,
     settings,
+    setSettings: setSettings as React.Dispatch<React.SetStateAction<AppSettings>>,
     selectedIconId,
     routeMode,
     activeDrawMarkersRef,
@@ -1365,13 +1363,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     clearActiveDrawMarkers,
     setSelectedAircraftId,
     selectedCycloneIdRef,
-    setSelectedCycloneIdState,
     selectedEarthquakeRef,
-    setSelectedEarthquakeState,
     selectedVolcanoRef,
-    setSelectedVolcanoState,
     selectedCemsEarthquakeRef,
-    setSelectedCemsEarthquakeState,
     activeVesselMmsiRef,
     vesselPopupRef,
     vesselsRef,

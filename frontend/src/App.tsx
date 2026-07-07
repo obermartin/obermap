@@ -639,14 +639,58 @@ export function App() {
         defaultView={settings.defaultView}
         isSidebarOpen={isLayerSidebarOpen}
         isToolbarOpen={isToolbarOpen}
-        onDeleteAnnotation={(id) => setAnnotations(prev => prev.map(a => {
-          if (a.id === id) {
-            const newA = { ...a };
-            delete newA.view;
-            return newA;
-          }
-          return a;
-        }).filter(a => a.view || a.coordinates || a.polygonGeometry || a.routeGeometry))}
+        onDeleteAnnotation={(id) => {
+          setAnnotations(prev => {
+            const next = prev.map(a => {
+              if (a.id === id) {
+                const newA = { ...a };
+                delete newA.view;
+                return newA;
+              }
+              return a;
+            }).filter(a => a.view || a.coordinates || a.polygonGeometry || a.routeGeometry);
+
+            return next.map(a => {
+              let updated = false;
+              const newA = { ...a };
+              if (newA.animationTriggerId === id) {
+                newA.animationTriggerId = undefined;
+                updated = true;
+              }
+              if (newA.hideAnimationTriggerId === id) {
+                newA.hideAnimationTriggerId = undefined;
+                updated = true;
+              }
+              return updated ? newA : a;
+            });
+          });
+
+          setSettings(prev => {
+            const updateLayers = (layers: any[]): any[] => {
+              return layers.map(l => {
+                let updated = false;
+                const newL = { ...l };
+                if (newL.animationTriggerId === id) {
+                  newL.animationTriggerId = undefined;
+                  updated = true;
+                }
+                if (newL.hideAnimationTriggerId === id) {
+                  newL.hideAnimationTriggerId = undefined;
+                  updated = true;
+                }
+                if (newL.children) {
+                  newL.children = updateLayers(newL.children);
+                  if (newL.children !== l.children) updated = true;
+                }
+                return updated ? newL : l;
+              });
+            };
+            return {
+              ...prev,
+              layers: updateLayers(prev.layers)
+            };
+          });
+        }}
         onReorderAnnotations={(reorderedIds) => setAnnotations(prev => {
           const newAnns = [...prev];
           const indices: number[] = [];

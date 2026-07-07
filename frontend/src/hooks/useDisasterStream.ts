@@ -650,16 +650,20 @@ export const useDisasterStream = ({
         : null; // null means we'll handle fallback separately
         
       const shakemapVisibility = eqLayer.shakemapEnabled !== false ? 'visible' : 'none';
+      const isVisible = eqLayer._effectiveOpacityVisible ?? true;
+      const baseFillOpacity = isVisible ? (eqLayer.shakemapOpacity ?? 1.0) * 0.3 : 0;
+      const baseLineOpacity = isVisible ? (eqLayer.shakemapOpacity ?? 1.0) * 0.8 : 0;
+      
       if (map.getLayer('selected-earthquake-shakemap-fill')) {
         map.setLayoutProperty('selected-earthquake-shakemap-fill', 'visibility', shakemapVisibility);
         map.setPaintProperty('selected-earthquake-shakemap-fill', 'fill-color', colorExpr || ['coalesce', ['get', 'fill'], '#ff9900']);
-        map.setPaintProperty('selected-earthquake-shakemap-fill', 'fill-opacity', (eqLayer.shakemapOpacity ?? 1.0) * 0.3); // base is 0.3
+        map.setPaintProperty('selected-earthquake-shakemap-fill', 'fill-opacity', baseFillOpacity);
       }
       
       if (map.getLayer('selected-earthquake-shakemap-line')) {
         map.setLayoutProperty('selected-earthquake-shakemap-line', 'visibility', shakemapVisibility);
         map.setPaintProperty('selected-earthquake-shakemap-line', 'line-color', colorExpr || ['coalesce', ['get', 'stroke'], '#ff0000']);
-        map.setPaintProperty('selected-earthquake-shakemap-line', 'line-opacity', (eqLayer.shakemapOpacity ?? 1.0) * 0.8); // base is 0.8
+        map.setPaintProperty('selected-earthquake-shakemap-line', 'line-opacity', baseLineOpacity);
       }
     }
   }, [selectedEarthquakeShakemap, mapLoaded, settings.layers]);
@@ -808,7 +812,8 @@ export const useDisasterStream = ({
     const isEqCemsEnabled = !!eqLayer?.copernicusEnabled;
     const isCemsEnabled = selectedEarthquake ? isEqCemsEnabled : isEqCemsEnabled;
     const cemsVisibility = isCemsEnabled ? 'visible' : 'none';
-    const cemsOpacity = selectedEarthquake ? (eqLayer?.copernicusOpacity ?? 1.0) : 1.0;
+    const isVisible = eqLayer?._effectiveOpacityVisible ?? true;
+    const cemsOpacity = isVisible ? (selectedEarthquake ? (eqLayer?.copernicusOpacity ?? 1.0) : 1.0) : 0;
     
     if (map.getLayer('selected-cems-vt-extent')) {
       map.setLayoutProperty('selected-cems-vt-extent', 'visibility', cemsVisibility);
@@ -964,7 +969,8 @@ export const useDisasterStream = ({
     const wfLayer = settings.layers.find(l => l.type === 'wildfires');
     const isCemsEnabled = !!wfLayer?.copernicusEnabled && !!activeCemsWildfireFeatures;
     const cemsVisibility = isCemsEnabled ? 'visible' : 'none';
-    const cemsOpacity = wfLayer?.copernicusOpacity ?? 1.0;
+    const isVisible = wfLayer?._effectiveOpacityVisible ?? true;
+    const cemsOpacity = isVisible ? (wfLayer?.copernicusOpacity ?? 1.0) : 0;
     
     if (map.getLayer('active-wildfire-cems-vt-extent')) {
       map.setLayoutProperty('active-wildfire-cems-vt-extent', 'visibility', cemsVisibility);
@@ -1150,7 +1156,8 @@ export const useDisasterStream = ({
     const floodLayer = settings.layers.find(l => l.id === 'floods');
     const isCemsEnabled = !!floodLayer?.copernicusEnabled && !!activeCemsFloodFeatures;
     const cemsVisibility = isCemsEnabled ? 'visible' : 'none';
-    const cemsOpacity = floodLayer?.copernicusOpacity ?? 1.0;
+    const isVisible = floodLayer?._effectiveOpacityVisible ?? true;
+    const cemsOpacity = isVisible ? (floodLayer?.copernicusOpacity ?? 1.0) : 0;
     
     if (map.getLayer('active-flood-cems-vt-extent')) {
       map.setLayoutProperty('active-flood-cems-vt-extent', 'visibility', cemsVisibility);
@@ -1296,6 +1303,19 @@ export const useDisasterStream = ({
     const source = map.getSource('selected-volcano-polygon-source') as maplibregl.GeoJSONSource;
     if (source) {
       source.setData(selectedVolcanoPolygon || { type: 'FeatureCollection', features: [] });
+    }
+    
+    const volLayer = settings.layers.find(l => l.type === 'gdacs_volcanoes');
+    const isVisible = volLayer?._effectiveOpacityVisible ?? true;
+    const fillOpacity = isVisible ? 0.3 : 0;
+    const lineOpacity = isVisible ? 0.8 : 0;
+
+    if (map.getLayer('selected-volcano-polygon-fill')) {
+      map.setPaintProperty('selected-volcano-polygon-fill', 'fill-opacity', fillOpacity);
+    }
+    
+    if (map.getLayer('selected-volcano-polygon-line')) {
+      map.setPaintProperty('selected-volcano-polygon-line', 'line-opacity', lineOpacity);
     }
   }, [selectedVolcanoPolygon, mapLoaded, settings.layers]);
 
