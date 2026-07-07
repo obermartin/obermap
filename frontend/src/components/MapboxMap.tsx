@@ -66,7 +66,7 @@ const buildWindPoints = (): WindPoint[] => {
 };
 
 const WIND_POINTS = buildWindPoints();
-const WIND_BATCH_SIZE = 100;
+const WIND_BATCH_SIZE = 300;
 const WIND_BATCH_DELAY_MS = 1000;
 const WIND_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 const WIND_MIN_OPEN_REFRESH_DELAY_MS = 30 * 60 * 1000;
@@ -769,6 +769,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       if (!source) return;
 
       windFetchInFlightRef.current = true;
+      windLastFetchRef.current = Date.now(); // Set immediately to prevent rapid retries on failure
       try {
         const features: GeoJSON.Feature<GeoJSON.Point>[] = [];
 
@@ -869,7 +870,12 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       if (!hasCache) {
         fetchWind(true).finally(scheduleHourlyRefresh);
       } else {
-        scheduleHourlyRefresh();
+        const isExpired = Date.now() - windLastFetchRef.current > WIND_REFRESH_INTERVAL_MS;
+        if (isExpired) {
+          fetchWind(true).finally(scheduleHourlyRefresh);
+        } else {
+          scheduleHourlyRefresh();
+        }
       }
     });
 

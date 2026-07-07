@@ -106,6 +106,11 @@ export const useMapInitialization = ({
     onMapInit?.(map);
 
     map.on('error', (e: any) => {
+      // Ignore tile loading errors (which have a sourceId/tile) that might happen during flyTo or out of bounds.
+      if (e.sourceId || e.tile || e.source) {
+        return;
+      }
+
       if (e.error && e.error.message && e.error.message.includes('404')) {
         console.error("Map style not found (404). Falling back to default map style.", e.error);
         if (typeof settings.mapStyle === 'string' && settings.mapStyle.includes('api.php?action=basemap_style')) {

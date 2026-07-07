@@ -322,23 +322,15 @@ export const useLayerVisibility = (props: LayerVisibilityProps) => {
         } else if (layer.type === 'deepstate' || layer.type === 'gdacs_earthquakes' || layer.type === 'cems_rapid_mapping' || layer.type === 'gdacs_volcanoes' || layer.type === 'gdacs_cyclones' || layer.type === 'nighttime') {
           map.addSource(sourceId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         } else if (layer.type === 'wildfires') {
-          // Add both sources, we will toggle visibility
           if (!map.getSource(`${sourceId}-effis`)) {
-            let processedUrl = layer.url || 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}';
+            let baseEffisUrl = layer.url || 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=512&height=512&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}';
+            baseEffisUrl = baseEffisUrl.replace('width=256&height=256', 'width=512&height=512'); // Update if it was previously 256
             const { effectiveStartDate, effectiveEndDate } = getEffectiveLayerDates(layer);
-            processedUrl = processedUrl.replace(/{date-start}/g, effectiveStartDate).replace(/{date-end}/g, effectiveEndDate);
-            map.addSource(`${sourceId}-effis`, { type: 'raster', tiles: [processedUrl], tileSize: 256 });
-          } else {
-             // update url
-            let processedUrl = layer.url || 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}';
-            const { effectiveStartDate, effectiveEndDate } = getEffectiveLayerDates(layer);
-            processedUrl = processedUrl.replace(/{date-start}/g, effectiveStartDate).replace(/{date-end}/g, effectiveEndDate);
+            baseEffisUrl = baseEffisUrl.replace(/{date-start}/g, effectiveStartDate).replace(/{date-end}/g, effectiveEndDate);
             
-            // Mapbox GL JS doesn't allow updating raster source tiles directly without removing/adding, but we can do it if we remove layer/source in cleanup. Let's rely on that or recreate.
-            // Wait, actually, the easiest way to force tile reload in mapbox without removing is not supported.
-            // But we can just append a timestamp or change source ID if dates change. 
-            // For now, let's remove and re-add if dates change (handled in a separate effect).
-            // But here we are just adding.
+            // Mapbox will hit EFFIS directly. tileSize 512 reduces concurrent WMS requests by 75%.
+            // If EFFIS is overloaded and returns 503, it may drop CORS headers and log a CORS error. This is expected.
+            map.addSource(`${sourceId}-effis`, { type: 'raster', tiles: [baseEffisUrl], tileSize: 512 });
           }
           if (!map.getSource(`${sourceId}-gdacs`)) {
             map.addSource(`${sourceId}-gdacs`, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });

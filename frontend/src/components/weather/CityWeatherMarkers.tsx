@@ -35,7 +35,17 @@ export const CityWeatherMarkers: React.FC<CityWeatherMarkersProps> = ({
       
       let features = [] as any[];
       try {
-        features = map.queryRenderedFeatures({ layers: ['place_city', 'place_town', 'place_village', 'place_other'] });
+        const style = map.getStyle();
+        if (!style || !style.layers) return;
+        
+        const placeLayers = style.layers.filter(l => 
+          (l.id.includes('place') || l.id.includes('settlement') || l.id.includes('city') || l.id.includes('town') || l.id.includes('village')) 
+          && l.type === 'symbol'
+        ).map(l => l.id);
+
+        if (placeLayers.length === 0) return;
+        
+        features = map.queryRenderedFeatures({ layers: placeLayers });
       } catch (e) {
         // If the layers don't exist in the current style, do nothing
         return;
@@ -123,6 +133,8 @@ export const CityWeatherMarkers: React.FC<CityWeatherMarkersProps> = ({
 
       } catch (err) {
         console.warn("City weather fetch error:", err);
+        // Remove from cache so they can be retried later
+        citiesArray.forEach(c => weatherCityFetchCacheRef.current.delete(c.name));
       }
     };
 
@@ -147,18 +159,29 @@ export const CityWeatherMarkers: React.FC<CityWeatherMarkersProps> = ({
     const showTemp = weatherLayer?.visible && weatherLayer?.showCityTemperatures !== false;
     const showIcon = weatherLayer?.visible && weatherLayer?.showCityWeatherIcons !== false;
 
+    const hideNativeLabels = (opacity: any) => {
+      try {
+        const style = map.getStyle();
+        if (!style || !style.layers) return;
+        const placeLayers = style.layers.filter(l => 
+          (l.id.includes('place') || l.id.includes('settlement') || l.id.includes('city') || l.id.includes('town') || l.id.includes('village')) 
+          && l.type === 'symbol'
+        ).map(l => l.id);
+        
+        placeLayers.forEach(layer => {
+          if (map.getLayer(layer)) {
+            map.setPaintProperty(layer, 'text-opacity', opacity);
+          }
+        });
+      } catch (e) {}
+    };
+
     if (!weatherLayer?.visible || (!showTemp && !showIcon)) {
       Object.keys(weatherCityMarkersRef.current).forEach(id => {
         weatherCityMarkersRef.current[id].remove();
         delete weatherCityMarkersRef.current[id];
       });
-      try {
-        ['place_city', 'place_town', 'place_village', 'place_other'].forEach(layer => {
-          if (map.getLayer(layer)) {
-            map.setPaintProperty(layer, 'text-opacity', 1);
-          }
-        });
-      } catch (e) {}
+      hideNativeLabels(1);
       return;
     }
 
@@ -214,7 +237,11 @@ export const CityWeatherMarkers: React.FC<CityWeatherMarkersProps> = ({
       if (!marker) {
         console.log("Creating marker for", data.name);
         const el = document.createElement('div');
-        el.className = 'custom-city-weather-marker absolute pointer-events-none flex items-center gap-1.5 px-2 py-0.5 -mt-4 text-white bg-black z-[9999] shadow-md border border-white/20 rounded';
+        el.className = 'custom-city-weather-marker absolute pointer-events-none flex items-center gap-1.5 px-2 py-0.5 -mt-4 text-white bg-black shadow-md rounded';
+        el.style.zIndex = '9999';
+        el.style.backgroundColor = 'black';
+        el.style.color = 'white';
+        el.style.border = '1px solid rgba(255,255,255,0.2)';
         marker = new maplibregl.Marker({ element: el })
           .setLngLat([data.x, data.y])
           .addTo(map);
@@ -222,28 +249,30 @@ export const CityWeatherMarkers: React.FC<CityWeatherMarkersProps> = ({
       }
       
       const el = marker.getElement();
-      el.innerHTML = '';
-      if (showTemp) {
-        const span = document.createElement('span');
-        span.innerText = data.name + ' ' + tempStr;
-        span.className = 'font-bold tracking-tight text-[11px] leading-none';
-        el.appendChild(span);
-      } else {
-        const span = document.createElement('span');
-        span.innerText = data.name;
+      
+      let span = el.querySelector('span');
+      if (!span) {
+        span = document.createElement('span');
         span.className = 'font-bold tracking-tight text-[11px] leading-none';
         el.appendChild(span);
       }
+      span.innerText = showTemp ? data.name + ' ' + tempStr : data.name;
+
+      let iconDiv = el.querySelector('div.weather-icon');
       if (showIcon) {
-        const iconDiv = document.createElement('div');
+        if (!iconDiv) {
+          iconDiv = document.createElement('div');
+          iconDiv.className = 'weather-icon';
+          el.appendChild(iconDiv);
+        }
         iconDiv.innerHTML = iconSvg;
-        iconDiv.className = '';
         const svg = iconDiv.querySelector('svg');
         if (svg) {
           svg.setAttribute('width', '14');
           svg.setAttribute('height', '14');
         }
-        el.appendChild(iconDiv);
+      } else if (iconDiv) {
+        iconDiv.remove();
       }
     });
     console.log("Active names for markers:", activeNames);
@@ -261,21 +290,20 @@ export const CityWeatherMarkers: React.FC<CityWeatherMarkersProps> = ({
         const opacityExpr: any[] = ['match', ['get', 'name']];
         namesList.forEach(n => { opacityExpr.push(n); opacityExpr.push(0); });
         opacityExpr.push(1); // default
-        ['place_city', 'place_town', 'place_village', 'place_other'].forEach(layer => {
-          if (map.getLayer(layer)) {
-            map.setPaintProperty(layer, 'text-opacity', opacityExpr);
-          }
-        });
+        hideNativeLabels(opacityExpr);
       } else {
-        ['place_city', 'place_town', 'place_village', 'place_other'].forEach(layer => {
-          if (map.getLayer(layer)) {
-            map.setPaintProperty(layer, 'text-opacity', 1);
-          }
-        });
+        hideNativeLabels(1);
       }
     } catch (e) {}
 
   }, [weatherCityData, weatherLayer, selectedWeatherTime, weatherValidTimes, mapLoaded, map]);
+
+    useEffect(() => {
+    return () => {
+      Object.values(weatherCityMarkersRef.current).forEach(m => m.remove());
+      weatherCityMarkersRef.current = {};
+    };
+  }, []);
 
   return null;
 };

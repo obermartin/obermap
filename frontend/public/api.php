@@ -228,6 +228,43 @@ if (isset($_GET['action']) && $_GET['action'] === 'weather_wind_cache') {
     }
 }
 
+// Handle EFFIS proxy request
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'proxy_effis') {
+    $targetUrl = $_GET['url'] ?? '';
+    if (!$targetUrl || strpos($targetUrl, 'https://maps.effis.emergency.copernicus.eu/') !== 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid or missing target URL']);
+        exit;
+    }
+    
+    // Some WMS endpoints encode things that we might need to be careful with,
+    // but mapbox url-encodes the whole URL when putting it in the query string.
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $targetUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2); // Connect quickly or fail
+    curl_setopt($ch, CURLOPT_TIMEOUT, 4); // Don't hang PHP workers for long if EFFIS is slow
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    curl_close($ch);
+    
+    if ($httpCode === 200 && $response) {
+        header("Content-Type: " . ($contentType ? $contentType : "image/png"));
+        header("Cache-Control: public, max-age=3600");
+        echo $response;
+    } else {
+        // If 503 or any error, return a transparent 1x1 PNG to prevent Mapbox CORS errors and console spam
+        header("Content-Type: image/png");
+        header("Cache-Control: public, max-age=60");
+        echo base64_decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=");
+    }
+    exit;
+}
+
 // Handle OpenSky proxy request
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'opensky') {
     $url = 'https://opensky-network.org/api/states/all?' . http_build_query([
