@@ -120,30 +120,35 @@ export const useMapExport = ({
           }
         }
 
-        const origTextSize = originalBasemapLayoutsRef.current[layer.id].textSize ?? 16;
-        const origIconSize = originalBasemapLayoutsRef.current[layer.id].iconSize ?? 1;
+        const cachedLayout = originalBasemapLayoutsRef.current[layer.id];
+        
+        // Only scale if we successfully cached the properties
+        if (cachedLayout) {
+          const origTextSize = cachedLayout.textSize;
+          const origIconSize = cachedLayout.iconSize;
 
-        if (origTextSize !== undefined && origTextSize !== null) {
-          try {
-            if (finalScale === 1.0) {
-              map.setLayoutProperty(layer.id, 'text-size', origTextSize);
-            } else {
-              map.setLayoutProperty(layer.id, 'text-size', scaleMapboxExpression(origTextSize, finalScale));
+          if (origTextSize !== undefined && origTextSize !== null) {
+            try {
+              if (finalScale === 1.0) {
+                map.setLayoutProperty(layer.id, 'text-size', origTextSize);
+              } else {
+                map.setLayoutProperty(layer.id, 'text-size', scaleMapboxExpression(origTextSize, finalScale));
+              }
+            } catch (e) {
+              console.warn('Failed to scale text-size for layer', layer.id, e);
             }
-          } catch (e) {
-            console.warn('Failed to scale text-size for layer', layer.id, e);
           }
-        }
 
-        if (origIconSize !== undefined && origIconSize !== null) {
-          try {
-            if (finalScale === 1.0) {
-              map.setLayoutProperty(layer.id, 'icon-size', origIconSize);
-            } else {
-              map.setLayoutProperty(layer.id, 'icon-size', scaleMapboxExpression(origIconSize, finalScale));
+          if (origIconSize !== undefined && origIconSize !== null) {
+            try {
+              if (finalScale === 1.0) {
+                map.setLayoutProperty(layer.id, 'icon-size', origIconSize);
+              } else {
+                map.setLayoutProperty(layer.id, 'icon-size', scaleMapboxExpression(origIconSize, finalScale));
+              }
+            } catch (e) {
+              console.warn('Failed to scale icon-size for layer', layer.id, e);
             }
-          } catch (e) {
-            console.warn('Failed to scale icon-size for layer', layer.id, e);
           }
         }
       }

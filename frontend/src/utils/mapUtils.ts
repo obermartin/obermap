@@ -351,7 +351,7 @@ export const upgradeLegacyFilter = (filter: any): any => {
     if (!Array.isArray(filter) || filter.length === 0) return filter;
     const op = filter[0];
     
-    // Check if it's already an expression (second element is an array like ['get', 'class'])
+    // Check if it's already an expression (second element is an array like ['get', 'class'] or it's a special operator like 'has')
     if (op !== 'all' && op !== 'any' && op !== 'none') {
       if (filter.length > 1 && Array.isArray(filter[1])) {
         return filter; 
@@ -361,12 +361,31 @@ export const upgradeLegacyFilter = (filter: any): any => {
     if (op === 'all' || op === 'any' || op === 'none') {
       return [op, ...filter.slice(1).map(upgradeLegacyFilter)];
     }
-    if (op === 'has') return ['has', filter[1]];
-    if (op === '!has') return ['!', ['has', filter[1]]];
-    if (op === 'in') return ['in', ['get', filter[1]], ['literal', filter.slice(2)]];
-    if (op === '!in') return ['!', ['in', ['get', filter[1]], ['literal', filter.slice(2)]]];
+    
+    const getExprForKey = (key: string) => {
+      if (key === '$type') return ['geometry-type'];
+      if (key === '$id') return ['id'];
+      return ['get', key];
+    };
+
+    if (op === 'has') {
+      if (filter[1] === '$id') return ['has', 'id']; // Note: 'has' on id is somewhat meaningless in modern expressions, but kept for parity
+      if (filter[1] === '$type') return ['has', 'geometry-type']; 
+      return ['has', filter[1]];
+    }
+    if (op === '!has') {
+      if (filter[1] === '$id') return ['!', ['has', 'id']];
+      if (filter[1] === '$type') return ['!', ['has', 'geometry-type']];
+      return ['!', ['has', filter[1]]];
+    }
+    if (op === 'in') {
+      return ['in', getExprForKey(filter[1]), ['literal', filter.slice(2)]];
+    }
+    if (op === '!in') {
+      return ['!', ['in', getExprForKey(filter[1]), ['literal', filter.slice(2)]]];
+    }
     if (['==', '!=', '>', '>=', '<', '<='].includes(op)) {
-      return [op, ['get', filter[1]], filter[2]];
+      return [op, getExprForKey(filter[1]), filter[2]];
     }
     return filter;
   };

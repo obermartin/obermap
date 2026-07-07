@@ -34,12 +34,16 @@ export const useMapStyling = ({
     const duration = settings.animationDuration ?? 2000;
     const map = mapRef.current;
     
-    if (map.getLayer('custom-polygons')) map.setPaintProperty('custom-polygons', 'fill-opacity-transition', { duration });
-    if (map.getLayer('custom-lines')) map.setPaintProperty('custom-lines', 'line-opacity-transition', { duration });
-    if (map.getLayer('custom-lines-dashed')) map.setPaintProperty('custom-lines-dashed', 'line-opacity-transition', { duration });
-    if (map.getLayer('custom-lines-dotted')) map.setPaintProperty('custom-lines-dotted', 'line-opacity-transition', { duration });
-    if (map.getLayer('custom-arrow-heads')) map.setPaintProperty('custom-arrow-heads', 'text-opacity-transition', { duration });
-  }, [settings.animationDuration, mapLoaded]);
+    try {
+      if (map.getLayer('custom-polygons')) map.setPaintProperty('custom-polygons', 'fill-opacity-transition', { duration });
+      if (map.getLayer('custom-lines')) map.setPaintProperty('custom-lines', 'line-opacity-transition', { duration });
+      if (map.getLayer('custom-lines-dashed')) map.setPaintProperty('custom-lines-dashed', 'line-opacity-transition', { duration });
+      if (map.getLayer('custom-lines-dotted')) map.setPaintProperty('custom-lines-dotted', 'line-opacity-transition', { duration });
+      if (map.getLayer('custom-arrow-heads')) map.setPaintProperty('custom-arrow-heads', 'text-opacity-transition', { duration });
+    } catch (e) {
+      // Ignore if style isn't ready
+    }
+  }, [settings.animationDuration, mapLoaded, styleLoadedTick]);
 
   // Handle Map Label Density
   useEffect(() => {
@@ -154,118 +158,125 @@ export const useMapStyling = ({
     const map = mapRef.current;
     if (!map || !mapLoaded) return;
 
+    try {
+      if (settings.enable3dTerrain) {
+        if (!map.getSource('aws-terrarium')) {
+          map.addSource('aws-terrarium', {
+            type: 'raster-dem',
+            tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+            encoding: 'terrarium',
+            tileSize: 256,
+            maxzoom: 15
+          });
+        }
+        map.setTerrain({ source: 'aws-terrarium', exaggeration: settings.terrainExaggeration ?? 1 });
 
-    if (settings.enable3dTerrain) {
-      if (!map.getSource('aws-terrarium')) {
-        map.addSource('aws-terrarium', {
-          type: 'raster-dem',
-          tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
-          encoding: 'terrarium',
-          tileSize: 256,
-          maxzoom: 15
-        });
-      }
-      map.setTerrain({ source: 'aws-terrarium', exaggeration: settings.terrainExaggeration ?? 1 });
-
-      if (!initialTerrainLoaded.current) {
-        initialTerrainLoaded.current = true;
-        let userMoved = false;
-        const onMove = (e: any) => { if (e.originalEvent) userMoved = true; };
-        map.once('movestart', onMove);
-        map.once('idle', () => {
-          if (!userMoved) {
-            map.jumpTo({
-              center: settings.defaultView.center,
-              zoom: settings.defaultView.zoom,
-              pitch: settings.defaultView.pitch,
-              bearing: settings.defaultView.bearing,
-              ...(settings.defaultView.elevation !== undefined ? { elevation: settings.defaultView.elevation } : {})
-            });
-          }
-          map.off('movestart', onMove);
-        });
-      }
-
-      if (settings.enableHillshade) {
-        const shadowOp = settings.hillshadeShadowOpacity ?? 0.5;
-        const highlightOp = settings.hillshadeHighlightOpacity ?? 0.5;
-        const shadowColor = `rgba(0,0,0,${shadowOp})`;
-        const highlightColor = `rgba(255,255,255,${highlightOp})`;
-        const accentColor = `rgba(0,0,0,${shadowOp})`;
-
-        if (!map.getLayer('aws-terrarium-hillshade')) {
-          let insertBeforeId;
-          const layers = map.getStyle().layers;
-          // Find the first water layer so we can insert the hillshade underneath it.
-          // This allows the water layer's opacity to mask out underwater terrain.
-          for (let i = 0; i < layers.length; i++) {
-            if (layers[i].id.includes('water')) {
-              insertBeforeId = layers[i].id;
-              break;
+        if (!initialTerrainLoaded.current) {
+          initialTerrainLoaded.current = true;
+          let userMoved = false;
+          const onMove = (e: any) => { if (e.originalEvent) userMoved = true; };
+          map.once('movestart', onMove);
+          map.once('idle', () => {
+            if (!userMoved) {
+              map.jumpTo({
+                center: settings.defaultView.center,
+                zoom: settings.defaultView.zoom,
+                pitch: settings.defaultView.pitch,
+                bearing: settings.defaultView.bearing,
+                ...(settings.defaultView.elevation !== undefined ? { elevation: settings.defaultView.elevation } : {})
+              });
             }
-          }
-          if (!insertBeforeId) {
+            map.off('movestart', onMove);
+          });
+        }
+
+        if (settings.enableHillshade) {
+          const shadowOp = settings.hillshadeShadowOpacity ?? 0.5;
+          const highlightOp = settings.hillshadeHighlightOpacity ?? 0.5;
+          const shadowColor = `rgba(0,0,0,${shadowOp})`;
+          const highlightColor = `rgba(255,255,255,${highlightOp})`;
+          const accentColor = `rgba(0,0,0,${shadowOp})`;
+
+          if (!map.getLayer('aws-terrarium-hillshade')) {
+            let insertBeforeId;
+            const layers = map.getStyle().layers;
+            // Find the first water layer so we can insert the hillshade underneath it.
+            // This allows the water layer's opacity to mask out underwater terrain.
             for (let i = 0; i < layers.length; i++) {
-              if (layers[i].type === 'symbol') {
+              if (layers[i].id.includes('water')) {
                 insertBeforeId = layers[i].id;
                 break;
               }
             }
-          }
-
-          map.addLayer({
-            id: 'aws-terrarium-hillshade',
-            type: 'hillshade',
-            source: 'aws-terrarium',
-            paint: {
-              'hillshade-exaggeration': 0.5,
-              'hillshade-shadow-color': shadowColor,
-              'hillshade-highlight-color': highlightColor,
-              'hillshade-accent-color': accentColor
+            if (!insertBeforeId) {
+              for (let i = 0; i < layers.length; i++) {
+                if (layers[i].type === 'symbol') {
+                  insertBeforeId = layers[i].id;
+                  break;
+                }
+              }
             }
-          }, insertBeforeId);
+
+            map.addLayer({
+              id: 'aws-terrarium-hillshade',
+              type: 'hillshade',
+              source: 'aws-terrarium',
+              paint: {
+                'hillshade-exaggeration': 0.5,
+                'hillshade-shadow-color': shadowColor,
+                'hillshade-highlight-color': highlightColor,
+                'hillshade-accent-color': accentColor
+              }
+            }, insertBeforeId);
+          } else {
+            map.setPaintProperty('aws-terrarium-hillshade', 'hillshade-shadow-color', shadowColor);
+            map.setPaintProperty('aws-terrarium-hillshade', 'hillshade-highlight-color', highlightColor);
+            map.setPaintProperty('aws-terrarium-hillshade', 'hillshade-accent-color', accentColor);
+          }
         } else {
-          map.setPaintProperty('aws-terrarium-hillshade', 'hillshade-shadow-color', shadowColor);
-          map.setPaintProperty('aws-terrarium-hillshade', 'hillshade-highlight-color', highlightColor);
-          map.setPaintProperty('aws-terrarium-hillshade', 'hillshade-accent-color', accentColor);
+          if (map.getLayer('aws-terrarium-hillshade')) {
+            map.removeLayer('aws-terrarium-hillshade');
+          }
         }
+
+        if (map.getSky && map.getSky()) {
+           map.setSky(undefined as any);
+        }
+        if (mapContainer.current) {
+          mapContainer.current.style.backgroundColor = settings.enableSky ? '#88C6FC' : '';
+        }
+
       } else {
+        map.setTerrain(null);
         if (map.getLayer('aws-terrarium-hillshade')) {
           map.removeLayer('aws-terrarium-hillshade');
         }
+        if (map.getSky && map.getSky()) {
+           map.setSky(undefined as any);
+        }
       }
-
-      if (map.getSky && map.getSky()) {
-         map.setSky(undefined as any);
-      }
-      if (mapContainer.current) {
-        mapContainer.current.style.backgroundColor = settings.enableSky ? '#88C6FC' : '';
-      }
-
-    } else {
-      map.setTerrain(null);
-      if (map.getLayer('aws-terrarium-hillshade')) {
-        map.removeLayer('aws-terrarium-hillshade');
-      }
-      if (map.getSky && map.getSky()) {
-         map.setSky(undefined as any);
-      }
+    } catch (e) {
+      console.warn("Could not apply 3D terrain styling (style might not be loaded yet)");
     }
-  }, [mapLoaded, settings.enable3dTerrain, settings.terrainExaggeration, settings.enableHillshade, settings.hillshadeShadowOpacity, settings.hillshadeHighlightOpacity, settings.enableSky]);
+  }, [mapLoaded, settings.enable3dTerrain, settings.terrainExaggeration, settings.enableHillshade, settings.hillshadeShadowOpacity, settings.hillshadeHighlightOpacity, settings.enableSky, styleLoadedTick]);
 
   // Water Layer Styling
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapLoaded) return;
     
-    // Only apply to styles that use the standard 'water' fill layer
-    if (map.getLayer('water')) {
-      if (settings.waterColor !== undefined) {
-        map.setPaintProperty('water', 'fill-color', settings.waterColor);
+    try {
+      // Only apply to styles that use the standard 'water' fill layer
+      if (map.getLayer('water')) {
+        if (settings.waterColor !== undefined) {
+          map.setPaintProperty('water', 'fill-color', settings.waterColor);
+        }
+        if (settings.waterOpacity !== undefined) {
+          map.setPaintProperty('water', 'fill-opacity', settings.waterOpacity);
+        }
       }
-      if (settings.waterOpacity !== undefined) {
-        map.setPaintProperty('water', 'fill-opacity', settings.waterOpacity);
-      }
+    } catch (e) {
+      console.warn("Could not apply water layer styling (style might not be loaded yet)");
     }
-  }, [mapLoaded, settings.waterColor, settings.waterOpacity, settings.mapStyle]);
+  }, [mapLoaded, settings.waterColor, settings.waterOpacity, settings.mapStyle, styleLoadedTick]);
 };

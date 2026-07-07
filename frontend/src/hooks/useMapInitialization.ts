@@ -272,33 +272,55 @@ export const useMapInitialization = ({
           if (!id.startsWith('custom-')) {
             originalFiltersRef.current[id] = map.getFilter(id) || null;
             
+            if (id.includes('place') || id.includes('city') || id.includes('town') || id.includes('village') || id.includes('capital')) {
+              try {
+                const layout = (styleLayers[i] as any).layout;
+                if (layout && layout['icon-image']) {
+                  const existingSize = layout['icon-size'];
+                  // If icon-size is missing, invalid (e.g. string), or >= 1, force a sane default
+                  const needsScaleDown = existingSize === undefined || 
+                                         (typeof existingSize !== 'number' && !Array.isArray(existingSize)) || 
+                                         (typeof existingSize === 'number' && existingSize >= 1);
+                                         
+                  if (needsScaleDown) {
+                    map.setLayoutProperty(id, 'icon-size', 0.2);
+                  }
+                }
+              } catch(e) {}
+            }
+            
             // Apply language overrides
             const layout = (styleLayers[i] as any).layout;
             if (layout && layout['text-field']) {
               // Ensure we don't accidentally overwrite icon-only layers that don't have text
               if (typeof layout['text-field'] === 'string' || Array.isArray(layout['text-field'])) {
-                const isCountry = id.toLowerCase().includes('country') || id.toLowerCase().includes('admin-0');
                 
-                // Add any other historically sensitive German names to src/assets/excluded-cities.json
-                const excludedCities = excludedCitiesData;
+                const originalTextStr = JSON.stringify(layout['text-field']).toLowerCase();
+                
+                if (originalTextStr.includes('name')) {
+                  const isCountry = id.toLowerCase().includes('country') || id.toLowerCase().includes('admin-0');
+                  
+                  // Add any other historically sensitive German names to src/assets/excluded-cities.json
+                  const excludedCities = excludedCitiesData;
 
-                let textFieldExp: any[];
-                
-                if (isCountry) {
-                  textFieldExp = [
-                    'coalesce', ['get', 'name:de'], ['get', 'name:en'], ['get', 'name:latin'], ['get', 'name']
-                  ];
-                } else {
-                  textFieldExp = [
-                    'case',
-                    ['in', ['coalesce', ['get', 'name:de'], ''], ['literal', excludedCities]],
-                    ['coalesce', ['get', 'name:latin'], ['get', 'name:en'], ['get', 'name']],
-                    
-                    ['coalesce', ['get', 'name:de'], ['get', 'name:en'], ['get', 'name:latin'], ['get', 'name']]
-                  ];
+                  let textFieldExp: any[];
+                  
+                  if (isCountry) {
+                    textFieldExp = [
+                      'coalesce', ['get', 'name:de'], ['get', 'name:en'], ['get', 'name:latin'], ['get', 'name']
+                    ];
+                  } else {
+                    textFieldExp = [
+                      'case',
+                      ['in', ['coalesce', ['get', 'name:de'], ''], ['literal', excludedCities]],
+                      ['coalesce', ['get', 'name:latin'], ['get', 'name:en'], ['get', 'name']],
+                      
+                      ['coalesce', ['get', 'name:de'], ['get', 'name:en'], ['get', 'name:latin'], ['get', 'name']]
+                    ];
+                  }
+
+                  map.setLayoutProperty(id, 'text-field', textFieldExp);
                 }
-
-                map.setLayoutProperty(id, 'text-field', textFieldExp);
                 
                 if (settings.replaceGothamFont !== false) {
                   // Map font weights dynamically based on layer type

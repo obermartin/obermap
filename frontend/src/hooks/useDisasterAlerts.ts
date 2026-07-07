@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import type { AppSettings } from '../types';
 import { parseWKT, haversineDistance, safeFetchCemsJson } from '../utils/mapUtils';
 

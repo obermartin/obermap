@@ -219,7 +219,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const [selectedCycloneId, setSelectedCycloneIdState] = useState<{ id: string, ep: string } | null>(null);
   const selectedCycloneIdRef = useRef<{ id: string, ep: string } | null>(null);
   const [cycloneTimelinePercent, setCycloneTimelinePercent] = useState<number>(100);
-  const [windGeojson] = useState<GeoJSON.FeatureCollection<GeoJSON.Point> | null>(null);
+  const [windGeojson, setWindGeojson] = useState<GeoJSON.FeatureCollection<GeoJSON.Point> | null>(null);
   
 
   useEffect(() => {
@@ -486,6 +486,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     source.setData(geojson);
     windLastFetchRef.current = payload.createdAt ? new Date(payload.createdAt).getTime() : Date.now();
     (window as any).__windGeojson = geojson;
+    setWindGeojson(geojson);
     return true;
   }, []);
 
