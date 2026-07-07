@@ -4,7 +4,6 @@ import { fetchOpenMeteo } from '../utils/weatherUtils';
 import { motion } from 'framer-motion';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import '@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css';
 import type { Annotation, ToolType, AppSettings, StrokeType, RouteMode, MapLayer } from '../types';
 import { useTranslation } from '../contexts/I18nContext';
 import { fetchFullRoute } from '../utils/routingUtils';
@@ -25,10 +24,6 @@ import { useLayerVisibility } from '../hooks/useLayerVisibility';
 import { useDisasterAlerts } from '../hooks/useDisasterAlerts';
 import { HeadlineOverlays } from "./annotations/HeadlineOverlays";
 import { CycloneTimelineOverlay, NighttimeTimelineOverlay } from "./ui/MapTimelines";
-
-
-
-
 
 type WindPoint = { id: string; lat: number; lon: number };
 
@@ -151,7 +146,6 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 }) => {
   const { t } = useTranslation();
   const mapContainer = useRef<HTMLDivElement>(null);
-
   const windCanvasRef = useRef<HTMLCanvasElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -175,9 +169,38 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const selectedEarthquakeRef = useRef(selectedEarthquake);
   const selectedCemsEarthquakeRef = useRef(selectedCemsEarthquake);
   const selectedVolcanoRef = useRef(selectedVolcano);
-
   const weatherToggleRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    let animationFrameId: number;
+
+    const updatePosition = () => {
+      const toggle = weatherToggleRef.current;
+      if (!toggle) {
+        animationFrameId = requestAnimationFrame(updatePosition);
+        return;
+      }
+      
+      const toolbar = document.getElementById('global-toolbar-container');
+      const dateControl = document.getElementById('global-date-control-container');
+      
+      if (toolbar && dateControl) {
+        const toolbarRect = toolbar.getBoundingClientRect();
+        const dateRect = dateControl.getBoundingClientRect();
+        
+        toggle.style.left = `${toolbarRect.right}px`;
+        toggle.style.right = `${window.innerWidth - dateRect.left}px`;
+      }
+      
+      animationFrameId = requestAnimationFrame(updatePosition);
+    };
+    
+    updatePosition();
+    
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, []);
 
   useEffect(() => {
     selectedEarthquakeRef.current = selectedEarthquake;
@@ -218,10 +241,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const [revealedTriggers, setRevealedTriggers] = useState<Set<string>>(new Set());
   const [hiddenTriggers, setHiddenTriggers] = useState<Set<string>>(new Set());
   // isDraggingHeadlineId extracted to HeadlineOverlays.tsx
-
   const triggerProgressRef = useRef<Record<string, number>>({});
   const triggerTimestampsRef = useRef<Record<string, number>>({});
-
 
 
   const currentColorRef = useRef(currentColor);
@@ -505,7 +526,6 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const pendingFetchesRef = useRef<number>(0);
 
   const terrestrialCountriesRef = useRef<any>(null);
-
 
 
   const handleRouteWaypointDragEnd = async (annId: string, wpIdx: number, newLngLat: [number, number]) => {
@@ -1123,8 +1143,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     selectedAircraftMetaRef,
     selectedFlightTrackRef,
     aircraftPopupRef,
-    t,
-
+    t
   });
 
 
@@ -1155,8 +1174,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     setActiveCemsFloodFeatures,
     selectedVolcanoPolygon,
     activeDrawMarkersRef,
-    selectionMarkersRef,
-
+    selectionMarkersRef
   });
 
   // Nighttime layer update
@@ -1387,12 +1405,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
   const hasDateLayers = settings.layers.some(l => 
     l.visible && (
-      l.type === 'weather_forecast' || 
-      l.type === 'gdacs_earthquakes' || 
-      l.type === 'gdacs_volcanoes' || 
-      l.type === 'gdacs_cyclones' || 
-      l.type === 'wildfires' || 
-      l.type === 'deepstate'
+      ["deepstate", "gdacs_earthquakes", "gdacs_volcanoes", "gdacs_cyclones", "wildfires", "nighttime", "weather_forecast"].includes(l.type) || l.id === "floods"
     )
   );
 

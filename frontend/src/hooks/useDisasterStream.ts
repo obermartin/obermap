@@ -27,7 +27,6 @@ export interface DisasterStreamProps {
   selectedVolcanoPolygon: any;
   activeDrawMarkersRef: React.MutableRefObject<{ [id: string]: maplibregl.Marker }>;
   selectionMarkersRef: React.MutableRefObject<{ [id: string]: maplibregl.Marker }>;
-
 }
 
 export const useDisasterStream = ({
@@ -49,8 +48,7 @@ export const useDisasterStream = ({
   setActiveCemsFloodFeatures,
   selectedVolcanoPolygon,
   activeDrawMarkersRef,
-  selectionMarkersRef,
-
+  selectionMarkersRef
 }: DisasterStreamProps) => {
   const [cycloneRawData, setCycloneRawData] = useState<any>(null);
   const allCemsActivationsRef = useRef<Promise<any> | null>(null);
@@ -145,7 +143,7 @@ export const useDisasterStream = ({
         let prevLon: number | null = null;
         stitched.forEach(coord => {
           let lon = coord[0];
-          const lat = coord[1];
+          let lat = coord[1];
           if (prevLon !== null) {
             while (lon - prevLon > 180) lon -= 360;
             while (lon - prevLon < -180) lon += 360;

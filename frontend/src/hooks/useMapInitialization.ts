@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import maplibregl from 'maplibre-gl';
 import MapboxGeocoder from '@maplibre/maplibre-gl-geocoder';
+import '@maplibre/maplibre-gl-geocoder/dist/maplibre-gl-geocoder.css';
 import type { AppSettings, Annotation } from '../types';
 import excludedCitiesData from '../assets/excluded-cities.json';
 import { omProtocol } from '@openmeteo/weather-map-layer';

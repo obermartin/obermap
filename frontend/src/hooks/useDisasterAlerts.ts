@@ -18,40 +18,6 @@ export const useDisasterAlerts = (
   const [activeCemsWildfireFeatures, setActiveCemsWildfireFeatures] = useState<any>(null);
   const [activeCemsFloodFeatures, setActiveCemsFloodFeatures] = useState<any>(null);
 
-
-  const weatherToggleRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    let animationFrameId: number;
-
-    const updatePosition = () => {
-      const toggle = weatherToggleRef.current;
-      if (!toggle) {
-        animationFrameId = requestAnimationFrame(updatePosition);
-        return;
-      }
-      
-      const toolbar = document.getElementById('global-toolbar-container');
-      const dateControl = document.getElementById('global-date-control-container');
-      
-      if (toolbar && dateControl) {
-        const toolbarRect = toolbar.getBoundingClientRect();
-        const dateRect = dateControl.getBoundingClientRect();
-        
-        toggle.style.left = `${toolbarRect.right}px`;
-        toggle.style.right = `${window.innerWidth - dateRect.left}px`;
-      }
-      
-      animationFrameId = requestAnimationFrame(updatePosition);
-    };
-    
-    updatePosition();
-    
-    return () => {
-      cancelAnimationFrame(animationFrameId);
-    };
-  }, []);
-
   const [selectedVolcano, setSelectedVolcanoState] = useState<{ id: string, ep: string, geomUrl: string, coordinates: [number, number], properties: any } | null>(null);
   const [selectedVolcanoPolygon, setSelectedVolcanoPolygon] = useState<any>(null);
 

@@ -186,8 +186,8 @@ export const useFlightStream = ({
                 const icao24 = s[0];
                 if (flightHistoryRef.current[icao24]) {
                     const hist = flightHistoryRef.current[icao24];
-                    const lastValidAlt = hist.track.length > 0 ? hist.track[hist.track.length - 1][2] : 0;
-                    const currentAlt = s[7] !== null ? s[7] : lastValidAlt;
+                    let lastValidAlt = hist.track.length > 0 ? hist.track[hist.track.length - 1][2] : 0;
+                    let currentAlt = s[7] !== null ? s[7] : lastValidAlt;
                     
                     // Only append if it's newer than the last point
                     if (hist.track.length === 0 || s[3] > hist.track[hist.track.length - 1][3]) {
@@ -351,7 +351,7 @@ export const useFlightStream = ({
                 const latestTime = flightHistoryRef.current[selectedAircraftIdRef.current || '']?.track.slice(-1)[0]?.[3] || Infinity;
                 const selectedPathData = (selectedAircraftIdRef.current && selectedFlightTrackRef.current.length > 0) ? [{
                     path: (() => {
-                        const finalPath = selectedFlightTrackRef.current
+                        let finalPath = selectedFlightTrackRef.current
                             .filter((pt: any) => !pt[3] || pt[3] <= latestTime)
                             .map((pt: any) => [pt[0], pt[1], pt[2] || 0]);
                         
@@ -420,7 +420,7 @@ export const useFlightStream = ({
           const true_track = state[10];
           if (lon === null || lat === null) return null;
           
-          const category = Number(state[17]) || 0;
+          let category = Number(state[17]) || 0;
 
           if (state[0] === selectedAircraftIdRef.current) {
             // Update Popup and Route

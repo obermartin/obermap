@@ -921,6 +921,26 @@ export const useLayerVisibility = (props: LayerVisibilityProps) => {
                   }
                 });
 
+                const isPolygonLayer = layer.type === 'gdacs_cyclones';
+                if (isPolygonLayer) {
+                  const polygonPromises = geojsonData.features.map(async (feature: any) => {
+                    const { eventtype, eventid, episodeid } = feature.properties;
+                    try {
+                      const geomRes = await fetch(`https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=${eventtype}&eventid=${eventid}&episodeid=${episodeid}`);
+                      if (geomRes.ok) {
+                        const geomData = await geomRes.json();
+                        if (geomData && geomData.features) {
+                          return geomData.features;
+                        }
+                      }
+                    } catch (e) {
+                      console.warn('Failed to fetch polygon for', eventid);
+                    }
+                    return [feature];
+                  });
+                  const allPolygons = await Promise.all(polygonPromises);
+                  geojsonData.features = allPolygons.flat();
+                }
               }
             }
             gdacsDataCacheRef.current[cacheKey] = geojsonData;
@@ -953,13 +973,11 @@ export const useLayerVisibility = (props: LayerVisibilityProps) => {
         idsToMoveTop.push('active-wildfire-cems-vt-points');
         idsToMoveAdmin.push('active-wildfire-cems-vt-extent');
         idsToMoveAdmin.push('active-wildfire-cems-vt-polygons');
-        idsToMoveAdmin.push(`dynamic-layer-${layer.id}-effis`);
-      } else if (layer.id === 'floods') {
         idsToMoveTop.push('active-flood-cems-vt-lines');
         idsToMoveTop.push('active-flood-cems-vt-points');
         idsToMoveAdmin.push('active-flood-cems-vt-extent');
         idsToMoveAdmin.push('active-flood-cems-vt-polygons');
-        idsToMoveAdmin.push(`dynamic-layer-${layer.id}`);
+        idsToMoveAdmin.push(`dynamic-layer-${layer.id}-effis`);
       } else if (layer.type === 'gdacs_earthquakes' || layer.type === 'cems_rapid_mapping') {
         idsToMoveAdmin.push('selected-earthquake-shakemap-fill');
         idsToMoveAdmin.push('selected-earthquake-shakemap-line');
@@ -978,15 +996,6 @@ export const useLayerVisibility = (props: LayerVisibilityProps) => {
         idsToMoveAdmin.push('selected-volcano-polygon-fill');
         idsToMoveAdmin.push('selected-volcano-polygon-line');
         idsToMoveTop.push(`dynamic-layer-${layer.id}`); // circles on top
-      } else if (layer.type === 'flights' || layer.type === 'vessels') {
-        idsToMoveTop.push(`dynamic-layer-${layer.id}`);
-        if (map.getLayer(`dynamic-layer-${layer.id}-labels`)) {
-          idsToMoveTop.push(`dynamic-layer-${layer.id}-labels`);
-        }
-        if (layer.type === 'flights') {
-          idsToMoveTop.push('selected-flight-track-layer');
-          idsToMoveTop.push('automated-flight-tracks-shadow-layer');
-        }
       } else {
         idsToMoveAdmin.push(`dynamic-layer-${layer.id}`);
         if (map.getLayer(`dynamic-line-${layer.id}`)) {
