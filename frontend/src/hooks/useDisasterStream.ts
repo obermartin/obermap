@@ -483,7 +483,7 @@ export const useDisasterStream = ({
     if (!map || !mapLoaded) return;
     
     settings.layers.forEach(layer => {
-      if (layer.type === 'gdacs_earthquakes' || layer.type === 'cems_rapid_mapping') {
+      if (layer.type === 'gdacs_earthquakes') {
         const baseLayerId = `dynamic-layer-${layer.id}`;
         const labelLayerId = `${baseLayerId}-label`;
         
@@ -493,11 +493,7 @@ export const useDisasterStream = ({
              if (map.getLayer(labelLayerId)) {
                map.setFilter(labelLayerId, ['!=', ['to-string', ['get', 'eventid']], selectedEarthquake.id]);
              }
-          } else if (selectedCemsEarthquake && layer.type === 'cems_rapid_mapping') {
-             map.setFilter(baseLayerId, ['!=', ['to-string', ['get', 'code']], selectedCemsEarthquake.code]);
-             if (map.getLayer(labelLayerId)) {
-               map.setFilter(labelLayerId, ['!=', ['to-string', ['get', 'code']], selectedCemsEarthquake.code]);
-             }
+
           } else {
              map.setFilter(baseLayerId, null);
              if (map.getLayer(labelLayerId)) map.setFilter(labelLayerId, null);
@@ -679,8 +675,8 @@ export const useDisasterStream = ({
         data: { type: 'FeatureCollection', features: [] }
       });
 
-      const cemsLayer = settings.layers.find(l => l.type === 'cems_rapid_mapping');
-      const beforeId = (cemsLayer && map.getLayer(`dynamic-layer-${cemsLayer.id}`)) ? `dynamic-layer-${cemsLayer.id}` : 'custom-polygons';
+      const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
+      const beforeId = (eqLayer && map.getLayer(`dynamic-layer-${eqLayer.id}`)) ? `dynamic-layer-${eqLayer.id}` : 'custom-polygons';
 
       map.addLayer({
         id: 'selected-cems-vt-extent',
@@ -698,19 +694,11 @@ export const useDisasterStream = ({
         id: 'selected-cems-vt-polygons',
         type: 'fill',
         source: 'selected-cems-vt-source',
-        filter: ['all', 
-          ['!=', 'isExtent', true], 
-          ['==', '$type', 'Polygon'],
-          ['any',
-            ['==', 'damage_gra', 'Destroyed'],
-            ['==', 'damage_gra', 'Damaged'],
-            ['==', 'damage_gra', 'Possibly damaged']
-          ]
-        ],
+        filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'isExtent', true]],
         paint: {
           'fill-color': [
             'match',
-            ['get', 'damage_gra'],
+            ['coalesce', ['get', 'damage_gra'], ['get', 'grading'], ['get', 'notation'], 'none'],
             'Destroyed', '#ff0000',
             'Damaged', '#ff9900',
             'Possibly damaged', '#ffff00',
@@ -719,7 +707,7 @@ export const useDisasterStream = ({
           ],
           'fill-opacity': [
             'match',
-            ['get', 'damage_gra'],
+            ['coalesce', ['get', 'damage_gra'], ['get', 'grading'], ['get', 'notation'], 'none'],
             'Destroyed', 0.6,
             'Damaged', 0.6,
             'Possibly damaged', 0.6,
@@ -739,13 +727,19 @@ export const useDisasterStream = ({
           ['any',
             ['==', 'damage_gra', 'Destroyed'],
             ['==', 'damage_gra', 'Damaged'],
-            ['==', 'damage_gra', 'Possibly damaged']
+            ['==', 'damage_gra', 'Possibly damaged'],
+            ['==', 'grading', 'Destroyed'],
+            ['==', 'grading', 'Damaged'],
+            ['==', 'grading', 'Possibly damaged'],
+            ['==', 'notation', 'Destroyed'],
+            ['==', 'notation', 'Damaged'],
+            ['==', 'notation', 'Possibly damaged']
           ]
         ],
         paint: {
           'line-color': [
             'match',
-            ['get', 'damage_gra'],
+            ['coalesce', ['get', 'damage_gra'], ['get', 'grading'], ['get', 'notation'], 'none'],
             'Destroyed', '#ff0000',
             'Damaged', '#ff9900',
             'Possibly damaged', '#ffff00',
@@ -755,7 +749,7 @@ export const useDisasterStream = ({
           'line-width': 3,
           'line-opacity': [
             'match',
-            ['get', 'damage_gra'],
+            ['coalesce', ['get', 'damage_gra'], ['get', 'grading'], ['get', 'notation'], 'none'],
             'Destroyed', 1,
             'Damaged', 1,
             'Possibly damaged', 1,
@@ -775,14 +769,20 @@ export const useDisasterStream = ({
           ['any',
             ['==', 'damage_gra', 'Destroyed'],
             ['==', 'damage_gra', 'Damaged'],
-            ['==', 'damage_gra', 'Possibly damaged']
+            ['==', 'damage_gra', 'Possibly damaged'],
+            ['==', 'grading', 'Destroyed'],
+            ['==', 'grading', 'Damaged'],
+            ['==', 'grading', 'Possibly damaged'],
+            ['==', 'notation', 'Destroyed'],
+            ['==', 'notation', 'Damaged'],
+            ['==', 'notation', 'Possibly damaged']
           ]
         ],
         paint: {
           'circle-radius': 4,
           'circle-color': [
             'match',
-            ['get', 'damage_gra'],
+            ['coalesce', ['get', 'damage_gra'], ['get', 'grading'], ['get', 'notation'], 'none'],
             'Destroyed', '#ff0000',
             'Damaged', '#ff9900',
             'Possibly damaged', '#ffff00',
@@ -791,7 +791,7 @@ export const useDisasterStream = ({
           ],
           'circle-opacity': [
             'match',
-            ['get', 'damage_gra'],
+            ['coalesce', ['get', 'damage_gra'], ['get', 'grading'], ['get', 'notation'], 'none'],
             'Destroyed', 1,
             'Damaged', 1,
             'Possibly damaged', 1,
@@ -823,7 +823,7 @@ export const useDisasterStream = ({
       map.setLayoutProperty('selected-cems-vt-polygons', 'visibility', cemsVisibility);
       map.setPaintProperty('selected-cems-vt-polygons', 'fill-opacity', [
         'match',
-        ['get', 'damage_gra'],
+        ['coalesce', ['get', 'damage_gra'], ['get', 'grading'], ['get', 'notation'], 'none'],
         'Destroyed', 0.6 * cemsOpacity,
         'Damaged', 0.6 * cemsOpacity,
         'Possibly damaged', 0.6 * cemsOpacity,
@@ -835,7 +835,7 @@ export const useDisasterStream = ({
       map.setLayoutProperty('selected-cems-vt-lines', 'visibility', cemsVisibility);
       map.setPaintProperty('selected-cems-vt-lines', 'line-opacity', [
         'match',
-        ['get', 'damage_gra'],
+        ['coalesce', ['get', 'damage_gra'], ['get', 'grading'], ['get', 'notation'], 'none'],
         'Destroyed', 1 * cemsOpacity,
         'Damaged', 1 * cemsOpacity,
         'Possibly damaged', 1 * cemsOpacity,

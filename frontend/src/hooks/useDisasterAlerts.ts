@@ -14,7 +14,7 @@ export const useDisasterAlerts = (
   const [selectedEarthquakeUsgsDyfi1km, setSelectedEarthquakeUsgsDyfi1km] = useState<any>(null);
   const [selectedEarthquakeUsgsLandslide, setSelectedEarthquakeUsgsLandslide] = useState<{ url: string, extent: [number, number, number, number] } | null>(null);
   const [selectedEarthquakeUsgsLiquefaction, setSelectedEarthquakeUsgsLiquefaction] = useState<{ url: string, extent: [number, number, number, number] } | null>(null);
-  const selectedCemsEarthquake = settings.layers.find(l => l.type === 'cems_rapid_mapping')?.selectedFeatureData || null;
+  const selectedCemsEarthquake = settings.layers.find(l => l.type === 'gdacs_earthquakes')?.selectedCemsData || null;
   const [selectedCemsEarthquakeFeatures, setSelectedCemsEarthquakeFeatures] = useState<any>(null);
   const [activeCemsWildfireFeatures, setActiveCemsWildfireFeatures] = useState<any>(null);
   const [activeCemsFloodFeatures, setActiveCemsFloodFeatures] = useState<any>(null);
@@ -474,7 +474,7 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
       if (setSettings) {
         setSettings(prev => ({
           ...prev,
-          layers: prev.layers.map(l => l.type === 'cems_rapid_mapping' ? { ...l, selectedFeatureData: null } : l)
+          layers: prev.layers.map(l => l.type === 'gdacs_earthquakes' ? { ...l, selectedCemsData: null } : l)
         }));
       }
     }
@@ -540,9 +540,9 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
            if (setSettings) {
              setSettings(prev => ({
                ...prev,
-               layers: prev.layers.map(l => l.type === 'cems_rapid_mapping' ? { 
+               layers: prev.layers.map(l => l.type === 'gdacs_earthquakes' ? { 
                  ...l, 
-                 selectedFeatureData: {
+                 selectedCemsData: {
                    id: act.code,
                    code: act.code,
                    properties: act,

@@ -55,6 +55,7 @@ export interface MapLayer {
   nighttimeHour?: number; // 0-24
   useGlobalDate?: boolean;
   selectedFeatureData?: any; // For persisting earthquake/volcano/cyclone selection
+  selectedCemsData?: any; // For persisting CEMS earthquake selection
   
   // Animation Triggers
   animationTriggerId?: string;
