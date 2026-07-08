@@ -222,6 +222,41 @@ function mockPhpBackend(env: Record<string, string>) {
             return;
           }
 
+          if (action === "proxy_effis") {
+            const targetUrl = urlObj.searchParams.get("url") || "";
+            if (!targetUrl.startsWith("https://maps.effis.emergency.copernicus.eu/")) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: "Invalid url" }));
+              return;
+            }
+            const options: any = { method: "GET", headers: {} };
+            const proxyReq = https.request(targetUrl, options, (proxyRes) => {
+              if (proxyRes.statusCode !== 200) {
+                res.writeHead(200, {
+                  "Content-Type": "image/png",
+                  "Access-Control-Allow-Origin": "*",
+                });
+                res.end(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64"));
+                return;
+              }
+              res.writeHead(proxyRes.statusCode || 200, {
+                "Content-Type": proxyRes.headers["content-type"] || "image/png",
+                "Access-Control-Allow-Origin": "*",
+                "Cache-Control": "public, max-age=3600"
+              });
+              proxyRes.pipe(res);
+            });
+            proxyReq.on("error", () => {
+              res.writeHead(200, {
+                "Content-Type": "image/png",
+                "Access-Control-Allow-Origin": "*",
+              });
+              res.end(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64"));
+            });
+            proxyReq.end();
+            return;
+          }
+
           if (action === "migrate_to_sql" || action === "migrate_to_mongodb") {
             res.setHeader("Content-Type", "application/json");
             try {

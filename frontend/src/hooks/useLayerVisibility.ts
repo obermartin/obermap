@@ -330,7 +330,8 @@ export const useLayerVisibility = (props: LayerVisibilityProps) => {
             
             // Mapbox will hit EFFIS directly. tileSize 512 reduces concurrent WMS requests by 75%.
             // If EFFIS is overloaded and returns 503, it may drop CORS headers and log a CORS error. This is expected.
-            map.addSource(`${sourceId}-effis`, { type: 'raster', tiles: [baseEffisUrl], tileSize: 512 });
+            const proxiedUrl = `/api.php?action=proxy_effis&url=${encodeURIComponent(baseEffisUrl).replace('%7Bbbox-epsg-3857%7D', '{bbox-epsg-3857}')}`;
+            map.addSource(`${sourceId}-effis`, { type: 'raster', tiles: [proxiedUrl], tileSize: 512 });
           }
           if (!map.getSource(`${sourceId}-gdacs`)) {
             map.addSource(`${sourceId}-gdacs`, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });

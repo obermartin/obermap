@@ -177,7 +177,12 @@ export const useMapStyling = ({
           const onMove = (e: any) => { if (e.originalEvent) userMoved = true; };
           map.once('movestart', onMove);
           map.once('idle', () => {
-            if (!userMoved) {
+            const currentCenter = map.getCenter();
+            const dist = Math.sqrt(
+              Math.pow(currentCenter.lng - settings.defaultView.center[0], 2) + 
+              Math.pow(currentCenter.lat - settings.defaultView.center[1], 2)
+            );
+            if (!userMoved && dist < 0.1) {
               map.jumpTo({
                 center: settings.defaultView.center,
                 zoom: settings.defaultView.zoom,
