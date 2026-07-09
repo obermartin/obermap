@@ -4,7 +4,13 @@ import { Camera, Trash2, Play, GripVertical } from 'lucide-react';
 import type { Annotation } from '../types';
 import { useTranslation } from '../contexts/I18nContext';
 
-const SavedViewItem = ({ annotation, isRevealDisabled, isHideDisabled, onFlyTo, isToolbarOpen, onDeleteAnnotation, selectedAnnotationId, revealTriggerId, hideTriggerId, t }: any) => {
+const KeyframeDiamond = ({ size = 14, fill = "none" }: { size?: number, fill?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2L22 12L12 22L2 12L12 2Z" />
+  </svg>
+);
+
+const SavedViewItem = ({ annotation, isRevealDisabled, isHideDisabled, onFlyTo, isToolbarOpen, onDeleteAnnotation, selectedAnnotationId, revealTriggerId, hideTriggerId, activeCropOverlay, t }: any) => {
   const controls = useDragControls();
 
   return (
@@ -59,8 +65,22 @@ const SavedViewItem = ({ annotation, isRevealDisabled, isHideDisabled, onFlyTo, 
           </>
         )}
       </div>
-      {isToolbarOpen && selectedAnnotationId && (
+      {isToolbarOpen && (
         <div className="flex gap-1 shrink-0">
+          {activeCropOverlay && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                window.dispatchEvent(new CustomEvent('updateCropKeyframe', { detail: { targetId: annotation.id, format: activeCropOverlay } }));
+              }}
+              className={`w-9 h-9 rounded-full flex items-center justify-center border border-white/10 transition-colors shadow-lg ${annotation.cropSettings?.[activeCropOverlay] ? 'bg-white text-black' : 'bg-black text-white hover:bg-white hover:text-black'}`}
+              title={t("Toggle Crop Keyframe")}
+            >
+              <KeyframeDiamond size={14} fill={annotation.cropSettings?.[activeCropOverlay] ? "currentColor" : "none"} />
+            </button>
+          )}
+          {selectedAnnotationId && (
+            <>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -81,6 +101,8 @@ const SavedViewItem = ({ annotation, isRevealDisabled, isHideDisabled, onFlyTo, 
           >
             <Play size={14} fill={hideTriggerId === annotation.id ? "currentColor" : "none"} className={hideTriggerId === annotation.id ? 'scale-x-[-1]' : 'scale-x-[-1] ml-[-2px]'} />
           </button>
+            </>
+          )}
         </div>
       )}
     </Reorder.Item>
@@ -94,15 +116,21 @@ interface SavedViewsProps {
     zoom: number;
     pitch: number;
     bearing: number;
+    cropSettings?: {
+      landscape?: { scale: number; offsetX: number; offsetY: number };
+      portrait?: { scale: number; offsetX: number; offsetY: number };
+      square?: { scale: number; offsetX: number; offsetY: number };
+    };
   };
   isSidebarOpen?: boolean;
   isToolbarOpen?: boolean;
   onDeleteAnnotation?: (id: string) => void;
   selectedAnnotationId?: string | null;
   onReorderAnnotations?: (reorderedIds: string[]) => void;
+  activeCropOverlay?: 'landscape' | 'portrait' | 'square' | null;
 }
 
-export const SavedViews: React.FC<SavedViewsProps> = ({ annotations, onFlyTo, defaultView, isSidebarOpen, isToolbarOpen, onDeleteAnnotation, selectedAnnotationId, onReorderAnnotations }) => {
+export const SavedViews: React.FC<SavedViewsProps> = ({ annotations, onFlyTo, defaultView, isSidebarOpen, isToolbarOpen, onDeleteAnnotation, selectedAnnotationId, onReorderAnnotations, activeCropOverlay }) => {
   const { t } = useTranslation();
   const labelAnnotations = annotations.filter(a => (a.type === 'label' || a.type === 'highlight') && a.text && a.view);
 
@@ -125,25 +153,41 @@ export const SavedViews: React.FC<SavedViewsProps> = ({ annotations, onFlyTo, de
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, scale: 0.8 }}
-          className="flex items-stretch border border-white/10 rounded-full overflow-hidden"
+          className="flex items-center gap-2"
         >
-          <button
-            onClick={() => onFlyTo('overview', defaultView)}
-            className="flex items-center gap-2 bg-black px-4 py-2 text-white hover:bg-white hover:text-black transition-colors grow text-left"
-          >
-            <span className="font-semibold text-sm uppercase tracking-wider">{t('OVERVIEW')}</span>
-          </button>
-          {isToolbarOpen && (
+          <div className="flex items-stretch border border-white/10 rounded-full overflow-hidden grow">
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                window.dispatchEvent(new CustomEvent('requestViewCaptureForDefaultUpdate'));
-              }}
-              className="flex items-center justify-center px-3 bg-black text-white/50 hover:text-black hover:bg-white transition-colors shrink-0 border-l border-white/10"
-              title={t("Update Overview Camera")}
+              onClick={() => onFlyTo('overview', defaultView)}
+              className="flex items-center gap-2 bg-black px-4 py-2 text-white hover:bg-white hover:text-black transition-colors grow text-left"
             >
-              <Camera size={16} />
+              <span className="font-semibold text-sm uppercase tracking-wider">{t('OVERVIEW')}</span>
             </button>
+            {isToolbarOpen && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.dispatchEvent(new CustomEvent('requestViewCaptureForDefaultUpdate'));
+                }}
+                className="flex items-center justify-center px-3 bg-black text-white/50 hover:text-black hover:bg-white transition-colors shrink-0 border-l border-white/10"
+                title={t("Update Overview Camera")}
+              >
+                <Camera size={16} />
+              </button>
+            )}
+          </div>
+          {isToolbarOpen && activeCropOverlay && (
+            <div className="flex gap-1 shrink-0">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.dispatchEvent(new CustomEvent('updateCropKeyframe', { detail: { targetId: 'overview', format: activeCropOverlay } }));
+                }}
+                className={`w-9 h-9 rounded-full flex items-center justify-center border border-white/10 transition-colors shadow-lg ${defaultView.cropSettings?.[activeCropOverlay] ? 'bg-white text-black' : 'bg-black text-white hover:bg-white hover:text-black'}`}
+                title={t("Toggle Crop Keyframe")}
+              >
+                <KeyframeDiamond size={14} fill={defaultView.cropSettings?.[activeCropOverlay] ? "currentColor" : "none"} />
+              </button>
+            </div>
           )}
         </motion.div>
 
@@ -166,6 +210,7 @@ export const SavedViews: React.FC<SavedViewsProps> = ({ annotations, onFlyTo, de
                   selectedAnnotationId={selectedAnnotationId}
                   revealTriggerId={revealTriggerId}
                   hideTriggerId={hideTriggerId}
+                  activeCropOverlay={activeCropOverlay}
                   t={t}
                 />
               );

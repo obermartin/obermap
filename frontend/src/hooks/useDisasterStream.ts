@@ -53,6 +53,45 @@ export const useDisasterStream = ({
   const [cycloneRawData, setCycloneRawData] = useState<any>(null);
   const allCemsActivationsRef = useRef<Promise<any> | null>(null);
   const cemsFeatureCacheRef = useRef<Record<string, any>>({});
+  const cycloneGeometryRef = useRef<any>(null);
+
+
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('exportDataReady', {
+      detail: { type: 'gdacs_cyclones', id: selectedCycloneId?.id, ready: !!cycloneGeometryRef.current && cycloneGeometryRef.current.features?.length > 0 }
+    }));
+  }, [selectedCycloneId, cycloneGeometryRef.current]);
+
+  // Export GeoJSON Listener
+  useEffect(() => {
+    const handleExport = (e: CustomEvent) => {
+      if (!e.detail?.type || !e.detail?.id) return;
+      import('../utils/exportUtils').then(({ downloadGeoJSON, processCycloneGeometry, processVolcanoGeometry, processEarthquakeGeometry, processCemsGeometry }) => {
+        if (e.detail.type === 'gdacs_earthquakes' && selectedEarthquake?.id === e.detail.id && selectedEarthquakeShakemap) {
+          const processedEarthquake = processEarthquakeGeometry(selectedEarthquakeShakemap);
+          downloadGeoJSON(processedEarthquake, `earthquake_shakemap_${e.detail.id}.geojson`);
+        } else if (e.detail.type === 'gdacs_volcanoes' && selectedVolcano?.id === e.detail.id && selectedVolcanoPolygon) {
+          const processedVolcano = processVolcanoGeometry(selectedVolcanoPolygon);
+          downloadGeoJSON(processedVolcano, `volcano_danger_zone_${e.detail.id}.geojson`);
+        } else if (e.detail.type === 'gdacs_cyclones' && selectedCycloneId?.id === e.detail.id && cycloneGeometryRef.current) {
+          const processedGeometry = processCycloneGeometry(cycloneGeometryRef.current);
+          downloadGeoJSON(processedGeometry, `hurricane_path_${e.detail.id}.geojson`);
+        } else if (e.detail.type === 'cems_earthquake' && e.detail.id === selectedCemsEarthquake?.code && selectedCemsEarthquakeFeatures) {
+          const processedCems = processCemsGeometry(selectedCemsEarthquakeFeatures);
+          downloadGeoJSON(processedCems, `cems_earthquake_damage_${e.detail.id}.geojson`);
+        } else if (e.detail.type === 'cems_wildfire' && activeCemsWildfireFeatures) {
+          const processedCems = processCemsGeometry(activeCemsWildfireFeatures);
+          downloadGeoJSON(processedCems, `cems_wildfire_damage.geojson`);
+        } else if (e.detail.type === 'cems_flood' && activeCemsFloodFeatures) {
+          const processedCems = processCemsGeometry(activeCemsFloodFeatures);
+          downloadGeoJSON(processedCems, `cems_flood_damage.geojson`);
+        }
+      });
+    };
+    window.addEventListener('requestGeoJsonExport', handleExport as EventListener);
+    return () => window.removeEventListener('requestGeoJsonExport', handleExport as EventListener);
+  }, [selectedEarthquake, selectedEarthquakeShakemap, selectedVolcano, selectedVolcanoPolygon, selectedCycloneId, selectedCemsEarthquake, selectedCemsEarthquakeFeatures, activeCemsWildfireFeatures, activeCemsFloodFeatures]);
 
   // Fetch geometry when selectedCycloneId changes
   useEffect(() => {
@@ -63,6 +102,10 @@ export const useDisasterStream = ({
     if (!source) return;
 
     if (!selectedCycloneId) {
+      cycloneGeometryRef.current = null;
+      window.dispatchEvent(new CustomEvent('exportDataReady', {
+        detail: { type: 'gdacs_cyclones', id: undefined, ready: false }
+      }));
       source.setData({ type: 'FeatureCollection', features: [] });
       return;
     }
@@ -80,16 +123,29 @@ export const useDisasterStream = ({
         if (!res.ok) throw new Error('Failed to fetch cyclone geometry');
         
         const data = await res.json();
-        if (data && data.features) {
+        if (data && Array.isArray(data.features)) {
+          cycloneGeometryRef.current = data;
           setCycloneRawData(data);
           setCycloneTimelinePercent(100);
+          window.dispatchEvent(new CustomEvent('exportDataReady', {
+            detail: { type: 'gdacs_cyclones', id: selectedCycloneId?.id, ready: true }
+          }));
+          source.setData(data);
         } else {
+          cycloneGeometryRef.current = null;
           setCycloneRawData(null);
+          window.dispatchEvent(new CustomEvent('exportDataReady', {
+            detail: { type: 'gdacs_cyclones', id: selectedCycloneId?.id, ready: 'empty' }
+          }));
           source.setData({ type: 'FeatureCollection', features: [] });
         }
       } catch (err) {
         console.error('Error fetching cyclone geometry:', err);
+        cycloneGeometryRef.current = null;
         setCycloneRawData(null);
+        window.dispatchEvent(new CustomEvent('exportDataReady', {
+          detail: { type: 'gdacs_cyclones', id: selectedCycloneId?.id, ready: 'empty' }
+        }));
         source.setData({ type: 'FeatureCollection', features: [] });
       }
     };
@@ -229,10 +285,16 @@ export const useDisasterStream = ({
     const wildfireLayer = settings.layers.find(l => l.type === 'wildfires');
     if (!wildfireLayer || !wildfireLayer.visible || !wildfireLayer.copernicusEnabled) {
       if (activeCemsWildfireFeatures) setActiveCemsWildfireFeatures(null);
+      window.dispatchEvent(new CustomEvent('exportDataReady', {
+        detail: { type: 'cems_wildfire', id: undefined, ready: false }
+      }));
       return;
     }
 
     let isSubscribed = true;
+    window.dispatchEvent(new CustomEvent('exportDataReady', {
+      detail: { type: 'cems_wildfire', id: 'wildfire', ready: false }
+    }));
     const { effectiveStartDate, effectiveEndDate } = getEffectiveLayerDates(wildfireLayer);
     
     (async () => {
@@ -273,7 +335,12 @@ export const useDisasterStream = ({
         console.log(`[CEMS Debug] Matching wildfire activations in range (${new Date(sDate).toISOString()} to ${new Date(eDate).toISOString()}):`, matchingActivations.map((a: any) => a.code));
 
         if (matchingActivations.length === 0) {
-          if (isSubscribed) setActiveCemsWildfireFeatures(null);
+          if (isSubscribed) {
+            setActiveCemsWildfireFeatures(null);
+            window.dispatchEvent(new CustomEvent('exportDataReady', {
+              detail: { type: 'cems_wildfire', id: 'wildfire', ready: 'empty' }
+            }));
+          }
           return;
         }
 
@@ -341,9 +408,17 @@ export const useDisasterStream = ({
             type: 'FeatureCollection',
             features: allFeatures
           });
+          window.dispatchEvent(new CustomEvent('exportDataReady', {
+            detail: { type: 'cems_wildfire', id: 'wildfire', ready: allFeatures.length > 0 ? true : 'empty' }
+          }));
         }
       } catch (err) {
         console.error('Error fetching CEMS wildfire data', err);
+        if (isSubscribed) {
+          window.dispatchEvent(new CustomEvent('exportDataReady', {
+            detail: { type: 'cems_wildfire', id: 'wildfire', ready: 'empty' }
+          }));
+        }
       }
     })();
 
@@ -355,11 +430,16 @@ export const useDisasterStream = ({
     const floodLayer = settings.layers.find(l => l.id === 'floods');
     if (!floodLayer || !floodLayer.visible || !floodLayer.copernicusEnabled) {
       if (activeCemsFloodFeatures) setActiveCemsFloodFeatures(null);
-      // cemsFeatureCacheRef.current = {}; // Removed to prevent memory leaks from dangling promises
+      window.dispatchEvent(new CustomEvent('exportDataReady', {
+        detail: { type: 'cems_flood', id: undefined, ready: false }
+      }));
       return;
     }
 
     let isSubscribed = true;
+    window.dispatchEvent(new CustomEvent('exportDataReady', {
+      detail: { type: 'cems_flood', id: 'flood', ready: false }
+    }));
     const { effectiveStartDate, effectiveEndDate } = getEffectiveLayerDates(floodLayer);
     
     (async () => {
@@ -400,7 +480,12 @@ export const useDisasterStream = ({
         console.log(`[CEMS Debug] Matching flood activations in range (${new Date(sDate).toISOString()} to ${new Date(eDate).toISOString()}):`, matchingActivations.map((a: any) => a.code));
 
         if (matchingActivations.length === 0) {
-          if (isSubscribed) setActiveCemsFloodFeatures(null);
+          if (isSubscribed) {
+            setActiveCemsFloodFeatures(null);
+            window.dispatchEvent(new CustomEvent('exportDataReady', {
+              detail: { type: 'cems_flood', id: 'flood', ready: 'empty' }
+            }));
+          }
           return;
         }
 
@@ -466,9 +551,17 @@ export const useDisasterStream = ({
             type: 'FeatureCollection',
             features: allFeatures
           });
+          window.dispatchEvent(new CustomEvent('exportDataReady', {
+            detail: { type: 'cems_flood', id: 'flood', ready: allFeatures.length > 0 ? true : 'empty' }
+          }));
         }
       } catch (err) {
         console.error('Error fetching CEMS flood data', err);
+        if (isSubscribed) {
+          window.dispatchEvent(new CustomEvent('exportDataReady', {
+            detail: { type: 'cems_flood', id: 'flood', ready: 'empty' }
+          }));
+        }
       }
     })();
 

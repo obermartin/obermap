@@ -31,6 +31,11 @@ export interface Annotation {
     bearing: number;
     elevation?: number;
   };
+  cropSettings?: {
+    landscape?: { scale: number; offsetX: number; offsetY: number };
+    portrait?: { scale: number; offsetX: number; offsetY: number };
+    square?: { scale: number; offsetX: number; offsetY: number };
+  };
   isCentered?: boolean;
 }
 
@@ -164,6 +169,11 @@ export interface AppSettings {
     pitch: number;
     bearing: number;
     elevation?: number;
+    cropSettings?: {
+      landscape?: { scale: number; offsetX: number; offsetY: number };
+      portrait?: { scale: number; offsetX: number; offsetY: number };
+      square?: { scale: number; offsetX: number; offsetY: number };
+    };
   };
   colorPalette: string[];
   exportBasemapScale?: number;

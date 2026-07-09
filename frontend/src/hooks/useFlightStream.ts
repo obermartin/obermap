@@ -205,6 +205,11 @@ export const useFlightStream = ({
                     const lastPt = selectedFlightTrackRef.current[selectedFlightTrackRef.current.length - 1];
                     if (!lastPt || lastPt[0] !== s[5] || lastPt[1] !== s[6]) {
                         selectedFlightTrackRef.current = [...selectedFlightTrackRef.current, [s[5], s[6], s[7] !== null ? s[7] : 0, s[3]]];
+                        if (selectedFlightTrackRef.current.length === 1) {
+                            window.dispatchEvent(new CustomEvent('exportDataReady', {
+                                detail: { type: 'flights', id: selectedAircraftIdRef.current, ready: true }
+                            }));
+                        }
                         const trackSource = map.getSource('selected-flight-track') as maplibregl.GeoJSONSource;
                         if (trackSource) {
                             trackSource.setData({
@@ -550,6 +555,10 @@ export const useFlightStream = ({
 
     const flightsLayer = settings.layers.find(l => l.type === 'flights');
     if (!flightsLayer || !flightsLayer.visible) return;
+    
+    window.dispatchEvent(new CustomEvent('exportDataReady', {
+      detail: { type: 'flights', id: selectedAircraftId, ready: false }
+    }));
 
     const fetchTrack = async () => {
       try {
@@ -591,6 +600,9 @@ export const useFlightStream = ({
           }
           
           selectedFlightTrackRef.current = coordinates;
+          window.dispatchEvent(new CustomEvent('exportDataReady', {
+            detail: { type: 'flights', id: selectedAircraftId, ready: coordinates.length > 0 }
+          }));
           source.setData({
             type: 'FeatureCollection',
             features: [{
@@ -602,11 +614,17 @@ export const useFlightStream = ({
           if (updateDeckGLRef.current) updateDeckGLRef.current();
         } else {
           selectedFlightTrackRef.current = [];
+          window.dispatchEvent(new CustomEvent('exportDataReady', {
+            detail: { type: 'flights', id: selectedAircraftId, ready: 'empty' }
+          }));
           source.setData({ type: 'FeatureCollection', features: [] });
         }
       } catch (err) {
         console.error('Error fetching track:', err);
         selectedFlightTrackRef.current = [];
+        window.dispatchEvent(new CustomEvent('exportDataReady', {
+          detail: { type: 'flights', id: selectedAircraftId, ready: 'empty' }
+        }));
         source.setData({ type: 'FeatureCollection', features: [] });
       }
 
@@ -632,6 +650,31 @@ export const useFlightStream = ({
 
     fetchTrack();
   }, [selectedAircraftId, mapLoaded, settings.openSkyCredentials]);
+
+  // Export GeoJSON Listener
+  useEffect(() => {
+    const handleExport = (e: CustomEvent) => {
+      if (e.detail?.type === 'flights' && e.detail?.id) {
+        if (selectedAircraftIdRef.current === e.detail.id && selectedFlightTrackRef.current.length > 0) {
+          import('../utils/exportUtils').then(({ downloadGeoJSON }) => {
+            const geojson = {
+              type: 'FeatureCollection',
+              features: [{
+                type: 'Feature',
+                geometry: { type: 'LineString', coordinates: selectedFlightTrackRef.current },
+                properties: { icao24: selectedAircraftIdRef.current, ...selectedAircraftMetaRef.current }
+              }]
+            };
+            downloadGeoJSON(geojson, `flight_path_${e.detail.id}.geojson`);
+          });
+        }
+      }
+    };
+    window.addEventListener('requestGeoJsonExport', handleExport as EventListener);
+    return () => window.removeEventListener('requestGeoJsonExport', handleExport as EventListener);
+  }, []);
+
+
 
 
 

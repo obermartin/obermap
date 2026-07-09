@@ -191,8 +191,8 @@ export function useVideoExport({
     // Calculate total views: defaultView + label views
     const labelAnnotations = annotations.filter(a => (a.type === 'label' || a.type === 'highlight') && a.text && a.view);
     const viewsToVisit = [
-      { view: settings.defaultView, annotationId: 'overview', animationTriggerId: undefined, hideAnimationTriggerId: undefined },
-      ...labelAnnotations.map(a => ({ view: a.view!, annotationId: a.id, animationTriggerId: a.animationTriggerId, hideAnimationTriggerId: a.hideAnimationTriggerId }))
+      { view: settings.defaultView, annotationId: 'overview', animationTriggerId: undefined, hideAnimationTriggerId: undefined, cropSettings: settings.defaultView.cropSettings },
+      ...labelAnnotations.map(a => ({ view: a.view!, annotationId: a.id, animationTriggerId: a.animationTriggerId, hideAnimationTriggerId: a.hideAnimationTriggerId, cropSettings: a.cropSettings }))
     ];
     const totalViews = viewsToVisit.length;
 
@@ -253,34 +253,34 @@ export function useVideoExport({
         }
         
         const { scale, offsetX, offsetY } = cropSetting;
+        if (scale === 1 && offsetX === 0 && offsetY === 0) {
+          const newZoom = view.zoom + Math.log2(targetWidth / maxW);
+          return { ...view, zoom: newZoom };
+        }
 
         // targetWidth / (maxW * scale) is the exact scaling factor from the crop box to the target video/image
         const newZoom = view.zoom + Math.log2(targetWidth / (maxW * scale));
         
-        const lngToX = (lng: number) => (lng + 180) / 360;
-        const latToY = (lat: number) => {
-          const sinLat = Math.sin(lat * Math.PI / 180);
-          return 0.5 - 0.25 * Math.log((1 + sinLat) / (1 - sinLat)) / Math.PI;
-        };
-        const xToLng = (x: number) => x * 360 - 180;
-        const yToLat = (y: number) => {
-          const n = Math.PI - 2 * Math.PI * y;
-          return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
-        };
+        // Use Maplibre's native unproject to perfectly handle 3D pitch/bearing!
+        // We temporarily jump the map to the target view to ensure the projection matrix matches the view.
+        // Because originalContainerWidth/Height haven't changed yet, this gives us exactly what the user saw.
+        map1!.jumpTo({
+          center: view.center,
+          zoom: view.zoom,
+          pitch: view.pitch,
+          bearing: view.bearing,
+          ...(view.elevation !== undefined ? { elevation: view.elevation } : {})
+        });
 
-        const worldSize = 512 * Math.pow(2, view.zoom);
-        const centerX = lngToX(view.center[0]);
-        const centerY = latToY(view.center[1]);
+        // The crop box was offset from the screen center by offsetX/Y pixels
+        const targetScreenX = (originalContainerWidth / 2) + offsetX;
+        const targetScreenY = (originalContainerHeight / 2) + offsetY;
         
-        const mercatorDx = offsetX / worldSize;
-        const mercatorDy = offsetY / worldSize;
-        
-        const newLng = xToLng(centerX + mercatorDx);
-        const newLat = yToLat(centerY + mercatorDy);
+        const newLngLat = map1!.unproject([targetScreenX, targetScreenY]);
 
         return {
           ...view,
-          center: [newLng, newLat] as [number, number],
+          center: [newLngLat.lng, newLngLat.lat] as [number, number],
           zoom: newZoom
         };
       };
@@ -292,10 +292,13 @@ export function useVideoExport({
         const targetHeight = currentFmt === 'landscape' ? 1080 : currentFmt === 'portrait' ? 1920 : 1920;
         
         // Map original views to cropped views for this format
-        const currentViewsToVisit = viewsToVisit.map(v => ({
-          ...v,
-          view: applyCropToView(v.view, cropSetting, targetWidth, currentFmt)
-        }));
+        const currentViewsToVisit = viewsToVisit.map(v => {
+          const specificCropSetting = v.cropSettings?.[currentFmt] || cropSetting;
+          return {
+            ...v,
+            view: applyCropToView(v.view, specificCropSetting, targetWidth, currentFmt)
+          };
+        });
 
         if (currentViewsToVisit.length > 0 && fIdx === 0) {
           map1!.jumpTo({
@@ -973,6 +976,9 @@ export function useVideoExport({
 
     const originalZoom = map1.getZoom();
     const originalCenter = map1.getCenter();
+    const originalPitch = map1.getPitch();
+    const originalBearing = map1.getBearing();
+    const originalContainerWidth = containerRef.current?.clientWidth || window.innerWidth;
     const originalContainerHeight = containerRef.current?.clientHeight || window.innerHeight;
 
     try {
@@ -986,30 +992,24 @@ export function useVideoExport({
 
         const newZoom = view.zoom - Math.log2(scale);
         
-        const lngToX = (lng: number) => (lng + 180) / 360;
-        const latToY = (lat: number) => {
-          const sinLat = Math.sin(lat * Math.PI / 180);
-          return 0.5 - 0.25 * Math.log((1 + sinLat) / (1 - sinLat)) / Math.PI;
-        };
-        const xToLng = (x: number) => x * 360 - 180;
-        const yToLat = (y: number) => {
-          const n = Math.PI - 2 * Math.PI * y;
-          return (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
-        };
+        map1!.jumpTo({
+          center: view.center,
+          zoom: view.zoom,
+          pitch: originalPitch,
+          bearing: originalBearing
+        });
 
-        const worldSize = 512 * Math.pow(2, view.zoom);
-        const centerX = lngToX(view.center[0]);
-        const centerY = latToY(view.center[1]);
+        const screenCenterX = originalContainerWidth / 2;
+        const screenCenterY = originalContainerHeight / 2;
         
-        const mercatorDx = offsetX / worldSize;
-        const mercatorDy = offsetY / worldSize;
+        const targetScreenX = screenCenterX + offsetX;
+        const targetScreenY = screenCenterY + offsetY;
         
-        const newLng = xToLng(centerX + mercatorDx);
-        const newLat = yToLat(centerY + mercatorDy);
+        const newLngLat = map1!.unproject([targetScreenX, targetScreenY]);
 
         return {
           ...view,
-          center: [newLng, newLat] as [number, number],
+          center: [newLngLat.lng, newLngLat.lat] as [number, number],
           zoom: newZoom
         };
       };

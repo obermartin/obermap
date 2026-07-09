@@ -100,9 +100,7 @@ export const useMapExport = ({
     const style = map.getStyle();
     if (!style || !style.layers) return;
 
-    // Check if we should apply scaling (if scale preview is on OR if we are actively exporting)
-    const shouldScale = isExporting || settings.exportScalePreview;
-    const finalScale = shouldScale ? scale : 1.0;
+    const finalScale = scale;
 
     style.layers.forEach((layer) => {
       // Scale basemap symbol layers (skip custom app layers)

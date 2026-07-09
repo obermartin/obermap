@@ -426,14 +426,27 @@ export const useAnnotationsStream = ({
               setSelectedAnnotationId(ann.id);
             }
           });
-          centerEl.addEventListener('mousedown', (e) => e.stopPropagation());
           if (ann.id === selectedAnnotationId) {
             centerEl.style.filter = 'drop-shadow(0 0 6px rgba(255,255,255,1)) drop-shadow(0 0 12px rgba(255,255,255,0.8))';
             centerEl.style.zIndex = '1000';
             centerEl.style.outline = '2px dashed #ffffff';
             centerEl.style.outlineOffset = '2px';
           }
-          expectedMarkers.set(`${ann.id}-circle-center`, { lngLat: center, el: centerEl });
+          expectedMarkers.set(`${ann.id}-circle-center`, {
+            lngLat: center,
+            el: centerEl,
+            draggable: ann.id === selectedAnnotationId && activeTool !== 'none',
+            onDragEnd: (newLngLat) => {
+              if (setAnnotationsRef.current) {
+                const circlePoly = createCirclePolygon(newLngLat, ann.radius || 0);
+                if (circlePoly) {
+                  setAnnotationsRef.current(prev => prev.map(a => 
+                    a.id === ann.id ? { ...a, coordinates: circlePoly.geometry.coordinates } : a
+                  ));
+                }
+              }
+            }
+          });
 
           const edge = ann.coordinates[0][0];
           const labelEl = document.createElement('div');

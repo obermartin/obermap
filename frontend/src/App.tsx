@@ -383,12 +383,34 @@ export function App() {
 
   const handleFlyTo = useCallback((viewId: string, view: NonNullable<Annotation['view']>) => {
     setActiveMapViewId(viewId);
-    // We need to pass the flyTo trigger down or pass map instance up.
-    // Instead of full map ref in App, we can dispatch an event or use a ref.
-    // A simple hack: window.mapInstance is often used, but let's pass a CustomEvent
+    
+    // Pass the flyTo trigger down
     const event = new CustomEvent('flyToView', { detail: { viewId, view } });
     window.dispatchEvent(event);
-  }, []);
+
+    // If we have an active crop overlay, and this view has a keyframe for it, load it!
+    if (activeCropOverlay) {
+      let targetCropSettings;
+      if (viewId === 'overview') {
+        targetCropSettings = settingsRef.current.defaultView.cropSettings;
+      } else {
+        const ann = annotations.find(a => a.id === viewId);
+        targetCropSettings = ann?.cropSettings;
+      }
+      if (targetCropSettings?.[activeCropOverlay]) {
+        const cropVal = targetCropSettings[activeCropOverlay];
+        if (cropVal) {
+          setSettings(prevSettings => ({
+            ...prevSettings,
+            exportCropSettings: {
+              ...(prevSettings.exportCropSettings || {} as any),
+              [activeCropOverlay]: cropVal
+            } as any
+          }));
+        }
+      }
+    }
+  }, [activeCropOverlay, annotations]);
 
   useEffect(() => {
     const handleViewCaptured = (async (e: Event) => {
@@ -454,6 +476,46 @@ export function App() {
     }) as EventListener;
     window.addEventListener('updateHideAnimationTrigger', handleUpdateHideAnimationTrigger);
 
+    const handleUpdateCropKeyframe = ((e: Event) => {
+      const customEvent = e as CustomEvent<{ targetId: string, format: 'landscape' | 'portrait' | 'square' }>;
+      const { targetId, format } = customEvent.detail;
+      const currentSettings = settingsRef.current;
+      const currentCropSetting = currentSettings.exportCropSettings?.[format] || { scale: 1, offsetX: 0, offsetY: 0 };
+      
+      if (targetId === 'overview') {
+        setSettings(prev => {
+          const currentCropSettings = prev.defaultView.cropSettings || {};
+          const hasKeyframe = !!currentCropSettings[format];
+          const newCropSettings = { ...currentCropSettings };
+          if (hasKeyframe) {
+            delete newCropSettings[format];
+          } else {
+            newCropSettings[format] = { ...currentCropSetting };
+          }
+          return {
+            ...prev,
+            defaultView: { ...prev.defaultView, cropSettings: newCropSettings }
+          };
+        });
+      } else {
+        setAnnotations(prev => prev.map(a => {
+          if (a.id === targetId) {
+            const currentCropSettings = a.cropSettings || {};
+            const hasKeyframe = !!currentCropSettings[format];
+            const newCropSettings = { ...currentCropSettings };
+            if (hasKeyframe) {
+              delete newCropSettings[format];
+            } else {
+              newCropSettings[format] = { ...currentCropSetting };
+            }
+            return { ...a, cropSettings: newCropSettings };
+          }
+          return a;
+        }));
+      }
+    }) as EventListener;
+    window.addEventListener('updateCropKeyframe', handleUpdateCropKeyframe);
+
     const handleUpdateTemplate = ((e: Event) => {
       const { type, template } = (e as CustomEvent).detail;
       const currentSettings = settingsRef.current;
@@ -501,6 +563,7 @@ export function App() {
       window.removeEventListener('updateHideAnimationTrigger', handleUpdateHideAnimationTrigger);
       window.removeEventListener('updateSelectedLabelTemplate', handleUpdateTemplate);
       window.removeEventListener('updateSelectedLabelTheme', handleUpdateTheme);
+      window.removeEventListener('updateCropKeyframe', handleUpdateCropKeyframe);
     };
   }, [currentColor, selectedAnnotationId]);
 
@@ -639,6 +702,7 @@ export function App() {
         defaultView={settings.defaultView}
         isSidebarOpen={isLayerSidebarOpen}
         isToolbarOpen={isToolbarOpen}
+        activeCropOverlay={activeCropOverlay}
         onDeleteAnnotation={(id) => {
           setAnnotations(prev => {
             const next = prev.map(a => {

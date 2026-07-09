@@ -913,27 +913,6 @@ export const useLayerVisibility = (props: LayerVisibilityProps) => {
                     f.properties.severity_numeric = f.properties.severitydata?.severity ?? f.properties.severity ?? 0;
                   }
                 });
-
-                const isPolygonLayer = layer.type === 'gdacs_cyclones';
-                if (isPolygonLayer) {
-                  const polygonPromises = geojsonData.features.map(async (feature: any) => {
-                    const { eventtype, eventid, episodeid } = feature.properties;
-                    try {
-                      const geomRes = await fetch(`https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=${eventtype}&eventid=${eventid}&episodeid=${episodeid}`);
-                      if (geomRes.ok) {
-                        const geomData = await geomRes.json();
-                        if (geomData && geomData.features) {
-                          return geomData.features;
-                        }
-                      }
-                    } catch (e) {
-                      console.warn('Failed to fetch polygon for', eventid);
-                    }
-                    return [feature];
-                  });
-                  const allPolygons = await Promise.all(polygonPromises);
-                  geojsonData.features = allPolygons.flat();
-                }
               }
             }
             gdacsDataCacheRef.current[cacheKey] = geojsonData;

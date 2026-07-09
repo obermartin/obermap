@@ -580,6 +580,8 @@ export function LayerSidebar({
 
   const [videoBitrate, setVideoBitrate] = useState<number>(15);
 
+  const [exportReadyData, setExportReadyData] = useState<Record<string, { ready: boolean | string; id?: string }>>({});
+
   useEffect(() => {
     const handler = (e: CustomEvent<string | null>) =>
       setSelectedAircraftId(e.detail);
@@ -589,12 +591,20 @@ export function LayerSidebar({
       setSelectedVesselMmsi(e.detail);
     window.addEventListener("vesselSelected", vesselHandler as EventListener);
 
+    const exportReadyHandler = (e: CustomEvent) => {
+      if (e.detail?.type) {
+        setExportReadyData(prev => ({ ...prev, [e.detail.type]: { ready: e.detail.ready, id: e.detail.id } }));
+      }
+    };
+    window.addEventListener("exportDataReady", exportReadyHandler as EventListener);
+
     return () => {
       window.removeEventListener("aircraftSelected", handler as EventListener);
       window.removeEventListener(
         "vesselSelected",
         vesselHandler as EventListener,
       );
+      window.removeEventListener("exportDataReady", exportReadyHandler as EventListener);
     };
   }, []);
 
@@ -1298,6 +1308,7 @@ export function LayerSidebar({
                   return (
                     <LayerItem
                       key={layer.id}
+                      exportReadyData={exportReadyData}
                       layer={layer}
                       isNestedChild={false}
                       isDraggingLayer={isDraggingLayer}
@@ -3090,6 +3101,7 @@ function LayerItem(props: {
   globalDateMode?: 'single' | 'range';
   globalStartDate?: string;
   globalEndDate?: string;
+  exportReadyData: Record<string, { ready: boolean | string; id?: string }>;
 }) {
   const { t } = useTranslation();
   const [activeTriggerDropdown, setActiveTriggerDropdown] = React.useState<'reveal' | 'hide' | null>(null);
@@ -3120,6 +3132,7 @@ function LayerItem(props: {
     globalStartDate,
     globalEndDate,
     syncGlobalDate,
+    exportReadyData,
   } = props;
   const isActiveEdit = activeGeojsonLayerId === layer.id;
   const setActiveEdit = () => {
@@ -3684,6 +3697,45 @@ function LayerItem(props: {
                               <span className="text-[10px] text-white/50 font-mono">{Math.round((layer.copernicusOpacity ?? 1.0) * 100)}%</span>
                             </div>
                             <input type="range" min="0" max="100" value={(layer.copernicusOpacity ?? 1.0) * 100} onChange={(e) => updateLayerProperty(layer.id, "copernicusOpacity", Number(e.target.value) / 100)} className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer" />
+                            
+                            {/* CEMS Export Button */}
+                            {(() => {
+                              const cemsType = layer.type === 'wildfires' ? 'cems_wildfire' : 'cems_flood';
+                              const readyData = exportReadyData[cemsType];
+                              if (!readyData || readyData.ready === 'empty') return null;
+                              
+                              return (
+                                <div className="flex flex-col gap-2 mt-2">
+                                  <button
+                                    disabled={!readyData.ready}
+                                    onClick={() => {
+                                      window.dispatchEvent(
+                                        new CustomEvent("requestGeoJsonExport", {
+                                          detail: { type: cemsType, id: layer.id },
+                                        })
+                                      );
+                                    }}
+                                    className={`text-xs py-1.5 px-3 rounded flex items-center gap-2 justify-center transition-colors ${
+                                      readyData.ready
+                                        ? "bg-white/10 hover:bg-white/20 text-white cursor-pointer"
+                                        : "bg-white/5 text-white/50 cursor-not-allowed"
+                                    }`}
+                                  >
+                                    {readyData.ready ? (
+                                      <>
+                                        <Download size={14} />
+                                        {t("Download GeoJSON")}
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Loader2 size={14} className="animate-spin" />
+                                        {t("Loading...")}
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              );
+                            })()}
                           </div>
                         )}
                       </div>
@@ -3719,8 +3771,39 @@ function LayerItem(props: {
                               </button>
                             </div>
                           )}
+                          {exportReadyData["gdacs_earthquakes"]?.id && exportReadyData["gdacs_earthquakes"].ready !== 'empty' && (
+                            <div className="flex flex-col gap-2 mt-2">
+                              <button
+                                disabled={!exportReadyData["gdacs_earthquakes"].ready}
+                                onClick={() => {
+                                  window.dispatchEvent(
+                                    new CustomEvent("requestGeoJsonExport", {
+                                      detail: { type: "gdacs_earthquakes", id: exportReadyData["gdacs_earthquakes"].id },
+                                    })
+                                  );
+                                }}
+                                className={`text-xs py-1.5 px-3 rounded flex items-center gap-2 justify-center transition-colors ${
+                                  exportReadyData["gdacs_earthquakes"].ready
+                                    ? "bg-white/10 hover:bg-white/20 text-white cursor-pointer"
+                                    : "bg-white/5 text-white/50 cursor-not-allowed"
+                                }`}
+                              >
+                                {exportReadyData["gdacs_earthquakes"].ready ? (
+                                  <>
+                                    <Download size={14} />
+                                    {t("Export Selected")}
+                                  </>
+                                ) : (
+                                  <>
+                                    <Loader2 size={14} className="animate-spin" />
+                                    {t("Loading...")}
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          )}
                           {layer.shakemapEnabled !== false && (
-                            <div className="flex flex-col gap-1 mt-1">
+                            <div className="flex flex-col gap-1 mt-2">
                               <div className="flex justify-between items-end">
                                 <label className="text-[10px] text-white/60 font-semibold tracking-wider uppercase">{t("OPACITY")}</label>
                                 <span className="text-[10px] text-white/50 font-mono">{Math.round((layer.shakemapOpacity ?? 1.0) * 100)}%</span>
@@ -3748,6 +3831,44 @@ function LayerItem(props: {
                                 <span className="text-[10px] text-white/50 font-mono">{Math.round((layer.copernicusOpacity ?? 1.0) * 100)}%</span>
                               </div>
                               <input type="range" min="0" max="100" value={(layer.copernicusOpacity ?? 1.0) * 100} onChange={(e) => updateLayerProperty(layer.id, "copernicusOpacity", Number(e.target.value) / 100)} className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer" />
+                              
+                              {/* CEMS Export Button */}
+                              {(() => {
+                                const readyData = exportReadyData['cems_earthquake'];
+                                if (!readyData || readyData.ready === 'empty') return null;
+                                
+                                return (
+                                  <div className="flex flex-col gap-2 mt-2">
+                                    <button
+                                      disabled={!readyData.ready}
+                                      onClick={() => {
+                                        window.dispatchEvent(
+                                          new CustomEvent("requestGeoJsonExport", {
+                                            detail: { type: 'cems_earthquake', id: layer.selectedCemsData?.code },
+                                          })
+                                        );
+                                      }}
+                                      className={`text-xs py-1.5 px-3 rounded flex items-center gap-2 justify-center transition-colors ${
+                                        readyData.ready
+                                          ? "bg-white/10 hover:bg-white/20 text-white cursor-pointer"
+                                          : "bg-white/5 text-white/50 cursor-not-allowed"
+                                      }`}
+                                    >
+                                      {readyData.ready ? (
+                                        <>
+                                          <Download size={14} />
+                                          {t("Download GeoJSON")}
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Loader2 size={14} className="animate-spin" />
+                                          {t("Loading...")}
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+                                );
+                              })()}
                             </div>
                           )}
                         </div>
@@ -4006,6 +4127,70 @@ function LayerItem(props: {
                           )}
                         </div>
                       </div>
+                    </div>
+                  )}
+
+                  {layer.type === "gdacs_volcanoes" && exportReadyData["gdacs_volcanoes"]?.id && exportReadyData["gdacs_volcanoes"].ready !== 'empty' && (
+                    <div className="flex flex-col gap-2 pt-2 border-t border-white/10 mt-1">
+                      <button
+                        disabled={!exportReadyData["gdacs_volcanoes"].ready}
+                        onClick={() => {
+                          window.dispatchEvent(
+                            new CustomEvent("requestGeoJsonExport", {
+                              detail: { type: "gdacs_volcanoes", id: exportReadyData["gdacs_volcanoes"].id },
+                            })
+                          );
+                        }}
+                        className={`text-xs py-1.5 px-3 rounded flex items-center gap-2 justify-center transition-colors ${
+                          exportReadyData["gdacs_volcanoes"].ready
+                            ? "bg-white/10 hover:bg-white/20 text-white cursor-pointer"
+                            : "bg-white/5 text-white/50 cursor-not-allowed"
+                        }`}
+                      >
+                        {exportReadyData["gdacs_volcanoes"].ready ? (
+                          <>
+                            <Download size={14} />
+                            {t("Export Selected")}
+                          </>
+                        ) : (
+                          <>
+                            <Loader2 size={14} className="animate-spin" />
+                            {t("Loading...")}
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+
+                  {layer.type === "gdacs_cyclones" && exportReadyData["gdacs_cyclones"]?.id && exportReadyData["gdacs_cyclones"].ready !== 'empty' && (
+                    <div className="flex flex-col gap-2 pt-2 border-t border-white/10 mt-1">
+                      <button
+                        disabled={!exportReadyData["gdacs_cyclones"].ready}
+                        onClick={() => {
+                          window.dispatchEvent(
+                            new CustomEvent("requestGeoJsonExport", {
+                              detail: { type: "gdacs_cyclones", id: exportReadyData["gdacs_cyclones"].id },
+                            })
+                          );
+                        }}
+                        className={`text-xs py-1.5 px-3 rounded flex items-center gap-2 justify-center transition-colors ${
+                          exportReadyData["gdacs_cyclones"].ready
+                            ? "bg-white/10 hover:bg-white/20 text-white cursor-pointer"
+                            : "bg-white/5 text-white/50 cursor-not-allowed"
+                        }`}
+                      >
+                        {exportReadyData["gdacs_cyclones"].ready ? (
+                          <>
+                            <Download size={14} />
+                            {t("Export Selected")}
+                          </>
+                        ) : (
+                          <>
+                            <Loader2 size={14} className="animate-spin" />
+                            {t("Loading...")}
+                          </>
+                        )}
+                      </button>
                     </div>
                   )}
 
@@ -4353,6 +4538,39 @@ function LayerItem(props: {
                       className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
                     />
                   </div>
+                  
+                  {selectedAircraftId && exportReadyData["flights"]?.id && exportReadyData["flights"].ready !== 'empty' && (
+                    <div className="flex flex-col gap-2 pt-2 border-t border-white/10 mt-1">
+                      <button
+                        disabled={!exportReadyData["flights"].ready}
+                        onClick={() => {
+                          window.dispatchEvent(
+                            new CustomEvent("requestGeoJsonExport", {
+                              detail: { type: "flights", id: selectedAircraftId },
+                            })
+                          );
+                        }}
+                        className={`text-xs py-1.5 px-3 rounded flex items-center gap-2 justify-center transition-colors ${
+                          exportReadyData["flights"].ready
+                            ? "bg-white/10 hover:bg-white/20 text-white cursor-pointer"
+                            : "bg-white/5 text-white/50 cursor-not-allowed"
+                        }`}
+                      >
+                        {exportReadyData["flights"].ready ? (
+                          <>
+                            <Download size={14} />
+                            {t("Export Selected")}
+                          </>
+                        ) : (
+                          <>
+                            <Loader2 size={14} className="animate-spin" />
+                            {t("Loading...")}
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+
                 </div>
               ) : layer.type === "vessels" ? (
                 <div className="flex flex-col gap-4 pb-2">
@@ -4792,6 +5010,29 @@ function LayerItem(props: {
                       className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
                     />
                   </div>
+
+                  {(layer.customLayer === true || layer.id.startsWith("upload-") || layer.id.startsWith("url-")) && (
+                    <div className="flex flex-col gap-1 mt-1 pt-2 border-t border-white/10">
+                      <div className="flex justify-between items-center mb-2">
+                        <label className="text-[10px] text-white font-semibold tracking-wider">
+                          {t("DATA SOURCE")}
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        placeholder={t("e.g. Mapbox, NASA, custom...")}
+                        value={layer.dataSource || ""}
+                        onChange={(e) =>
+                          updateLayerProperty(
+                            layer.id,
+                            "dataSource",
+                            e.target.value,
+                          )
+                        }
+                        className="w-full bg-black border border-white/20 px-2 py-1 text-xs text-white outline-none focus:border-white/50 mb-3"
+                      />
+                    </div>
+                  )}
                 </>
               )}
             </div>

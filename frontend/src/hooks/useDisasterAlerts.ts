@@ -26,8 +26,15 @@ export const useDisasterAlerts = (
   useEffect(() => {
     if (!selectedCemsEarthquake) {
       setSelectedCemsEarthquakeFeatures(null);
+      window.dispatchEvent(new CustomEvent('exportDataReady', {
+        detail: { type: 'cems_earthquake', id: undefined, ready: false }
+      }));
       return;
     }
+
+    window.dispatchEvent(new CustomEvent('exportDataReady', {
+      detail: { type: 'cems_earthquake', id: selectedCemsEarthquake.code, ready: false }
+    }));
 
     let isSubscribed = true;
     (async () => {
@@ -82,9 +89,17 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
             type: 'FeatureCollection',
             features: allFeatures
           });
+          window.dispatchEvent(new CustomEvent('exportDataReady', {
+            detail: { type: 'cems_earthquake', id: selectedCemsEarthquake.code, ready: allFeatures.length > 0 ? true : 'empty' }
+          }));
         }
       } catch (err) {
         console.error('Error fetching CEMS details', err);
+        if (isSubscribed) {
+          window.dispatchEvent(new CustomEvent('exportDataReady', {
+            detail: { type: 'cems_earthquake', id: selectedCemsEarthquake.code, ready: 'empty' }
+          }));
+        }
       }
     })();
     return () => { isSubscribed = false; };
@@ -94,10 +109,17 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
   useEffect(() => {
     if (!selectedEarthquake) {
       setSelectedEarthquakeShakemap(null);
+      window.dispatchEvent(new CustomEvent('exportDataReady', {
+        detail: { type: 'gdacs_earthquakes', id: undefined, ready: false }
+      }));
       return;
     }
 
     let isSubscribed = true;
+    window.dispatchEvent(new CustomEvent('exportDataReady', {
+      detail: { type: 'gdacs_earthquakes', id: selectedEarthquake.id, ready: false }
+    }));
+    
     (async () => {
       try {
         const polyRes = await fetch(selectedEarthquake.geomUrl.replace('http:', 'https:'));
@@ -105,11 +127,21 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
         const polyData = await polyRes.json();
         if (isSubscribed) {
           setSelectedEarthquakeShakemap(polyData);
+          window.dispatchEvent(new CustomEvent('exportDataReady', {
+            detail: { 
+              type: 'gdacs_earthquakes', 
+              id: selectedEarthquake.id, 
+              ready: polyData?.features?.length > 0 ? true : 'empty' 
+            }
+          }));
         }
       } catch (err) {
         console.error('Error fetching shakemap for selected earthquake:', err);
         if (isSubscribed) {
           setSelectedEarthquakeShakemap(null);
+          window.dispatchEvent(new CustomEvent('exportDataReady', {
+            detail: { type: 'gdacs_earthquakes', id: selectedEarthquake.id, ready: 'empty' }
+          }));
         }
       }
     })();
@@ -566,22 +598,39 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
   useEffect(() => {
     if (!selectedVolcano) {
       setSelectedVolcanoPolygon(null);
+      window.dispatchEvent(new CustomEvent('exportDataReady', {
+        detail: { type: 'gdacs_volcanoes', id: undefined, ready: false }
+      }));
       return;
     }
 
     let isSubscribed = true;
+    window.dispatchEvent(new CustomEvent('exportDataReady', {
+      detail: { type: 'gdacs_volcanoes', id: selectedVolcano.id, ready: false }
+    }));
+
     (async () => {
       try {
         const polyRes = await fetch(selectedVolcano.geomUrl.replace('http:', 'https:'));
-        if (!polyRes.ok) throw new Error('Failed to fetch volcano polygon');
+        if (!polyRes.ok) throw new Error('Failed to fetch polygon');
         const polyData = await polyRes.json();
         if (isSubscribed) {
           setSelectedVolcanoPolygon(polyData);
+          window.dispatchEvent(new CustomEvent('exportDataReady', {
+            detail: { 
+              type: 'gdacs_volcanoes', 
+              id: selectedVolcano.id, 
+              ready: polyData?.features?.length > 0 ? true : 'empty' 
+            }
+          }));
         }
       } catch (err) {
-        console.error('Error fetching danger zone polygon for selected volcano:', err);
+        console.error('Error fetching polygon for selected volcano:', err);
         if (isSubscribed) {
           setSelectedVolcanoPolygon(null);
+          window.dispatchEvent(new CustomEvent('exportDataReady', {
+            detail: { type: 'gdacs_volcanoes', id: selectedVolcano.id, ready: 'empty' }
+          }));
         }
       }
     })();

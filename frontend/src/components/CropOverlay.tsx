@@ -157,7 +157,7 @@ export const CropOverlay: React.FC<CropOverlayProps> = ({ format, cropSetting, o
       className="absolute inset-0 z-[150] pointer-events-none overflow-hidden"
     >
       <div 
-        className="absolute border-[3px] border-white shadow-[0_0_0_9999px_rgba(0,0,0,0.5)] cursor-move pointer-events-auto"
+        className={`absolute border-[3px] border-white shadow-[0_0_0_9999px_rgba(0,0,0,0.5)] cursor-move pointer-events-auto ${!isDragging && !isResizing ? 'transition-all duration-1000 ease-in-out' : ''}`}
         style={{
           left: `${left}px`,
           top: `${top}px`,
