@@ -476,6 +476,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && strpos($_SERVER['REQUEST_URI'], '/a
     exit;
 }
 
+// Handle Check Embed proxy
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && strpos($_SERVER['REQUEST_URI'], '/api/check-embed') !== false) {
+    $url = $_GET['url'] ?? '';
+    if (!$url) {
+        echo json_encode(['embeddable' => false]);
+        exit;
+    }
+    
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HEADER, true);
+    curl_setopt($ch, CURLOPT_NOBODY, false);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    // Use Range header to only fetch a tiny amount of data to be fast
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Range: bytes=0-1024']);
+    
+    $response = curl_exec($ch);
+    $embeddable = true;
+    
+    if ($response !== false) {
+        $headers = strtolower($response);
+        if (preg_match('/x-frame-options:\s*(deny|sameorigin)/i', $headers)) {
+            $embeddable = false;
+        }
+        if (preg_match('/content-security-policy:.*frame-ancestors/i', $headers) && !preg_match('/content-security-policy:.*frame-ancestors\s*\*/i', $headers)) {
+            $embeddable = false;
+        }
+    } else {
+        $embeddable = false;
+    }
+    
+    curl_close($ch);
+    echo json_encode(['embeddable' => $embeddable]);
+    exit;
+}
+
 // Handle GET request (Show Data)
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $show_id = $_GET['show'] ?? '';

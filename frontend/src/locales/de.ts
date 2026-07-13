@@ -295,5 +295,7 @@ export const de: Record<string, string> = {
   "Close": "Schließen",
   "Failed to upload media.": "Fehler beim Hochladen der Medien.",
   "Remove": "Entfernen",
-  "Open in new tab": "In neuem Tab öffnen"
+  "Open in new tab": "In neuem Tab öffnen",
+  "Checking link compatibility...": "Link-Kompatibilität wird geprüft...",
+  "This website prevents embedding for security reasons.": "Diese Website verhindert aus Sicherheitsgründen die Einbettung."
 };

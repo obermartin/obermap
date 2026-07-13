@@ -148,6 +148,44 @@ app.post("/api/upload-media", upload.single("file"), (req, res) => {
   res.json({ success: true, url: fileUrl });
 });
 
+app.get("/api/check-embed", async (req, res) => {
+  try {
+    const targetUrl = req.query.url;
+    if (!targetUrl) return res.json({ embeddable: false });
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const response = await fetch(targetUrl, { 
+      method: 'GET',
+      headers: { 'Range': 'bytes=0-1024' },
+      signal: controller.signal 
+    });
+    clearTimeout(timeoutId);
+    
+    const xFrameOptions = response.headers.get('x-frame-options');
+    const csp = response.headers.get('content-security-policy');
+    
+    let embeddable = true;
+    if (xFrameOptions) {
+      const val = xFrameOptions.toLowerCase();
+      if (val.includes('deny') || val.includes('sameorigin')) {
+        embeddable = false;
+      }
+    }
+    if (csp) {
+      const val = csp.toLowerCase();
+      if (val.includes('frame-ancestors') && !val.includes('frame-ancestors *')) {
+        embeddable = false;
+      }
+    }
+    
+    res.json({ embeddable });
+  } catch (err) {
+    res.json({ embeddable: false });
+  }
+});
+
 const PORT = 3001;
 app.listen(PORT, () => {
   console.log(`Backend server running on http://localhost:${PORT}`);
