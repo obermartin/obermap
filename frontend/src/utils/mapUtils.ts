@@ -11,6 +11,21 @@ export const calculateDistance = (coords: [number, number][]) => {
   return turf.length(line, { units: 'kilometers' });
 };
 
+export const parseCoordinates = (input: string): [number, number] | null => {
+  if (!input) return null;
+  const parts = input.trim().split(/[\s,]+/);
+  if (parts.length >= 2) {
+    const lat = parseFloat(parts[0]);
+    const lng = parseFloat(parts[1]);
+    if (!isNaN(lat) && !isNaN(lng)) {
+      if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        return [lng, lat]; // Return as [lng, lat] for Mapbox
+      }
+    }
+  }
+  return null;
+};
+
 // Simplified freehand using turf simplify
 export const simplifyLine = (coords: [number, number][], tolerance: number = 0.00001) => {
   if (coords.length < 2) return coords;

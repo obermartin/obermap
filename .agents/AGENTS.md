@@ -7,3 +7,7 @@
 - When reporting a task as done, ALWAYS make sure the local dev server is currently up and running so the user can immediately test it without having to start it themselves. If it immediately crashes on startup, DO NOT report the task as done. Instead, fix whatever is causing the crash, restart the server, and verify it stays up before completing your turn.
 
 - Always keep files small and modular. If a React component or hook starts growing beyond 300-400 lines, automatically pause and suggest a plan to split it into smaller, reusable sub-components or utility files before adding more logic.
+
+- Whenever text is added or changed in the UI, make sure to add a German translation or update it in the translation files, if one already exists.
+
+- Whenever you build the /dist folder, always use `obermapstudio_beta.svg` instead of `obermapstudio.svg`. The local dev server should keep using the old svg file.

@@ -6,6 +6,7 @@ const path = require("path");
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 const DB_FILE = path.join(__dirname, "db.json");
 
@@ -137,6 +138,14 @@ app.post("/api/upload-template", upload.single("file"), async (req, res) => {
     }
     res.status(500).json({ error: "Failed to extract template" });
   }
+});
+
+app.post("/api/upload-media", upload.single("file"), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+  
+  // Create a proper url for the frontend to consume
+  const fileUrl = `/uploads/${req.file.filename}`;
+  res.json({ success: true, url: fileUrl });
 });
 
 const PORT = 3001;

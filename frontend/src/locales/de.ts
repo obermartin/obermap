@@ -284,4 +284,16 @@ export const de: Record<string, string> = {
   "SCALING": "SKALIERUNG",
   "Basemap Labels Scale": "Basiskarte Labels Skalierung",
   "Annotations Scale": "Annotationen Skalierung",
+  "Enter GPS Coordinates (Lat, Lng)": "GPS-Koordinaten eingeben (Lat, Lng)",
+  "Invalid GPS Coordinates. Please use format: Lat, Lng": "Ungültige GPS-Koordinaten. Bitte Format verwenden: Lat, Lng",
+  "Icon Settings": "Icon-Einstellungen",
+  "Upload Media": "Medien hochladen",
+  "Media already uploaded": "Medien bereits hochgeladen",
+  "Enter Link": "Link eingeben",
+  "Media Viewer": "Medienansicht",
+  "Link": "Link",
+  "Close": "Schließen",
+  "Failed to upload media.": "Fehler beim Hochladen der Medien.",
+  "Remove": "Entfernen",
+  "Open in new tab": "In neuem Tab öffnen"
 };

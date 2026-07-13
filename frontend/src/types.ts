@@ -19,6 +19,9 @@ export interface Annotation {
   radius?: number;
   screenPosition?: { x: number; y: number };
   iconId?: string;
+  mediaUrl?: string;
+  mediaName?: string;
+  linkUrl?: string;
   routeGeometry?: any;
   routeMode?: RouteMode;
   routeLegs?: { distance: number; duration: number }[];

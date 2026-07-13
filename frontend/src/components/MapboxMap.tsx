@@ -23,6 +23,8 @@ import { getFlagHtml } from '../utils/mapUtils';
 import { useLayerVisibility } from '../hooks/useLayerVisibility';
 import { useDisasterAlerts } from '../hooks/useDisasterAlerts';
 import { HeadlineOverlays } from "./annotations/HeadlineOverlays";
+import { IconSettingsModal } from "./annotations/IconSettingsModal";
+import { MediaViewerModal } from "./annotations/MediaViewerModal";
 import { CycloneTimelineOverlay, NighttimeTimelineOverlay } from "./ui/MapTimelines";
 
 type WindPoint = { id: string; lat: number; lon: number };
@@ -213,6 +215,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const [styleLoadedTick, setStyleLoadedTick] = useState(0);
   const [selectedAircraftId, setSelectedAircraftIdState] = useState<string | null>(null);
   const [selectedVesselMmsi, setSelectedVesselMmsi] = useState<string | null>(null);
+  const [editingIconAnnotation, setEditingIconAnnotation] = useState<Annotation | null>(null);
+  const [viewingMediaAnnotation, setViewingMediaAnnotation] = useState<Annotation | null>(null);
   const selectedCycloneId = settings.layers.find(l => l.type === 'gdacs_cyclones')?.selectedFeatureData || null;
   const selectedCycloneIdRef = useRef<{ id: string, ep: string } | null>(null);
   const [cycloneTimelinePercent, setCycloneTimelinePercent] = useState<number>(100);
@@ -693,7 +697,9 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     t,
     getBaseTemplate,
     handleRouteWaypointDragEnd,
-    markersRef
+    markersRef,
+    onEditIcon: setEditingIconAnnotation,
+    onViewMedia: setViewingMediaAnnotation
   });
 
 
@@ -1531,6 +1537,24 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         setSettings={setSettings}
         activeNighttimeLayer={activeNighttimeLayer}
       />
+
+      {editingIconAnnotation && (
+        <IconSettingsModal
+          annotation={editingIconAnnotation}
+          onSave={(updates) => {
+            setAnnotations(prev => prev.map(a => a.id === editingIconAnnotation.id ? { ...a, ...updates } : a));
+            setEditingIconAnnotation(null);
+          }}
+          onClose={() => setEditingIconAnnotation(null)}
+        />
+      )}
+      
+      {viewingMediaAnnotation && (
+        <MediaViewerModal
+          annotation={viewingMediaAnnotation}
+          onClose={() => setViewingMediaAnnotation(null)}
+        />
+      )}
     </div>
   );
 };

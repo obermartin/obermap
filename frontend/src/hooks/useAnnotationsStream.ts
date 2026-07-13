@@ -27,6 +27,8 @@ export interface AnnotationsStreamProps {
   t: any;
   getBaseTemplate: (id?: string) => any;
   handleRouteWaypointDragEnd: (annId: string, wpIdx: number, newLngLat: [number, number]) => Promise<void>;
+  onEditIcon?: (annotation: Annotation) => void;
+  onViewMedia?: (annotation: Annotation) => void;
 }
 
 export const useAnnotationsStream = ({
@@ -47,7 +49,9 @@ export const useAnnotationsStream = ({
   t,
   getBaseTemplate,
   handleRouteWaypointDragEnd,
-  markersRef
+  markersRef,
+  onEditIcon,
+  onViewMedia
 }: AnnotationsStreamProps) => {
   const baseFeaturesRef = useRef<GeoJSON.Feature[]>([]);
   const activeFeaturesRef = useRef<GeoJSON.Feature[]>([]);
@@ -501,6 +505,7 @@ export const useAnnotationsStream = ({
         const allIcons = settings.icons?.flatMap(cat => cat.icons) || [];
         const iconObj = allIcons.find(i => i.id === ann.iconId);
         if (iconObj) {
+          const isCircular = !!ann.mediaUrl || !!ann.linkUrl;
           const el = document.createElement('div');
           el.className = 'label-marker-icon';
           el.style.width = '0px';
@@ -508,7 +513,7 @@ export const useAnnotationsStream = ({
           el.style.position = 'relative';
           el.innerHTML = `
             <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
-              <div class="icon-marker w-16 h-16 flex items-center justify-center p-2 icon-svg-wrapper" style="background-color: ${ann.color || '#ffffff'}; color: ${getContrastYIQ(ann.color || '#ffffff')};">
+              <div class="icon-marker w-16 h-16 flex items-center justify-center p-2 icon-svg-wrapper ${isCircular ? 'rounded-full' : ''}" style="background-color: ${ann.color || '#ffffff'}; color: ${getContrastYIQ(ann.color || '#ffffff')};">
                 ${iconObj.svg}
               </div>
             </div>
@@ -519,6 +524,15 @@ export const useAnnotationsStream = ({
             e.stopPropagation();
             if (activeTool !== 'none') {
               setSelectedAnnotationId(ann.id);
+            } else if (onViewMedia && (ann.mediaUrl || ann.linkUrl)) {
+              onViewMedia(ann);
+            }
+          });
+
+          el.addEventListener('dblclick', async (e) => {
+            e.stopPropagation();
+            if (onEditIcon) {
+              onEditIcon(ann);
             }
           });
 

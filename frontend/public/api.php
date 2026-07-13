@@ -449,6 +449,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && strpos($_SERVER['REQUEST_URI'], '/ap
     exit;
 }
 
+// Handle Media Upload
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && strpos($_SERVER['REQUEST_URI'], '/api/upload-media') !== false) {
+    if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+        http_response_code(400);
+        echo json_encode(['error' => 'No file uploaded']);
+        exit;
+    }
+    
+    $file = $_FILES['file'];
+    $uploadDir = __DIR__ . '/uploads/';
+    if (!is_dir($uploadDir)) {
+        mkdir($uploadDir, 0777, true);
+    }
+    
+    $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+    $filename = uniqid('media_') . '.' . $ext;
+    $targetFile = $uploadDir . $filename;
+    
+    if (move_uploaded_file($file['tmp_name'], $targetFile)) {
+        echo json_encode(['success' => true, 'url' => '/uploads/' . $filename]);
+    } else {
+        http_response_code(500);
+        echo json_encode(['error' => 'Failed to save media file']);
+    }
+    exit;
+}
+
 // Handle GET request (Show Data)
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $show_id = $_GET['show'] ?? '';
