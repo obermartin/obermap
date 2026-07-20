@@ -192,13 +192,15 @@ export const useAnnotationsStream = ({
           el = document.createElement('div');
           el.className = 'custom-marker';
           el.innerHTML = `
-            <div class="custom-marker-plate" style="background-color: ${ann.color}; border-color: ${ann.color === '#000000' || ann.color === '#000' ? 'rgba(255,255,255,0.1)' : ann.color}">
-              <div class="custom-marker-text" style="color: ${contrastColor}; display: flex; flex-direction: column; align-items: flex-start;">
-                <span style="font-size: 1.6em; line-height: 1;">${ann.text}</span>
-                ${ann.secondaryText ? `<span style="font-size: 1em; line-height: 1;">${ann.secondaryText}</span>` : ''}
+            <div class="annotation-scale-wrapper" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: bottom center;">
+              <div class="custom-marker-plate" style="background-color: ${ann.color}; border-color: ${ann.color === '#000000' || ann.color === '#000' ? 'rgba(255,255,255,0.1)' : ann.color}">
+                <div class="custom-marker-text" style="color: ${contrastColor}; display: flex; flex-direction: column; align-items: flex-start;">
+                  <span style="font-size: 1.6em; line-height: 1;">${ann.text}</span>
+                  ${ann.secondaryText ? `<span style="font-size: 1em; line-height: 1;">${ann.secondaryText}</span>` : ''}
+                </div>
               </div>
+              <div class="custom-marker-pointer" style="border-top-color: ${ann.color}"></div>
             </div>
-            <div class="custom-marker-pointer" style="border-top-color: ${ann.color}"></div>
           `;
           el.style.cursor = 'pointer';
           el.addEventListener('click', (e) => {
@@ -207,6 +209,17 @@ export const useAnnotationsStream = ({
           });
 
         }
+
+        // Add double click listener to edit text in annotation mode
+        el.addEventListener('dblclick', async (e) => {
+          e.stopPropagation();
+          if (activeTool !== 'none') {
+            const newText = await customPrompt(t('Enter new text:'), ann.text || '');
+            if (newText !== null && setAnnotationsRef.current) {
+              setAnnotationsRef.current(prev => prev.map(a => a.id === ann.id ? { ...a, text: newText } : a));
+            }
+          }
+        });
 
         if (ann.id === selectedAnnotationId) {
           el.style.filter = 'drop-shadow(0 0 6px rgba(255,255,255,1)) drop-shadow(0 0 12px rgba(255,255,255,0.8))';
@@ -268,21 +281,25 @@ export const useAnnotationsStream = ({
           
           if (ann.polygonGeometry) {
             el.innerHTML = `
-              <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center;">
-                <div class="custom-country-plate" style="background-color: ${ann.color};">
-                  <div class="custom-country-text" style="color: ${contrastColor}">
-                    ${ann.text || ''}
+              <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); transform-origin: center center;">
+                <div class="annotation-scale-wrapper" style="transform-origin: center center;">
+                  <div class="custom-country-plate" style="background-color: ${ann.color};">
+                    <div class="custom-country-text" style="color: ${contrastColor}">
+                      ${ann.text || ''}
+                    </div>
                   </div>
                 </div>
               </div>
             `;
           } else {
             el.innerHTML = `
-              <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center;">
-                <div class="custom-highlight-marker" style="background-color: ${ann.color};">
-                  <div class="custom-highlight-plate" style="background-color: ${ann.color};">
-                    <div class="custom-highlight-text" style="color: ${contrastColor}">
-                      ${ann.text || ''}
+              <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); transform-origin: center center;">
+                <div class="annotation-scale-wrapper" style="transform-origin: center center;">
+                  <div class="custom-highlight-marker" style="background-color: ${ann.color};">
+                    <div class="custom-highlight-plate" style="background-color: ${ann.color};">
+                      <div class="custom-highlight-text" style="color: ${contrastColor}">
+                        ${ann.text || ''}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -297,6 +314,17 @@ export const useAnnotationsStream = ({
           });
 
         }
+
+        // Add double click listener to edit text in annotation mode
+        el.addEventListener('dblclick', async (e) => {
+          e.stopPropagation();
+          if (activeTool !== 'none') {
+            const newText = await customPrompt(t('Enter new text:'), ann.text || '');
+            if (newText !== null && setAnnotationsRef.current) {
+              setAnnotationsRef.current(prev => prev.map(a => a.id === ann.id ? { ...a, text: newText } : a));
+            }
+          }
+        });
 
         if (ann.id === selectedAnnotationId) {
           el.style.filter = 'drop-shadow(0 0 6px rgba(255,255,255,1)) drop-shadow(0 0 12px rgba(255,255,255,0.8))';
@@ -326,9 +354,11 @@ export const useAnnotationsStream = ({
           el.style.height = '0px';
           el.style.position = 'relative';
           el.innerHTML = `
-            <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
-              <div class="custom-marker-flat" style="background-color: ${ann.color}; color: ${contrastColor};">
-                ${totalDistance.toFixed(2)} km
+            <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); transform-origin: center center;">
+              <div class="annotation-scale-wrapper" style="transform-origin: center center; display: flex; align-items: center; justify-content: center;">
+                <div class="custom-marker-flat" style="background-color: ${ann.color}; color: ${contrastColor};">
+                  ${totalDistance.toFixed(2)} km
+                </div>
               </div>
             </div>
           `;
@@ -381,11 +411,13 @@ export const useAnnotationsStream = ({
           }
           
           el.innerHTML = `
-            <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
-              <div class="${innerClass}" style="background-color: ${ann.color}; color: ${contrastColor};">
-                ${innerHtml}
+              <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); transform-origin: center center;">
+                <div class="annotation-scale-wrapper" style="width: 100%; height: 100%; transform-origin: center center; display: flex; align-items: center; justify-content: center;">
+                  <div class="${innerClass}" style="background-color: ${ann.color}; color: ${contrastColor};">
+                    ${innerHtml}
+                  </div>
+                </div>
               </div>
-            </div>
           `;
           
           el.style.cursor = 'pointer';
@@ -419,8 +451,10 @@ export const useAnnotationsStream = ({
           centerEl.style.height = '0px';
           centerEl.style.position = 'relative';
           centerEl.innerHTML = `
-            <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center;">
-              <div class="custom-marker-dot" style="background-color: ${ann.color};"></div>
+            <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); transform-origin: center center;">
+              <div class="annotation-scale-wrapper" style="transform-origin: center center;">
+                <div class="custom-marker-dot" style="background-color: ${ann.color};"></div>
+              </div>
             </div>
           `;
           centerEl.style.cursor = 'pointer';
@@ -459,9 +493,11 @@ export const useAnnotationsStream = ({
           labelEl.style.height = '0px';
           labelEl.style.position = 'relative';
           labelEl.innerHTML = `
-            <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
-              <div class="custom-marker-flat" style="background-color: ${ann.color}; color: ${contrastColor};">
-                ${(ann.radius || 0).toFixed(2)} km
+            <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); transform-origin: center center;">
+              <div class="annotation-scale-wrapper" style="transform-origin: center center; display: flex; align-items: center; justify-content: center;">
+                <div class="custom-marker-flat" style="background-color: ${ann.color}; color: ${contrastColor};">
+                  ${(ann.radius || 0).toFixed(2)} km
+                </div>
               </div>
             </div>
           `;
@@ -512,9 +548,11 @@ export const useAnnotationsStream = ({
           el.style.height = '0px';
           el.style.position = 'relative';
           el.innerHTML = `
-            <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
-              <div class="icon-marker w-16 h-16 flex items-center justify-center p-2 icon-svg-wrapper ${isCircular ? 'rounded-full' : ''}" style="background-color: ${ann.color || '#ffffff'}; color: ${getContrastYIQ(ann.color || '#ffffff')};">
-                ${iconObj.svg}
+            <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); transform-origin: center center;">
+              <div class="annotation-scale-wrapper" style="transform-origin: center center; display: flex; align-items: center; justify-content: center;">
+                <div class="icon-marker w-16 h-16 flex items-center justify-center p-2 icon-svg-wrapper ${isCircular ? 'rounded-full' : ''}" style="background-color: ${ann.color || '#ffffff'}; color: ${getContrastYIQ(ann.color || '#ffffff')};">
+                  ${iconObj.svg}
+                </div>
               </div>
             </div>
           `;

@@ -789,7 +789,7 @@ export function useAnnotationTools({
         labelEl.style.position = 'relative';
         labelEl.style.pointerEvents = 'none';
         labelEl.innerHTML = `
-          <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
+          <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%) scale(var(--export-annotation-scale, 1)); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
             <div class="custom-marker-flat" style="background-color: ${currentColor}; color: ${getContrastYIQ(currentColor)};">
               ${dist.toFixed(2)} km
             </div>
@@ -818,7 +818,7 @@ export function useAnnotationTools({
           labelEl.style.position = 'relative';
           labelEl.style.pointerEvents = 'none';
           labelEl.innerHTML = `
-            <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
+            <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%) scale(var(--export-annotation-scale, 1)); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
               <div class="custom-marker-flat text-center leading-tight" style="background-color: ${currentColor}; color: ${getContrastYIQ(currentColor)};">
                 ${totalDist.toFixed(1)} km<br/><span style="font-size:0.75em;opacity:0.9">${timeStr}</span>
               </div>
@@ -859,7 +859,7 @@ export function useAnnotationTools({
           labelEl.style.position = 'relative';
           labelEl.style.pointerEvents = 'none';
           labelEl.innerHTML = `
-            <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
+            <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%) scale(var(--export-annotation-scale, 1)); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
               <div class="custom-marker-flat text-xs font-bold uppercase tracking-wider" style="background-color: ${currentColor}; color: ${getContrastYIQ(currentColor)};">
                 START
               </div>
@@ -959,7 +959,7 @@ export function useAnnotationTools({
         centerEl.style.position = 'relative';
         centerEl.style.pointerEvents = 'none';
         centerEl.innerHTML = `
-          <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center;">
+          <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%) scale(var(--export-annotation-scale, 1)); transform-origin: center center;">
             <div class="custom-marker-dot" style="background-color: ${currentColor};"></div>
           </div>
         `;
@@ -1016,7 +1016,7 @@ export function useAnnotationTools({
               labelEl.style.position = 'relative';
               labelEl.style.pointerEvents = 'none';
               labelEl.innerHTML = `
-                <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
+                <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%) scale(var(--export-annotation-scale, 1)); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
                   <div class="custom-marker-flat" style="background-color: ${currentColor}; color: ${getContrastYIQ(currentColor)};">
                     ${radius.toFixed(2)} km
                   </div>
@@ -1028,7 +1028,7 @@ export function useAnnotationTools({
             } else {
               activeDrawMarkersRef.current['circle-radius'].setLngLat(currentPos);
               activeDrawMarkersRef.current['circle-radius'].getElement().innerHTML = `
-                <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
+                <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%) scale(var(--export-annotation-scale, 1)); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
                   <div class="custom-marker-flat" style="background-color: ${currentColor}; color: ${getContrastYIQ(currentColor)};">
                     ${radius.toFixed(2)} km
                   </div>
@@ -1085,7 +1085,7 @@ export function useAnnotationTools({
             labelEl.style.position = 'relative';
             labelEl.style.pointerEvents = 'none';
             labelEl.innerHTML = `
-              <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
+              <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%) scale(var(--export-annotation-scale, 1)); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
                 <div class="custom-marker-flat" style="background-color: ${currentColor}; color: ${getContrastYIQ(currentColor)};">
                   ${dist.toFixed(2)} km
                 </div>
@@ -1097,7 +1097,7 @@ export function useAnnotationTools({
           } else {
             activeDrawMarkersRef.current['measure-floating'].setLngLat([e.lngLat.lng, e.lngLat.lat]);
             activeDrawMarkersRef.current['measure-floating'].getElement().innerHTML = `
-              <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); zoom: var(--export-annotation-scale, 1); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
+              <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%) scale(var(--export-annotation-scale, 1)); transform-origin: center center; display: flex; align-items: center; justify-content: center;">
                 <div class="custom-marker-flat" style="background-color: ${currentColor}; color: ${getContrastYIQ(currentColor)};">
                   ${dist.toFixed(2)} km
                 </div>

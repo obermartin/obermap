@@ -1168,7 +1168,11 @@ export class LabelMarkerManager {
     markerEl.dataset.anchorX = data.anchorX.toString();
     markerEl.dataset.anchorY = data.anchorY.toString();
 
-    markerEl.innerHTML = data.html;
+    markerEl.innerHTML = `
+      <div class="annotation-scale-wrapper" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: ${data.anchorX}px ${data.anchorY}px;">
+        ${data.html}
+      </div>
+    `;
 
     if (onClick) {
       const primaryBackplate = markerEl.querySelector(

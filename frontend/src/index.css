@@ -375,3 +375,11 @@ html, body, #root {
 }
 
 /* Export Annotation Scaling handled via DOM wrappers in MapContainer.tsx */
+
+.annotation-scale-wrapper {
+  transform: scale(var(--export-annotation-scale, 1));
+}
+
+.annotation-scale-target {
+  scale: var(--export-annotation-scale, 1);
+}

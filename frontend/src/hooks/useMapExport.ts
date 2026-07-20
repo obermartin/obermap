@@ -163,6 +163,13 @@ export const useMapExport = ({
     // Apply scaling to DOM markers via CSS variable globally
     document.documentElement.style.setProperty('--export-annotation-scale', domScale.toString());
 
+    // Force DOM update for Mapbox markers due to Chrome compositor caching bugs 
+    // where CSS variable updates fail to repaint elements with will-change: transform
+    const wrappers = document.querySelectorAll('.annotation-scale-wrapper');
+    wrappers.forEach(w => {
+      (w as HTMLElement).style.transform = `scale(${domScale})`;
+    });
+
     // Apply scaling to Custom Lines and Strokes
     if (map.getLayer('custom-lines')) {
       map.setPaintProperty('custom-lines', 'line-width', 6 * mapboxScale);
