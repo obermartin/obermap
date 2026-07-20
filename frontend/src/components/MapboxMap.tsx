@@ -81,8 +81,8 @@ export interface MapContainerProps {
   routeMode?: RouteMode;
   annotations: Annotation[];
   setAnnotations: React.Dispatch<React.SetStateAction<Annotation[]>>;
-  labelPrompt: { lngLat: [number, number], initialText?: string, initialSecondary?: string } | null;
-  setLabelPrompt: React.Dispatch<React.SetStateAction<{ lngLat: [number, number], initialText?: string, initialSecondary?: string } | null>>;
+  labelPrompt: { lngLat: [number, number], initialText?: string, initialSecondary?: string, annotationId?: string } | null;
+  setLabelPrompt: React.Dispatch<React.SetStateAction<{ lngLat: [number, number], initialText?: string, initialSecondary?: string, annotationId?: string } | null>>;
   headlinePrompt?: { id?: string, initialPrimary?: string, initialSecondary?: string } | null;
   setHeadlinePrompt?: React.Dispatch<React.SetStateAction<{ id?: string, initialPrimary?: string, initialSecondary?: string } | null>>;
   setActiveDistance: React.Dispatch<React.SetStateAction<number | null>>;
@@ -593,30 +593,36 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
       const { text, secondaryText } = e.detail;
       const map = mapRef.current;
       if (text && labelPrompt && map) {
-        const selectedId = settingsRef.current?.labelTemplates?.regularLabelTemplate;
-        const variation = settingsRef.current?.labelTemplates?.variations?.find(v => v.id === selectedId);
-        const actualTemplate = variation ? variation.baseTemplate : selectedId;
-        const actualTheme = settingsRef.current?.labelTemplates?.savedThemes?.[selectedId || ''];
-        const newId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-        const newLabel: Annotation = {
-          id: newId,
-          type: 'label',
-          color: currentColor,
-          text,
-          secondaryText,
-          template: actualTemplate,
-          theme: actualTheme,
-          coordinates: labelPrompt.lngLat,
-          animationTriggerId: newId,
-          view: {
-            center: [map.getCenter().lng, map.getCenter().lat],
-            zoom: map.getZoom(),
-            pitch: map.getPitch(),
-            bearing: map.getBearing(),
-            elevation: map.queryTerrainElevation([map.getCenter().lng, map.getCenter().lat]) || 0
-          }
-        };
-        setAnnotations(prev => [...prev, newLabel]);
+        if (labelPrompt.annotationId) {
+          // Edit existing label
+          setAnnotations(prev => prev.map(a => a.id === labelPrompt.annotationId ? { ...a, text, secondaryText } : a));
+        } else {
+          // Create new label
+          const selectedId = settingsRef.current?.labelTemplates?.regularLabelTemplate;
+          const variation = settingsRef.current?.labelTemplates?.variations?.find(v => v.id === selectedId);
+          const actualTemplate = variation ? variation.baseTemplate : selectedId;
+          const actualTheme = settingsRef.current?.labelTemplates?.savedThemes?.[selectedId || ''];
+          const newId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+          const newLabel: Annotation = {
+            id: newId,
+            type: 'label',
+            color: currentColor,
+            text,
+            secondaryText,
+            template: actualTemplate,
+            theme: actualTheme,
+            coordinates: labelPrompt.lngLat,
+            animationTriggerId: newId,
+            view: {
+              center: [map.getCenter().lng, map.getCenter().lat],
+              zoom: map.getZoom(),
+              pitch: map.getPitch(),
+              bearing: map.getBearing(),
+              elevation: map.queryTerrainElevation([map.getCenter().lng, map.getCenter().lat]) || 0
+            }
+          };
+          setAnnotations(prev => [...prev, newLabel]);
+        }
         setLabelPrompt(null);
       }
     }) as EventListener;
@@ -699,7 +705,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     handleRouteWaypointDragEnd,
     markersRef,
     onEditIcon: setEditingIconAnnotation,
-    onViewMedia: setViewingMediaAnnotation
+    onViewMedia: setViewingMediaAnnotation,
+    setLabelPrompt
   });
 
 

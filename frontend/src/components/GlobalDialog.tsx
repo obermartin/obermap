@@ -40,25 +40,27 @@ export const GlobalDialog: React.FC = () => {
   if (!dialog) return null;
 
   const handleConfirm = () => {
-    if (dialog.type === 'prompt') {
-      dialog.resolve(inputValue);
-    } else if (dialog.type === 'confirm') {
-      dialog.resolve(true);
-    } else {
-      dialog.resolve(undefined);
-    }
+    const d = dialog;
     setDialog(null);
+    if (d.type === 'prompt') {
+      d.resolve(inputValue);
+    } else if (d.type === 'confirm') {
+      d.resolve(true);
+    } else {
+      d.resolve(undefined);
+    }
   };
 
   const handleCancel = () => {
-    if (dialog.type === 'prompt') {
-      dialog.resolve(null);
-    } else if (dialog.type === 'confirm') {
-      dialog.resolve(false);
-    } else {
-      dialog.resolve(undefined);
-    }
+    const d = dialog;
     setDialog(null);
+    if (d.type === 'prompt') {
+      d.resolve(null);
+    } else if (d.type === 'confirm') {
+      d.resolve(false);
+    } else {
+      d.resolve(undefined);
+    }
   };
 
   return (

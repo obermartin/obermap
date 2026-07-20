@@ -45,7 +45,7 @@ interface UseAnnotationToolsProps {
   vesselPopupRef: React.MutableRefObject<maplibregl.Popup | null>;
   vesselsRef: React.MutableRefObject<any>;
   setSelectedAnnotationId: (id: string | null) => void;
-  setLabelPrompt: React.Dispatch<React.SetStateAction<{ lngLat: [number, number], initialText?: string, initialSecondary?: string } | null>>;
+  setLabelPrompt: React.Dispatch<React.SetStateAction<{ lngLat: [number, number], initialText?: string, initialSecondary?: string, annotationId?: string } | null>>;
   setHeadlinePrompt: React.Dispatch<React.SetStateAction<{ id?: string; initialPrimary?: string; initialSecondary?: string } | null>> | undefined;
   terrestrialCountriesRef: React.MutableRefObject<any>;
 }

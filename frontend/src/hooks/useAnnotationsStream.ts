@@ -29,6 +29,7 @@ export interface AnnotationsStreamProps {
   handleRouteWaypointDragEnd: (annId: string, wpIdx: number, newLngLat: [number, number]) => Promise<void>;
   onEditIcon?: (annotation: Annotation) => void;
   onViewMedia?: (annotation: Annotation) => void;
+  setLabelPrompt: React.Dispatch<React.SetStateAction<{ lngLat: [number, number], initialText?: string, initialSecondary?: string, annotationId?: string } | null>>;
 }
 
 export const useAnnotationsStream = ({
@@ -51,7 +52,8 @@ export const useAnnotationsStream = ({
   handleRouteWaypointDragEnd,
   markersRef,
   onEditIcon,
-  onViewMedia
+  onViewMedia,
+  setLabelPrompt
 }: AnnotationsStreamProps) => {
   const baseFeaturesRef = useRef<GeoJSON.Feature[]>([]);
   const activeFeaturesRef = useRef<GeoJSON.Feature[]>([]);
@@ -210,14 +212,16 @@ export const useAnnotationsStream = ({
 
         }
 
-        // Add double click listener to edit text in annotation mode
-        el.addEventListener('dblclick', async (e) => {
+        // Add double click listener to edit text in annotation mode (opens same modal as creation)
+        el.addEventListener('dblclick', (e) => {
           e.stopPropagation();
           if (activeTool !== 'none') {
-            const newText = await customPrompt(t('Enter new text:'), ann.text || '');
-            if (newText !== null && setAnnotationsRef.current) {
-              setAnnotationsRef.current(prev => prev.map(a => a.id === ann.id ? { ...a, text: newText } : a));
-            }
+            setLabelPrompt({
+              lngLat: ann.coordinates,
+              initialText: ann.text || '',
+              initialSecondary: ann.secondaryText || '',
+              annotationId: ann.id
+            });
           }
         });
 

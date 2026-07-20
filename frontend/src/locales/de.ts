@@ -254,6 +254,7 @@ export const de: Record<string, string> = {
 
   // Add Label Modal
   "Add Label": "Label hinzufügen",
+  "Edit Label": "Label bearbeiten",
   "Primary text...": "Hauptzeile...",
   "Enter text...": "Text eingeben...",
   "Secondary text (optional)...": "Sekundärzeile (optional)...",
@@ -285,6 +286,9 @@ export const de: Record<string, string> = {
   "SCALING": "SKALIERUNG",
   "Basemap Labels Scale": "Basiskarte Labels Skalierung",
   "Annotations Scale": "Annotationen Skalierung",
+  "Enter new primary text:": "Neue Hauptzeile eingeben:",
+  "Enter new secondary text (optional):": "Neue Sekundärzeile eingeben (optional):",
+  "Enter new text:": "Neuen Text eingeben:",
   "Enter GPS Coordinates (Lat, Lng)": "GPS-Koordinaten eingeben (Lat, Lng)",
   "Invalid GPS Coordinates. Please use format: Lat, Lng": "Ungültige GPS-Koordinaten. Bitte Format verwenden: Lat, Lng",
   "Icon Settings": "Icon-Einstellungen",
