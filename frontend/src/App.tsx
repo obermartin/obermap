@@ -782,7 +782,7 @@ export function App() {
       )}
 
       {/* Bottom Left UI Controls */}
-      <div id="global-toolbar-container" className={`absolute bottom-6 left-6 z-10 flex items-end gap-2 transition-transform duration-300 ease-in-out ${isLayerSidebarOpen ? 'translate-x-[20rem]' : 'translate-x-0'}`}>
+      <div id="global-toolbar-container" className={`absolute left-6 z-10 flex items-end gap-2 transition-all duration-300 ease-in-out ${isLayerSidebarOpen ? 'translate-x-[20rem]' : 'translate-x-0'}`} style={{ bottom: `${24 + (settings.uiBottomPadding || 0)}px` }}>
         <button 
           onClick={() => setIsLayerSidebarOpen(!isLayerSidebarOpen)}
           className="bg-black w-12 h-12 flex flex-shrink-0 items-center justify-center hover:bg-white hover:text-black transition-colors text-white shadow-lg rounded-full"
@@ -822,8 +822,12 @@ export function App() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="absolute bottom-6 z-10 pointer-events-none transition-all duration-300 ease-in-out"
-            style={{ left: `calc(50% + ${(isLayerSidebarOpen ? 160 : 0) + (isToolbarOpen ? 230 : 0)}px)`, transform: 'translateX(-50%)' }}
+            className="absolute z-10 pointer-events-none transition-all duration-300 ease-in-out"
+            style={{ 
+              left: `calc(50% + ${(isLayerSidebarOpen ? 160 : 0) + (isToolbarOpen ? 230 : 0)}px)`, 
+              transform: 'translateX(-50%)',
+              bottom: `${24 + (settings.uiBottomPadding || 0)}px`
+            }}
           >
             <div id="global-date-control-container" className="pointer-events-auto flex justify-center">
               <GlobalDateControl 
@@ -859,7 +863,7 @@ export function App() {
       />
 
       {/* Show Title & Accreditation Overlay */}
-      <div className="absolute bottom-20 right-8 z-40 flex flex-col items-end gap-[2px] pointer-events-none">
+      <div className="absolute right-8 z-40 flex flex-col items-end gap-[2px] pointer-events-none transition-all duration-300 ease-in-out" style={{ bottom: `${80 + (settings.uiBottomPadding || 0)}px` }}>
         <div className="bg-white px-4 py-2 mb-1">
           <span className="text-black font-bold tracking-widest uppercase text-xs">
             {settings.title || currentShow}

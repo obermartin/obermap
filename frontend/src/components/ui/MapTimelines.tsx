@@ -8,6 +8,7 @@ interface CycloneTimelineOverlayProps {
   isToolbarOpen?: boolean;
   cycloneTimelinePercent: number;
   setCycloneTimelinePercent: (percent: number) => void;
+  uiBottomPadding?: number;
 }
 
 export const CycloneTimelineOverlay: React.FC<CycloneTimelineOverlayProps> = ({
@@ -16,16 +17,18 @@ export const CycloneTimelineOverlay: React.FC<CycloneTimelineOverlayProps> = ({
   isSidebarOpen,
   isToolbarOpen,
   cycloneTimelinePercent,
-  setCycloneTimelinePercent
+  setCycloneTimelinePercent,
+  uiBottomPadding = 0
 }) => {
   if (!selectedCycloneId || !isCycloneLayerVisible) return null;
 
   return (
     <div 
-      className="absolute bottom-[5rem] h-12 z-40 flex justify-center items-center transition-all duration-300 ease-in-out pointer-events-none"
+      className="absolute h-12 z-40 flex justify-center items-center transition-all duration-300 ease-in-out pointer-events-none"
       style={{
         left: `calc(104px + ${isSidebarOpen ? '320px' : '0px'} + ${isToolbarOpen ? '640px' : '48px'})`,
         right: '160px',
+        bottom: `${80 + uiBottomPadding}px`
       }}
     >
       <div className="w-[75%] h-full bg-black rounded-full px-6 shadow-lg flex items-center justify-between pointer-events-auto relative">
@@ -92,6 +95,7 @@ interface NighttimeTimelineOverlayProps {
   nighttimeHour: number;
   setSettings?: React.Dispatch<React.SetStateAction<AppSettings>>;
   activeNighttimeLayer?: MapLayer;
+  uiBottomPadding?: number;
 }
 
 export const NighttimeTimelineOverlay: React.FC<NighttimeTimelineOverlayProps> = ({
@@ -103,16 +107,20 @@ export const NighttimeTimelineOverlay: React.FC<NighttimeTimelineOverlayProps> =
   isToolbarOpen,
   nighttimeHour,
   setSettings,
-  activeNighttimeLayer
+  activeNighttimeLayer,
+  uiBottomPadding = 0
 }) => {
   if (!isNighttimeLayerVisible) return null;
 
+  const baseBottom = (selectedCycloneId && isCycloneLayerVisible) ? 136 : (hasDateLayers ? 80 : 24);
+
   return (
     <div 
-      className={`absolute h-12 z-40 flex justify-center items-center transition-all duration-300 ease-in-out pointer-events-none ${(selectedCycloneId && isCycloneLayerVisible) ? 'bottom-[8.5rem]' : (hasDateLayers ? 'bottom-[5rem]' : 'bottom-6')}`}
+      className="absolute h-12 z-40 flex justify-center items-center transition-all duration-300 ease-in-out pointer-events-none"
       style={{
         left: `calc(104px + ${isSidebarOpen ? '320px' : '0px'} + ${isToolbarOpen ? '640px' : '48px'})`,
         right: '160px',
+        bottom: `${baseBottom + uiBottomPadding}px`
       }}
     >
       <div className="w-[75%] h-full bg-black rounded-full px-6 shadow-lg flex items-center justify-between pointer-events-auto relative">

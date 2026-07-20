@@ -118,7 +118,8 @@ export const useDisasterStream = ({
           return;
         }
 
-        const url = `https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=TC&eventid=${selectedCycloneId.id}&episodeid=${selectedCycloneId.ep}`;
+        const rawUrl = `https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=TC&eventid=${selectedCycloneId.id}&episodeid=${selectedCycloneId.ep}`;
+        const url = `./api.php?action=proxy_gdacs&url=${encodeURIComponent(rawUrl)}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error('Failed to fetch cyclone geometry');
         

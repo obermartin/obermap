@@ -122,7 +122,8 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
     
     (async () => {
       try {
-        const polyRes = await fetch(selectedEarthquake.geomUrl.replace('http:', 'https:'));
+        const targetUrl = encodeURIComponent(selectedEarthquake.geomUrl.replace('http:', 'https:'));
+        const polyRes = await fetch(`./api.php?action=proxy_gdacs&url=${targetUrl}`);
         if (!polyRes.ok) throw new Error('Failed to fetch shakemap');
         const polyData = await polyRes.json();
         if (isSubscribed) {
@@ -611,7 +612,8 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
 
     (async () => {
       try {
-        const polyRes = await fetch(selectedVolcano.geomUrl.replace('http:', 'https:'));
+        const targetUrl = encodeURIComponent(selectedVolcano.geomUrl.replace('http:', 'https:'));
+        const polyRes = await fetch(`./api.php?action=proxy_gdacs&url=${targetUrl}`);
         if (!polyRes.ok) throw new Error('Failed to fetch polygon');
         const polyData = await polyRes.json();
         if (isSubscribed) {

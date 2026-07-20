@@ -265,6 +265,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
     exit;
 }
 
+// Handle GDACS proxy request
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'proxy_gdacs') {
+    $targetUrl = $_GET['url'] ?? '';
+    if (!$targetUrl || strpos($targetUrl, 'https://www.gdacs.org/') !== 0) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid or missing target URL']);
+        exit;
+    }
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $targetUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    curl_close($ch);
+    
+    if ($httpCode === 200 && $response) {
+        header("Content-Type: " . ($contentType ? $contentType : "application/json"));
+        echo $response;
+    } else {
+        http_response_code($httpCode ? $httpCode : 500);
+        echo json_encode(['error' => 'Proxy request failed']);
+    }
+    exit;
+}
+
 // Handle OpenSky proxy request
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'opensky') {
     $url = 'https://opensky-network.org/api/states/all?' . http_build_query([

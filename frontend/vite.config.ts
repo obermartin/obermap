@@ -257,6 +257,35 @@ function mockPhpBackend(env: Record<string, string>) {
             return;
           }
 
+          if (action === "proxy_gdacs") {
+            const targetUrl = urlObj.searchParams.get("url") || "";
+            if (!targetUrl.startsWith("https://www.gdacs.org/")) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: "Invalid url" }));
+              return;
+            }
+            const options: any = { 
+              method: "GET", 
+              headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+              },
+              rejectUnauthorized: false
+            };
+            const proxyReq = https.request(targetUrl, options, (proxyRes) => {
+              res.writeHead(proxyRes.statusCode || 200, {
+                "Content-Type": proxyRes.headers["content-type"] || "application/json",
+                "Access-Control-Allow-Origin": "*",
+              });
+              proxyRes.pipe(res);
+            });
+            proxyReq.on("error", (e) => {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: e.message }));
+            });
+            proxyReq.end();
+            return;
+          }
+
           if (action === "migrate_to_sql" || action === "migrate_to_mongodb") {
             res.setHeader("Content-Type", "application/json");
             try {

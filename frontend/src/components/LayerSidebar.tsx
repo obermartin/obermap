@@ -1156,7 +1156,8 @@ export function LayerSidebar({
 
   return (
     <div
-      className={`absolute top-0 left-0 h-full w-80 bg-[#18181b] border-r border-white/10 flex flex-col shadow-2xl z-40 text-white transition-transform duration-300 ease-in-out ${isOpen ? "translate-x-0" : "-translate-x-full"}`}
+      className={`absolute top-0 left-0 h-full w-80 bg-[#18181b] border-r border-white/10 flex flex-col shadow-2xl z-40 text-white transition-all duration-300 ease-in-out ${isOpen ? "translate-x-0" : "-translate-x-full"}`}
+      style={{ paddingBottom: `${settings?.uiBottomPadding || 0}px` }}
     >
       <div className="p-4 flex justify-start items-center bg-black/20">
         <button
@@ -2866,7 +2867,7 @@ export function LayerSidebar({
             </div>
           </details>
 
-          {/* ANIMATIONS */}
+          {/* UI SETTINGS */}
           <details className="group flex flex-col gap-[2px] w-full">
             <summary className="relative p-3 flex items-center gap-2 bg-black text-xs text-white font-semibold tracking-wider cursor-pointer list-none outline-none [&::-webkit-details-marker]:hidden">
               <ChevronRight
@@ -2877,9 +2878,29 @@ export function LayerSidebar({
                 size={14}
                 className="text-white/50 group-hover:text-white transition-colors hidden group-open:block shrink-0"
               />
-              <span>{t("ANIMATIONS")}</span>
+              <span>{t("UI SETTINGS")}</span>
             </summary>
             <div className="p-3 flex flex-col gap-4 bg-black mt-[2px]">
+              <div>
+                <label className="text-[10px] text-white mb-2 block font-semibold tracking-wider">
+                  {t("BOTTOM PADDING")} ({settings.uiBottomPadding ?? 0}px)
+                </label>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-white/50 w-6 text-right">0</span>
+                  <div className="relative flex-1 flex flex-col justify-center h-8">
+                    <input
+                      type="range"
+                      min="0"
+                      max="500"
+                      step="1"
+                      value={settings.uiBottomPadding ?? 0}
+                      onChange={(e) => setSettings(prev => ({ ...prev, uiBottomPadding: parseInt(e.target.value) }))}
+                      className="w-full h-1 bg-white/20 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
+                    />
+                  </div>
+                  <span className="text-xs text-white/50 w-8">500</span>
+                </div>
+              </div>
               <div>
                 <label className="text-[10px] text-white mb-2 block font-semibold tracking-wider">
                   {t("PATH & POLYGON REVEAL")} (

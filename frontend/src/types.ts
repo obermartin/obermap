@@ -182,6 +182,7 @@ export interface AppSettings {
   exportBasemapScale?: number;
   exportAnnotationScale?: number;
   exportScalePreview?: boolean;
+  uiBottomPadding?: number;
   icons: IconCategory[];
   labelTemplates?: {
     highlightLabelTemplate?: string;

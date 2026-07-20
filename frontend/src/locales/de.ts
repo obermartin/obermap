@@ -246,8 +246,9 @@ export const de: Record<string, string> = {
   "Force Gotham Font": "Gotham Font erzwingen",
   "Solid Color": "Farbfläche",
 
-  // Animations
-  "ANIMATIONS": "ANIMATIONEN",
+  // UI Settings
+  "UI SETTINGS": "UI EINSTELLUNGEN",
+  "BOTTOM PADDING": "ABSTAND UNTEN",
   "PATH & POLYGON REVEAL": "PFADE UND POLYGONE",
   "LABEL & ICON REVEAL": "LABELS UND ICONS",
 

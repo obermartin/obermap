@@ -900,7 +900,8 @@ export const useLayerVisibility = (props: LayerVisibilityProps) => {
                 }
               } else {
                 const eventlist = layer.type.includes('earthquake') || layer.type.includes('shakemap') ? 'EQ' : layer.type === 'gdacs_cyclones' ? 'TC' : 'VO';
-                const url = `https://www.gdacs.org/gdacsapi/api/Events/geteventlist/search?eventlist=${eventlist}&fromDate=${startDate}&toDate=${endDate}`;
+                const rawUrl = `https://www.gdacs.org/gdacsapi/api/Events/geteventlist/search?eventlist=${eventlist}&fromDate=${startDate}&toDate=${endDate}`;
+                const url = `./api.php?action=proxy_gdacs&url=${encodeURIComponent(rawUrl)}`;
                 const res = await fetch(url);
                 if (!res.ok) throw new Error(`Failed to fetch GDACS data: ${res.statusText}`);
                 const text = await res.text();

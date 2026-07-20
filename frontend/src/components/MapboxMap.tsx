@@ -1437,7 +1437,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
           {weatherLayerVisible && (
             <div 
               ref={weatherToggleRef}
-              className="absolute z-30 flex items-center justify-center pointer-events-none bottom-6"
+              className="absolute z-30 flex items-center justify-center pointer-events-none transition-all duration-300 ease-in-out"
+              style={{ bottom: `${24 + (settings?.uiBottomPadding || 0)}px` }}
             >
               <div className="flex border border-white/20 rounded-full p-1 relative bg-black shadow-xl shrink-0 pointer-events-auto">
                 <button
@@ -1483,7 +1484,10 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
             </div>
           )}
 
-          <div className={`absolute bottom-20 left-6 z-30 max-w-[calc(100vw-3rem)] flex flex-col gap-2 transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-[20rem]' : 'translate-x-0'}`}>
+          <div 
+            className={`absolute left-6 z-30 max-w-[calc(100vw-3rem)] flex flex-col gap-2 transition-all duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-[20rem]' : 'translate-x-0'}`}
+            style={{ bottom: `${80 + (settings?.uiBottomPadding || 0)}px` }}
+          >
 
             {showWindLegend && (
               <div className="bg-black border border-white/20 text-white flex items-center gap-1.5 px-3 h-12 w-fit max-w-full overflow-x-auto no-scrollbar">
@@ -1524,6 +1528,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         isToolbarOpen={isToolbarOpen}
         cycloneTimelinePercent={cycloneTimelinePercent}
         setCycloneTimelinePercent={setCycloneTimelinePercent}
+        uiBottomPadding={settings?.uiBottomPadding}
       />
 
       <NighttimeTimelineOverlay
@@ -1536,6 +1541,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         nighttimeHour={nighttimeHour}
         setSettings={setSettings}
         activeNighttimeLayer={activeNighttimeLayer}
+        uiBottomPadding={settings?.uiBottomPadding}
       />
 
       {editingIconAnnotation && (
