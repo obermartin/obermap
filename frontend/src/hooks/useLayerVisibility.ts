@@ -192,12 +192,13 @@ export const useLayerVisibility = (props: LayerVisibilityProps) => {
           if (map.getLayer(layerId)) map.removeLayer(layerId);
           if (map.getLayer(lineId)) map.removeLayer(lineId);
           map.removeSource(sourceId);
-          layer._isDirty = false;
         } else if (layer.type === 'wildfires' && map.getSource(`${sourceId}-effis`)) {
           if (map.getLayer(`${layerId}-effis`)) map.removeLayer(`${layerId}-effis`);
           map.removeSource(`${sourceId}-effis`);
-          layer._isDirty = false;
         }
+        layer._isDirty = false;
+        const originalLayer = settings.layers.find(l => l.id === layer.id);
+        if (originalLayer) originalLayer._isDirty = false;
       }
 
       if (layer.type === 'weather_forecast') {
