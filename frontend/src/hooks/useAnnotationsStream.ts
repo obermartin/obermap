@@ -194,7 +194,7 @@ export const useAnnotationsStream = ({
           el = document.createElement('div');
           el.className = 'custom-marker';
           el.innerHTML = `
-            <div class="annotation-scale-wrapper" style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: bottom center;">
+            <div class="annotation-scale-wrapper" style="display: flex; flex-direction: column; align-items: center; transform-origin: bottom center;">
               <div class="custom-marker-plate" style="background-color: ${ann.color}; border-color: ${ann.color === '#000000' || ann.color === '#000' ? 'rgba(255,255,255,0.1)' : ann.color}">
                 <div class="custom-marker-text" style="color: ${contrastColor}; display: flex; flex-direction: column; align-items: flex-start;">
                   <span style="font-size: 1.6em; line-height: 1;">${ann.text}</span>
