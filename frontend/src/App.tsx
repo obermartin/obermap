@@ -12,6 +12,7 @@ import { DEFAULT_ICON_CATEGORIES } from './defaultIcons';
 
 const DEFAULT_SETTINGS: AppSettings = {
   mapStyle: 'https://tiles.openfreemap.org/styles/liberty',
+  projection: 'mercator',
   defaultView: {
     center: [10.45, 51.16],
     zoom: 5,

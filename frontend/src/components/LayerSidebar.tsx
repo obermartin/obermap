@@ -2637,6 +2637,25 @@ export function LayerSidebar({
                 </button>
               </div>
 
+              <div className="flex items-center justify-between px-1 mt-1">
+                <label className="text-[10px] text-white font-semibold tracking-wider">
+                  {t("Globe Projection")}
+                </label>
+                <button
+                  onClick={() =>
+                    setSettings((prev) => ({
+                      ...prev,
+                      projection: prev.projection === "globe" ? "mercator" : "globe",
+                    }))
+                  }
+                  className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${settings.projection === "globe" ? "bg-white" : "bg-white/20"}`}
+                >
+                  <div
+                    className={`w-3 h-3 rounded-full absolute top-1 transition-all ${settings.projection === "globe" ? "left-5 bg-black" : "left-1 bg-white"}`}
+                  />
+                </button>
+              </div>
+
 
               {isGeneratingScreenshotId && basemaps.find(b => b.id === isGeneratingScreenshotId) && (
                 <ScreenshotMap 

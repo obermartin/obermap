@@ -158,6 +158,7 @@ export interface AppSettings {
   isTemplate?: boolean;
   previewData?: string;
   mapStyle: string;
+  projection?: 'mercator' | 'globe';
   enable3dTerrain?: boolean;
   terrainExaggeration?: number;
   enableHillshade?: boolean;

@@ -284,4 +284,18 @@ export const useMapStyling = ({
       console.warn("Could not apply water layer styling (style might not be loaded yet)");
     }
   }, [mapLoaded, settings.waterColor, settings.waterOpacity, settings.mapStyle, styleLoadedTick]);
+
+  // Map Projection (Globe vs Mercator)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    try {
+      if (typeof (map as any).setProjection === 'function') {
+        (map as any).setProjection({ type: settings.projection === 'globe' ? 'globe' : 'mercator' });
+      }
+    } catch (e) {
+      console.warn("Failed to set map projection", e);
+    }
+  }, [mapLoaded, settings.projection, styleLoadedTick]);
 };

@@ -82,9 +82,10 @@ export const useMapInitialization = ({
       pitch: settings.defaultView.pitch,
       bearing: settings.defaultView.bearing,
       maxPitch: 85,
+      projection: settings.projection === 'globe' ? { type: 'globe' } : { type: 'mercator' },
       canvasContextAttributes: { preserveDrawingBuffer: true },
       attributionControl: false,
-      transformRequest: (url, resourceType) => {
+      transformRequest: (url: string, resourceType?: string) => {
         if (settings.replaceGothamFont !== false && resourceType === 'Glyphs' && decodeURIComponent(url).includes('Gotham Condensed')) {
           try {
             const urlObj = new URL(url);
@@ -100,7 +101,7 @@ export const useMapInitialization = ({
         }
         return { url };
       }
-    });
+    } as any);
     
     mapRef.current = map;
     onMapInit?.(map);

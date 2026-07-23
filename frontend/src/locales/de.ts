@@ -244,6 +244,7 @@ export const de: Record<string, string> = {
   
   // Custom Fonts
   "Force Gotham Font": "Gotham Font erzwingen",
+  "Globe Projection": "Globus-Projektion",
   "Solid Color": "Farbfläche",
 
   // UI Settings
