@@ -61,7 +61,7 @@ export const useFlightStream = ({
 
   useEffect(() => {
     
-    if (!map || !mapLoaded || !flightsLayer || !isFlightsVisible) {
+    if (!map || !mapLoaded || !map.isStyleLoaded() || !flightsLayer || !isFlightsVisible) {
       if (map && deckOverlayRef.current) {
         map.removeControl(deckOverlayRef.current);
         deckOverlayRef.current.finalize();
@@ -536,7 +536,7 @@ export const useFlightStream = ({
   // Fetch track when selectedAircraftId changes
   useEffect(() => {
     
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
     
     const source = map.getSource('selected-flight-track') as maplibregl.GeoJSONSource;
     if (!source) return;

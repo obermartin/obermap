@@ -66,7 +66,7 @@ export const useAnnotationsStream = ({
 
   // Update mapbox features when annotations change
   useEffect(() => {
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
     const source = map.getSource('custom-annotations') as maplibregl.GeoJSONSource;
     if (!source) return;
     cachedTurfDataRef.current = {};
@@ -634,7 +634,7 @@ export const useAnnotationsStream = ({
 
   // Animation Loop for Reveals
   useEffect(() => {
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
     
     let frameId: number;
 

@@ -96,7 +96,7 @@ export const useDisasterStream = ({
   // Fetch geometry when selectedCycloneId changes
   useEffect(() => {
     
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
     
     const source = map.getSource('selected-cyclone-geometry') as maplibregl.GeoJSONSource;
     if (!source) return;
@@ -157,7 +157,7 @@ export const useDisasterStream = ({
   // Effect to process and render the cyclone track based on the timeline slider
   useEffect(() => {
     
-    if (!map || !mapLoaded || !selectedCycloneId || !cycloneRawData) return;
+    if (!map || !mapLoaded || !map.isStyleLoaded() || !selectedCycloneId || !cycloneRawData) return;
     
     const source = map.getSource('selected-cyclone-geometry') as maplibregl.GeoJSONSource;
     if (!source) return;
@@ -574,7 +574,7 @@ export const useDisasterStream = ({
   // Update earthquake labels filter
   useEffect(() => {
     
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
     
     settings.layers.forEach(layer => {
       if (layer.type === 'gdacs_earthquakes') {
@@ -600,7 +600,7 @@ export const useDisasterStream = ({
   // Update cyclone point filter to hide selected cyclone point
   useEffect(() => {
     
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
     
     settings.layers.forEach(layer => {
       if (layer.type === 'gdacs_cyclones') {
@@ -628,7 +628,7 @@ export const useDisasterStream = ({
       delete selectionMarkersRef.current['selected-eq-label'];
     }
     
-    if (!map || !mapLoaded || !selectedEarthquake) {
+    if (!map || !mapLoaded || !map.isStyleLoaded() || !selectedEarthquake) {
       return;
     }
 
@@ -676,7 +676,7 @@ export const useDisasterStream = ({
   // Render selected earthquake shakemap
   useEffect(() => {
     
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
 
     if (!map.getSource('selected-earthquake-shakemap-source')) {
       map.addSource('selected-earthquake-shakemap-source', {
@@ -761,7 +761,7 @@ export const useDisasterStream = ({
   // Render selected CEMS earthquake VT layers
   useEffect(() => {
     
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
 
     if (!map.getSource('selected-cems-vt-source')) {
       map.addSource('selected-cems-vt-source', {
@@ -948,7 +948,7 @@ export const useDisasterStream = ({
   // Render CEMS Wildfire Features
   useEffect(() => {
     
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
 
     let beforeId = 'custom-polygons';
     const style = map.getStyle();
@@ -1115,7 +1115,7 @@ export const useDisasterStream = ({
 
   // Heavy setData operation isolated to prevent memory leaks on settings save
   useEffect(() => {
-    if (!mapLoaded || !map) return;
+    if (!mapLoaded || !map || !map.isStyleLoaded()) return;
     const source = map.getSource('active-wildfire-cems-vt-source') as maplibregl.GeoJSONSource;
     if (source) {
       source.setData(activeCemsWildfireFeatures || { type: 'FeatureCollection', features: [] });
@@ -1124,7 +1124,7 @@ export const useDisasterStream = ({
 
   // Heavy setData operation isolated to prevent memory leaks on settings save
   useEffect(() => {
-    if (!mapLoaded || !map) return;
+    if (!mapLoaded || !map || !map.isStyleLoaded()) return;
     const source = map.getSource('active-flood-cems-vt-source') as maplibregl.GeoJSONSource;
     if (source) {
       source.setData(activeCemsFloodFeatures || { type: 'FeatureCollection', features: [] });
@@ -1134,7 +1134,7 @@ export const useDisasterStream = ({
   // Flood CEMS VT rendering
   useEffect(() => {
     
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
 
     let beforeId: string | undefined;
     const style = map.getStyle();
@@ -1307,7 +1307,7 @@ export const useDisasterStream = ({
       delete selectionMarkersRef.current['selected-volcano-label'];
     }
 
-    if (!map || !mapLoaded || !selectedVolcano) {
+    if (!map || !mapLoaded || !map.isStyleLoaded() || !selectedVolcano) {
       return;
     }
 
@@ -1361,7 +1361,7 @@ export const useDisasterStream = ({
   // Render selected volcano danger zone polygon
   useEffect(() => {
     
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
 
     if (!map.getSource('selected-volcano-polygon-source')) {
       map.addSource('selected-volcano-polygon-source', {

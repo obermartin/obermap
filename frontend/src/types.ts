@@ -1,6 +1,6 @@
 import type { Theme } from './labels/LabelMarkerManager';
 
-export type ToolType = 'none' | 'label' | 'highlight' | 'paint' | 'polygon' | 'circle' | 'measure' | 'icon' | 'arrow' | 'route' | 'headline';
+export type ToolType = 'none' | 'label' | 'highlight' | 'paint' | 'polygon' | 'circle' | 'measure' | 'icon' | 'arrow' | 'route' | 'headline' | 'view';
 export type StrokeType = 'solid' | 'dashed' | 'dotted';
 export type RouteMode = 'driving' | 'walking' | 'train';
 

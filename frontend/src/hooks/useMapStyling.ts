@@ -46,8 +46,17 @@ export const useMapStyling = ({
   }, [settings.animationDuration, mapLoaded, styleLoadedTick]);
 
   // Handle Map Label Density
+  const lastAppliedDensityRef = useRef<number | undefined>(undefined);
   useEffect(() => {
     if (!mapRef.current || !mapLoaded || settings.labelDensity === undefined) return;
+    if (lastAppliedDensityRef.current === settings.labelDensity) return;
+
+    if (settings.labelDensity === 100 && lastAppliedDensityRef.current === undefined) {
+      lastAppliedDensityRef.current = 100;
+      return;
+    }
+
+    lastAppliedDensityRef.current = settings.labelDensity;
     
     const density = settings.labelDensity;
     let style;
@@ -266,6 +275,8 @@ export const useMapStyling = ({
   }, [mapLoaded, settings.enable3dTerrain, settings.terrainExaggeration, settings.enableHillshade, settings.hillshadeShadowOpacity, settings.hillshadeHighlightOpacity, settings.enableSky, settings.skyColor, styleLoadedTick]);
 
   // Water Layer Styling
+  const lastWaterColorRef = useRef<string | undefined>(undefined);
+  const lastWaterOpacityRef = useRef<number | undefined>(undefined);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapLoaded) return;
@@ -273,10 +284,12 @@ export const useMapStyling = ({
     try {
       // Only apply to styles that use the standard 'water' fill layer when style is loaded
       if (map.isStyleLoaded() && map.getLayer('water')) {
-        if (settings.waterColor !== undefined) {
+        if (settings.waterColor !== undefined && lastWaterColorRef.current !== settings.waterColor) {
+          lastWaterColorRef.current = settings.waterColor;
           map.setPaintProperty('water', 'fill-color', settings.waterColor);
         }
-        if (settings.waterOpacity !== undefined) {
+        if (settings.waterOpacity !== undefined && lastWaterOpacityRef.current !== settings.waterOpacity) {
+          lastWaterOpacityRef.current = settings.waterOpacity;
           map.setPaintProperty('water', 'fill-opacity', settings.waterOpacity);
         }
       }
@@ -286,12 +299,16 @@ export const useMapStyling = ({
   }, [mapLoaded, settings.waterColor, settings.waterOpacity, settings.mapStyle, styleLoadedTick]);
 
   // Dynamic Map Style & Solid Background Color Handler
-  const currentMapStyleRef = useRef<string | null>(null);
+  const defaultStyleStr = 'https://tiles.openfreemap.org/styles/liberty';
+  const currentMapStyleRef = useRef<string | null>(defaultStyleStr);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapLoaded) return;
 
-    const newStyleStr = typeof settings.mapStyle === 'string' ? settings.mapStyle : JSON.stringify(settings.mapStyle);
+    const effectiveStyle = settings.mapStyle || defaultStyleStr;
+    const newStyleStr = typeof effectiveStyle === 'string' ? effectiveStyle : JSON.stringify(effectiveStyle);
+
     if (currentMapStyleRef.current === newStyleStr) return;
 
     try {
@@ -319,14 +336,14 @@ export const useMapStyling = ({
               }
             }
           ]
-        });
+        }, { diff: false });
         return;
       }
 
       // Normal style URL or JSON
       currentMapStyleRef.current = newStyleStr;
-      let finalStyle: any = settings.mapStyle || 'https://tiles.openfreemap.org/styles/liberty';
-      map.setStyle(finalStyle);
+      let finalStyle: any = settings.mapStyle || defaultStyleStr;
+      map.setStyle(finalStyle, { diff: false });
     } catch (e) {
       console.warn("Could not update map style dynamically", e);
     }
@@ -335,7 +352,7 @@ export const useMapStyling = ({
   // Map Projection (Globe vs Mercator)
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
 
     try {
       if (typeof (map as any).setProjection === 'function') {

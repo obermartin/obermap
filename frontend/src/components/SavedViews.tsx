@@ -145,7 +145,7 @@ interface SavedViewsProps {
 
 export const SavedViews: React.FC<SavedViewsProps> = ({ annotations, onFlyTo, defaultView, isSidebarOpen, isToolbarOpen, onDeleteAnnotation, selectedAnnotationId, onReorderAnnotations, activeCropOverlay, onRenameAnnotationButton, onRenameOverviewButton }) => {
   const { t } = useTranslation();
-  const labelAnnotations = annotations.filter(a => (a.type === 'label' || a.type === 'highlight') && a.text && a.view);
+  const labelAnnotations = annotations.filter(a => (a.type === 'label' || a.type === 'highlight' || a.type === 'headline' || a.type === 'view') && a.text && a.view);
 
   const selectedAnn = annotations.find(a => a.id === selectedAnnotationId);
   const revealTriggerId = selectedAnn?.animationTriggerId;

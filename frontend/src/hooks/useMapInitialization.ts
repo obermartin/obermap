@@ -86,6 +86,29 @@ export const useMapInitialization = ({
       canvasContextAttributes: { preserveDrawingBuffer: true },
       attributionControl: false,
       transformRequest: (url: string, resourceType?: string) => {
+        if (resourceType === 'Glyphs' && url.includes('orangemug.github.io/font-glyphs')) {
+          let newUrl = url.replace('https://orangemug.github.io/font-glyphs/glyphs/', 'https://tiles.openfreemap.org/fonts/');
+          newUrl = newUrl.replace(/Arial(?:%20| )Unicode(?:%20| )MS(?:%20| )Regular/gi, 'Noto%20Sans%20Regular');
+          return { url: newUrl };
+        }
+
+        if (url.includes('virtualearth.net/tiles/a/')) {
+          const match = url.match(/\/tiles\/a\/(\d+)\/(\d+)\/(\d+)/);
+          if (match) {
+            const z = parseInt(match[1], 10);
+            const x = parseInt(match[2], 10);
+            const y = parseInt(match[3], 10);
+            let quadKey = '';
+            for (let i = z; i > 0; i--) {
+              let digit = 0;
+              const mask = 1 << (i - 1);
+              if ((x & mask) !== 0) digit += 1;
+              if ((y & mask) !== 0) digit += 2;
+              quadKey += digit.toString();
+            }
+            return { url: url.replace(/\/tiles\/a\/\d+\/\d+\/\d+/, `/tiles/a${quadKey}`) };
+          }
+        }
         if (settings.replaceGothamFont !== false && resourceType === 'Glyphs' && decodeURIComponent(url).includes('Gotham Condensed')) {
           try {
             const urlObj = new URL(url);
@@ -102,23 +125,54 @@ export const useMapInitialization = ({
         return { url };
       }
     } as any);
+
+    // Observe map container resize to keep map viewport synced
+    const resizeObserver = new ResizeObserver(() => {
+      if (mapRef.current) {
+        mapRef.current.resize();
+      }
+    });
+    if (mapContainer.current) {
+      resizeObserver.observe(mapContainer.current);
+    }
     
     mapRef.current = map;
     onMapInit?.(map);
 
+    // Guard MapLibre WebGL painter against terrain depth/coords calls when 3D terrain is disabled
+    if ((map as any).painter) {
+      const painter = (map as any).painter;
+      if (typeof painter.maybeDrawDepth === 'function') {
+        const origMaybeDrawDepth = painter.maybeDrawDepth;
+        painter.maybeDrawDepth = function (...args: any[]) {
+          if (!map.getTerrain()) return;
+          try {
+            return origMaybeDrawDepth.apply(this, args);
+          } catch (e) {}
+        };
+      }
+      if (typeof painter.maybeDrawCoords === 'function') {
+        const origMaybeDrawCoords = painter.maybeDrawCoords;
+        painter.maybeDrawCoords = function (...args: any[]) {
+          if (!map.getTerrain()) return;
+          try {
+            return origMaybeDrawCoords.apply(this, args);
+          } catch (e) {}
+        };
+      }
+    }
+
     map.on('error', (e: any) => {
-      // Ignore tile loading errors (which have a sourceId/tile) that might happen during flyTo or out of bounds.
-      if (e.sourceId || e.tile || e.source) {
+      // Ignore tile or glyph loading errors (which are non-fatal)
+      if (e.sourceId || e.tile || e.source || (e.error && e.error.message && (e.error.message.includes('glyphs') || e.error.message.includes('sprite') || e.error.message.includes('tile')))) {
         return;
       }
 
-      if (e.error && e.error.message && e.error.message.includes('404')) {
+      if (e.error && e.error.message && e.error.message.includes('404') && typeof settings.mapStyle === 'string' && settings.mapStyle.includes('api.php?action=basemap_style')) {
         console.error("Map style not found (404). Falling back to default map style.", e.error);
-        if (typeof settings.mapStyle === 'string' && settings.mapStyle.includes('api.php?action=basemap_style')) {
-          setSettings?.(p => ({ ...p, mapStyle: 'https://tiles.openfreemap.org/styles/liberty' }));
-        }
+        setSettings?.(p => ({ ...p, mapStyle: 'https://tiles.openfreemap.org/styles/liberty' }));
         try {
-          map.setStyle('https://tiles.openfreemap.org/styles/liberty');
+          map.setStyle('https://tiles.openfreemap.org/styles/liberty', { diff: false });
         } catch (err) {}
       }
     });
@@ -247,6 +301,22 @@ export const useMapInitialization = ({
 
     map.on('load', () => {
       if (mapRef.current !== map) return;
+
+      map.resize();
+      map.triggerRepaint();
+
+      setTimeout(() => {
+        if (mapRef.current === map) {
+          map.resize();
+          map.triggerRepaint();
+        }
+      }, 100);
+      setTimeout(() => {
+        if (mapRef.current === map) {
+          map.resize();
+          map.triggerRepaint();
+        }
+      }, 300);
 
       // Add a 1x1 solid white pixel for text backplates
       const canvas = document.createElement('canvas');
@@ -821,9 +891,20 @@ export const useMapInitialization = ({
         setStyleLoadedTick(t => t + 1);
       };
 
+      let lastStyleLoaded = false;
+      const onStyleData = () => {
+        const isLoaded = !!map.isStyleLoaded();
+        if (isLoaded && !lastStyleLoaded) {
+          setStyleLoadedTick(t => t + 1);
+          setupCustomLayers();
+        }
+        lastStyleLoaded = isLoaded;
+      };
+      map.on('styledata', onStyleData);
+      map.on('data', onStyleData);
+
       setMapLoaded(true);
-      setupCustomLayers();
-      map.on('styledata', setupCustomLayers);
+      // Wait for onStyleData to trigger setupCustomLayers instead of doing it immediately.
     });
 
     // Add flyTo listener
@@ -965,6 +1046,7 @@ export const useMapInitialization = ({
       window.removeEventListener('activateExportTrigger', handleActivateExportTrigger);
       window.removeEventListener('updateBothTriggers', handleUpdateBothTriggers);
       window.removeEventListener('resetAnimationTriggers', handleResetAnimationTriggers);
+      resizeObserver.disconnect();
       map.remove();
       mapRef.current = null;
     };

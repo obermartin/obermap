@@ -12,6 +12,14 @@ polyfill({
     dragImageTranslateOverride: scrollBehaviourDragImageTranslateOverride
 });
 
+const originalConsoleWarn = console.warn;
+console.warn = function(...args) {
+  if (args.length > 0 && typeof args[0] === 'string' && args[0].includes('Unable to load glyph range')) {
+    return;
+  }
+  originalConsoleWarn.apply(console, args);
+};
+
 window.addEventListener('touchmove', function() {}, {passive: false});
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

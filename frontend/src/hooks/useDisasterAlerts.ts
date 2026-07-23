@@ -259,7 +259,7 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
   // Render USGS DYFI 10km
   useEffect(() => {
      
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
 
     const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
     const isVisible = eqLayer?._effectiveOpacityVisible ?? true;
@@ -315,7 +315,7 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
   // Render USGS DYFI 1km
   useEffect(() => {
      
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
 
     if (!map.getSource('selected-usgs-dyfi-1km-source')) {
       map.addSource('selected-usgs-dyfi-1km-source', {
@@ -375,7 +375,7 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
   // Render USGS Landslide Overlay
   useEffect(() => {
      
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
 
     if (!map.getSource('selected-usgs-landslide-source') && selectedEarthquakeUsgsLandslide) {
       map.addSource('selected-usgs-landslide-source', {
@@ -437,7 +437,7 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
   // Render USGS Liquefaction Overlay
   useEffect(() => {
      
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
 
     if (!map.getSource('selected-usgs-liquefaction-source') && selectedEarthquakeUsgsLiquefaction) {
       map.addSource('selected-usgs-liquefaction-source', {

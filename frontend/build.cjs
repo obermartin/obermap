@@ -2,14 +2,20 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+const rootDistDir = path.join(__dirname, 'dist');
+const tempDistDir = path.join(__dirname, '.dist-temp');
+
+// Clean leftover .dist-temp if present from previous runs
+if (fs.existsSync(tempDistDir)) {
+  fs.rmSync(tempDistDir, { recursive: true, force: true });
+}
+
 // 1. Run Vite build
 console.log('Running Vite build...');
 // Instead of npm run build which might call us again, we call the specific commands
 execSync('npx tsc -b && npx vite build', { stdio: 'inherit' });
 
 // 2. Prepare paths
-const rootDistDir = path.join(__dirname, 'dist');
-const tempDistDir = path.join(__dirname, '.dist-temp');
 
 // Rename dist to .dist-temp temporarily
 if (fs.existsSync(rootDistDir)) {

@@ -389,7 +389,12 @@ export function App() {
       const message = t("This will delete all {{type}} annotations. Are you sure?", { type: typeLabel });
       const confirmed = await customConfirm(message, { confirmLabel: "Yes", cancelLabel: "No" });
       if (confirmed) {
-        setAnnotations(prev => prev.filter(a => a.type !== activeTool));
+        setAnnotations(prev => prev.filter(a => {
+          if (a.type !== activeTool) return true;
+          // If we are deleting labels, DO NOT delete "position x" mapview buttons (which have no coordinates)
+          if (activeTool === 'label' && !a.coordinates) return true;
+          return false;
+        }));
       }
     }
   }, [activeTool, annotations, selectedAnnotationId, t]);
@@ -847,6 +852,7 @@ export function App() {
       <AnimatePresence>
         {hasDateLayers && (
           <motion.div 
+            key="global-date-control"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}

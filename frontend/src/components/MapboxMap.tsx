@@ -444,6 +444,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   useLayerVisibility({
     map: mapRef.current,
     mapLoaded,
+    styleLoadedTick,
     settings,
     activeTool,
     revealedTriggers,

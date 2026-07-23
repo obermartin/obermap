@@ -10,6 +10,7 @@ let globalDeepstateHistoryPromise: Promise<{ id: number; createdAt: string; }[] 
 export interface LayerVisibilityProps {
   map: maplibregl.Map | null;
   mapLoaded: boolean;
+  styleLoadedTick: number;
   settings: AppSettings;
   annotations: any[];
   activeTool: string | null;
@@ -35,7 +36,7 @@ export interface LayerVisibilityProps {
 
 export const useLayerVisibility = (props: LayerVisibilityProps) => {
   const {
-    map, mapLoaded, settings, activeTool, revealedTriggers, hiddenTriggers,
+    map, mapLoaded, styleLoadedTick, settings, activeTool, revealedTriggers, hiddenTriggers,
     selectedAircraftId, selectedVesselMmsi, selectedWeatherTime, weatherValidTimes,
     selectedEarthquake, selectedVolcano, selectedEarthquakeShakemap, selectedVolcanoPolygon,
     annotations, selectedCemsEarthquake, selectedCemsEarthquakeFeatures, getEffectiveLayerDates,
@@ -47,7 +48,7 @@ export const useLayerVisibility = (props: LayerVisibilityProps) => {
   const gdacsDataCacheRef = useRef<{ [cacheKey: string]: any }>({});
 
   useEffect(() => {
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
     
     const fadeDuration = settings.labelAnimationDuration ?? 1000;
     const transition = { duration: fadeDuration, delay: 0 };
@@ -178,7 +179,6 @@ export const useLayerVisibility = (props: LayerVisibilityProps) => {
         map.addSource('weather-wind', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
       }
     }
-
 
     // Add / Update layers
     layers.forEach((layer) => {
@@ -351,7 +351,17 @@ export const useLayerVisibility = (props: LayerVisibilityProps) => {
           }
           map.addSource(sourceId, sourceConfig);
         } else if (layer.type === 'satellite') {
-          map.addSource(sourceId, { type: 'raster', tiles: ['https://ecn.t0.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=129'], tileSize: 256, maxzoom: 19 });
+          map.addSource(sourceId, { 
+            type: 'raster', 
+            tiles: [
+              'https://ecn.t0.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=129',
+              'https://ecn.t1.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=129',
+              'https://ecn.t2.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=129',
+              'https://ecn.t3.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=129'
+            ], 
+            tileSize: 256, 
+            maxzoom: 19 
+          });
         } else if (layer.type === 'flights' || layer.type === 'vessels') {
           map.addSource(sourceId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
         }
@@ -504,20 +514,23 @@ export const useLayerVisibility = (props: LayerVisibilityProps) => {
         } else if (layer.type === 'raster' || layer.type === 'satellite') {
           const bMin = layer.brightness !== undefined && layer.brightness > 0 ? layer.brightness : 0;
           const bMax = layer.brightness !== undefined && layer.brightness < 0 ? 1 + layer.brightness : 1;
+          const targetBeforeId = (firstAdminId && map.getLayer(firstAdminId)) ? firstAdminId : undefined;
+          const isEffectiveVis = layer._effectiveOpacityVisible ?? true;
+          const initialOpacity = isEffectiveVis ? (layer.opacity ?? 1.0) : 0;
           map.addLayer({
             id: layerId,
             type: 'raster',
             source: sourceId,
-            layout: { visibility: layer.visible ? 'visible' : 'none' },
+            layout: { visibility: (layer.visible && isEffectiveVis) ? 'visible' : 'none' },
             paint: { 
-              'raster-opacity': layer.opacity ?? 1.0,
+              'raster-opacity': initialOpacity,
               'raster-contrast': layer.contrast ?? 0,
               'raster-saturation': layer.saturation ?? 0,
               'raster-hue-rotate': layer.hue ?? 0,
               'raster-brightness-min': bMin,
               'raster-brightness-max': bMax
             }
-          }, firstAdminId);
+          }, targetBeforeId);
         } else if (layer.type === 'flights') {
           map.addLayer({
             id: layerId,
@@ -621,14 +634,15 @@ export const useLayerVisibility = (props: LayerVisibilityProps) => {
             }
           }, firstSymbolId);
         }
-      } else if (map.getLayer(layerId)) {
+      }
+      if (map.getLayer(layerId)) {
         map.setLayoutProperty(layerId, 'visibility', layer.visible ? 'visible' : 'none');
         if (layer.type === 'nighttime') {
           setLayerFade(layerId, 'fill', layer._effectiveOpacityVisible ?? true, layer.opacity ?? 0.5, layer.visible);
         } else if (layer.type === 'raster' || layer.type === 'satellite') {
+          setLayerFade(layerId, 'raster', layer._effectiveOpacityVisible ?? true, layer.opacity ?? 1.0, layer.visible);
           const bMin = layer.brightness !== undefined && layer.brightness > 0 ? layer.brightness : 0;
           const bMax = layer.brightness !== undefined && layer.brightness < 0 ? 1 + layer.brightness : 1;
-          setLayerFade(layerId, 'raster', layer._effectiveOpacityVisible ?? true, layer.opacity ?? 1.0, layer.visible);
           map.setPaintProperty(layerId, 'raster-contrast', layer.contrast ?? 0);
           map.setPaintProperty(layerId, 'raster-saturation', layer.saturation ?? 0);
           map.setPaintProperty(layerId, 'raster-hue-rotate', layer.hue ?? 0);
@@ -985,7 +999,12 @@ export const useLayerVisibility = (props: LayerVisibilityProps) => {
       idsToMoveAdmin.forEach(id => {
         if (map.getLayer(id)) {
           try {
-            map.moveLayer(id, firstAdminId);
+            const validAdminId = (firstAdminId && map.getLayer(firstAdminId)) ? firstAdminId : undefined;
+            if (validAdminId) {
+              map.moveLayer(id, validAdminId);
+            } else {
+              map.moveLayer(id);
+            }
           } catch (e) {}
         }
       });
@@ -1002,6 +1021,6 @@ export const useLayerVisibility = (props: LayerVisibilityProps) => {
       // Cleanup dynamically created raster layers that were removed from settings
       // We don't remove copernicus or deepstate sources to avoid reload flashes
     };
-  }, [settings.layers, activeTool, revealedTriggers, hiddenTriggers, mapLoaded, selectedAircraftId, selectedVesselMmsi, selectedWeatherTime, weatherValidTimes, selectedEarthquake, selectedVolcano, selectedEarthquakeShakemap, selectedVolcanoPolygon, selectedCemsEarthquake, selectedCemsEarthquakeFeatures]);
+  }, [map, styleLoadedTick, settings.layers, activeTool, revealedTriggers, hiddenTriggers, mapLoaded, selectedAircraftId, selectedVesselMmsi, selectedWeatherTime, weatherValidTimes, selectedEarthquake, selectedVolcano, selectedEarthquakeShakemap, selectedVolcanoPolygon, selectedCemsEarthquake, selectedCemsEarthquakeFeatures]);
 
 };

@@ -141,6 +141,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       <AnimatePresence>
         {isOpen && activeTool === 'icon' && (
           <motion.div
+            key="icon-toolbar"
             initial={{ y: 10, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 10, opacity: 0 }}
@@ -266,6 +267,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             <AnimatePresence>
               {showFillOpacityControl && setCurrentFillOpacity && (
                 <motion.div
+                  key="fill-opacity-toolbar"
                   initial={{ width: 0, opacity: 0 }}
                   animate={{ width: 'auto', opacity: 1 }}
                   exit={{ width: 0, opacity: 0 }}
@@ -293,6 +295,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
         <AnimatePresence>
           {isOpen && (
             <motion.div
+              key="main-toolbar"
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 'auto', opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}

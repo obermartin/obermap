@@ -20,7 +20,7 @@ export const useAisStream = (props: AisStreamProps) => {
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
 
     const vesselsLayer = settings.layers.find(l => l.type === 'vessels');
     if (!vesselsLayer || !vesselsLayer.visible) {

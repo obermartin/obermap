@@ -6,11 +6,12 @@ import https from "node:https";
 import { MongoClient } from "mongodb";
 
 function mockPhpBackend(env: Record<string, string>) {
-  let client: MongoClient;
+  let client: MongoClient | null = null;
   let db: any;
   let showsCol: any;
   let weatherCol: any;
   let basemapsCol: any;
+  let isDbConnected = false;
 
   return {
     name: "mock-php-backend",
@@ -23,12 +24,14 @@ function mockPhpBackend(env: Record<string, string>) {
       basemapsCol = db.collection("basemaps");
 
       client.connect().then(() => {
+        isDbConnected = true;
         console.log("Connected to MongoDB Atlas successfully");
         showsCol.createIndex({ id: 1 }, { unique: true }).catch(console.error);
         weatherCol.createIndex({ id: 1 }, { unique: true }).catch(console.error);
         basemapsCol.createIndex({ id: 1 }, { unique: true }).catch(console.error);
       }).catch(err => {
-        console.error("Failed to connect to MongoDB:", err);
+        isDbConnected = false;
+        console.error("Failed to connect to MongoDB, enabling local disk fallback:", err.message);
       });
 
       server.middlewares.use(async (req: any, res: any, next: any) => {
@@ -543,63 +546,91 @@ function mockPhpBackend(env: Record<string, string>) {
             }
           }
           if (action === "list_basemaps" && req.method === "GET") {
+            res.setHeader("Content-Type", "application/json");
+            if (isDbConnected && basemapsCol) {
+              try {
+                const docs = await basemapsCol.find({}).toArray();
+                res.statusCode = 200;
+                res.end(JSON.stringify(docs));
+                return;
+              } catch (e) {
+                console.warn("MongoDB list_basemaps failed, falling back to disk", e);
+              }
+            }
+
             try {
-              const docs = await basemapsCol.find({}).toArray();
-              res.setHeader("Content-Type", "application/json");
+              const basemapsDir = path.resolve(__dirname, "public/basemaps");
+              const basemaps: any[] = [];
+              if (fs.existsSync(basemapsDir)) {
+                const files = fs.readdirSync(basemapsDir).filter(f => f.endsWith(".json"));
+                for (const f of files) {
+                  try {
+                    const content = fs.readFileSync(path.join(basemapsDir, f), "utf-8");
+                    basemaps.push(JSON.parse(content));
+                  } catch (e) {}
+                }
+              }
               res.statusCode = 200;
-              res.end(JSON.stringify(docs));
+              res.end(JSON.stringify(basemaps));
             } catch (e: any) {
-              res.statusCode = 500;
-              res.end(JSON.stringify({ error: e.message }));
+              res.statusCode = 200;
+              res.end(JSON.stringify([]));
             }
             return;
           }
 
           if (action === "basemap_style" && req.method === "GET") {
             const id = urlObj.searchParams.get("id");
+            res.setHeader("Content-Type", "application/json");
             if (!id) {
               res.statusCode = 400;
               res.end(JSON.stringify({ error: "Missing id" }));
               return;
             }
-            try {
-              const doc = await basemapsCol.findOne({ id });
-              if (doc && doc.styleData) {
-                res.setHeader("Content-Type", "application/json");
-                res.statusCode = 200;
-                res.end(doc.styleData);
-              } else {
-                res.statusCode = 404;
-                res.end(JSON.stringify({ error: "Not found or no style data" }));
-              }
-            } catch (e: any) {
-              res.statusCode = 500;
-              res.end(JSON.stringify({ error: e.message }));
+            if (isDbConnected && basemapsCol) {
+              try {
+                const doc = await basemapsCol.findOne({ id });
+                if (doc && doc.styleData) {
+                  res.statusCode = 200;
+                  res.end(doc.styleData);
+                  return;
+                }
+              } catch (e) {}
             }
+            try {
+              const filePath = path.resolve(__dirname, `public/basemaps/${id}.json`);
+              if (fs.existsSync(filePath)) {
+                const content = fs.readFileSync(filePath, "utf-8");
+                const parsed = JSON.parse(content);
+                if (parsed.styleData) {
+                  res.statusCode = 200;
+                  res.end(parsed.styleData);
+                  return;
+                }
+              }
+            } catch (e) {}
+            res.statusCode = 404;
+            res.end(JSON.stringify({ error: "Not found or no style data" }));
             return;
           }
 
           if (action === "delete_basemap" && req.method === "POST") {
             const id = urlObj.searchParams.get("id");
+            res.setHeader("Content-Type", "application/json");
             if (!id) {
               res.statusCode = 400;
               res.end(JSON.stringify({ error: "Missing id" }));
               return;
             }
-            try {
-              const result = await basemapsCol.deleteOne({ id });
-              res.setHeader("Content-Type", "application/json");
-              if (result.deletedCount && result.deletedCount > 0) {
-                res.statusCode = 200;
-                res.end(JSON.stringify({ success: true }));
-              } else {
-                res.statusCode = 404;
-                res.end(JSON.stringify({ error: "Not found" }));
-              }
-            } catch (e: any) {
-              res.statusCode = 500;
-              res.end(JSON.stringify({ error: e.message }));
+            if (isDbConnected && basemapsCol) {
+              try { await basemapsCol.deleteOne({ id }); } catch (e) {}
             }
+            try {
+              const filePath = path.resolve(__dirname, `public/basemaps/${id}.json`);
+              if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            } catch (e) {}
+            res.statusCode = 200;
+            res.end(JSON.stringify({ success: true }));
             return;
           }
 
@@ -607,6 +638,7 @@ function mockPhpBackend(env: Record<string, string>) {
             let body = "";
             req.on("data", (chunk: any) => (body += chunk.toString()));
             req.on("end", async () => {
+              res.setHeader("Content-Type", "application/json");
               try {
                 const decoded = JSON.parse(body);
                 if (!decoded.id || !decoded.url) {
@@ -615,22 +647,31 @@ function mockPhpBackend(env: Record<string, string>) {
                   return;
                 }
 
-                await basemapsCol.updateOne(
-                  { id: decoded.id },
-                  {
-                    $set: {
-                      id: decoded.id,
-                      name: decoded.name || decoded.id,
-                      url: decoded.url,
-                      styleData: decoded.styleData || null,
-                      previewData: decoded.previewData || null,
-                      updated_at: new Date()
-                    }
-                  },
-                  { upsert: true }
-                );
-                
-                res.setHeader("Content-Type", "application/json");
+                if (isDbConnected && basemapsCol) {
+                  try {
+                    await basemapsCol.updateOne(
+                      { id: decoded.id },
+                      {
+                        $set: {
+                          id: decoded.id,
+                          name: decoded.name || decoded.id,
+                          url: decoded.url,
+                          styleData: decoded.styleData || null,
+                          previewData: decoded.previewData || null,
+                          updated_at: new Date()
+                        }
+                      },
+                      { upsert: true }
+                    );
+                  } catch (e) {}
+                }
+
+                try {
+                  const basemapsDir = path.resolve(__dirname, "public/basemaps");
+                  if (!fs.existsSync(basemapsDir)) fs.mkdirSync(basemapsDir, { recursive: true });
+                  fs.writeFileSync(path.join(basemapsDir, `${decoded.id}.json`), body, "utf-8");
+                } catch (e) {}
+
                 res.statusCode = 200;
                 res.end(JSON.stringify({ success: true }));
               } catch (e: any) {
@@ -643,50 +684,75 @@ function mockPhpBackend(env: Record<string, string>) {
           const show_id = urlObj.searchParams.get("show") || "";
 
           if (action === "list_shows" && req.method === "GET") {
+            res.setHeader("Content-Type", "application/json");
+            if (isDbConnected && showsCol) {
+              try {
+                const docs = await showsCol
+                  .find({}, { projection: { id: 1, title: 1, updated_at: 1, data: 1 } })
+                  .sort({ updated_at: -1 })
+                  .toArray();
+                const shows = docs.map((doc: any) => {
+                  let parsed = { settings: { isTemplate: false, previewData: null } };
+                  try {
+                    if (doc.data) parsed = JSON.parse(doc.data);
+                  } catch (e) {}
+                  
+                  return {
+                    id: doc.id,
+                    title: doc.title,
+                    isTemplate: parsed.settings?.isTemplate || false,
+                    previewData: parsed.settings?.previewData || null,
+                    updatedAt: new Date(doc.updated_at).toISOString(),
+                  };
+                });
+                res.statusCode = 200;
+                res.end(JSON.stringify(shows));
+                return;
+              } catch (e) {
+                console.warn("MongoDB list_shows failed, falling back to disk", e);
+              }
+            }
+
             try {
-              const docs = await showsCol
-                .find({}, { projection: { id: 1, title: 1, updated_at: 1, data: 1 } })
-                .sort({ updated_at: -1 })
-                .toArray();
-              const shows = docs.map((doc: any) => {
-                let parsed = { settings: { isTemplate: false, previewData: null } };
-                try {
-                  if (doc.data) parsed = JSON.parse(doc.data);
-                } catch (e) {}
-                
-                return {
-                  id: doc.id,
-                  title: doc.title,
-                  isTemplate: parsed.settings?.isTemplate || false,
-                  previewData: parsed.settings?.previewData || null,
-                  updatedAt: new Date(doc.updated_at).toISOString(),
-                };
-              });
-              res.setHeader("Content-Type", "application/json");
+              const showsDir = path.resolve(__dirname, "public/shows");
+              const shows: any[] = [];
+              if (fs.existsSync(showsDir)) {
+                const files = fs.readdirSync(showsDir).filter(f => f.endsWith(".json"));
+                for (const f of files) {
+                  const id = f.replace(".json", "");
+                  const stat = fs.statSync(path.join(showsDir, f));
+                  const content = fs.readFileSync(path.join(showsDir, f), "utf-8");
+                  let parsed = { settings: { title: id, isTemplate: false, previewData: null } };
+                  try { parsed = JSON.parse(content); } catch (e) {}
+                  shows.push({
+                    id,
+                    title: parsed.settings?.title || id,
+                    isTemplate: parsed.settings?.isTemplate || false,
+                    previewData: parsed.settings?.previewData || null,
+                    updatedAt: stat.mtime.toISOString(),
+                  });
+                }
+              }
               res.statusCode = 200;
               res.end(JSON.stringify(shows));
             } catch (e: any) {
-              res.statusCode = 500;
-              res.end(JSON.stringify({ error: e.message }));
+              res.statusCode = 200;
+              res.end(JSON.stringify([]));
             }
             return;
           }
 
           if (action === "delete_show" && req.method === "POST") {
-            try {
-              const result = await showsCol.deleteOne({ id: show_id });
-              res.setHeader("Content-Type", "application/json");
-              if (result.deletedCount && result.deletedCount > 0) {
-                res.statusCode = 200;
-                res.end(JSON.stringify({ success: true }));
-              } else {
-                res.statusCode = 404;
-                res.end(JSON.stringify({ error: "Not found" }));
-              }
-            } catch (e: any) {
-              res.statusCode = 500;
-              res.end(JSON.stringify({ error: e.message }));
+            res.setHeader("Content-Type", "application/json");
+            if (isDbConnected && showsCol) {
+              try { await showsCol.deleteOne({ id: show_id }); } catch (e) {}
             }
+            try {
+              const filePath = path.resolve(__dirname, `public/shows/${show_id}.json`);
+              if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            } catch (e) {}
+            res.statusCode = 200;
+            res.end(JSON.stringify({ success: true }));
             return;
           }
 
@@ -711,42 +777,32 @@ function mockPhpBackend(env: Record<string, string>) {
           res.setHeader("Content-Type", "application/json");
 
           if (req.method === "GET") {
-            try {
-              const doc = await showsCol.findOne({ id: safe_show_id });
-              if (!doc) {
-                let initialData = JSON.stringify({
-                  annotations: [],
-                  settings: null,
-                });
-                if (safe_show_id !== "_DEFAULT") {
-                  const defDoc = await showsCol.findOne({ id: "_DEFAULT" });
-                  if (defDoc) {
-                    initialData = defDoc.data;
-                  }
+            if (isDbConnected && showsCol) {
+              try {
+                const doc = await showsCol.findOne({ id: safe_show_id });
+                if (doc) {
+                  res.statusCode = 200;
+                  res.end(doc.data);
+                  return;
                 }
-                const now = new Date();
-                await showsCol.updateOne(
-                  { id: safe_show_id },
-                  {
-                    $set: {
-                      id: safe_show_id,
-                      title: safe_show_id,
-                      data: initialData,
-                      updated_at: now,
-                    },
-                  },
-                  { upsert: true },
-                );
-                res.statusCode = 200;
-                res.end(initialData);
-              } else {
-                res.statusCode = 200;
-                res.end(doc.data);
+              } catch (e) {
+                console.warn("MongoDB get show failed, falling back to disk", e);
               }
-            } catch (e: any) {
-              res.statusCode = 500;
-              res.end(JSON.stringify({ error: e.message }));
             }
+
+            try {
+              const filePath = path.resolve(__dirname, `public/shows/${safe_show_id}.json`);
+              if (fs.existsSync(filePath)) {
+                const content = fs.readFileSync(filePath, "utf-8");
+                res.statusCode = 200;
+                res.end(content);
+                return;
+              }
+            } catch (e) {}
+
+            const initialData = JSON.stringify({ annotations: [], settings: null });
+            res.statusCode = 200;
+            res.end(initialData);
             return;
           }
 
@@ -754,55 +810,69 @@ function mockPhpBackend(env: Record<string, string>) {
             let body = "";
             req.on("data", (chunk: any) => (body += chunk.toString()));
             req.on("end", async () => {
+              res.setHeader("Content-Type", "application/json");
               try {
                 const decoded = JSON.parse(body);
 
-                // Differential Save Logic
-                if (decoded.settings && decoded.settings.layers) {
-                  const doc = await showsCol.findOne({ id: safe_show_id });
-                  if (doc) {
-                    const existingData = JSON.parse(doc.data);
-                    if (existingData.settings && existingData.settings.layers) {
-                      const existingLayers: any = {};
-                      existingData.settings.layers.forEach((l: any) => {
-                        if (l.id) existingLayers[l.id] = l;
-                      });
+                if (isDbConnected && showsCol) {
+                  try {
+                    // Differential Save Logic
+                    if (decoded.settings && decoded.settings.layers) {
+                      const doc = await showsCol.findOne({ id: safe_show_id });
+                      if (doc) {
+                        const existingData = JSON.parse(doc.data);
+                        if (existingData.settings && existingData.settings.layers) {
+                          const existingLayers: any = {};
+                          existingData.settings.layers.forEach((l: any) => {
+                            if (l.id) existingLayers[l.id] = l;
+                          });
 
-                      decoded.settings.layers.forEach((l: any) => {
-                        if (l._keepExistingData === true) {
-                          if (
-                            l.id &&
-                            existingLayers[l.id] &&
-                            existingLayers[l.id].data
-                          ) {
-                            l.data = existingLayers[l.id].data;
-                          }
-                          delete l._keepExistingData;
+                          decoded.settings.layers.forEach((l: any) => {
+                            if (l._keepExistingData === true) {
+                              if (
+                                l.id &&
+                                existingLayers[l.id] &&
+                                existingLayers[l.id].data
+                              ) {
+                                l.data = existingLayers[l.id].data;
+                              }
+                              delete l._keepExistingData;
+                            }
+                            if (l._isDirty !== undefined) {
+                              delete l._isDirty;
+                            }
+                          });
                         }
-                        if (l._isDirty !== undefined) {
-                          delete l._isDirty;
-                        }
-                      });
+                      }
                     }
+
+                    const title = decoded.settings?.title || safe_show_id;
+                    const encoded = JSON.stringify(decoded);
+                    const now = new Date();
+
+                    await showsCol.updateOne(
+                      { id: safe_show_id },
+                      {
+                        $set: {
+                          id: safe_show_id,
+                          title,
+                          data: encoded,
+                          updated_at: now,
+                        },
+                      },
+                      { upsert: true },
+                    );
+                  } catch (e) {
+                    console.warn("MongoDB update show failed, writing to disk", e);
                   }
                 }
 
-                const title = decoded.settings?.title || safe_show_id;
-                const encoded = JSON.stringify(decoded);
-                const now = new Date();
-
-                await showsCol.updateOne(
-                  { id: safe_show_id },
-                  {
-                    $set: {
-                      id: safe_show_id,
-                      title,
-                      data: encoded,
-                      updated_at: now,
-                    },
-                  },
-                  { upsert: true },
-                );
+                // Always write to disk as fallback
+                try {
+                  const showsDir = path.resolve(__dirname, "public/shows");
+                  if (!fs.existsSync(showsDir)) fs.mkdirSync(showsDir, { recursive: true });
+                  fs.writeFileSync(path.join(showsDir, `${safe_show_id}.json`), body, "utf-8");
+                } catch (e) {}
 
                 res.statusCode = 200;
                 res.end(JSON.stringify({ success: true }));
@@ -810,7 +880,7 @@ function mockPhpBackend(env: Record<string, string>) {
                 res.statusCode = 400;
                 res.end(
                   JSON.stringify({
-                    error: "Invalid JSON payload or DB error: " + e.message,
+                    error: "Invalid JSON payload: " + e.message,
                   }),
                 );
               }

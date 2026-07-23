@@ -93,10 +93,15 @@ export const useMapExport = ({
   }, [map]);
 
   // Export Scaling Logic (Basemap Labels)
+  const isBasemapScaledRef = useRef(false);
   useEffect(() => {
     if (!map || !mapLoaded) return;
     
     const scale = (settings.exportBasemapScale ?? 1.0) * (imageExportScale || 1.0);
+    if (scale === 1.0 && !isBasemapScaledRef.current) return;
+    
+    isBasemapScaledRef.current = (scale !== 1.0);
+
     const style = map.getStyle();
     if (!style || !style.layers) return;
 
