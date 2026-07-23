@@ -64,7 +64,7 @@ export const useMapInitialization = ({
         sources: {},
         layers: [
           {
-            id: 'background',
+            id: 'solid-bg-layer',
             type: 'background',
             paint: {
               'background-color': finalStyle.replace('solid:', '')
@@ -914,5 +914,5 @@ export const useMapInitialization = ({
       map.remove();
       mapRef.current = null;
     };
-  }, [settings.mapStyle, settings.replaceGothamFont]);
+  }, [settings.replaceGothamFont]);
 };

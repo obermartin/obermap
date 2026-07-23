@@ -271,8 +271,8 @@ export const useMapStyling = ({
     if (!map || !mapLoaded) return;
     
     try {
-      // Only apply to styles that use the standard 'water' fill layer
-      if (map.getLayer('water')) {
+      // Only apply to styles that use the standard 'water' fill layer when style is loaded
+      if (map.isStyleLoaded() && map.getLayer('water')) {
         if (settings.waterColor !== undefined) {
           map.setPaintProperty('water', 'fill-color', settings.waterColor);
         }
@@ -284,6 +284,53 @@ export const useMapStyling = ({
       console.warn("Could not apply water layer styling (style might not be loaded yet)");
     }
   }, [mapLoaded, settings.waterColor, settings.waterOpacity, settings.mapStyle, styleLoadedTick]);
+
+  // Dynamic Map Style & Solid Background Color Handler
+  const currentMapStyleRef = useRef<string | null>(null);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    const newStyleStr = typeof settings.mapStyle === 'string' ? settings.mapStyle : JSON.stringify(settings.mapStyle);
+    if (currentMapStyleRef.current === newStyleStr) return;
+
+    try {
+      if (typeof settings.mapStyle === 'string' && settings.mapStyle.startsWith('solid:')) {
+        const color = settings.mapStyle.replace('solid:', '');
+        
+        // If the map is already in solid color mode (has solid-bg-layer), update color directly
+        if (map.isStyleLoaded() && map.getLayer('solid-bg-layer')) {
+          map.setPaintProperty('solid-bg-layer', 'background-color', color);
+          currentMapStyleRef.current = newStyleStr;
+          return;
+        }
+        
+        // Otherwise replace tile basemap with solid background style
+        currentMapStyleRef.current = newStyleStr;
+        map.setStyle({
+          version: 8,
+          sources: {},
+          layers: [
+            {
+              id: 'solid-bg-layer',
+              type: 'background',
+              paint: {
+                'background-color': color
+              }
+            }
+          ]
+        });
+        return;
+      }
+
+      // Normal style URL or JSON
+      currentMapStyleRef.current = newStyleStr;
+      let finalStyle: any = settings.mapStyle || 'https://tiles.openfreemap.org/styles/liberty';
+      map.setStyle(finalStyle);
+    } catch (e) {
+      console.warn("Could not update map style dynamically", e);
+    }
+  }, [mapLoaded, settings.mapStyle]);
 
   // Map Projection (Globe vs Mercator)
   useEffect(() => {

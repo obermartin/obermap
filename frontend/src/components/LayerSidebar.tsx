@@ -5142,7 +5142,7 @@ const ScreenshotMap = ({ styleUrl, onReady }: { styleUrl: string, onReady: (data
         sources: {},
         layers: [
           {
-            id: 'background',
+            id: 'solid-bg-layer',
             type: 'background',
             paint: { 'background-color': styleUrl.replace('solid:', '') }
           }
