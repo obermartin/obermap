@@ -587,189 +587,243 @@ export const useMapInitialization = ({
         }
       });
 
-      // Lines (Paint & Measure & Outlines & Arrows)
-      map.addLayer({
-        id: 'custom-lines',
-        type: 'line',
-        source: 'custom-annotations',
-        filter: ['any', ['!', ['has', 'strokeType']], ['==', ['get', 'strokeType'], 'solid']],
-        layout: {
-          'line-cap': 'round',
-          'line-join': 'round'
-        },
-        paint: {
-          'line-width': 6,
-          'line-color': ['coalesce', ['get', 'color'], '#ffffff'],
-          'line-opacity': ['coalesce', ['get', 'currentLineOpacity'], 1],
-          'line-opacity-transition': { duration: 0 }
+      const setupCustomLayers = () => {
+        if (!mapRef.current || mapRef.current !== map) return;
+        if (map.getSource('custom-annotations') && map.getLayer('custom-polygons')) return;
+
+        // Add custom annotations source
+        if (!map.getSource('custom-annotations')) {
+          map.addSource('custom-annotations', {
+            type: 'geojson',
+            promoteId: 'featureId',
+            data: { type: 'FeatureCollection', features: [] }
+          });
         }
-      });
 
-      map.addLayer({
-        id: 'custom-lines-dashed',
-        type: 'line',
-        source: 'custom-annotations',
-        filter: ['==', ['get', 'strokeType'], 'dashed'],
-        layout: {
-          'line-cap': 'round',
-          'line-join': 'round'
-        },
-        paint: {
-          'line-width': 6,
-          'line-color': ['coalesce', ['get', 'color'], '#ffffff'],
-          'line-dasharray': [2, 2],
-          'line-opacity': ['coalesce', ['get', 'currentLineOpacity'], 1],
-          'line-opacity-transition': { duration: 0 }
+        if (!map.getLayer('custom-polygons')) {
+          map.addLayer({
+            id: 'custom-polygons',
+            type: 'fill',
+            source: 'custom-annotations',
+            filter: ['==', '$type', 'Polygon'],
+            paint: {
+              'fill-opacity': ['coalesce', ['get', 'currentOpacity'], ['get', 'fillOpacity'], 0.5],
+              'fill-opacity-transition': { duration: 0 },
+              'fill-color': ['coalesce', ['get', 'color'], '#ffffff']
+            }
+          });
         }
-      });
 
-      map.addLayer({
-        id: 'custom-lines-dotted',
-        type: 'line',
-        source: 'custom-annotations',
-        filter: ['==', ['get', 'strokeType'], 'dotted'],
-        layout: {
-          'line-cap': 'round',
-          'line-join': 'round'
-        },
-        paint: {
-          'line-width': 6,
-          'line-color': ['coalesce', ['get', 'color'], '#ffffff'],
-          'line-dasharray': [0.01, 2.5],
-          'line-opacity': ['coalesce', ['get', 'currentLineOpacity'], 1],
-          'line-opacity-transition': { duration: 0 }
+        // Lines (Paint & Measure & Outlines & Arrows)
+        if (!map.getLayer('custom-lines')) {
+          map.addLayer({
+            id: 'custom-lines',
+            type: 'line',
+            source: 'custom-annotations',
+            filter: ['any', ['!', ['has', 'strokeType']], ['==', ['get', 'strokeType'], 'solid']],
+            layout: {
+              'line-cap': 'round',
+              'line-join': 'round'
+            },
+            paint: {
+              'line-width': 6,
+              'line-color': ['coalesce', ['get', 'color'], '#ffffff'],
+              'line-opacity': ['coalesce', ['get', 'currentLineOpacity'], 1],
+              'line-opacity-transition': { duration: 0 }
+            }
+          });
         }
-      });
 
-      // Arrow Heads
-      map.addLayer({
-        id: 'custom-arrow-heads',
-        type: 'symbol',
-        source: 'custom-annotations',
-        filter: ['==', ['get', '$type'], 'ArrowHead'],
-        layout: {
-          'text-field': [
-            'case',
-            ['==', ['get', 'strokeType'], 'solid'],
-            '▲',
-            '△'
-          ],
-          'text-size': 80,
-          'text-rotate': ['get', 'bearing'],
-          'text-rotation-alignment': 'map',
-          'text-pitch-alignment': 'map',
-          'text-allow-overlap': true,
-          'text-ignore-placement': true,
-          'text-anchor': 'center'
-        },
-        paint: {
-          'text-color': ['coalesce', ['get', 'color'], '#ffffff'],
-          'text-opacity': ['coalesce', ['get', 'currentLineOpacity'], 1],
-          'text-opacity-transition': { duration: 0 }
+        if (!map.getLayer('custom-lines-dashed')) {
+          map.addLayer({
+            id: 'custom-lines-dashed',
+            type: 'line',
+            source: 'custom-annotations',
+            filter: ['==', ['get', 'strokeType'], 'dashed'],
+            layout: {
+              'line-cap': 'round',
+              'line-join': 'round'
+            },
+            paint: {
+              'line-width': 6,
+              'line-color': ['coalesce', ['get', 'color'], '#ffffff'],
+              'line-dasharray': [2, 2],
+              'line-opacity': ['coalesce', ['get', 'currentLineOpacity'], 1],
+              'line-opacity-transition': { duration: 0 }
+            }
+          });
         }
-      });
 
-      // Invisible layer to force Mapbox's collision detection to hide underlying labels
-      map.addLayer({
-        id: 'annotation-collision-layer',
-        type: 'symbol',
-        source: 'custom-annotations',
-        filter: ['==', ['get', 'type'], 'invisible-collision-box'],
-        layout: {
-          'text-field': ['get', 'text'],
-          'text-font': settings.replaceGothamFont !== false ? ['Gotham Bold', 'Arial Unicode MS Regular'] : ['Arial Unicode MS Regular'],
-          'text-size': 14,
-          'text-transform': 'uppercase',
-          'text-allow-overlap': true,
-          'text-ignore-placement': false,
-          'text-anchor': 'left',
-          'text-offset': [1.5, 0]
-        },
-        paint: {
-          'text-color': 'rgba(0,0,0,0)',
-          'text-halo-color': 'rgba(0,0,0,0)',
-          'text-halo-width': 2
+        if (!map.getLayer('custom-lines-dotted')) {
+          map.addLayer({
+            id: 'custom-lines-dotted',
+            type: 'line',
+            source: 'custom-annotations',
+            filter: ['==', ['get', 'strokeType'], 'dotted'],
+            layout: {
+              'line-cap': 'round',
+              'line-join': 'round'
+            },
+            paint: {
+              'line-width': 6,
+              'line-color': ['coalesce', ['get', 'color'], '#ffffff'],
+              'line-dasharray': [0.01, 2.5],
+              'line-opacity': ['coalesce', ['get', 'currentLineOpacity'], 1],
+              'line-opacity-transition': { duration: 0 }
+            }
+          });
         }
-      });
 
-      // WebGL Annotations fallback removed in favor of 2D Canvas Compositor
+        // Arrow Heads
+        if (!map.getLayer('custom-arrow-heads')) {
+          map.addLayer({
+            id: 'custom-arrow-heads',
+            type: 'symbol',
+            source: 'custom-annotations',
+            filter: ['==', ['get', '$type'], 'ArrowHead'],
+            layout: {
+              'text-field': [
+                'case',
+                ['==', ['get', 'strokeType'], 'solid'],
+                '▲',
+                '△'
+              ],
+              'text-size': 80,
+              'text-rotate': ['get', 'bearing'],
+              'text-rotation-alignment': 'map',
+              'text-pitch-alignment': 'map',
+              'text-allow-overlap': true,
+              'text-ignore-placement': true,
+              'text-anchor': 'center'
+            },
+            paint: {
+              'text-color': ['coalesce', ['get', 'color'], '#ffffff'],
+              'text-opacity': ['coalesce', ['get', 'currentLineOpacity'], 1],
+              'text-opacity-transition': { duration: 0 }
+            }
+          });
+        }
 
-      // Setup complete
+        // Invisible layer to force Mapbox's collision detection to hide underlying labels
+        if (!map.getLayer('annotation-collision-layer')) {
+          map.addLayer({
+            id: 'annotation-collision-layer',
+            type: 'symbol',
+            source: 'custom-annotations',
+            filter: ['==', ['get', 'type'], 'invisible-collision-box'],
+            layout: {
+              'text-field': ['get', 'text'],
+              'text-font': settings.replaceGothamFont !== false ? ['Gotham Bold', 'Arial Unicode MS Regular'] : ['Arial Unicode MS Regular'],
+              'text-size': 14,
+              'text-transform': 'uppercase',
+              'text-allow-overlap': true,
+              'text-ignore-placement': false,
+              'text-anchor': 'left',
+              'text-offset': [1.5, 0]
+            },
+            paint: {
+              'text-color': 'rgba(0,0,0,0)',
+              'text-halo-color': 'rgba(0,0,0,0)',
+              'text-halo-width': 2
+            }
+          });
+        }
+
+        // Selected Annotation Glow
+        if (!map.getLayer('custom-selected-glow')) {
+          map.addLayer({
+            id: 'custom-selected-glow',
+            type: 'line',
+            source: 'custom-annotations',
+            filter: ['==', 'id', 'none'],
+            paint: {
+              'line-width': 12,
+              'line-color': '#ffffff',
+              'line-blur': 8,
+              'line-opacity': 0.8
+            }
+          });
+        }
+
+        // Selected Annotation Highlight
+        if (!map.getLayer('custom-selected-line')) {
+          map.addLayer({
+            id: 'custom-selected-line',
+            type: 'line',
+            source: 'custom-annotations',
+            filter: ['==', 'id', 'none'],
+            paint: {
+              'line-width': 8,
+              'line-color': '#ffffff',
+              'line-dasharray': [2, 2]
+            }
+          });
+        }
+
+        // Active drawing source
+        if (!map.getSource('active-drawing')) {
+          map.addSource('active-drawing', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] }
+          });
+        }
+        if (!map.getLayer('active-drawing-line')) {
+          map.addLayer({
+            id: 'active-drawing-line',
+            type: 'line',
+            source: 'active-drawing',
+            paint: { 'line-width': 6, 'line-color': ['coalesce', ['get', 'color'], '#ffffff'], 'line-dasharray': [2, 2] }
+          });
+        }
+        if (!map.getLayer('active-drawing-fill')) {
+          map.addLayer({
+            id: 'active-drawing-fill',
+            type: 'fill',
+            source: 'active-drawing',
+            filter: ['==', '$type', 'Polygon'],
+            paint: { 'fill-opacity': 0.3, 'fill-color': ['coalesce', ['get', 'color'], '#ffffff'] }
+          });
+        }
+
+        // Selected GeoJSON feature highlighting
+        if (!map.getSource('selected-geojson-feature')) {
+          map.addSource('selected-geojson-feature', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] }
+          });
+        }
+        if (!map.getLayer('geojson-selected-glow')) {
+          map.addLayer({
+            id: 'geojson-selected-glow',
+            type: 'line',
+            source: 'selected-geojson-feature',
+            paint: {
+              'line-width': 12,
+              'line-color': '#ffffff',
+              'line-blur': 8,
+              'line-opacity': 0.8
+            }
+          });
+        }
+        if (!map.getLayer('geojson-selected-line')) {
+          map.addLayer({
+            id: 'geojson-selected-line',
+            type: 'line',
+            source: 'selected-geojson-feature',
+            paint: {
+              'line-width': 8,
+              'line-color': '#ffffff',
+              'line-dasharray': [2, 2]
+            }
+          });
+        }
+
+        setStyleLoadedTick(t => t + 1);
+      };
+
       setMapLoaded(true);
-      setStyleLoadedTick(t => t + 1);
-      
-      // Selected Annotation Glow
-      map.addLayer({
-        id: 'custom-selected-glow',
-        type: 'line',
-        source: 'custom-annotations',
-        filter: ['==', 'id', 'none'],
-        paint: {
-          'line-width': 12,
-          'line-color': '#ffffff',
-          'line-blur': 8,
-          'line-opacity': 0.8
-        }
-      });
-
-      // Selected Annotation Highlight
-      map.addLayer({
-        id: 'custom-selected-line',
-        type: 'line',
-        source: 'custom-annotations',
-        filter: ['==', 'id', 'none'],
-        paint: {
-          'line-width': 8,
-          'line-color': '#ffffff',
-          'line-dasharray': [2, 2]
-        }
-      });
-
-      // Active drawing source
-      map.addSource('active-drawing', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] }
-      });
-      map.addLayer({
-        id: 'active-drawing-line',
-        type: 'line',
-        source: 'active-drawing',
-        paint: { 'line-width': 6, 'line-color': ['coalesce', ['get', 'color'], '#ffffff'], 'line-dasharray': [2, 2] }
-      });
-      map.addLayer({
-        id: 'active-drawing-fill',
-        type: 'fill',
-        source: 'active-drawing',
-        filter: ['==', '$type', 'Polygon'],
-        paint: { 'fill-opacity': 0.3, 'fill-color': ['coalesce', ['get', 'color'], '#ffffff'] }
-      });
-
-      // Selected GeoJSON feature highlighting
-      map.addSource('selected-geojson-feature', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] }
-      });
-      map.addLayer({
-        id: 'geojson-selected-glow',
-        type: 'line',
-        source: 'selected-geojson-feature',
-        paint: {
-          'line-width': 12,
-          'line-color': '#ffffff',
-          'line-blur': 8,
-          'line-opacity': 0.8
-        }
-      });
-      map.addLayer({
-        id: 'geojson-selected-line',
-        type: 'line',
-        source: 'selected-geojson-feature',
-        paint: {
-          'line-width': 8,
-          'line-color': '#ffffff',
-          'line-dasharray': [2, 2]
-        }
-      });
+      setupCustomLayers();
+      map.on('styledata', setupCustomLayers);
     });
 
     // Add flyTo listener
