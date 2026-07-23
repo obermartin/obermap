@@ -2776,16 +2776,32 @@ export function LayerSidebar({
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between px-1 mt-1">
-                    <label className="text-[10px] text-white font-semibold tracking-wider">
-                      {t("Sky")}
-                    </label>
-                    <button
-                      onClick={() => setSettings((prev) => ({ ...prev, enableSky: !prev.enableSky }))}
-                      className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${settings.enableSky ? "bg-white" : "bg-white/20"}`}
-                    >
-                      <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${settings.enableSky ? "left-5 bg-black" : "left-1 bg-white"}`} />
-                    </button>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between px-1 mt-1">
+                      <label className="text-[10px] text-white font-semibold tracking-wider">
+                        {t("Sky")}
+                      </label>
+                      <button
+                        onClick={() => setSettings((prev) => ({ ...prev, enableSky: !prev.enableSky }))}
+                        className={`w-9 h-5 rounded-full relative transition-colors shrink-0 ${settings.enableSky ? "bg-white" : "bg-white/20"}`}
+                      >
+                        <div className={`w-3 h-3 rounded-full absolute top-1 transition-all ${settings.enableSky ? "left-5 bg-black" : "left-1 bg-white"}`} />
+                      </button>
+                    </div>
+
+                    {settings.enableSky && (
+                      <div className="flex items-center justify-between px-1 pl-3">
+                        <label className="text-[9px] text-white/70 font-semibold tracking-wider uppercase">
+                          {t("Sky Color")}
+                        </label>
+                        <input
+                          type="color"
+                          value={settings.skyColor || "#88C6FC"}
+                          onChange={(e) => setSettings((prev) => ({ ...prev, skyColor: e.target.value }))}
+                          className="w-6 h-6 p-0 border-0 bg-transparent cursor-pointer"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="w-full h-px bg-white/10 my-1"></div>

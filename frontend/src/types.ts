@@ -165,6 +165,7 @@ export interface AppSettings {
   hillshadeShadowOpacity?: number;
   hillshadeHighlightOpacity?: number;
   enableSky?: boolean;
+  skyColor?: string;
   waterColor?: string;
   waterOpacity?: number;
   defaultView: {

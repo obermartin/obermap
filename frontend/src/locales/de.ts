@@ -246,6 +246,7 @@ export const de: Record<string, string> = {
   "Force Gotham Font": "Gotham Font erzwingen",
   "Globe Projection": "Globus-Projektion",
   "Solid Color": "Farbfläche",
+  "Sky Color": "Himmelsfarbe",
 
   // UI Settings
   "UI SETTINGS": "UI EINSTELLUNGEN",
