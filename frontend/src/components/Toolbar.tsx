@@ -27,7 +27,7 @@ interface ToolbarProps {
   onClearSelection?: () => void;
 }
 
-const TOOLS = [
+export const TOOLS = [
   { id: 'highlight', icon: MousePointer2, label: 'Select Place/Country' },
   { id: 'label', icon: Tag, label: 'Label' },
   { id: 'headline', icon: Type, label: 'Headline' },

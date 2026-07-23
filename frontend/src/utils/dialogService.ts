@@ -2,6 +2,8 @@ export type DialogOptions = {
   type: 'alert' | 'confirm' | 'prompt';
   message: string;
   defaultValue?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
   resolve: (value: any) => void;
 };
 
@@ -22,10 +24,10 @@ export const customAlert = (message: string): Promise<void> => {
   });
 };
 
-export const customConfirm = (message: string): Promise<boolean> => {
+export const customConfirm = (message: string, options?: { confirmLabel?: string; cancelLabel?: string }): Promise<boolean> => {
   return new Promise((resolve) => {
     if (dialogListener) {
-      dialogListener({ type: 'confirm', message, resolve });
+      dialogListener({ type: 'confirm', message, confirmLabel: options?.confirmLabel, cancelLabel: options?.cancelLabel, resolve });
     } else {
       resolve(window.confirm(message));
     }

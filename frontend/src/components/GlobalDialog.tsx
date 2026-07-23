@@ -89,14 +89,14 @@ export const GlobalDialog: React.FC = () => {
               onClick={handleCancel}
               className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors rounded-full"
             >
-              {t('Cancel')}
+              {dialog.cancelLabel ? t(dialog.cancelLabel) : t('Cancel')}
             </button>
           )}
           <button
             onClick={handleConfirm}
             className="px-6 py-2 bg-white text-black hover:bg-white/90 text-sm transition-colors rounded-full"
           >
-            {dialog.type === 'alert' ? t('OK') : t('Confirm')}
+            {dialog.type === 'alert' ? t('OK') : (dialog.confirmLabel ? t(dialog.confirmLabel) : t('Confirm'))}
           </button>
         </div>
       </div>

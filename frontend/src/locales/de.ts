@@ -311,5 +311,8 @@ export const de: Record<string, string> = {
   "Set as reveal animation trigger for selected annotation": "Als Reveal-Animations-Trigger für ausgewählte Annotation setzen",
   "Set as hide trigger (will clear conflicting reveal trigger)": "Als Hide-Trigger setzen (löscht kollidierenden Reveal-Trigger)",
   "Set as hide animation trigger for selected annotation": "Als Hide-Animations-Trigger für ausgewählte Annotation setzen",
-  "Enter new name for button:": "Neuen Namen für Button eingeben:"
+  "Enter new name for button:": "Neuen Namen für Button eingeben:",
+  "This will delete all {{type}} annotations. Are you sure?": "Dies wird alle {{type}}-Anmerkungen löschen. Bist du sicher?",
+  "Yes": "Ja",
+  "No": "Nein"
 };

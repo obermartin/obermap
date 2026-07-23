@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { MapContainer } from './components/MapContainer';
-import { Toolbar } from './components/Toolbar';
+import { Toolbar, TOOLS } from './components/Toolbar';
 import { SavedViews } from './components/SavedViews';
 import { OverviewScreen } from './components/OverviewScreen';
 import { motion, AnimatePresence } from 'framer-motion';
-import { customAlert } from './utils/dialogService';
+import { customAlert, customConfirm } from './utils/dialogService';
 import type { Annotation, ToolType, StrokeType, AppSettings, MapLayer, RouteMode } from './types';
 import { createArrowFeatures, calculateDistance } from './utils/mapUtils';
 
@@ -376,14 +376,23 @@ export function App() {
     }
   }, [selectedAnnotationId]);
 
-  const handleDelete = useCallback(() => {
+  const handleDelete = useCallback(async () => {
     if (selectedAnnotationId) {
       setAnnotations(prev => prev.filter(a => a.id !== selectedAnnotationId));
       setSelectedAnnotationId(null);
     } else if (activeTool !== 'none') {
-      setAnnotations(prev => prev.filter(a => a.type !== activeTool));
+      const hasAnnotationsOfType = annotations.some(a => a.type === activeTool);
+      if (!hasAnnotationsOfType) return;
+
+      const toolObj = TOOLS.find(t => t.id === activeTool);
+      const typeLabel = toolObj ? t(toolObj.label) : activeTool;
+      const message = t("This will delete all {{type}} annotations. Are you sure?", { type: typeLabel });
+      const confirmed = await customConfirm(message, { confirmLabel: "Yes", cancelLabel: "No" });
+      if (confirmed) {
+        setAnnotations(prev => prev.filter(a => a.type !== activeTool));
+      }
     }
-  }, [activeTool, selectedAnnotationId]);
+  }, [activeTool, annotations, selectedAnnotationId, t]);
 
   const [activeMapViewId, setActiveMapViewId] = useState<string>('overview');
 
