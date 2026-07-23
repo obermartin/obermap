@@ -3517,7 +3517,7 @@ function LayerItem(props: {
                   >
                     <Play size={10} fill={layer.animationTriggerId ? "currentColor" : "none"} className={`shrink-0 ${layer.animationTriggerId ? "" : "ml-0.5"}`} />
                     <span className="truncate uppercase tracking-wider">
-                      {layer.animationTriggerId ? (mapviewButtons.find(b => b.id === layer.animationTriggerId)?.text || "Trigger") : t("REVEAL")}
+                      {layer.animationTriggerId ? ((mapviewButtons.find(b => b.id === layer.animationTriggerId)?.buttonText || mapviewButtons.find(b => b.id === layer.animationTriggerId)?.text) || "Trigger") : t("REVEAL")}
                     </span>
                   </button>
                   {activeTriggerDropdown === 'reveal' && (
@@ -3537,15 +3537,16 @@ function LayerItem(props: {
                           key={b.id}
                           onClick={(e) => {
                             e.stopPropagation();
-                            updateLayerProperty(layer.id, "animationTriggerId", b.id);
-                            if (layer.hideAnimationTriggerId === b.id) {
+                            const nextId = layer.animationTriggerId === b.id ? undefined : b.id;
+                            updateLayerProperty(layer.id, "animationTriggerId", nextId);
+                            if (nextId !== undefined && layer.hideAnimationTriggerId === b.id) {
                               updateLayerProperty(layer.id, "hideAnimationTriggerId", undefined);
                             }
                             setActiveTriggerDropdown(null);
                           }}
                           className={`text-left px-3 py-2 text-xs transition-colors font-semibold uppercase tracking-wider ${layer.animationTriggerId === b.id ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
                         >
-                          <span className="truncate block w-full">{b.text}</span>
+                          <span className="truncate block w-full">{b.buttonText || b.text}</span>
                         </button>
                       ))}
                     </div>
@@ -3563,7 +3564,7 @@ function LayerItem(props: {
                     title={t("Set Hide Trigger")}
                   >
                     <span className="truncate uppercase tracking-wider">
-                      {layer.hideAnimationTriggerId ? (mapviewButtons.find(b => b.id === layer.hideAnimationTriggerId)?.text || "Trigger") : t("HIDE")}
+                      {layer.hideAnimationTriggerId ? ((mapviewButtons.find(b => b.id === layer.hideAnimationTriggerId)?.buttonText || mapviewButtons.find(b => b.id === layer.hideAnimationTriggerId)?.text) || "Trigger") : t("HIDE")}
                     </span>
                     <Play size={10} fill={layer.hideAnimationTriggerId ? "currentColor" : "none"} className={`shrink-0 ${layer.hideAnimationTriggerId ? "scale-x-[-1]" : "scale-x-[-1] ml-[-1px]"}`} />
                   </button>
@@ -3584,15 +3585,16 @@ function LayerItem(props: {
                           key={b.id}
                           onClick={(e) => {
                             e.stopPropagation();
-                            updateLayerProperty(layer.id, "hideAnimationTriggerId", b.id);
-                            if (layer.animationTriggerId === b.id) {
+                            const nextId = layer.hideAnimationTriggerId === b.id ? undefined : b.id;
+                            updateLayerProperty(layer.id, "hideAnimationTriggerId", nextId);
+                            if (nextId !== undefined && layer.animationTriggerId === b.id) {
                               updateLayerProperty(layer.id, "animationTriggerId", undefined);
                             }
                             setActiveTriggerDropdown(null);
                           }}
                           className={`text-left px-3 py-2 text-xs transition-colors font-semibold uppercase tracking-wider ${layer.hideAnimationTriggerId === b.id ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10 hover:text-white'}`}
                         >
-                          <span className="truncate block w-full">{b.text}</span>
+                          <span className="truncate block w-full">{b.buttonText || b.text}</span>
                         </button>
                       ))}
                     </div>

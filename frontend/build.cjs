@@ -17,6 +17,14 @@ if (fs.existsSync(rootDistDir)) {
 }
 fs.mkdirSync(rootDistDir);
 
+// Replace obermapstudio.svg with obermapstudio_beta.svg in tempDistDir for production build
+const betaSvgPath = path.join(tempDistDir, 'obermapstudio_beta.svg');
+const targetSvgPath = path.join(tempDistDir, 'obermapstudio.svg');
+if (fs.existsSync(betaSvgPath)) {
+  fs.copyFileSync(betaSvgPath, targetSvgPath);
+  console.log('Replaced obermapstudio.svg with obermapstudio_beta.svg for production dist build');
+}
+
 const phpDir = path.join(rootDistDir, 'php-mysql');
 const nodeDir = path.join(rootDistDir, 'nodejs-mongodb');
 

@@ -304,5 +304,12 @@ export const de: Record<string, string> = {
   "Remove": "Entfernen",
   "Open in new tab": "In neuem Tab öffnen",
   "Checking link compatibility...": "Link-Kompatibilität wird geprüft...",
-  "This website prevents embedding for security reasons.": "Diese Website verhindert aus Sicherheitsgründen die Einbettung."
+  "This website prevents embedding for security reasons.": "Diese Website verhindert aus Sicherheitsgründen die Einbettung.",
+  "Remove reveal animation trigger": "Reveal-Animations-Trigger entfernen",
+  "Remove hide animation trigger": "Hide-Animations-Trigger entfernen",
+  "Set as reveal trigger (will clear conflicting hide trigger)": "Als Reveal-Trigger setzen (löscht kollidierenden Hide-Trigger)",
+  "Set as reveal animation trigger for selected annotation": "Als Reveal-Animations-Trigger für ausgewählte Annotation setzen",
+  "Set as hide trigger (will clear conflicting reveal trigger)": "Als Hide-Trigger setzen (löscht kollidierenden Reveal-Trigger)",
+  "Set as hide animation trigger for selected annotation": "Als Hide-Animations-Trigger für ausgewählte Annotation setzen",
+  "Enter new name for button:": "Neuen Namen für Button eingeben:"
 };

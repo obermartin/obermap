@@ -463,8 +463,10 @@ export function App() {
       const { targetId, triggerId, clearHideTrigger } = customEvent.detail;
       setAnnotations(prev => prev.map(a => {
         if (a.id === targetId) {
-          const update = { ...a, animationTriggerId: triggerId };
-          if (clearHideTrigger) update.hideAnimationTriggerId = undefined;
+          const isAlreadySet = a.animationTriggerId === triggerId;
+          const nextTriggerId = isAlreadySet ? undefined : triggerId;
+          const update = { ...a, animationTriggerId: nextTriggerId };
+          if (clearHideTrigger && nextTriggerId !== undefined) update.hideAnimationTriggerId = undefined;
           return update;
         }
         return a;
@@ -477,8 +479,10 @@ export function App() {
       const { targetId, triggerId, clearRevealTrigger } = customEvent.detail;
       setAnnotations(prev => prev.map(a => {
         if (a.id === targetId) {
-          const update = { ...a, hideAnimationTriggerId: triggerId };
-          if (clearRevealTrigger) update.animationTriggerId = undefined;
+          const isAlreadySet = a.hideAnimationTriggerId === triggerId;
+          const nextTriggerId = isAlreadySet ? undefined : triggerId;
+          const update = { ...a, hideAnimationTriggerId: nextTriggerId };
+          if (clearRevealTrigger && nextTriggerId !== undefined) update.animationTriggerId = undefined;
           return update;
         }
         return a;
@@ -713,6 +717,12 @@ export function App() {
         isSidebarOpen={isLayerSidebarOpen}
         isToolbarOpen={isToolbarOpen}
         activeCropOverlay={activeCropOverlay}
+        onRenameAnnotationButton={(id, newName) => {
+          setAnnotations(prev => prev.map(a => a.id === id ? { ...a, buttonText: newName } : a));
+        }}
+        onRenameOverviewButton={(newName) => {
+          setSettings(prev => ({ ...prev, defaultView: { ...prev.defaultView, buttonText: newName } }));
+        }}
         onDeleteAnnotation={(id) => {
           setAnnotations(prev => {
             const next = prev.map(a => {

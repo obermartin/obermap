@@ -40,6 +40,7 @@ export interface Annotation {
     square?: { scale: number; offsetX: number; offsetY: number };
   };
   isCentered?: boolean;
+  buttonText?: string;
 }
 
 export interface MapLayer {
@@ -174,6 +175,7 @@ export interface AppSettings {
     pitch: number;
     bearing: number;
     elevation?: number;
+    buttonText?: string;
     cropSettings?: {
       landscape?: { scale: number; offsetX: number; offsetY: number };
       portrait?: { scale: number; offsetX: number; offsetY: number };
