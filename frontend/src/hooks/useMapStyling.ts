@@ -1,14 +1,14 @@
 import { useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import type { AppSettings } from '../types';
-import { upgradeLegacyFilter } from '../utils/mapUtils';
+import { upgradeLegacyFilter, executeWhenStyleLoaded } from '../utils/mapUtils';
 
 export interface MapStylingProps {
   mapContainer: React.RefObject<HTMLDivElement | null>;
   map: maplibregl.Map | null;
   mapLoaded: boolean;
   settings: AppSettings;
-  styleLoadedTick: number;
+
   originalFiltersRef: React.MutableRefObject<{ [layerId: string]: any }>;
 }
 
@@ -17,7 +17,7 @@ export const useMapStyling = ({
   map: mapProp,
   mapLoaded,
   settings,
-  styleLoadedTick,
+
   originalFiltersRef
 }: MapStylingProps) => {
   const initialTerrainLoaded = useRef(false);
@@ -43,7 +43,7 @@ export const useMapStyling = ({
     } catch (e) {
       // Ignore if style isn't ready
     }
-  }, [settings.animationDuration, mapLoaded, styleLoadedTick]);
+  }, [settings.animationDuration, mapLoaded]);
 
   // Handle Map Label Density
   const lastAppliedDensityRef = useRef<number | undefined>(undefined);
@@ -160,7 +160,7 @@ export const useMapStyling = ({
         }
       });
     }
-  }, [settings.labelDensity, mapLoaded, styleLoadedTick]);
+  }, [settings.labelDensity, mapLoaded]);
 
   // 3D Terrain & Environment
   useEffect(() => {
@@ -272,7 +272,7 @@ export const useMapStyling = ({
     } catch (e) {
       console.warn("Could not apply 3D terrain styling (style might not be loaded yet)");
     }
-  }, [mapLoaded, settings.enable3dTerrain, settings.terrainExaggeration, settings.enableHillshade, settings.hillshadeShadowOpacity, settings.hillshadeHighlightOpacity, settings.enableSky, settings.skyColor, styleLoadedTick]);
+  }, [mapLoaded, settings.enable3dTerrain, settings.terrainExaggeration, settings.enableHillshade, settings.hillshadeShadowOpacity, settings.hillshadeHighlightOpacity, settings.enableSky, settings.skyColor]);
 
   // Water Layer Styling
   const lastWaterColorRef = useRef<string | undefined>(undefined);
@@ -283,7 +283,7 @@ export const useMapStyling = ({
     
     try {
       // Only apply to styles that use the standard 'water' fill layer when style is loaded
-      if (map.isStyleLoaded() && map.getLayer('water')) {
+      if (map.getStyle() && map.getLayer('water')) {
         if (settings.waterColor !== undefined && lastWaterColorRef.current !== settings.waterColor) {
           lastWaterColorRef.current = settings.waterColor;
           map.setPaintProperty('water', 'fill-color', settings.waterColor);
@@ -296,7 +296,7 @@ export const useMapStyling = ({
     } catch (e) {
       console.warn("Could not apply water layer styling (style might not be loaded yet)");
     }
-  }, [mapLoaded, settings.waterColor, settings.waterOpacity, settings.mapStyle, styleLoadedTick]);
+  }, [mapLoaded, settings.waterColor, settings.waterOpacity, settings.mapStyle]);
 
   // Dynamic Map Style & Solid Background Color Handler
   const defaultStyleStr = 'https://tiles.openfreemap.org/styles/liberty';
@@ -316,7 +316,7 @@ export const useMapStyling = ({
         const color = settings.mapStyle.replace('solid:', '');
         
         // If the map is already in solid color mode (has solid-bg-layer), update color directly
-        if (map.isStyleLoaded() && map.getLayer('solid-bg-layer')) {
+        if (map.getStyle() && map.getLayer('solid-bg-layer')) {
           map.setPaintProperty('solid-bg-layer', 'background-color', color);
           currentMapStyleRef.current = newStyleStr;
           return;
@@ -352,14 +352,16 @@ export const useMapStyling = ({
   // Map Projection (Globe vs Mercator)
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
+    if (!map || !mapLoaded) return;
 
     try {
       if (typeof (map as any).setProjection === 'function') {
-        (map as any).setProjection({ type: settings.projection === 'globe' ? 'globe' : 'mercator' });
+        executeWhenStyleLoaded(map, () => {
+          (map as any).setProjection({ type: settings.projection === 'globe' ? 'globe' : 'mercator' });
+        });
       }
     } catch (e) {
       console.warn("Failed to set map projection", e);
     }
-  }, [mapLoaded, settings.projection, styleLoadedTick]);
+  }, [mapLoaded, settings.projection]);
 };

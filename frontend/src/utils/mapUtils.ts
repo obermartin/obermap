@@ -1,5 +1,19 @@
 import * as turf from '@turf/turf';
+import maplibregl from 'maplibre-gl';
 
+export const executeWhenStyleLoaded = (map: maplibregl.Map | null, callback: () => void) => {
+  if (!map) return;
+  // map.isStyleLoaded() is too strict and gets stuck if glyphs/sprites 404.
+  // We only need the style JSON to be parsed, which is indicated by map.style._loaded
+  const isStyleReady = (map as any).style && (map as any).style._loaded;
+  if (isStyleReady) {
+    callback();
+  } else {
+    map.once('styledata', () => {
+      executeWhenStyleLoaded(map, callback);
+    });
+  }
+};
 export const createCirclePolygon = (center: [number, number], radiusKm: number, points: number = 64) => {
   if (!center || radiusKm <= 0) return null;
   return turf.circle(center, radiusKm, { steps: points, units: 'kilometers' });
@@ -404,3 +418,27 @@ export const upgradeLegacyFilter = (filter: any): any => {
     }
     return filter;
   };
+
+export const safeSetLayoutProperty = (map: maplibregl.Map, layerId: string, prop: string, value: any) => {
+  if (!map || !map.getLayer(layerId)) return;
+  const current = map.getLayoutProperty(layerId, prop);
+  if (current !== value) {
+    map.setLayoutProperty(layerId, prop, value);
+  }
+};
+
+export const safeSetPaintProperty = (map: maplibregl.Map, layerId: string, prop: string, value: any) => {
+  if (!map || !map.getLayer(layerId)) return;
+  const current = map.getPaintProperty(layerId, prop);
+  if (JSON.stringify(current) !== JSON.stringify(value)) {
+    map.setPaintProperty(layerId, prop, value);
+  }
+};
+
+export const safeSetFilter = (map: maplibregl.Map, layerId: string, filter: any) => {
+  if (!map || !map.getLayer(layerId)) return;
+  const current = map.getFilter(layerId);
+  if (JSON.stringify(current) !== JSON.stringify(filter)) {
+    map.setFilter(layerId, filter);
+  }
+};

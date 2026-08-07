@@ -116,6 +116,8 @@ export function getContrastYIQ(hexcolor: string) {
 
 // HeadlineSVGTemplateRenderer was extracted to HeadlineOverlays.tsx
 
+
+
 export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, clipPath?: string, onMapInit?: (map: maplibregl.Map) => void, isExporting?: boolean, imageExportScale?: number }> = ({
   activeTool,
   currentColor,
@@ -150,20 +152,25 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   const mapContainer = useRef<HTMLDivElement>(null);
   const windCanvasRef = useRef<HTMLCanvasElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+
+
+
   const [mapLoaded, setMapLoaded] = useState(false);
+
 
   const {
     selectedEarthquake,
     selectedEarthquakeShakemap,
     selectedCemsEarthquake,
     selectedCemsEarthquakeFeatures,
+    setSelectedCemsEarthquakeFeatures,
     activeCemsWildfireFeatures,
     setActiveCemsWildfireFeatures,
     activeCemsFloodFeatures,
     setActiveCemsFloodFeatures,
     selectedVolcano,
     selectedVolcanoPolygon,
-  } = useDisasterAlerts(mapRef.current, mapLoaded, settings, setSettings);
+  } = useDisasterAlerts(mapRef.current, mapLoaded, settings, setSettings as React.Dispatch<React.SetStateAction<AppSettings>>);
 
   const selectedEarthquakeRef = useRef(selectedEarthquake);
   const selectedCemsEarthquakeRef = useRef(selectedCemsEarthquake);
@@ -212,7 +219,6 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   useEffect(() => {
     selectedVolcanoRef.current = selectedVolcano;
   }, [selectedVolcano]);
-  const [styleLoadedTick, setStyleLoadedTick] = useState(0);
   const [selectedAircraftId, setSelectedAircraftIdState] = useState<string | null>(null);
   const [selectedVesselMmsi, setSelectedVesselMmsi] = useState<string | null>(null);
   const [editingIconAnnotation, setEditingIconAnnotation] = useState<Annotation | null>(null);
@@ -444,7 +450,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   useLayerVisibility({
     map: mapRef.current,
     mapLoaded,
-    styleLoadedTick,
+
     settings,
     activeTool,
     revealedTriggers,
@@ -566,7 +572,6 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     settings,
     settingsRef,
     setMapLoaded,
-    setStyleLoadedTick,
     setRevealedTriggers,
     setHiddenTriggers,
     onMapInit,
@@ -1170,7 +1175,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     map: mapRef.current,
     mapLoaded,
     settings,
-    styleLoadedTick,
+
     originalFiltersRef
   });
   useDisasterStream({
@@ -1186,13 +1191,15 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     getEffectiveLayerDates,
     selectedEarthquakeShakemap,
     selectedCemsEarthquakeFeatures,
+    setSelectedCemsEarthquakeFeatures,
     activeCemsWildfireFeatures,
     setActiveCemsWildfireFeatures,
     activeCemsFloodFeatures,
     setActiveCemsFloodFeatures,
     selectedVolcanoPolygon,
     activeDrawMarkersRef,
-    selectionMarkersRef
+    selectionMarkersRef,
+
   });
 
   // Nighttime layer update
@@ -1552,7 +1559,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
         uiBottomPadding={settings?.uiBottomPadding}
       />
 
-      {editingIconAnnotation && (
+            {editingIconAnnotation && (
         <IconSettingsModal
           annotation={editingIconAnnotation}
           onSave={(updates) => {

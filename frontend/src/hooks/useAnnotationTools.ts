@@ -127,6 +127,15 @@ export function useAnnotationTools({
         return; // Prevent other interactions
       }
 
+      // Handle CEMS AOI clicks first to prevent deselection of parent features
+      let clickedAoiFeature: maplibregl.MapGeoJSONFeature | null = null;
+      try {
+        const cemsFeatures = map.queryRenderedFeatures(e.point, { layers: ['active-wildfire-cems-vt-extent-fill', 'active-flood-cems-vt-extent-fill', 'selected-cems-vt-extent-fill'] });
+        if (cemsFeatures.length > 0 && cemsFeatures[0].properties?.isClickableAoi) {
+           clickedAoiFeature = cemsFeatures[0];
+        }
+      } catch (err) {}
+
       // Handle flight aircraft selection
       let clickedFlightId: string | null = null;
       try {
@@ -207,18 +216,27 @@ export function useAnnotationTools({
           if (eqFeatures.length > 0) {
             const props = eqFeatures[0].properties;
             const geom = eqFeatures[0].geometry as GeoJSON.Point;
-            if (props && props.eventid && props.episodeid && props.url && geom && geom.type === 'Point') {
-              const urlObj = typeof props.url === 'string' ? JSON.parse(props.url) : props.url;
-              if (urlObj && urlObj.geometry) {
-                clickedEarthquake = { 
-                  id: props.eventid.toString(), 
-                  ep: props.episodeid.toString(), 
-                  geomUrl: urlObj.geometry,
-                  coordinates: geom.coordinates as [number, number],
-                  properties: props
-                };
-                clickedEqLayerId = eqFeatures[0].layer.id.replace('dynamic-layer-', '');
+            if (props && props.eventid && props.episodeid && geom && geom.type === 'Point') {
+              let geomUrl = '';
+              if (props.url) {
+                try {
+                  const urlObj = typeof props.url === 'string' ? JSON.parse(props.url) : props.url;
+                  if (urlObj && typeof urlObj === 'object' && urlObj.geometry) {
+                    geomUrl = urlObj.geometry;
+                  }
+                } catch (err) {}
               }
+              if (!geomUrl) {
+                geomUrl = `https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=EQ&eventid=${props.eventid}&episodeid=${props.episodeid}`;
+              }
+              clickedEarthquake = { 
+                id: props.eventid.toString(), 
+                ep: props.episodeid.toString(), 
+                geomUrl: geomUrl,
+                coordinates: geom.coordinates as [number, number],
+                properties: props
+              };
+              clickedEqLayerId = eqFeatures[0].layer.id.replace('dynamic-layer-', '');
             }
           }
         }
@@ -239,7 +257,7 @@ export function useAnnotationTools({
         }
         return; // Prevent drawing
       } else {
-        if (selectedEarthquakeRef.current) {
+        if (selectedEarthquakeRef.current && !clickedAoiFeature) {
           setSettings(prev => ({
             ...prev,
             layers: prev.layers.map(l => l.type === 'gdacs_earthquakes' ? { ...l, selectedFeatureData: null } : l)
@@ -258,18 +276,27 @@ export function useAnnotationTools({
           if (volFeatures.length > 0) {
             const props = volFeatures[0].properties;
             const geom = volFeatures[0].geometry as GeoJSON.Point;
-            if (props && props.eventid && props.episodeid && props.url && geom && geom.type === 'Point') {
-              const urlObj = typeof props.url === 'string' ? JSON.parse(props.url) : props.url;
-              if (urlObj && urlObj.geometry) {
-                clickedVolcano = { 
-                  id: props.eventid.toString(), 
-                  ep: props.episodeid.toString(), 
-                  geomUrl: urlObj.geometry,
-                  coordinates: geom.coordinates as [number, number],
-                  properties: props
-                };
-                clickedVolLayerId = volFeatures[0].layer.id.replace('dynamic-layer-', '');
+            if (props && props.eventid && props.episodeid && geom && geom.type === 'Point') {
+              let geomUrl = '';
+              if (props.url) {
+                try {
+                  const urlObj = typeof props.url === 'string' ? JSON.parse(props.url) : props.url;
+                  if (urlObj && typeof urlObj === 'object' && urlObj.geometry) {
+                    geomUrl = urlObj.geometry;
+                  }
+                } catch (err) {}
               }
+              if (!geomUrl) {
+                geomUrl = `https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=VO&eventid=${props.eventid}&episodeid=${props.episodeid}`;
+              }
+              clickedVolcano = { 
+                id: props.eventid.toString(), 
+                ep: props.episodeid.toString(), 
+                geomUrl: geomUrl,
+                coordinates: geom.coordinates as [number, number],
+                properties: props
+              };
+              clickedVolLayerId = volFeatures[0].layer.id.replace('dynamic-layer-', '');
             }
           }
         }
@@ -337,7 +364,7 @@ export function useAnnotationTools({
         }
         return; // Prevent drawing
       } else {
-        if (selectedCemsEarthquakeRef.current) {
+        if (selectedCemsEarthquakeRef.current && !clickedAoiFeature) {
           setSettings(prev => ({
             ...prev,
             layers: prev.layers.map(l => l.type === 'cems_rapid_mapping' ? { ...l, selectedFeatureData: null } : l)
@@ -451,7 +478,24 @@ export function useAnnotationTools({
         }
       }
 
-      if (activeTool === 'none') return;
+      if (activeTool === 'none') {
+        if (clickedAoiFeature) {
+          const aoi = clickedAoiFeature;
+          if (aoi.properties?.activationCode) {
+            let products = undefined;
+            try { products = JSON.parse(aoi.properties._products); } catch (e) {}
+            window.dispatchEvent(new CustomEvent('fetchCemsDetails', {
+              detail: {
+                activationCode: aoi.properties.activationCode,
+                aoiName: aoi.properties.aoiName,
+                cemsType: aoi.properties.cemsType,
+                products
+              }
+            }));
+          }
+        }
+        return;
+      }
 
       if (activeTool === 'icon' && selectedIconId) {
         setAnnotations(prev => [...prev, {
@@ -985,7 +1029,22 @@ export function useAnnotationTools({
         return;
       }
 
-      if (!isDrawing.current || activeTool === 'none') return;
+      if (!isDrawing.current || activeTool === 'none') {
+        if (activeTool === 'none') {
+          if (document.body.style.cursor === 'wait') return;
+          let hasCemsHover = false;
+          try {
+            const features = map.queryRenderedFeatures(e.point, { layers: ['active-wildfire-cems-vt-extent-fill', 'active-flood-cems-vt-extent-fill'] });
+            hasCemsHover = features.length > 0;
+          } catch (err) {}
+          if (hasCemsHover) {
+            map.getCanvas().style.cursor = 'pointer';
+          } else {
+            map.getCanvas().style.cursor = 'grab';
+          }
+        }
+        return;
+      }
 
       if (activeTool === 'paint') {
         currentShapeCoords.current.push([e.lngLat.lng, e.lngLat.lat]);

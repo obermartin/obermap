@@ -2,9 +2,10 @@ import { useEffect, useState, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import type { AppSettings } from '../types';
 import along from '@turf/along';
-import { parseWKT, safeFetchCemsJson } from '../utils/mapUtils';
+import { executeWhenStyleLoaded,  parseWKT, safeFetchCemsJson  } from '../utils/mapUtils';
 import turfLength from '@turf/length';
 import lineSlice from '@turf/line-slice';
+import { safeSetLayoutProperty, safeSetPaintProperty, safeSetFilter } from '../utils/mapUtils';
 
 
 export interface DisasterStreamProps {
@@ -20,6 +21,7 @@ export interface DisasterStreamProps {
   getEffectiveLayerDates: (layer: any) => { effectiveStartDate: string; effectiveEndDate: string; };
   selectedEarthquakeShakemap: any;
   selectedCemsEarthquakeFeatures: any;
+  setSelectedCemsEarthquakeFeatures: (val: any) => void;
   activeCemsWildfireFeatures: any;
   setActiveCemsWildfireFeatures: (val: any) => void;
   activeCemsFloodFeatures: any;
@@ -42,6 +44,7 @@ export const useDisasterStream = ({
   getEffectiveLayerDates,
   selectedEarthquakeShakemap,
   selectedCemsEarthquakeFeatures,
+  setSelectedCemsEarthquakeFeatures,
   activeCemsWildfireFeatures,
   setActiveCemsWildfireFeatures,
   activeCemsFloodFeatures,
@@ -51,6 +54,8 @@ export const useDisasterStream = ({
   selectionMarkersRef
 }: DisasterStreamProps) => {
   const [cycloneRawData, setCycloneRawData] = useState<any>(null);
+  const [loadingCemsAois, setLoadingCemsAois] = useState<string[]>([]);
+
   const allCemsActivationsRef = useRef<Promise<any> | null>(null);
   const cemsFeatureCacheRef = useRef<Record<string, any>>({});
   const cycloneGeometryRef = useRef<any>(null);
@@ -96,7 +101,7 @@ export const useDisasterStream = ({
   // Fetch geometry when selectedCycloneId changes
   useEffect(() => {
     
-    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
+    if (!map || !mapLoaded) return;
     
     const source = map.getSource('selected-cyclone-geometry') as maplibregl.GeoJSONSource;
     if (!source) return;
@@ -157,7 +162,7 @@ export const useDisasterStream = ({
   // Effect to process and render the cyclone track based on the timeline slider
   useEffect(() => {
     
-    if (!map || !mapLoaded || !map.isStyleLoaded() || !selectedCycloneId || !cycloneRawData) return;
+    if (!map || !mapLoaded || !selectedCycloneId || !cycloneRawData) return;
     
     const source = map.getSource('selected-cyclone-geometry') as maplibregl.GeoJSONSource;
     if (!source) return;
@@ -328,9 +333,9 @@ export const useDisasterStream = ({
         const matchingActivations = activations.filter((act: any) => {
           if (act.category !== 'Wildfire') return false;
           const actTime = new Date(act.eventTime || act.activationTime).getTime();
-          // allow a small buffer, e.g., 7 days before and after
           const buffer = 7 * 24 * 60 * 60 * 1000;
-          return actTime >= sDate - buffer && actTime <= eDate + buffer;
+          if (actTime < sDate - buffer || actTime > eDate + buffer) return false;
+          return true;
         });
 
         console.log(`[CEMS Debug] Matching wildfire activations in range (${new Date(sDate).toISOString()} to ${new Date(eDate).toISOString()}):`, matchingActivations.map((a: any) => a.code));
@@ -361,28 +366,15 @@ export const useDisasterStream = ({
                       actFeatures.push({
                         type: 'Feature',
                         geometry: aoiGeom.geometry,
-                        properties: { aoiName: aoi.aoiName, isExtent: true }
-                      });
-                    }
-                  }
-                  if (aoi.products) {
-                    // Fetch VT layers concurrently as well
-                    const vtPromises: Promise<any>[] = [];
-                    const productsWithVt = aoi.products.filter((p: any) => p.layers && p.layers.some((l: any) => l.format === 'vt'));
-                    const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b: any) => (b.monitoringNumber || 0) - (a.monitoringNumber || 0))[0] : null;
-                    const productsToProcess = latestProduct ? [latestProduct] : [];
-                    for (const product of productsToProcess) {
-                      if (product.layers) {
-                        for (const layer of product.layers) {
-                          if (layer.format === 'vt' && layer.json) {
-                            vtPromises.push(safeFetchCemsJson(layer.json));
-                          }
+                        properties: { 
+                          aoiName: aoi.aoiName, 
+                          isExtent: true,
+                          isClickableAoi: true,
+                          activationCode: act.code,
+                          cemsType: 'wildfire',
+                          _products: JSON.stringify(aoi.products)
                         }
-                      }
-                    }
-                    const vtResults = await Promise.all(vtPromises);
-                    for (const vtFeatures of vtResults) {
-                      actFeatures.push(...vtFeatures);
+                      });
                     }
                   }
                 }
@@ -400,19 +392,18 @@ export const useDisasterStream = ({
 
         const allResults = await Promise.all(fetchPromises);
         const allFeatures = allResults.flat();
-        console.log('[CEMS Debug] FLOOD FEATURES RESOLVED:', allFeatures.length);
+        console.log('[CEMS Debug] WILDFIRE AOIS RESOLVED:', allFeatures.length);
 
-        console.log(`[CEMS Debug] Total features to render:`, allFeatures.length);
-
-        if (isSubscribed) {
+        if (allFeatures.length > 0) {
+          console.log('CEMS WILDFIRE POINTS LOADED:', allFeatures.filter((f:any) => f.geometry?.type === 'Point').length);
           setActiveCemsWildfireFeatures({
             type: 'FeatureCollection',
             features: allFeatures
           });
-          window.dispatchEvent(new CustomEvent('exportDataReady', {
-            detail: { type: 'cems_wildfire', id: 'wildfire', ready: allFeatures.length > 0 ? true : 'empty' }
-          }));
         }
+        window.dispatchEvent(new CustomEvent('exportDataReady', {
+          detail: { type: 'cems_wildfire', id: 'wildfire', ready: allFeatures.length > 0 ? true : 'empty' }
+        }));
       } catch (err) {
         console.error('Error fetching CEMS wildfire data', err);
         if (isSubscribed) {
@@ -424,7 +415,7 @@ export const useDisasterStream = ({
     })();
 
     return () => { isSubscribed = false; };
-  }, [settings.layers, settings.globalDateMode, settings.globalStartDate, settings.globalEndDate, getEffectiveLayerDates]);
+  }, [settings.layers, settings.globalDateMode, settings.globalStartDate, settings.globalEndDate, getEffectiveLayerDates, map]);
 
   // Fetch detailed CEMS activations for floods in the date range
   useEffect(() => {
@@ -473,9 +464,9 @@ export const useDisasterStream = ({
         const matchingActivations = activations.filter((act: any) => {
           if (act.category !== 'Flood') return false;
           const actTime = new Date(act.eventTime || act.activationTime).getTime();
-          // allow a small buffer, e.g., 7 days before and after
           const buffer = 7 * 24 * 60 * 60 * 1000;
-          return actTime >= sDate - buffer && actTime <= eDate + buffer;
+          if (actTime < sDate - buffer || actTime > eDate + buffer) return false;
+          return true;
         });
 
         console.log(`[CEMS Debug] Matching flood activations in range (${new Date(sDate).toISOString()} to ${new Date(eDate).toISOString()}):`, matchingActivations.map((a: any) => a.code));
@@ -506,28 +497,15 @@ export const useDisasterStream = ({
                       actFeatures.push({
                         type: 'Feature',
                         geometry: aoiGeom.geometry,
-                        properties: { aoiName: aoi.aoiName, isExtent: true }
-                      });
-                    }
-                  }
-                  if (aoi.products) {
-                    // Fetch VT layers concurrently as well
-                    const vtPromises: Promise<any>[] = [];
-                    const productsWithVt = aoi.products.filter((p: any) => p.layers && p.layers.some((l: any) => l.format === 'vt'));
-                    const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b: any) => (b.monitoringNumber || 0) - (a.monitoringNumber || 0))[0] : null;
-                    const productsToProcess = latestProduct ? [latestProduct] : [];
-                    for (const product of productsToProcess) {
-                      if (product.layers) {
-                        for (const layer of product.layers) {
-                          if (layer.format === 'vt' && layer.json) {
-                            vtPromises.push(safeFetchCemsJson(layer.json));
-                          }
+                        properties: { 
+                          aoiName: aoi.aoiName, 
+                          isExtent: true,
+                          isClickableAoi: true,
+                          activationCode: act.code,
+                          cemsType: 'flood',
+                          _products: JSON.stringify(aoi.products)
                         }
-                      }
-                    }
-                    const vtResults = await Promise.all(vtPromises);
-                    for (const vtFeatures of vtResults) {
-                      actFeatures.push(...vtFeatures);
+                      });
                     }
                   }
                 }
@@ -545,7 +523,12 @@ export const useDisasterStream = ({
 
         const allResults = await Promise.all(fetchPromises);
         const allFeatures = allResults.flat();
-        console.log('[CEMS Debug] FLOOD FEATURES RESOLVED:', allFeatures.length);
+        
+        console.log(`[CEMS Debug] Total features to render:`, allFeatures.length);
+
+        if (allFeatures.length > 0) {
+          console.log('CEMS FLOOD POINTS LOADED:', allFeatures.filter((f:any) => f.geometry?.type === 'Point').length);
+        }
 
         if (isSubscribed) {
           setActiveCemsFloodFeatures({
@@ -574,7 +557,7 @@ export const useDisasterStream = ({
   // Update earthquake labels filter
   useEffect(() => {
     
-    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
+    if (!map || !mapLoaded) return;
     
     settings.layers.forEach(layer => {
       if (layer.type === 'gdacs_earthquakes') {
@@ -583,14 +566,14 @@ export const useDisasterStream = ({
         
         if (map.getLayer(baseLayerId)) {
           if (selectedEarthquake && layer.type === 'gdacs_earthquakes') {
-             map.setFilter(baseLayerId, ['!=', ['to-string', ['get', 'eventid']], selectedEarthquake.id]);
+             safeSetFilter(map, baseLayerId, ['!=', ['to-string', ['get', 'eventid']], selectedEarthquake.id]);
              if (map.getLayer(labelLayerId)) {
-               map.setFilter(labelLayerId, ['!=', ['to-string', ['get', 'eventid']], selectedEarthquake.id]);
+               safeSetFilter(map, labelLayerId, ['!=', ['to-string', ['get', 'eventid']], selectedEarthquake.id]);
              }
 
           } else {
-             map.setFilter(baseLayerId, null);
-             if (map.getLayer(labelLayerId)) map.setFilter(labelLayerId, null);
+             safeSetFilter(map, baseLayerId, null);
+             if (map.getLayer(labelLayerId)) safeSetFilter(map, labelLayerId, null);
           }
         }
       }
@@ -600,16 +583,16 @@ export const useDisasterStream = ({
   // Update cyclone point filter to hide selected cyclone point
   useEffect(() => {
     
-    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
+    if (!map || !mapLoaded) return;
     
     settings.layers.forEach(layer => {
       if (layer.type === 'gdacs_cyclones') {
         const layerId = `dynamic-layer-${layer.id}`;
         if (map.getLayer(layerId)) {
           if (selectedCycloneId) {
-            map.setFilter(layerId, ['!=', ['to-string', ['get', 'eventid']], selectedCycloneId.id]);
+            safeSetFilter(map, layerId, ['!=', ['to-string', ['get', 'eventid']], selectedCycloneId.id]);
           } else {
-            map.setFilter(layerId, null);
+            safeSetFilter(map, layerId, null);
           }
         }
       }
@@ -628,7 +611,7 @@ export const useDisasterStream = ({
       delete selectionMarkersRef.current['selected-eq-label'];
     }
     
-    if (!map || !mapLoaded || !map.isStyleLoaded() || !selectedEarthquake) {
+    if (!map || !mapLoaded || !selectedEarthquake) {
       return;
     }
 
@@ -676,43 +659,40 @@ export const useDisasterStream = ({
   // Render selected earthquake shakemap
   useEffect(() => {
     
-    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
+    if (!map || !mapLoaded) return;
 
-    if (!map.getSource('selected-earthquake-shakemap-source')) {
+    executeWhenStyleLoaded(map, () => {
+      if (!map.getSource('selected-earthquake-shakemap-source')) {
       map.addSource('selected-earthquake-shakemap-source', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] }
       });
       
-      const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
-      let beforeId = 'custom-polygons';
-      const firstSymbolId = map.getStyle().layers?.find(l => l.type === 'symbol')?.id;
-      if (firstSymbolId) {
-        beforeId = firstSymbolId;
-      } else if (eqLayer && map.getLayer(`dynamic-layer-${eqLayer.id}`)) {
-        beforeId = `dynamic-layer-${eqLayer.id}`;
-      }
+
+      
 
       map.addLayer({
         id: 'selected-earthquake-shakemap-fill',
         type: 'fill',
         source: 'selected-earthquake-shakemap-source',
+        layout: { visibility: 'visible' },
         paint: {
           'fill-color': ['coalesce', ['get', 'fill'], '#ff9900'],
           'fill-opacity': 0.3
         }
-      }, beforeId);
+      });
 
       map.addLayer({
         id: 'selected-earthquake-shakemap-line',
         type: 'line',
         source: 'selected-earthquake-shakemap-source',
+        layout: { visibility: 'visible' },
         paint: {
           'line-color': ['coalesce', ['get', 'stroke'], '#ff0000'],
           'line-width': 1,
           'line-opacity': 0.8
         }
-      }, beforeId);
+      });
     }
 
     const source = map.getSource('selected-earthquake-shakemap-source') as maplibregl.GeoJSONSource;
@@ -721,74 +701,106 @@ export const useDisasterStream = ({
     }
 
     const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
-    if (eqLayer) {
-      const useColor = eqLayer.colorCodeShakemap !== false;
-      const colorExpr = useColor 
-        ? [
-            'step',
-            ['to-number', ['get', 'intensity'], 0],
-            '#ffffff',
-            2, '#bfccff',
-            4, '#a0e6ff',
-            5, '#80ffff',
-            6, '#7aff93',
-            7, '#ffff00',
-            8, '#ffc800',
-            9, '#ff9100',
-            10, '#ff0000'
-          ]
-        : null; // null means we'll handle fallback separately
-        
-      const shakemapVisibility = eqLayer.shakemapEnabled !== false ? 'visible' : 'none';
-      const isVisible = eqLayer._effectiveOpacityVisible ?? true;
-      const baseFillOpacity = isVisible ? (eqLayer.shakemapOpacity ?? 1.0) * 0.3 : 0;
-      const baseLineOpacity = isVisible ? (eqLayer.shakemapOpacity ?? 1.0) * 0.8 : 0;
+    
+    const useColor = eqLayer && eqLayer.colorCodeShakemap !== false;
+    const colorExpr = useColor 
+      ? [
+          'step',
+          ['to-number', ['get', 'intensity'], 0],
+          '#ffffff',
+          2, '#bfccff',
+          4, '#a0e6ff',
+          5, '#80ffff',
+          6, '#7aff93',
+          7, '#ffff00',
+          8, '#ffc800',
+          9, '#ff9100',
+          10, '#ff0000'
+        ]
+      : null;
       
-      if (map.getLayer('selected-earthquake-shakemap-fill')) {
-        map.setLayoutProperty('selected-earthquake-shakemap-fill', 'visibility', shakemapVisibility);
-        map.setPaintProperty('selected-earthquake-shakemap-fill', 'fill-color', colorExpr || ['coalesce', ['get', 'fill'], '#ff9900']);
-        map.setPaintProperty('selected-earthquake-shakemap-fill', 'fill-opacity', baseFillOpacity);
-      }
-      
-      if (map.getLayer('selected-earthquake-shakemap-line')) {
-        map.setLayoutProperty('selected-earthquake-shakemap-line', 'visibility', shakemapVisibility);
-        map.setPaintProperty('selected-earthquake-shakemap-line', 'line-color', colorExpr || ['coalesce', ['get', 'stroke'], '#ff0000']);
-        map.setPaintProperty('selected-earthquake-shakemap-line', 'line-opacity', baseLineOpacity);
-      }
+    const shakemapVisibility = (eqLayer && eqLayer.shakemapEnabled !== false) ? 'visible' : 'none';
+    const isVisible = eqLayer ? (eqLayer._effectiveOpacityVisible ?? true) : false;
+    const baseFillOpacity = isVisible ? (eqLayer?.shakemapOpacity ?? 1.0) * 0.3 : 0;
+    const baseLineOpacity = isVisible ? (eqLayer?.shakemapOpacity ?? 1.0) * 0.8 : 0;
+    
+    if (map.getLayer('selected-earthquake-shakemap-fill')) {
+      safeSetLayoutProperty(map, 'selected-earthquake-shakemap-fill', 'visibility', shakemapVisibility);
+      safeSetPaintProperty(map, 'selected-earthquake-shakemap-fill', 'fill-color', colorExpr || ['coalesce', ['get', 'fill'], '#ff9900']);
+      safeSetPaintProperty(map, 'selected-earthquake-shakemap-fill', 'fill-opacity', baseFillOpacity);
     }
+    
+    if (map.getLayer('selected-earthquake-shakemap-line')) {
+      safeSetLayoutProperty(map, 'selected-earthquake-shakemap-line', 'visibility', shakemapVisibility);
+      safeSetPaintProperty(map, 'selected-earthquake-shakemap-line', 'line-color', colorExpr || ['coalesce', ['get', 'stroke'], '#ff0000']);
+      safeSetPaintProperty(map, 'selected-earthquake-shakemap-line', 'line-opacity', baseLineOpacity);
+    }
+    });
   }, [selectedEarthquakeShakemap, mapLoaded, settings.layers]);
 
   // Render selected CEMS earthquake VT layers
   useEffect(() => {
     
-    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
+    if (!map || !mapLoaded) return;
 
-    if (!map.getSource('selected-cems-vt-source')) {
+    executeWhenStyleLoaded(map, () => {
+      if (!map.getSource('selected-cems-vt-source')) {
       map.addSource('selected-cems-vt-source', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] }
       });
 
-      const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
-      const beforeId = (eqLayer && map.getLayer(`dynamic-layer-${eqLayer.id}`)) ? `dynamic-layer-${eqLayer.id}` : 'custom-polygons';
+
+      
+
+      map.addLayer({
+        id: 'selected-cems-vt-extent-fill',
+        type: 'fill',
+        source: 'selected-cems-vt-source',
+        filter: ['==', 'isExtent', true],
+        layout: { visibility: 'visible' },
+        paint: {
+          'fill-color': '#ff9900',
+          'fill-opacity': 0.05
+        }
+      });
 
       map.addLayer({
         id: 'selected-cems-vt-extent',
         type: 'line',
         source: 'selected-cems-vt-source',
         filter: ['==', 'isExtent', true],
+        layout: { visibility: 'visible' },
         paint: {
           'line-color': '#ffff00',
           'line-width': 2,
           'line-dasharray': [2, 2]
         }
-      }, beforeId);
+      });
+
+      map.addLayer({
+        id: 'selected-cems-vt-extent-loading',
+        type: 'line',
+        source: 'selected-cems-vt-source',
+        filter: ['all', ['==', 'isExtent', true], ['in', 'activationCode', 'NONE']],
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round',
+          'visibility': 'visible'
+        },
+        paint: {
+          'line-color': '#ffffff',
+          'line-width': 3,
+          'line-dasharray': [2, 2]
+        }
+      });
 
       map.addLayer({
         id: 'selected-cems-vt-polygons',
         type: 'fill',
         source: 'selected-cems-vt-source',
-        filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'isExtent', true]],
+        filter: ['all', ['==', '_isPolygon', true], ['!=', 'isExtent', true]],
+        layout: { visibility: 'visible' },
         paint: {
           'fill-color': [
             'match',
@@ -809,7 +821,7 @@ export const useDisasterStream = ({
             0.25
           ]
         }
-      }, beforeId);
+      });
 
       map.addLayer({
         id: 'selected-cems-vt-lines',
@@ -830,6 +842,7 @@ export const useDisasterStream = ({
             ['==', 'notation', 'Possibly damaged']
           ]
         ],
+        layout: { visibility: 'visible' },
         paint: {
           'line-color': [
             'match',
@@ -851,7 +864,7 @@ export const useDisasterStream = ({
             0.25
           ]
         }
-      }, beforeId);
+      });
 
       map.addLayer({
         id: 'selected-cems-vt-points',
@@ -859,19 +872,9 @@ export const useDisasterStream = ({
         source: 'selected-cems-vt-source',
         filter: ['all', 
           ['!=', 'isExtent', true], 
-          ['==', '$type', 'Point'],
-          ['any',
-            ['==', 'damage_gra', 'Destroyed'],
-            ['==', 'damage_gra', 'Damaged'],
-            ['==', 'damage_gra', 'Possibly damaged'],
-            ['==', 'grading', 'Destroyed'],
-            ['==', 'grading', 'Damaged'],
-            ['==', 'grading', 'Possibly damaged'],
-            ['==', 'notation', 'Destroyed'],
-            ['==', 'notation', 'Damaged'],
-            ['==', 'notation', 'Possibly damaged']
-          ]
+          ['==', '_isPoint', true]
         ],
+        layout: { visibility: 'visible' },
         paint: {
           'circle-radius': 4,
           'circle-color': [
@@ -894,7 +897,7 @@ export const useDisasterStream = ({
           ],
           'circle-stroke-width': 0
         }
-      }, beforeId);
+      });
     }
 
     const source = map.getSource('selected-cems-vt-source') as maplibregl.GeoJSONSource;
@@ -909,13 +912,22 @@ export const useDisasterStream = ({
     const isVisible = eqLayer?._effectiveOpacityVisible ?? true;
     const cemsOpacity = isVisible ? (selectedEarthquake ? (eqLayer?.copernicusOpacity ?? 1.0) : 1.0) : 0;
     
+    if (map.getLayer('selected-cems-vt-extent-fill')) {
+      safeSetLayoutProperty(map, 'selected-cems-vt-extent-fill', 'visibility', cemsVisibility);
+      // Keep base opacity at 0.05, scaling by cemsOpacity
+      safeSetPaintProperty(map, 'selected-cems-vt-extent-fill', 'fill-opacity', 0.05 * cemsOpacity);
+    }
     if (map.getLayer('selected-cems-vt-extent')) {
-      map.setLayoutProperty('selected-cems-vt-extent', 'visibility', cemsVisibility);
-      map.setPaintProperty('selected-cems-vt-extent', 'line-opacity', cemsOpacity);
+      safeSetLayoutProperty(map, 'selected-cems-vt-extent', 'visibility', cemsVisibility);
+      safeSetPaintProperty(map, 'selected-cems-vt-extent', 'line-opacity', cemsOpacity);
+    }
+    if (map.getLayer('selected-cems-vt-extent-loading')) {
+      safeSetLayoutProperty(map, 'selected-cems-vt-extent-loading', 'visibility', cemsVisibility);
+      safeSetPaintProperty(map, 'selected-cems-vt-extent-loading', 'line-opacity', cemsOpacity);
     }
     if (map.getLayer('selected-cems-vt-polygons')) {
-      map.setLayoutProperty('selected-cems-vt-polygons', 'visibility', cemsVisibility);
-      map.setPaintProperty('selected-cems-vt-polygons', 'fill-opacity', [
+      safeSetLayoutProperty(map, 'selected-cems-vt-polygons', 'visibility', cemsVisibility);
+      safeSetPaintProperty(map, 'selected-cems-vt-polygons', 'fill-opacity', [
         'match',
         ['coalesce', ['get', 'damage_gra'], ['get', 'grading'], ['get', 'notation'], 'none'],
         'Destroyed', 0.6 * cemsOpacity,
@@ -926,8 +938,8 @@ export const useDisasterStream = ({
       ]);
     }
     if (map.getLayer('selected-cems-vt-lines')) {
-      map.setLayoutProperty('selected-cems-vt-lines', 'visibility', cemsVisibility);
-      map.setPaintProperty('selected-cems-vt-lines', 'line-opacity', [
+      safeSetLayoutProperty(map, 'selected-cems-vt-lines', 'visibility', cemsVisibility);
+      safeSetPaintProperty(map, 'selected-cems-vt-lines', 'line-opacity', [
         'match',
         ['coalesce', ['get', 'damage_gra'], ['get', 'grading'], ['get', 'notation'], 'none'],
         'Destroyed', 1 * cemsOpacity,
@@ -938,28 +950,22 @@ export const useDisasterStream = ({
       ]);
     }
     if (map.getLayer('selected-cems-vt-points')) {
-      map.setLayoutProperty('selected-cems-vt-points', 'visibility', cemsVisibility);
-      map.setPaintProperty('selected-cems-vt-points', 'circle-opacity', cemsOpacity);
-      map.setPaintProperty('selected-cems-vt-points', 'circle-stroke-opacity', cemsOpacity);
+      safeSetLayoutProperty(map, 'selected-cems-vt-points', 'visibility', cemsVisibility);
+      safeSetPaintProperty(map, 'selected-cems-vt-points', 'circle-opacity', cemsOpacity);
+      safeSetPaintProperty(map, 'selected-cems-vt-points', 'circle-stroke-opacity', cemsOpacity);
     }
 
+    });
   }, [selectedCemsEarthquakeFeatures, mapLoaded, settings.layers]);
 
   // Render CEMS Wildfire Features
   useEffect(() => {
     
-    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
+    if (!map || !mapLoaded) return;
 
-    let beforeId = 'custom-polygons';
-    const style = map.getStyle();
-    if (style && style.layers) {
-      for (const l of style.layers) {
-        if (l.id.includes('admin') || l.id.includes('border') || l.type === 'symbol') {
-          beforeId = l.id;
-          break;
-        }
-      }
-    }
+    executeWhenStyleLoaded(map, () => {
+
+    
 
     if (!map.getSource('active-wildfire-cems-vt-source')) {
       map.addSource('active-wildfire-cems-vt-source', {
@@ -969,31 +975,60 @@ export const useDisasterStream = ({
 
       // Add Extent Layer
       map.addLayer({
+        id: 'active-wildfire-cems-vt-extent-fill',
+        type: 'fill',
+        source: 'active-wildfire-cems-vt-source',
+        filter: ['==', 'isExtent', true],
+        layout: { 'visibility': 'visible' },
+        paint: {
+          'fill-color': '#ff9900',
+          'fill-opacity': 0.05
+        }
+      });
+      map.addLayer({
         id: 'active-wildfire-cems-vt-extent',
         type: 'line',
         source: 'active-wildfire-cems-vt-source',
         filter: ['==', 'isExtent', true],
         layout: {
           'line-join': 'round',
-          'line-cap': 'round'
+          'line-cap': 'round',
+          'visibility': 'visible'
         },
         paint: {
           'line-color': '#ff9900',
           'line-width': 2,
           'line-dasharray': [2, 2]
         }
-      }, beforeId);
+      });
+      map.addLayer({
+        id: 'active-wildfire-cems-vt-extent-loading',
+        type: 'line',
+        source: 'active-wildfire-cems-vt-source',
+        filter: ['all', ['==', 'isExtent', true], ['in', 'activationCode', 'NONE']],
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round',
+          'visibility': 'visible'
+        },
+        paint: {
+          'line-color': '#ffffff',
+          'line-width': 3,
+          'line-dasharray': [2, 2]
+        }
+      });
 
       // Add Polygons
       map.addLayer({
         id: 'active-wildfire-cems-vt-polygons',
         type: 'fill',
         source: 'active-wildfire-cems-vt-source',
-        filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'isExtent', true]],
+        filter: ['all', ['==', '_isPolygon', true], ['!=', 'isExtent', true]],
+        layout: { 'visibility': 'visible' },
         paint: {
           'fill-color': [
             'match',
-            ['coalesce', ['get', 'damage_gra'], 'none'],
+            ['coalesce', ['get', 'damage_gra'], ['get', 'grading'], ['get', 'notation'], 'none'],
             'Destroyed', '#ff0000',
             'Damaged', '#ff9900',
             'Possibly damaged', '#ffff00',
@@ -1001,7 +1036,7 @@ export const useDisasterStream = ({
             '#ff0000'
           ]
         }
-      }, beforeId);
+      });
 
       // Add Lines
       map.addLayer({
@@ -1014,13 +1049,20 @@ export const useDisasterStream = ({
           ['any',
             ['==', 'damage_gra', 'Destroyed'],
             ['==', 'damage_gra', 'Damaged'],
-            ['==', 'damage_gra', 'Possibly damaged']
+            ['==', 'damage_gra', 'Possibly damaged'],
+            ['==', 'grading', 'Destroyed'],
+            ['==', 'grading', 'Damaged'],
+            ['==', 'grading', 'Possibly damaged'],
+            ['==', 'notation', 'Destroyed'],
+            ['==', 'notation', 'Damaged'],
+            ['==', 'notation', 'Possibly damaged']
           ]
         ],
+        layout: { 'visibility': 'visible' },
         paint: {
           'line-color': [
             'match',
-            ['get', 'damage_gra'],
+            ['coalesce', ['get', 'damage_gra'], ['get', 'grading'], ['get', 'notation'], 'none'],
             'Destroyed', '#ff0000',
             'Damaged', '#ff9900',
             'Possibly damaged', '#ffff00',
@@ -1029,7 +1071,7 @@ export const useDisasterStream = ({
           ],
           'line-width': 3
         }
-      }, beforeId);
+      });
 
       // Add Points
       map.addLayer({
@@ -1037,27 +1079,25 @@ export const useDisasterStream = ({
         type: 'circle',
         source: 'active-wildfire-cems-vt-source',
         filter: ['all', 
-          ['!=', 'isExtent', true], 
-          ['==', '$type', 'Point'],
-          ['any',
-            ['==', 'damage_gra', 'Destroyed'],
-            ['==', 'damage_gra', 'Damaged'],
-            ['==', 'damage_gra', 'Possibly damaged']
-          ]
+          ['!=', 'isExtent', true],
+          ['==', '_isPoint', true]
         ],
+        layout: { 'visibility': 'visible' },
         paint: {
           'circle-color': [
             'match',
-            ['get', 'damage_gra'],
+            ['coalesce', ['get', 'damage_gra'], ['get', 'grading'], ['get', 'notation'], 'none'],
             'Destroyed', '#ff0000',
             'Damaged', '#ff9900',
             'Possibly damaged', '#ffff00',
             'No visible damage', '#888888',
             '#888888'
           ],
-          'circle-radius': 4
+          'circle-radius': 4,
+          'circle-opacity': 1,
+          'circle-stroke-width': 0
         }
-      }, beforeId);
+      });
     }
 
     const wfLayer = settings.layers.find(l => l.type === 'wildfires');
@@ -1066,17 +1106,24 @@ export const useDisasterStream = ({
     const isVisible = wfLayer?._effectiveOpacityVisible ?? true;
     const cemsOpacity = isVisible ? (wfLayer?.copernicusOpacity ?? 1.0) : 0;
     
+    if (map.getLayer('active-wildfire-cems-vt-extent-fill')) {
+      safeSetLayoutProperty(map, 'active-wildfire-cems-vt-extent-fill', 'visibility', cemsVisibility);
+    }
     if (map.getLayer('active-wildfire-cems-vt-extent')) {
-      map.setLayoutProperty('active-wildfire-cems-vt-extent', 'visibility', cemsVisibility);
-      map.setPaintProperty('active-wildfire-cems-vt-extent', 'line-opacity', cemsOpacity);
+      safeSetLayoutProperty(map, 'active-wildfire-cems-vt-extent', 'visibility', cemsVisibility);
+      safeSetPaintProperty(map, 'active-wildfire-cems-vt-extent', 'line-opacity', cemsOpacity);
+    }
+    if (map.getLayer('active-wildfire-cems-vt-extent-loading')) {
+      safeSetLayoutProperty(map, 'active-wildfire-cems-vt-extent-loading', 'visibility', cemsVisibility);
+      safeSetPaintProperty(map, 'active-wildfire-cems-vt-extent-loading', 'line-opacity', cemsOpacity);
     }
     if (map.getLayer('active-wildfire-cems-vt-polygons')) {
-      map.setLayoutProperty('active-wildfire-cems-vt-polygons', 'visibility', cemsVisibility);
-      map.setPaintProperty('active-wildfire-cems-vt-polygons', 'fill-opacity', [
+      safeSetLayoutProperty(map, 'active-wildfire-cems-vt-polygons', 'visibility', cemsVisibility);
+      safeSetPaintProperty(map, 'active-wildfire-cems-vt-polygons', 'fill-opacity', [
         'case',
         ['==', ['coalesce', ['get', 'obj_type'], ''], 'Not Analysed'], 0,
         ['match',
-          ['coalesce', ['get', 'damage_gra'], 'none'],
+          ['coalesce', ['get', 'damage_gra'], ['get', 'grading'], ['get', 'notation'], 'none'],
           'Destroyed', 0.6 * cemsOpacity,
           'Damaged', 0.6 * cemsOpacity,
           'Possibly damaged', 0.6 * cemsOpacity,
@@ -1086,10 +1133,10 @@ export const useDisasterStream = ({
       ]);
     }
     if (map.getLayer('active-wildfire-cems-vt-lines')) {
-      map.setLayoutProperty('active-wildfire-cems-vt-lines', 'visibility', cemsVisibility);
-      map.setPaintProperty('active-wildfire-cems-vt-lines', 'line-opacity', [
+      safeSetLayoutProperty(map, 'active-wildfire-cems-vt-lines', 'visibility', cemsVisibility);
+      safeSetPaintProperty(map, 'active-wildfire-cems-vt-lines', 'line-opacity', [
         'match',
-        ['get', 'damage_gra'],
+        ['coalesce', ['get', 'damage_gra'], ['get', 'grading'], ['get', 'notation'], 'none'],
         'Destroyed', cemsOpacity,
         'Damaged', cemsOpacity,
         'Possibly damaged', cemsOpacity,
@@ -1098,10 +1145,10 @@ export const useDisasterStream = ({
       ]);
     }
     if (map.getLayer('active-wildfire-cems-vt-points')) {
-      map.setLayoutProperty('active-wildfire-cems-vt-points', 'visibility', cemsVisibility);
-      map.setPaintProperty('active-wildfire-cems-vt-points', 'circle-opacity', [
+      safeSetLayoutProperty(map, 'active-wildfire-cems-vt-points', 'visibility', cemsVisibility);
+      safeSetPaintProperty(map, 'active-wildfire-cems-vt-points', 'circle-opacity', [
         'match',
-        ['get', 'damage_gra'],
+        ['coalesce', ['get', 'damage_gra'], ['get', 'grading'], ['get', 'notation'], 'none'],
         'Destroyed', cemsOpacity,
         'Damaged', cemsOpacity,
         'Possibly damaged', cemsOpacity,
@@ -1110,42 +1157,54 @@ export const useDisasterStream = ({
       ]);
     }
 
+    });
   }, [activeCemsWildfireFeatures, mapLoaded, settings.layers]);
 
 
   // Heavy setData operation isolated to prevent memory leaks on settings save
   useEffect(() => {
-    if (!mapLoaded || !map || !map.isStyleLoaded()) return;
-    const source = map.getSource('active-wildfire-cems-vt-source') as maplibregl.GeoJSONSource;
-    if (source) {
-      source.setData(activeCemsWildfireFeatures || { type: 'FeatureCollection', features: [] });
-    }
-  }, [activeCemsWildfireFeatures, mapLoaded]);
+    if (!map) return;
+    
+    let attempts = 0;
+    const interval = setInterval(() => {
+      const source = map.getSource('active-wildfire-cems-vt-source') as maplibregl.GeoJSONSource;
+      if (source) {
+        source.setData(activeCemsWildfireFeatures || { type: 'FeatureCollection', features: [] });
+        clearInterval(interval);
+      }
+      attempts++;
+      if (attempts > 20) clearInterval(interval);
+    }, 500);
+    
+    return () => clearInterval(interval);
+  }, [activeCemsWildfireFeatures, map]);
 
   // Heavy setData operation isolated to prevent memory leaks on settings save
   useEffect(() => {
-    if (!mapLoaded || !map || !map.isStyleLoaded()) return;
-    const source = map.getSource('active-flood-cems-vt-source') as maplibregl.GeoJSONSource;
-    if (source) {
-      source.setData(activeCemsFloodFeatures || { type: 'FeatureCollection', features: [] });
-    }
-  }, [activeCemsFloodFeatures, mapLoaded]);
+    if (!map) return;
+    
+    let attempts = 0;
+    const interval = setInterval(() => {
+      const source = map.getSource('active-flood-cems-vt-source') as maplibregl.GeoJSONSource;
+      if (source) {
+        source.setData(activeCemsFloodFeatures || { type: 'FeatureCollection', features: [] });
+        clearInterval(interval);
+      }
+      attempts++;
+      if (attempts > 20) clearInterval(interval);
+    }, 500);
+    
+    return () => clearInterval(interval);
+  }, [activeCemsFloodFeatures, map]);
 
   // Flood CEMS VT rendering
   useEffect(() => {
     
-    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
+    if (!map || !mapLoaded) return;
 
-    let beforeId: string | undefined;
-    const style = map.getStyle();
-    if (style && style.layers) {
-      for (const l of style.layers) {
-        if (l.id.includes('admin') || l.id.includes('border') || l.type === 'symbol') {
-          beforeId = l.id;
-          break;
-        }
-      }
-    }
+    executeWhenStyleLoaded(map, () => {
+
+    
 
     if (!map.getSource('active-flood-cems-vt-source')) {
       map.addSource('active-flood-cems-vt-source', {
@@ -1156,31 +1215,56 @@ export const useDisasterStream = ({
 
       // Add Extent Layer
       map.addLayer({
+        id: 'active-flood-cems-vt-extent-fill',
+        type: 'fill',
+        source: 'active-flood-cems-vt-source',
+        filter: ['==', 'isExtent', true],
+        layout: { 'visibility': 'visible' },
+        paint: {
+          'fill-color': '#00aaff',
+          'fill-opacity': 0.05
+        }
+      });
+      map.addLayer({
         id: 'active-flood-cems-vt-extent',
         type: 'line',
         source: 'active-flood-cems-vt-source',
         filter: ['==', 'isExtent', true],
         layout: {
           'line-join': 'round',
-          'line-cap': 'round'
+          'line-cap': 'round',
+          'visibility': 'visible'
         },
         paint: {
           'line-color': '#3366ff',
           'line-width': 2,
           'line-dasharray': [2, 2]
         }
-      }, beforeId);
+      });
+      map.addLayer({
+        id: 'active-flood-cems-vt-extent-loading',
+        type: 'line',
+        source: 'active-flood-cems-vt-source',
+        filter: ['all', ['==', 'isExtent', true], ['in', 'activationCode', 'NONE']],
+        layout: { 'visibility': 'visible' },
+        paint: {
+          'line-color': '#ffffff',
+          'line-width': 3,
+          'line-dasharray': [2, 2]
+        }
+      });
 
       // Add Polygons
       map.addLayer({
         id: 'active-flood-cems-vt-polygons',
         type: 'fill',
         source: 'active-flood-cems-vt-source',
-        filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'isExtent', true]],
+        filter: ['all', ['==', '_isPolygon', true], ['!=', 'isExtent', true]],
+        layout: { 'visibility': 'visible' },
         paint: {
           'fill-color': [
             'match',
-            ['coalesce', ['get', 'damage_gra'], 'none'],
+            ['coalesce', ['get', 'damage_gra'], ['get', 'grading'], ['get', 'notation'], 'none'],
             'Destroyed', '#ff0000',
             'Damaged', '#ff8c00',
             'Possibly damaged', '#ffff00',
@@ -1188,7 +1272,7 @@ export const useDisasterStream = ({
             '#0000ff'
           ]
         }
-      }, beforeId);
+      });
 
       // Add Lines
       map.addLayer({
@@ -1201,13 +1285,19 @@ export const useDisasterStream = ({
           ['any',
             ['==', 'damage_gra', 'Destroyed'],
             ['==', 'damage_gra', 'Damaged'],
-            ['==', 'damage_gra', 'Possibly damaged']
+            ['==', 'damage_gra', 'Possibly damaged'],
+            ['==', 'grading', 'Destroyed'],
+            ['==', 'grading', 'Damaged'],
+            ['==', 'grading', 'Possibly damaged'],
+            ['==', 'notation', 'Destroyed'],
+            ['==', 'notation', 'Damaged'],
+            ['==', 'notation', 'Possibly damaged']
           ]
         ],
         paint: {
           'line-color': [
             'match',
-            ['get', 'damage_gra'],
+            ['coalesce', ['get', 'damage_gra'], ['get', 'grading'], ['get', 'notation'], 'none'],
             'Destroyed', '#ff0000',
             'Damaged', '#ff8c00',
             'Possibly damaged', '#ffff00',
@@ -1216,7 +1306,7 @@ export const useDisasterStream = ({
           ],
           'line-width': 3
         }
-      }, beforeId);
+      });
 
       // Add Points
       map.addLayer({
@@ -1224,18 +1314,13 @@ export const useDisasterStream = ({
         type: 'circle',
         source: 'active-flood-cems-vt-source',
         filter: ['all', 
-          ['!=', 'isExtent', true], 
-          ['==', '$type', 'Point'],
-          ['any',
-            ['==', 'damage_gra', 'Destroyed'],
-            ['==', 'damage_gra', 'Damaged'],
-            ['==', 'damage_gra', 'Possibly damaged']
-          ]
+          ['!=', 'isExtent', true],
+          ['==', '_isPoint', true]
         ],
         paint: {
           'circle-color': [
             'match',
-            ['get', 'damage_gra'],
+            ['coalesce', ['get', 'damage_gra'], ['get', 'grading'], ['get', 'notation'], 'none'],
             'Destroyed', '#ff0000',
             'Damaged', '#ff8c00',
             'Possibly damaged', '#ffff00',
@@ -1244,7 +1329,7 @@ export const useDisasterStream = ({
           ],
           'circle-radius': 4
         }
-      }, beforeId);
+      });
     }
 
     const floodLayer = settings.layers.find(l => l.id === 'floods');
@@ -1253,17 +1338,24 @@ export const useDisasterStream = ({
     const isVisible = floodLayer?._effectiveOpacityVisible ?? true;
     const cemsOpacity = isVisible ? (floodLayer?.copernicusOpacity ?? 1.0) : 0;
     
+    if (map.getLayer('active-flood-cems-vt-extent-fill')) {
+      safeSetLayoutProperty(map, 'active-flood-cems-vt-extent-fill', 'visibility', cemsVisibility);
+    }
     if (map.getLayer('active-flood-cems-vt-extent')) {
-      map.setLayoutProperty('active-flood-cems-vt-extent', 'visibility', cemsVisibility);
-      map.setPaintProperty('active-flood-cems-vt-extent', 'line-opacity', cemsOpacity);
+      safeSetLayoutProperty(map, 'active-flood-cems-vt-extent', 'visibility', cemsVisibility);
+      safeSetPaintProperty(map, 'active-flood-cems-vt-extent', 'line-opacity', cemsOpacity);
+    }
+    if (map.getLayer('active-flood-cems-vt-extent-loading')) {
+      safeSetLayoutProperty(map, 'active-flood-cems-vt-extent-loading', 'visibility', cemsVisibility);
+      safeSetPaintProperty(map, 'active-flood-cems-vt-extent-loading', 'line-opacity', cemsOpacity);
     }
     if (map.getLayer('active-flood-cems-vt-polygons')) {
-      map.setLayoutProperty('active-flood-cems-vt-polygons', 'visibility', cemsVisibility);
-      map.setPaintProperty('active-flood-cems-vt-polygons', 'fill-opacity', [
+      safeSetLayoutProperty(map, 'active-flood-cems-vt-polygons', 'visibility', cemsVisibility);
+      safeSetPaintProperty(map, 'active-flood-cems-vt-polygons', 'fill-opacity', [
         'case',
         ['==', ['coalesce', ['get', 'obj_type'], ''], 'Not Analysed'], 0,
         ['match',
-          ['coalesce', ['get', 'damage_gra'], 'none'],
+          ['coalesce', ['get', 'damage_gra'], ['get', 'grading'], ['get', 'notation'], 'none'],
           'Destroyed', 0.6 * cemsOpacity,
           'Damaged', 0.6 * cemsOpacity,
           'Possibly damaged', 0.6 * cemsOpacity,
@@ -1273,10 +1365,10 @@ export const useDisasterStream = ({
       ]);
     }
     if (map.getLayer('active-flood-cems-vt-lines')) {
-      map.setLayoutProperty('active-flood-cems-vt-lines', 'visibility', cemsVisibility);
-      map.setPaintProperty('active-flood-cems-vt-lines', 'line-opacity', [
+      safeSetLayoutProperty(map, 'active-flood-cems-vt-lines', 'visibility', cemsVisibility);
+      safeSetPaintProperty(map, 'active-flood-cems-vt-lines', 'line-opacity', [
         'match',
-        ['get', 'damage_gra'],
+        ['coalesce', ['get', 'damage_gra'], ['get', 'grading'], ['get', 'notation'], 'none'],
         'Destroyed', cemsOpacity,
         'Damaged', cemsOpacity,
         'Possibly damaged', cemsOpacity,
@@ -1285,10 +1377,10 @@ export const useDisasterStream = ({
       ]);
     }
     if (map.getLayer('active-flood-cems-vt-points')) {
-      map.setLayoutProperty('active-flood-cems-vt-points', 'visibility', cemsVisibility);
-      map.setPaintProperty('active-flood-cems-vt-points', 'circle-opacity', [
+      safeSetLayoutProperty(map, 'active-flood-cems-vt-points', 'visibility', cemsVisibility);
+      safeSetPaintProperty(map, 'active-flood-cems-vt-points', 'circle-opacity', [
         'match',
-        ['get', 'damage_gra'],
+        ['coalesce', ['get', 'damage_gra'], ['get', 'grading'], ['get', 'notation'], 'none'],
         'Destroyed', cemsOpacity,
         'Damaged', cemsOpacity,
         'Possibly damaged', cemsOpacity,
@@ -1297,6 +1389,7 @@ export const useDisasterStream = ({
       ]);
     }
 
+    });
   }, [activeCemsFloodFeatures, mapLoaded, settings.layers]);
 
   // Render selected volcano DOM label
@@ -1307,7 +1400,7 @@ export const useDisasterStream = ({
       delete selectionMarkersRef.current['selected-volcano-label'];
     }
 
-    if (!map || !mapLoaded || !map.isStyleLoaded() || !selectedVolcano) {
+    if (!map || !mapLoaded || !selectedVolcano) {
       return;
     }
 
@@ -1361,38 +1454,37 @@ export const useDisasterStream = ({
   // Render selected volcano danger zone polygon
   useEffect(() => {
     
-    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
+    if (!map || !mapLoaded) return;
 
-    if (!map.getSource('selected-volcano-polygon-source')) {
-      map.addSource('selected-volcano-polygon-source', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] }
-      });
-      
-      const volLayer = settings.layers.find(l => l.type === 'gdacs_volcanoes');
-      const beforeId = (volLayer && map.getLayer(`dynamic-layer-${volLayer.id}`)) ? `dynamic-layer-${volLayer.id}` : 'custom-polygons';
+    executeWhenStyleLoaded(map, () => {
+      if (!map.getSource('selected-volcano-polygon-source')) {
+        map.addSource('selected-volcano-polygon-source', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] }
+        });
 
-      map.addLayer({
-        id: 'selected-volcano-polygon-fill',
-        type: 'fill',
-        source: 'selected-volcano-polygon-source',
-        paint: {
-          'fill-color': ['coalesce', ['get', 'fillColor'], '#ff0000'],
-          'fill-opacity': 0.3
-        }
-      }, beforeId);
+        map.addLayer({
+          id: 'selected-volcano-polygon-fill',
+          type: 'fill',
+          source: 'selected-volcano-polygon-source',
+          paint: {
+            'fill-color': ['coalesce', ['get', 'fillColor'], '#ff0000'],
+            'fill-opacity': 0.3
+          }
+        });
 
-      map.addLayer({
-        id: 'selected-volcano-polygon-line',
-        type: 'line',
-        source: 'selected-volcano-polygon-source',
-        paint: {
-          'line-color': ['coalesce', ['get', 'color'], '#ff0000'],
-          'line-width': 1,
-          'line-opacity': 0.8
-        }
-      }, beforeId);
-    }
+        map.addLayer({
+          id: 'selected-volcano-polygon-line',
+          type: 'line',
+          source: 'selected-volcano-polygon-source',
+          paint: {
+            'line-color': ['coalesce', ['get', 'color'], '#ff0000'],
+            'line-width': 1,
+            'line-opacity': 0.8
+          }
+        });
+      }
+    });
 
     const source = map.getSource('selected-volcano-polygon-source') as maplibregl.GeoJSONSource;
     if (source) {
@@ -1405,13 +1497,186 @@ export const useDisasterStream = ({
     const lineOpacity = isVisible ? 0.8 : 0;
 
     if (map.getLayer('selected-volcano-polygon-fill')) {
-      map.setPaintProperty('selected-volcano-polygon-fill', 'fill-opacity', fillOpacity);
+      safeSetPaintProperty(map, 'selected-volcano-polygon-fill', 'fill-opacity', fillOpacity);
     }
     
     if (map.getLayer('selected-volcano-polygon-line')) {
-      map.setPaintProperty('selected-volcano-polygon-line', 'line-opacity', lineOpacity);
+      safeSetPaintProperty(map, 'selected-volcano-polygon-line', 'line-opacity', lineOpacity);
     }
   }, [selectedVolcanoPolygon, mapLoaded, settings.layers]);
+  // Animate loading CEMS AOI lines
+  useEffect(() => {
+    if (!map || !mapLoaded) return;
+    
+    if (loadingCemsAois.length === 0) {
+      // Clean up filters when nothing is loading
+      if (map.getLayer('active-wildfire-cems-vt-extent-loading')) {
+        map.setFilter('active-wildfire-cems-vt-extent-loading', ['all', ['==', 'isExtent', true], ['in', 'activationCode', 'NONE']]);
+      }
+      if (map.getLayer('active-wildfire-cems-vt-extent')) {
+        map.setFilter('active-wildfire-cems-vt-extent', ['==', 'isExtent', true]);
+      }
+      if (map.getLayer('active-flood-cems-vt-extent-loading')) {
+        map.setFilter('active-flood-cems-vt-extent-loading', ['all', ['==', 'isExtent', true], ['in', 'activationCode', 'NONE']]);
+      }
+      if (map.getLayer('active-flood-cems-vt-extent')) {
+        map.setFilter('active-flood-cems-vt-extent', ['==', 'isExtent', true]);
+      }
+      if (map.getLayer('selected-cems-vt-extent-loading')) {
+        map.setFilter('selected-cems-vt-extent-loading', ['all', ['==', 'isExtent', true], ['in', 'activationCode', 'NONE']]);
+      }
+      if (map.getLayer('selected-cems-vt-extent')) {
+        map.setFilter('selected-cems-vt-extent', ['==', 'isExtent', true]);
+      }
+      return;
+    }
 
+    // Apply filters to route only the loading items to the animated layer
+    if (map.getLayer('active-wildfire-cems-vt-extent-loading')) {
+      map.setFilter('active-wildfire-cems-vt-extent-loading', ['all', ['==', 'isExtent', true], ['in', 'activationCode', ...loadingCemsAois]] as any);
+    }
+    if (map.getLayer('active-wildfire-cems-vt-extent')) {
+      map.setFilter('active-wildfire-cems-vt-extent', ['all', ['==', 'isExtent', true], ['!', ['in', 'activationCode', ...loadingCemsAois]]] as any);
+    }
+    if (map.getLayer('active-flood-cems-vt-extent-loading')) {
+      map.setFilter('active-flood-cems-vt-extent-loading', ['all', ['==', 'isExtent', true], ['in', 'activationCode', ...loadingCemsAois]] as any);
+    }
+    if (map.getLayer('active-flood-cems-vt-extent')) {
+      map.setFilter('active-flood-cems-vt-extent', ['all', ['==', 'isExtent', true], ['!', ['in', 'activationCode', ...loadingCemsAois]]] as any);
+    }
+    if (map.getLayer('selected-cems-vt-extent-loading')) {
+      map.setFilter('selected-cems-vt-extent-loading', ['all', ['==', 'isExtent', true], ['in', 'activationCode', ...loadingCemsAois]] as any);
+    }
+    if (map.getLayer('selected-cems-vt-extent')) {
+      map.setFilter('selected-cems-vt-extent', ['all', ['==', 'isExtent', true], ['!', ['in', 'activationCode', ...loadingCemsAois]]] as any);
+    }
+
+    const dashArraySequence = [
+      [0, 4, 3], [0.5, 4, 2.5], [1, 4, 2], [1.5, 4, 1.5],
+      [2, 4, 1], [2.5, 4, 0.5], [3, 4, 0], [0, 0, 3, 4],
+      [0, 0.5, 3, 4], [0, 1, 3, 4], [0, 1.5, 3, 4],
+      [0, 2, 3, 4], [0, 2.5, 3, 4], [0, 3, 3, 4]
+    ];
+    
+    let step = 0;
+    let animationId: number;
+    let lastTime = 0;
+    
+    const animateThrottled = (t: number) => {
+      if (t - lastTime > 60) {
+        step = (step + 1) % dashArraySequence.length;
+        if (map.getLayer('active-wildfire-cems-vt-extent-loading')) {
+          map.setPaintProperty('active-wildfire-cems-vt-extent-loading', 'line-dasharray', dashArraySequence[step]);
+        }
+        if (map.getLayer('active-flood-cems-vt-extent-loading')) {
+          map.setPaintProperty('active-flood-cems-vt-extent-loading', 'line-dasharray', dashArraySequence[step]);
+        }
+        if (map.getLayer('selected-cems-vt-extent-loading')) {
+          map.setPaintProperty('selected-cems-vt-extent-loading', 'line-dasharray', dashArraySequence[step]);
+        }
+        lastTime = t;
+      }
+      animationId = requestAnimationFrame(animateThrottled);
+    };
+
+    animationId = requestAnimationFrame(animateThrottled);
+
+    return () => {
+      cancelAnimationFrame(animationId);
+    };
+  }, [map, mapLoaded, loadingCemsAois]);
+  // CEMS Detail Fetch Listener
+  useEffect(() => {
+    const handleFetchCemsDetails = async (e: CustomEvent) => {
+      const { cemsType, products, activationCode } = e.detail;
+      if (!products || !activationCode) return;
+      
+      setLoadingCemsAois(prev => [...prev, activationCode]);
+      
+      const vtPromises: Promise<any>[] = [];
+      const productsWithVt = products.filter((p: any) => p.layers && p.layers.some((l: any) => l.format === 'vt'));
+      const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b: any) => {
+        const typePrio: any = { 'GRA': 4, 'DEL': 3, 'FEP': 2, 'REF': 1 };
+        const prioDiff = (typePrio[b.type] || 0) - (typePrio[a.type] || 0);
+        if (prioDiff !== 0) return prioDiff;
+        return (b.monitoringNumber || 0) - (a.monitoringNumber || 0);
+      })[0] : null;
+      
+      const productsToProcess = latestProduct ? [latestProduct] : [];
+      for (const product of productsToProcess) {
+        if (product.layers) {
+          for (const layer of product.layers) {
+            if (layer.format === 'vt' && layer.json) {
+              vtPromises.push(safeFetchCemsJson(layer.json));
+            }
+          }
+        }
+      }
+      
+      try {
+        const vtResults = await Promise.all(vtPromises);
+        const detailedFeatures: any[] = [];
+        for (const vtFeatures of vtResults) {
+          const filtered = vtFeatures.filter((f: any) => {
+            let dmg = (f.properties?.damage_gra || f.properties?.grading || f.properties?.notation || '').toLowerCase().trim();
+            let obj = (f.properties?.obj_type || '').toLowerCase().trim();
+            
+            if (cemsType === 'wildfire') {
+              if (dmg === 'no visible damage' || dmg === 'not analysed' || dmg === 'not analyzed') return false;
+            }
+            if (obj === 'not analysed' || obj === 'not analyzed') return false;
+            
+            const normalize = (str: any) => {
+              if (!str || typeof str !== 'string') return str;
+              str = str.trim();
+              if (!str) return str;
+              return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+            };
+            
+            if (f.properties) {
+              if (f.properties.damage_gra) f.properties.damage_gra = normalize(f.properties.damage_gra);
+              if (f.properties.grading) f.properties.grading = normalize(f.properties.grading);
+              if (f.properties.notation) f.properties.notation = normalize(f.properties.notation);
+              f.properties._isPoint = f.geometry?.type === 'Point' || f.geometry?.type === 'MultiPoint';
+              f.properties._isLineString = f.geometry?.type === 'LineString' || f.geometry?.type === 'MultiLineString';
+              f.properties._isPolygon = f.geometry?.type === 'Polygon' || f.geometry?.type === 'MultiPolygon';
+            }
+            return true;
+          });
+          detailedFeatures.push(...filtered);
+        }
+        
+        if (cemsType === 'wildfire') {
+          setActiveCemsWildfireFeatures((prev: any) => {
+            if (!prev || !prev.features) return prev;
+            // Prevent adding duplicates
+            const newFeatures = detailedFeatures.filter(df => !prev.features.some((pf: any) => pf.properties?._uid === df.properties?._uid && df.properties?._uid !== undefined));
+            return { type: 'FeatureCollection', features: [...prev.features, ...newFeatures] };
+          });
+        } else if (cemsType === 'flood') {
+          setActiveCemsFloodFeatures((prev: any) => {
+            if (!prev || !prev.features) return prev;
+            const newFeatures = detailedFeatures.filter(df => !prev.features.some((pf: any) => pf.properties?._uid === df.properties?._uid && df.properties?._uid !== undefined));
+            return { type: 'FeatureCollection', features: [...prev.features, ...newFeatures] };
+          });
+        } else if (cemsType === 'earthquake') {
+          setSelectedCemsEarthquakeFeatures((prev: any) => {
+            if (!prev || !prev.features) return prev;
+            const newFeatures = detailedFeatures.filter(df => !prev.features.some((pf: any) => pf.properties?._uid === df.properties?._uid && df.properties?._uid !== undefined));
+            return { type: 'FeatureCollection', features: [...prev.features, ...newFeatures] };
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load detailed CEMS features', err);
+      } finally {
+        setLoadingCemsAois(prev => prev.filter(c => c !== activationCode));
+      }
+    };
+    
+    window.addEventListener('fetchCemsDetails', handleFetchCemsDetails as unknown as EventListener);
+    return () => {
+      window.removeEventListener('fetchCemsDetails', handleFetchCemsDetails as unknown as EventListener);
+    };
+  }, [setActiveCemsWildfireFeatures, setActiveCemsFloodFeatures, setSelectedCemsEarthquakeFeatures]);
 
 };

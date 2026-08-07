@@ -130,7 +130,7 @@ export const HeadlineOverlays: React.FC<HeadlineOverlaysProps> = ({
         
         return (
           <motion.div
-            key={`${ann.id}-${ann.screenPosition?.x}-${ann.screenPosition?.y}`}
+            key={ann.id}
             data-id={ann.id}
             drag={activeTool === 'headline' || isSelected}
             dragMomentum={false}

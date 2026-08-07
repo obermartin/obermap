@@ -66,7 +66,7 @@ export const useAnnotationsStream = ({
 
   // Update mapbox features when annotations change
   useEffect(() => {
-    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
+    if (!map || !mapLoaded) return;
     const source = map.getSource('custom-annotations') as maplibregl.GeoJSONSource;
     if (!source) return;
     cachedTurfDataRef.current = {};
@@ -634,7 +634,7 @@ export const useAnnotationsStream = ({
 
   // Animation Loop for Reveals
   useEffect(() => {
-    if (!map || !mapLoaded || !map.isStyleLoaded()) return;
+    if (!map || !mapLoaded) return;
     
     let frameId: number;
 
@@ -705,13 +705,13 @@ export const useAnnotationsStream = ({
               el.style.transition = 'none';
               el.style.display = isRevealed ? 'block' : 'none';
               
-              const isLabel = ann.type === 'label';
-              const plateSel = isLabel ? '.custom-marker-plate' : '.custom-highlight-plate, .custom-country-plate';
-              const textSel = isLabel ? '.custom-marker-text' : '.custom-highlight-text, .custom-country-text';
+              const isLabel = el.querySelector('.label-marker') !== null;
+              const plateSel = isLabel ? '.backplate.primary' : '.custom-highlight-plate, .custom-country-plate';
+              const textSel = isLabel ? '.text' : '.custom-highlight-text, .custom-country-text';
               
               const plate = el.querySelector(plateSel) as HTMLElement;
               const text = el.querySelector(textSel) as HTMLElement;
-              const pointer = el.querySelector('.custom-marker-pointer') as HTMLElement;
+              const pointer = el.querySelector(isLabel ? '.pointer' : '.custom-marker-pointer') as HTMLElement;
               
               if (pointer) pointer.style.opacity = isRevealed ? '1' : '0';
               if (plate && text) {
@@ -990,13 +990,13 @@ export const useAnnotationsStream = ({
                 el.style.display = isVisible ? 'block' : 'none';
                 el.style.pointerEvents = isVisible ? 'auto' : 'none';
                 
-                const isLabel = ann.type === 'label';
-                const plateSel = isLabel ? '.custom-marker-plate' : '.custom-highlight-plate, .custom-country-plate';
-                const textSel = isLabel ? '.custom-marker-text' : '.custom-highlight-text, .custom-country-text';
+                const isLabel = el.querySelector('.label-marker') !== null;
+                const plateSel = isLabel ? '.backplate.primary' : '.custom-highlight-plate, .custom-country-plate';
+                const textSel = isLabel ? '.text' : '.custom-highlight-text, .custom-country-text';
                 
                 const plate = el.querySelector(plateSel) as HTMLElement;
                 const text = el.querySelector(textSel) as HTMLElement;
-                const pointer = el.querySelector('.custom-marker-pointer') as HTMLElement;
+                const pointer = el.querySelector(isLabel ? '.pointer' : '.custom-marker-pointer') as HTMLElement;
                 
                 if (pointer) {
                    pointer.style.opacity = isVisible ? '1' : '0';

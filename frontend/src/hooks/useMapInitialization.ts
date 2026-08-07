@@ -14,7 +14,7 @@ export interface MapInitializationProps {
   settings: AppSettings;
   settingsRef: React.MutableRefObject<AppSettings>;
   setMapLoaded: (v: boolean) => void;
-  setStyleLoadedTick: React.Dispatch<React.SetStateAction<number>>;
+
   setRevealedTriggers: React.Dispatch<React.SetStateAction<Set<string>>>;
   setHiddenTriggers: React.Dispatch<React.SetStateAction<Set<string>>>;
   onMapInit?: (map: maplibregl.Map) => void;
@@ -32,7 +32,7 @@ export const useMapInitialization = ({
   settings,
   settingsRef,
   setMapLoaded,
-  setStyleLoadedTick,
+
   setRevealedTriggers,
   setHiddenTriggers,
   onMapInit,
@@ -888,14 +888,14 @@ export const useMapInitialization = ({
           });
         }
 
-        setStyleLoadedTick(t => t + 1);
+        setMapLoaded(true);
       };
 
       let lastStyleLoaded = false;
       const onStyleData = () => {
-        const isLoaded = !!map.isStyleLoaded();
+        const isLoaded = !!((map as any).style && (map as any).style._loaded);
         if (isLoaded && !lastStyleLoaded) {
-          setStyleLoadedTick(t => t + 1);
+
           setupCustomLayers();
         }
         lastStyleLoaded = isLoaded;

@@ -262,30 +262,26 @@ function mockPhpBackend(env: Record<string, string>) {
 
           if (action === "proxy_gdacs") {
             const targetUrl = urlObj.searchParams.get("url") || "";
-            if (!targetUrl.startsWith("https://www.gdacs.org/")) {
+            if (!targetUrl.startsWith("https://www.gdacs.org/") && !targetUrl.startsWith("https://gdacs.org/")) {
               res.statusCode = 400;
               res.end(JSON.stringify({ error: "Invalid url" }));
               return;
             }
-            const options: any = { 
-              method: "GET", 
-              headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-              },
-              rejectUnauthorized: false
-            };
-            const proxyReq = https.request(targetUrl, options, (proxyRes) => {
-              res.writeHead(proxyRes.statusCode || 200, {
-                "Content-Type": proxyRes.headers["content-type"] || "application/json",
-                "Access-Control-Allow-Origin": "*",
+            try {
+              const fetchRes = await fetch(targetUrl, {
+                headers: {
+                  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+                }
               });
-              proxyRes.pipe(res);
-            });
-            proxyReq.on("error", (e) => {
+              const buffer = await fetchRes.arrayBuffer();
+              res.statusCode = fetchRes.status;
+              res.setHeader("Content-Type", fetchRes.headers.get("content-type") || "application/json");
+              res.setHeader("Access-Control-Allow-Origin", "*");
+              res.end(Buffer.from(buffer));
+            } catch (e: any) {
               res.statusCode = 500;
               res.end(JSON.stringify({ error: e.message }));
-            });
-            proxyReq.end();
+            }
             return;
           }
 

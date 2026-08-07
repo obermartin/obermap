@@ -268,7 +268,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
 // Handle GDACS proxy request
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'proxy_gdacs') {
     $targetUrl = $_GET['url'] ?? '';
-    if (!$targetUrl || strpos($targetUrl, 'https://www.gdacs.org/') !== 0) {
+    if (!$targetUrl || (strpos($targetUrl, 'https://www.gdacs.org/') !== 0 && strpos($targetUrl, 'https://gdacs.org/') !== 0)) {
         http_response_code(400);
         echo json_encode(['error' => 'Invalid or missing target URL']);
         exit;
