@@ -176,14 +176,14 @@ export const useMapExport = ({
     });
 
     // Apply scaling to Custom Lines and Strokes
-    if (map.getLayer('custom-lines')) {
-      map.setPaintProperty('custom-lines', 'line-width', 6 * mapboxScale);
+    if (map.getLayer('custom-lines-solid')) {
+      map.setPaintProperty('custom-lines-solid', 'line-width', 6 * mapboxScale);
     }
-    if (map.getLayer('custom-lines-dashed')) {
-      map.setPaintProperty('custom-lines-dashed', 'line-width', 6 * mapboxScale);
+    if (map.getLayer('custom-lines-dashed-new')) {
+      map.setPaintProperty('custom-lines-dashed-new', 'line-width', 6 * mapboxScale);
     }
-    if (map.getLayer('custom-lines-dotted')) {
-      map.setPaintProperty('custom-lines-dotted', 'line-width', 6 * mapboxScale);
+    if (map.getLayer('custom-lines-dotted-new')) {
+      map.setPaintProperty('custom-lines-dotted-new', 'line-width', 6 * mapboxScale);
     }
 
     if (map.getLayer('custom-polygons-line')) {

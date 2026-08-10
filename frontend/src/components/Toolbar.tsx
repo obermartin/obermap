@@ -189,6 +189,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
         {isOpen && showStrokeControls && (
           <motion.div
+            key="stroke-controls-toolbar"
             initial={{ y: 10, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 10, opacity: 0 }}
@@ -217,6 +218,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
         {isOpen && activeTool === 'route' && (
           <motion.div
+            key="route-controls-toolbar"
             initial={{ y: 10, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 10, opacity: 0 }}
@@ -245,6 +247,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
         {isOpen && (
           <motion.div
+            key="colors-toolbar"
             initial={{ y: 10, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 10, opacity: 0 }}

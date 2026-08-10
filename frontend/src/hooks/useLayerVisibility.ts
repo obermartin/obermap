@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { AppSettings, MapLayer } from '../types';
-import { parseWKT, executeWhenStyleLoaded } from '../utils/mapUtils';
+import { parseWKT } from '../utils/mapUtils';
 
 
 let globalDeepstateHistory: { id: number; createdAt: string }[] | null = null;
@@ -10,6 +10,7 @@ let globalDeepstateHistoryPromise: Promise<{ id: number; createdAt: string; }[] 
 export interface LayerVisibilityProps {
   map: maplibregl.Map | null;
   mapLoaded: boolean;
+  mapStyleLoaded: boolean;
   settings: AppSettings;
   annotations: any[];
   activeTool: string | null;
@@ -19,13 +20,13 @@ export interface LayerVisibilityProps {
   selectedVesselMmsi: string | null;
   selectedWeatherTime: string | null;
   weatherValidTimes: string[];
-  selectedEarthquake: any;
-  selectedVolcano: any;
-  selectedEarthquakeShakemap: any;
-  selectedVolcanoPolygon: any;
-  selectedCemsEarthquake: any;
-  selectedCemsEarthquakeFeatures: any;
-  getEffectiveLayerDates: (l: MapLayer) => { effectiveStartDate: string, effectiveEndDate: string };
+  selectedEarthquake: any | null;
+  selectedVolcano: any | null;
+  selectedEarthquakeShakemap: any | null;
+  selectedVolcanoPolygon: any | null;
+  selectedCemsEarthquake: any | null;
+  selectedCemsEarthquakeFeatures: any[] | null;
+  getEffectiveLayerDates: (layer: MapLayer) => { effectiveStartDate: string, effectiveEndDate: string };
   weatherForecastLayerIdsRef: React.MutableRefObject<string[]>;
   weatherForecastSourceIdsRef: React.MutableRefObject<string[]>;
   lastActiveWeatherTimeRef: React.MutableRefObject<string | null>;
@@ -35,11 +36,12 @@ export interface LayerVisibilityProps {
 
 export const useLayerVisibility = (props: LayerVisibilityProps) => {
   const {
-    map, mapLoaded, settings, activeTool, revealedTriggers, hiddenTriggers,
+    map, mapLoaded, mapStyleLoaded, settings, activeTool, revealedTriggers, hiddenTriggers,
     selectedAircraftId, selectedVesselMmsi, selectedWeatherTime, weatherValidTimes,
     selectedEarthquake, selectedVolcano, selectedEarthquakeShakemap, selectedVolcanoPolygon,
     annotations, selectedCemsEarthquake, selectedCemsEarthquakeFeatures, getEffectiveLayerDates,
-    weatherForecastLayerIdsRef, weatherForecastSourceIdsRef, lastActiveWeatherTimeRef, weatherAllValidTimesRef, windLastFetchRef
+    weatherForecastLayerIdsRef, weatherForecastSourceIdsRef, lastActiveWeatherTimeRef,
+    weatherAllValidTimesRef, windLastFetchRef
   } = props;
 
   const layerFadeTimeoutsRef = useRef<Record<string, any>>({});
@@ -47,9 +49,8 @@ export const useLayerVisibility = (props: LayerVisibilityProps) => {
   const gdacsDataCacheRef = useRef<{ [cacheKey: string]: any }>({});
 
   useEffect(() => {
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !mapStyleLoaded) return;
     
-    executeWhenStyleLoaded(map, () => {
     const fadeDuration = settings.labelAnimationDuration ?? 1000;
     const transition = { duration: fadeDuration, delay: 0 };
 
@@ -1017,13 +1018,11 @@ export const useLayerVisibility = (props: LayerVisibilityProps) => {
         }
       });
     }
-    
-    }); // end executeWhenStyleLoaded
 
     return () => {
       // Cleanup dynamically created raster layers that were removed from settings
       // We don't remove copernicus or deepstate sources to avoid reload flashes
     };
-  }, [map, settings.layers, activeTool, revealedTriggers, hiddenTriggers, mapLoaded, selectedAircraftId, selectedVesselMmsi, selectedWeatherTime, weatherValidTimes, selectedEarthquake, selectedVolcano, selectedEarthquakeShakemap, selectedVolcanoPolygon, selectedCemsEarthquake, selectedCemsEarthquakeFeatures]);
+  }, [map, mapStyleLoaded, settings.layers, activeTool, revealedTriggers, hiddenTriggers, mapLoaded, selectedAircraftId, selectedVesselMmsi, selectedWeatherTime, weatherValidTimes, selectedEarthquake, selectedVolcano, selectedEarthquakeShakemap, selectedVolcanoPolygon, selectedCemsEarthquake, selectedCemsEarthquakeFeatures]);
 
 };

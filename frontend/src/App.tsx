@@ -5,6 +5,7 @@ import { SavedViews } from './components/SavedViews';
 import { OverviewScreen } from './components/OverviewScreen';
 import { motion, AnimatePresence } from 'framer-motion';
 import { customAlert, customConfirm } from './utils/dialogService';
+import './App.css';
 import type { Annotation, ToolType, StrokeType, AppSettings, MapLayer, RouteMode } from './types';
 import { createArrowFeatures, calculateDistance } from './utils/mapUtils';
 

@@ -12,6 +12,7 @@ import type { AppSettings, ToolType } from '../types';
 export interface AnnotationsStreamProps {
   map: maplibregl.Map | null;
   mapLoaded: boolean;
+  mapStyleLoaded: boolean;
   annotations: Annotation[];
   setAnnotations: React.Dispatch<React.SetStateAction<Annotation[]>>;
   selectedAnnotationId: string | null;
@@ -35,6 +36,7 @@ export interface AnnotationsStreamProps {
 export const useAnnotationsStream = ({
   map,
   mapLoaded,
+  mapStyleLoaded,
   annotations,
   setAnnotations,
   selectedAnnotationId,
@@ -66,7 +68,7 @@ export const useAnnotationsStream = ({
 
   // Update mapbox features when annotations change
   useEffect(() => {
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !mapStyleLoaded) return;
     const source = map.getSource('custom-annotations') as maplibregl.GeoJSONSource;
     if (!source) return;
     cachedTurfDataRef.current = {};
@@ -915,8 +917,8 @@ export const useAnnotationsStream = ({
         if (ann.type === 'arrow' && ann.coordinates && ann.coordinates.length === 2) {
            const p1 = ann.coordinates[0];
            const p2 = ann.coordinates[1];
-           const shaftIdx = currentFeatures.findIndex((f: any) => f.properties?.featureId === ann.id && f.properties?.$type === 'LineString');
-           const headIdx = currentFeatures.findIndex((f: any) => f.properties?.featureId === ann.id && f.properties?.$type === 'ArrowHead');
+           const shaftIdx = currentFeatures.findIndex((f: any) => f.properties?.featureId === ann.id && f.properties?._type === 'LineString');
+           const headIdx = currentFeatures.findIndex((f: any) => f.properties?.featureId === ann.id && f.properties?._type === 'ArrowHead');
            
            if (annProgress === 0) {
              if (shaftIdx !== -1) (currentFeatures[shaftIdx].geometry as any).coordinates = [];
@@ -1085,7 +1087,44 @@ export const useAnnotationsStream = ({
       
       const source = map?.getSource('custom-annotations') as maplibregl.GeoJSONSource;
       if (source) {
-        source.setData({ type: 'FeatureCollection', features: currentFeatures });
+          const validFeatures = currentFeatures.filter((f: any) => !f.properties?.hidden).map((f: any) => {
+            const copy = { ...f, properties: { ...f.properties } };
+            delete copy.properties.hidden;
+            return copy;
+          });
+          
+          source.setData({ type: 'FeatureCollection', features: validFeatures });
+
+          // Extract pure LineString representations for the line source to avoid MapLibre v5 dropping mixed sources
+          const lineSource = map.getSource('custom-lines-source') as maplibregl.GeoJSONSource;
+          if (lineSource) {
+            const lineFeatures: any[] = [];
+            validFeatures.forEach((f: any) => {
+              if (f.geometry.type === 'LineString' || f.geometry.type === 'MultiLineString') {
+                lineFeatures.push(f);
+              } else if (f.geometry.type === 'Polygon') {
+                // MapLibre v5 line layers may require explicit LineStrings for polygons
+                f.geometry.coordinates.forEach((ring: any, index: number) => {
+                  lineFeatures.push({
+                    type: 'Feature',
+                    geometry: { type: 'LineString', coordinates: ring },
+                    properties: { ...f.properties, id: `${f.properties.id}-ring-${index}` }
+                  });
+                });
+              } else if (f.geometry.type === 'MultiPolygon') {
+                f.geometry.coordinates.forEach((polygon: any, polyIdx: number) => {
+                  polygon.forEach((ring: any, ringIdx: number) => {
+                    lineFeatures.push({
+                      type: 'Feature',
+                      geometry: { type: 'LineString', coordinates: ring },
+                      properties: { ...f.properties, id: `${f.properties.id}-poly-${polyIdx}-ring-${ringIdx}` }
+                    });
+                  });
+                });
+              }
+            });
+            lineSource.setData({ type: 'FeatureCollection', features: lineFeatures });
+          }
       }
 
       if (progress < 1) {

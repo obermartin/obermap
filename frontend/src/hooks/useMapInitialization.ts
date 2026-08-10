@@ -14,7 +14,7 @@ export interface MapInitializationProps {
   settings: AppSettings;
   settingsRef: React.MutableRefObject<AppSettings>;
   setMapLoaded: (v: boolean) => void;
-
+  setMapStyleLoaded: React.Dispatch<React.SetStateAction<boolean>>;
   setRevealedTriggers: React.Dispatch<React.SetStateAction<Set<string>>>;
   setHiddenTriggers: React.Dispatch<React.SetStateAction<Set<string>>>;
   onMapInit?: (map: maplibregl.Map) => void;
@@ -32,7 +32,7 @@ export const useMapInitialization = ({
   settings,
   settingsRef,
   setMapLoaded,
-
+  setMapStyleLoaded,
   setRevealedTriggers,
   setHiddenTriggers,
   onMapInit,
@@ -658,8 +658,17 @@ export const useMapInitialization = ({
       });
 
       const setupCustomLayers = () => {
+        if (!map) return;
+
+        if (!map.getSource('custom-lines-source')) {
+          map.addSource('custom-lines-source', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] }
+          });
+        }
+
+        // Add 3D models layer first so it's under labels
         if (!mapRef.current || mapRef.current !== map) return;
-        if (map.getSource('custom-annotations') && map.getLayer('custom-polygons')) return;
 
         // Add custom annotations source
         if (!map.getSource('custom-annotations')) {
@@ -685,12 +694,12 @@ export const useMapInitialization = ({
         }
 
         // Lines (Paint & Measure & Outlines & Arrows)
-        if (!map.getLayer('custom-lines')) {
+        if (!map.getLayer('custom-lines-solid')) {
           map.addLayer({
-            id: 'custom-lines',
+            id: 'custom-lines-solid',
             type: 'line',
-            source: 'custom-annotations',
-            filter: ['any', ['!', ['has', 'strokeType']], ['==', ['get', 'strokeType'], 'solid']],
+            source: 'custom-lines-source',
+            filter: ['all', ['!=', ['get', 'strokeType'], 'dashed'], ['!=', ['get', 'strokeType'], 'dotted']],
             layout: {
               'line-cap': 'round',
               'line-join': 'round'
@@ -698,17 +707,16 @@ export const useMapInitialization = ({
             paint: {
               'line-width': 6,
               'line-color': ['coalesce', ['get', 'color'], '#ffffff'],
-              'line-opacity': ['coalesce', ['get', 'currentLineOpacity'], 1],
-              'line-opacity-transition': { duration: 0 }
+              'line-opacity': 1
             }
           });
         }
 
-        if (!map.getLayer('custom-lines-dashed')) {
+        if (!map.getLayer('custom-lines-dashed-new')) {
           map.addLayer({
-            id: 'custom-lines-dashed',
+            id: 'custom-lines-dashed-new',
             type: 'line',
-            source: 'custom-annotations',
+            source: 'custom-lines-source',
             filter: ['==', ['get', 'strokeType'], 'dashed'],
             layout: {
               'line-cap': 'round',
@@ -718,17 +726,16 @@ export const useMapInitialization = ({
               'line-width': 6,
               'line-color': ['coalesce', ['get', 'color'], '#ffffff'],
               'line-dasharray': [2, 2],
-              'line-opacity': ['coalesce', ['get', 'currentLineOpacity'], 1],
-              'line-opacity-transition': { duration: 0 }
+              'line-opacity': 1
             }
           });
         }
 
-        if (!map.getLayer('custom-lines-dotted')) {
+        if (!map.getLayer('custom-lines-dotted-new')) {
           map.addLayer({
-            id: 'custom-lines-dotted',
+            id: 'custom-lines-dotted-new',
             type: 'line',
-            source: 'custom-annotations',
+            source: 'custom-lines-source',
             filter: ['==', ['get', 'strokeType'], 'dotted'],
             layout: {
               'line-cap': 'round',
@@ -738,8 +745,7 @@ export const useMapInitialization = ({
               'line-width': 6,
               'line-color': ['coalesce', ['get', 'color'], '#ffffff'],
               'line-dasharray': [0.01, 2.5],
-              'line-opacity': ['coalesce', ['get', 'currentLineOpacity'], 1],
-              'line-opacity-transition': { duration: 0 }
+              'line-opacity': 1
             }
           });
         }
@@ -750,7 +756,7 @@ export const useMapInitialization = ({
             id: 'custom-arrow-heads',
             type: 'symbol',
             source: 'custom-annotations',
-            filter: ['==', ['get', '$type'], 'ArrowHead'],
+            filter: ['==', ['get', '_type'], 'ArrowHead'],
             layout: {
               'text-field': [
                 'case',
@@ -758,6 +764,7 @@ export const useMapInitialization = ({
                 '▲',
                 '△'
               ],
+              'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
               'text-size': 80,
               'text-rotate': ['get', 'bearing'],
               'text-rotation-alignment': 'map',
@@ -893,15 +900,18 @@ export const useMapInitialization = ({
 
       let lastStyleLoaded = false;
       const onStyleData = () => {
-        const isLoaded = !!((map as any).style && (map as any).style._loaded);
+        const isLoaded = !!map.isStyleLoaded();
         if (isLoaded && !lastStyleLoaded) {
-
+          setMapStyleLoaded(true);
           setupCustomLayers();
         }
         lastStyleLoaded = isLoaded;
       };
       map.on('styledata', onStyleData);
       map.on('data', onStyleData);
+
+      // Check immediately in case style is already fully loaded
+      onStyleData();
 
       setMapLoaded(true);
       // Wait for onStyleData to trigger setupCustomLayers instead of doing it immediately.

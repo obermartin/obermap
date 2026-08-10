@@ -457,7 +457,7 @@ export function useAnnotationTools({
       }
       let features: maplibregl.MapGeoJSONFeature[] = [];
       try {
-        features = map.queryRenderedFeatures(e.point, { layers: ['custom-polygons', 'custom-lines', 'custom-lines-dashed', 'custom-lines-dotted', 'custom-arrow-heads'] });
+        features = map.queryRenderedFeatures(e.point, { layers: ['custom-polygons', 'custom-lines-solid', 'custom-lines-dashed-new', 'custom-lines-dotted-new', 'custom-arrow-heads'] });
       } catch (err) {}
       let clickedAnnotationId: string | null = null;
       
@@ -966,7 +966,7 @@ export function useAnnotationTools({
       // Check if we clicked on an existing annotation feature FIRST
       let features: maplibregl.MapGeoJSONFeature[] = [];
       try {
-        features = map.queryRenderedFeatures(e.point, { layers: ['custom-polygons', 'custom-lines', 'custom-lines-dashed', 'custom-lines-dotted', 'custom-arrow-heads'] });
+        features = map.queryRenderedFeatures(e.point, { layers: ['custom-polygons', 'custom-lines-solid', 'custom-lines-dashed-new', 'custom-lines-dotted-new', 'custom-arrow-heads'] });
       } catch (e) {
         // layer might not be ready
       }

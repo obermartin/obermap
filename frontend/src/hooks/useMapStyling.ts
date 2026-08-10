@@ -1,12 +1,13 @@
 import { useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import type { AppSettings } from '../types';
-import { upgradeLegacyFilter, executeWhenStyleLoaded } from '../utils/mapUtils';
+import { upgradeLegacyFilter } from '../utils/mapUtils';
 
 export interface MapStylingProps {
   mapContainer: React.RefObject<HTMLDivElement | null>;
   map: maplibregl.Map | null;
   mapLoaded: boolean;
+  mapStyleLoaded: boolean;
   settings: AppSettings;
 
   originalFiltersRef: React.MutableRefObject<{ [layerId: string]: any }>;
@@ -16,6 +17,7 @@ export const useMapStyling = ({
   mapContainer,
   map: mapProp,
   mapLoaded,
+  mapStyleLoaded,
   settings,
 
   originalFiltersRef
@@ -30,25 +32,25 @@ export const useMapStyling = ({
 
   // Handle dynamic mapbox transitions based on settings
   useEffect(() => {
-    if (!mapRef.current || !mapLoaded) return;
+    if (!mapRef.current || !mapLoaded || !mapStyleLoaded) return;
     const duration = settings.animationDuration ?? 2000;
     const map = mapRef.current;
     
     try {
       if (map.getLayer('custom-polygons')) map.setPaintProperty('custom-polygons', 'fill-opacity-transition', { duration });
-      if (map.getLayer('custom-lines')) map.setPaintProperty('custom-lines', 'line-opacity-transition', { duration });
-      if (map.getLayer('custom-lines-dashed')) map.setPaintProperty('custom-lines-dashed', 'line-opacity-transition', { duration });
-      if (map.getLayer('custom-lines-dotted')) map.setPaintProperty('custom-lines-dotted', 'line-opacity-transition', { duration });
+      if (map.getLayer('custom-lines-solid')) map.setPaintProperty('custom-lines-solid', 'line-opacity-transition', { duration });
+      if (map.getLayer('custom-lines-dashed-new')) map.setPaintProperty('custom-lines-dashed-new', 'line-opacity-transition', { duration });
+      if (map.getLayer('custom-lines-dotted-new')) map.setPaintProperty('custom-lines-dotted-new', 'line-opacity-transition', { duration });
       if (map.getLayer('custom-arrow-heads')) map.setPaintProperty('custom-arrow-heads', 'text-opacity-transition', { duration });
     } catch (e) {
       // Ignore if style isn't ready
     }
-  }, [settings.animationDuration, mapLoaded]);
+  }, [settings.animationDuration, mapLoaded, mapStyleLoaded]);
 
   // Handle Map Label Density
   const lastAppliedDensityRef = useRef<number | undefined>(undefined);
   useEffect(() => {
-    if (!mapRef.current || !mapLoaded || settings.labelDensity === undefined) return;
+    if (!mapRef.current || !mapLoaded || !mapStyleLoaded || settings.labelDensity === undefined) return;
     if (lastAppliedDensityRef.current === settings.labelDensity) return;
 
     if (settings.labelDensity === 100 && lastAppliedDensityRef.current === undefined) {
@@ -160,12 +162,12 @@ export const useMapStyling = ({
         }
       });
     }
-  }, [settings.labelDensity, mapLoaded]);
+  }, [settings.labelDensity, mapLoaded, mapStyleLoaded]);
 
   // 3D Terrain & Environment
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !mapStyleLoaded) return;
 
     try {
       if (settings.enable3dTerrain) {
@@ -272,14 +274,14 @@ export const useMapStyling = ({
     } catch (e) {
       console.warn("Could not apply 3D terrain styling (style might not be loaded yet)");
     }
-  }, [mapLoaded, settings.enable3dTerrain, settings.terrainExaggeration, settings.enableHillshade, settings.hillshadeShadowOpacity, settings.hillshadeHighlightOpacity, settings.enableSky, settings.skyColor]);
+  }, [mapLoaded, mapStyleLoaded, settings.enable3dTerrain, settings.terrainExaggeration, settings.enableHillshade, settings.hillshadeShadowOpacity, settings.hillshadeHighlightOpacity, settings.enableSky, settings.skyColor]);
 
   // Water Layer Styling
   const lastWaterColorRef = useRef<string | undefined>(undefined);
   const lastWaterOpacityRef = useRef<number | undefined>(undefined);
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !mapStyleLoaded) return;
     
     try {
       // Only apply to styles that use the standard 'water' fill layer when style is loaded
@@ -296,7 +298,7 @@ export const useMapStyling = ({
     } catch (e) {
       console.warn("Could not apply water layer styling (style might not be loaded yet)");
     }
-  }, [mapLoaded, settings.waterColor, settings.waterOpacity, settings.mapStyle]);
+  }, [mapLoaded, mapStyleLoaded, settings.waterColor, settings.waterOpacity, settings.mapStyle]);
 
   // Dynamic Map Style & Solid Background Color Handler
   const defaultStyleStr = 'https://tiles.openfreemap.org/styles/liberty';
@@ -304,7 +306,7 @@ export const useMapStyling = ({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapLoaded) return;
+    if (!map || !mapStyleLoaded) return;
 
     const effectiveStyle = settings.mapStyle || defaultStyleStr;
     const newStyleStr = typeof effectiveStyle === 'string' ? effectiveStyle : JSON.stringify(effectiveStyle);
@@ -352,16 +354,14 @@ export const useMapStyling = ({
   // Map Projection (Globe vs Mercator)
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapLoaded) return;
+    if (!map || !mapLoaded || !mapStyleLoaded) return;
 
     try {
       if (typeof (map as any).setProjection === 'function') {
-        executeWhenStyleLoaded(map, () => {
-          (map as any).setProjection({ type: settings.projection === 'globe' ? 'globe' : 'mercator' });
-        });
+        (map as any).setProjection({ type: settings.projection === 'globe' ? 'globe' : 'mercator' });
       }
     } catch (e) {
       console.warn("Failed to set map projection", e);
     }
-  }, [mapLoaded, settings.projection]);
+  }, [mapLoaded, mapStyleLoaded, settings.projection]);
 };

@@ -3,9 +3,7 @@ import maplibregl from 'maplibre-gl';
 
 export const executeWhenStyleLoaded = (map: maplibregl.Map | null, callback: () => void) => {
   if (!map) return;
-  // map.isStyleLoaded() is too strict and gets stuck if glyphs/sprites 404.
-  // We only need the style JSON to be parsed, which is indicated by map.style._loaded
-  const isStyleReady = (map as any).style && (map as any).style._loaded;
+  const isStyleReady = map.isStyleLoaded();
   if (isStyleReady) {
     callback();
   } else {
@@ -138,7 +136,7 @@ export const createArrowFeatures = (start: [number, number], end: [number, numbe
   const shaft: GeoJSON.Feature<GeoJSON.LineString> = {
     type: 'Feature',
     geometry: { type: 'LineString', coordinates: [startCoord, endCoord] },
-    properties: { color, $type: 'LineString', id }
+    properties: { color, _type: 'LineString', id: `${id}-shaft` }
   };
 
   const bearing = turf.bearing(startCoord, endCoord);
@@ -149,7 +147,7 @@ export const createArrowFeatures = (start: [number, number], end: [number, numbe
       type: 'Point',
       coordinates: endCoord
     },
-    properties: { color, $type: 'ArrowHead', id, bearing }
+    properties: { color, _type: 'ArrowHead', id: `${id}-head`, bearing, strokeType: 'solid' }
   };
 
   return { shaft, head };

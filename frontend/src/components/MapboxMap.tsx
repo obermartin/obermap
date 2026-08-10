@@ -156,7 +156,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
 
   const [mapLoaded, setMapLoaded] = useState(false);
-
+  const [mapStyleLoaded, setMapStyleLoaded] = useState(false);
 
   const {
     selectedEarthquake,
@@ -450,7 +450,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   useLayerVisibility({
     map: mapRef.current,
     mapLoaded,
-
+    mapStyleLoaded,
     settings,
     activeTool,
     revealedTriggers,
@@ -572,6 +572,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     settings,
     settingsRef,
     setMapLoaded,
+    setMapStyleLoaded,
     setRevealedTriggers,
     setHiddenTriggers,
     onMapInit,
@@ -694,6 +695,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   useAnnotationsStream({
     map: mapRef.current,
     mapLoaded,
+    mapStyleLoaded,
     annotations,
     setAnnotations,
     selectedAnnotationId,
@@ -1174,6 +1176,7 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     mapContainer,
     map: mapRef.current,
     mapLoaded,
+    mapStyleLoaded,
     settings,
 
     originalFiltersRef
