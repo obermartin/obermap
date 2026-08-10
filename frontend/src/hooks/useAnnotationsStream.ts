@@ -632,7 +632,7 @@ export const useAnnotationsStream = ({
       }
       markersRef.current[id] = marker;
     });
-  }, [annotations, activeTool, mapLoaded, selectedAnnotationId, settings.icons]);
+  }, [annotations, activeTool, mapLoaded, mapStyleLoaded, selectedAnnotationId, settings.icons]);
 
   // Animation Loop for Reveals
   useEffect(() => {
@@ -1152,7 +1152,7 @@ export const useAnnotationsStream = ({
     return () => {
       if (frameId) cancelAnimationFrame(frameId);
     };
-  }, [revealedTriggers, hiddenTriggers, annotations, mapLoaded, activeTool, animationTick, selectedAnnotationId, settings.icons]);
+  }, [revealedTriggers, hiddenTriggers, annotations, mapLoaded, mapStyleLoaded, activeTool, animationTick, selectedAnnotationId, settings.icons]);
 
   // Update selected annotation filter
   useEffect(() => {

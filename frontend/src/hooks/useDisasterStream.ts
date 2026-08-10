@@ -31,6 +31,12 @@ export interface DisasterStreamProps {
   selectionMarkersRef: React.MutableRefObject<{ [id: string]: maplibregl.Marker }>;
 }
 
+const addLayerSafely = (map: maplibregl.Map, layer: any) => {
+  let beforeId = map.getLayer('custom-polygons') ? 'custom-polygons' : undefined;
+  if (!beforeId) beforeId = map.getLayer('admin-1-boundary-bg') ? 'admin-1-boundary-bg' : undefined;
+  map.addLayer(layer, beforeId as any);
+};
+
 export const useDisasterStream = ({
   map,
   mapLoaded,
@@ -671,7 +677,7 @@ export const useDisasterStream = ({
 
       
 
-      map.addLayer({
+      addLayerSafely(map, {
         id: 'selected-earthquake-shakemap-fill',
         type: 'fill',
         source: 'selected-earthquake-shakemap-source',
@@ -682,7 +688,7 @@ export const useDisasterStream = ({
         }
       });
 
-      map.addLayer({
+      addLayerSafely(map, {
         id: 'selected-earthquake-shakemap-line',
         type: 'line',
         source: 'selected-earthquake-shakemap-source',
@@ -753,7 +759,7 @@ export const useDisasterStream = ({
 
       
 
-      map.addLayer({
+      addLayerSafely(map, {
         id: 'selected-cems-vt-extent-fill',
         type: 'fill',
         source: 'selected-cems-vt-source',
@@ -765,7 +771,7 @@ export const useDisasterStream = ({
         }
       });
 
-      map.addLayer({
+      addLayerSafely(map, {
         id: 'selected-cems-vt-extent',
         type: 'line',
         source: 'selected-cems-vt-source',
@@ -778,7 +784,7 @@ export const useDisasterStream = ({
         }
       });
 
-      map.addLayer({
+      addLayerSafely(map, {
         id: 'selected-cems-vt-extent-loading',
         type: 'line',
         source: 'selected-cems-vt-source',
@@ -795,7 +801,7 @@ export const useDisasterStream = ({
         }
       });
 
-      map.addLayer({
+      addLayerSafely(map, {
         id: 'selected-cems-vt-polygons',
         type: 'fill',
         source: 'selected-cems-vt-source',
@@ -823,7 +829,7 @@ export const useDisasterStream = ({
         }
       });
 
-      map.addLayer({
+      addLayerSafely(map, {
         id: 'selected-cems-vt-lines',
         type: 'line',
         source: 'selected-cems-vt-source',
@@ -866,7 +872,7 @@ export const useDisasterStream = ({
         }
       });
 
-      map.addLayer({
+      addLayerSafely(map, {
         id: 'selected-cems-vt-points',
         type: 'circle',
         source: 'selected-cems-vt-source',
@@ -974,7 +980,7 @@ export const useDisasterStream = ({
       });
 
       // Add Extent Layer
-      map.addLayer({
+      addLayerSafely(map, {
         id: 'active-wildfire-cems-vt-extent-fill',
         type: 'fill',
         source: 'active-wildfire-cems-vt-source',
@@ -985,7 +991,7 @@ export const useDisasterStream = ({
           'fill-opacity': 0.05
         }
       });
-      map.addLayer({
+      addLayerSafely(map, {
         id: 'active-wildfire-cems-vt-extent',
         type: 'line',
         source: 'active-wildfire-cems-vt-source',
@@ -1001,7 +1007,7 @@ export const useDisasterStream = ({
           'line-dasharray': [2, 2]
         }
       });
-      map.addLayer({
+      addLayerSafely(map, {
         id: 'active-wildfire-cems-vt-extent-loading',
         type: 'line',
         source: 'active-wildfire-cems-vt-source',
@@ -1019,7 +1025,7 @@ export const useDisasterStream = ({
       });
 
       // Add Polygons
-      map.addLayer({
+      addLayerSafely(map, {
         id: 'active-wildfire-cems-vt-polygons',
         type: 'fill',
         source: 'active-wildfire-cems-vt-source',
@@ -1039,7 +1045,7 @@ export const useDisasterStream = ({
       });
 
       // Add Lines
-      map.addLayer({
+      addLayerSafely(map, {
         id: 'active-wildfire-cems-vt-lines',
         type: 'line',
         source: 'active-wildfire-cems-vt-source',
@@ -1074,7 +1080,7 @@ export const useDisasterStream = ({
       });
 
       // Add Points
-      map.addLayer({
+      addLayerSafely(map, {
         id: 'active-wildfire-cems-vt-points',
         type: 'circle',
         source: 'active-wildfire-cems-vt-source',
@@ -1214,7 +1220,7 @@ export const useDisasterStream = ({
       });
 
       // Add Extent Layer
-      map.addLayer({
+      addLayerSafely(map, {
         id: 'active-flood-cems-vt-extent-fill',
         type: 'fill',
         source: 'active-flood-cems-vt-source',
@@ -1225,7 +1231,7 @@ export const useDisasterStream = ({
           'fill-opacity': 0.05
         }
       });
-      map.addLayer({
+      addLayerSafely(map, {
         id: 'active-flood-cems-vt-extent',
         type: 'line',
         source: 'active-flood-cems-vt-source',
@@ -1241,7 +1247,7 @@ export const useDisasterStream = ({
           'line-dasharray': [2, 2]
         }
       });
-      map.addLayer({
+      addLayerSafely(map, {
         id: 'active-flood-cems-vt-extent-loading',
         type: 'line',
         source: 'active-flood-cems-vt-source',
@@ -1255,7 +1261,7 @@ export const useDisasterStream = ({
       });
 
       // Add Polygons
-      map.addLayer({
+      addLayerSafely(map, {
         id: 'active-flood-cems-vt-polygons',
         type: 'fill',
         source: 'active-flood-cems-vt-source',
@@ -1275,7 +1281,7 @@ export const useDisasterStream = ({
       });
 
       // Add Lines
-      map.addLayer({
+      addLayerSafely(map, {
         id: 'active-flood-cems-vt-lines',
         type: 'line',
         source: 'active-flood-cems-vt-source',
@@ -1309,7 +1315,7 @@ export const useDisasterStream = ({
       });
 
       // Add Points
-      map.addLayer({
+      addLayerSafely(map, {
         id: 'active-flood-cems-vt-points',
         type: 'circle',
         source: 'active-flood-cems-vt-source',
@@ -1463,7 +1469,7 @@ export const useDisasterStream = ({
           data: { type: 'FeatureCollection', features: [] }
         });
 
-        map.addLayer({
+        addLayerSafely(map, {
           id: 'selected-volcano-polygon-fill',
           type: 'fill',
           source: 'selected-volcano-polygon-source',
@@ -1473,7 +1479,7 @@ export const useDisasterStream = ({
           }
         });
 
-        map.addLayer({
+        addLayerSafely(map, {
           id: 'selected-volcano-polygon-line',
           type: 'line',
           source: 'selected-volcano-polygon-source',
