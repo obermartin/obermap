@@ -686,6 +686,11 @@ export function useAnnotationTools({
               name = anyAscii(nameNative);
             }
           }
+
+          // Strip any remaining non-Latin characters (e.g. Arabic, Japanese) that could not be transliterated
+          if (name) {
+            name = name.replace(/[^\u0000-\u024F\u1E00-\u1EFF]/g, '').trim();
+          }
           
           let coords: [number, number] = [e.lngLat.lng, e.lngLat.lat];
           if (symbolFeature.geometry.type === 'Point') {
@@ -751,6 +756,10 @@ export function useAnnotationTools({
                 } else if (nameNative) {
                   const needsTransliteration = /[^\u0000-\u024F\u1E00-\u1EFF]/.test(nameNative);
                   if (needsTransliteration) name = anyAscii(nameNative);
+                }
+
+                if (name) {
+                  name = name.replace(/[^\u0000-\u024F\u1E00-\u1EFF]/g, '').trim();
                 }
                 
                 const centerLng = parseFloat(data.lon);

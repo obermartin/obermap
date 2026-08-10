@@ -383,15 +383,15 @@ export const useMapInitialization = ({
                   
                   if (isCountry) {
                     textFieldExp = [
-                      'coalesce', ['get', 'name:de'], ['get', 'name:en'], ['get', 'name:latin'], ['get', 'name']
+                      'coalesce', ['get', 'name:de'], ['get', 'name:en'], ['get', 'name:latin'], layout['text-field']
                     ];
                   } else {
                     textFieldExp = [
                       'case',
                       ['in', ['coalesce', ['get', 'name:de'], ''], ['literal', excludedCities]],
-                      ['coalesce', ['get', 'name:latin'], ['get', 'name:en'], ['get', 'name']],
+                      ['coalesce', ['get', 'name:latin'], ['get', 'name:en'], layout['text-field']],
                       
-                      ['coalesce', ['get', 'name:de'], ['get', 'name:en'], ['get', 'name:latin'], ['get', 'name']]
+                      ['coalesce', ['get', 'name:de'], ['get', 'name:en'], ['get', 'name:latin'], layout['text-field']]
                     ];
                   }
 
