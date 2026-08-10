@@ -1001,11 +1001,11 @@ export const useLayerVisibility = (props: LayerVisibilityProps) => {
       idsToMoveAdmin.forEach(id => {
         if (map.getLayer(id)) {
           try {
-            const validAdminId = (firstAdminId && map.getLayer(firstAdminId)) ? firstAdminId : undefined;
-            if (validAdminId) {
-              map.moveLayer(id, validAdminId);
-            } else {
-              map.moveLayer(id);
+            const targetBeforeId = (firstAdminId && map.getLayer(firstAdminId)) 
+              ? firstAdminId 
+              : (map.getLayer('custom-polygons') ? 'custom-polygons' : undefined);
+            if (targetBeforeId && targetBeforeId !== id) {
+              map.moveLayer(id, targetBeforeId);
             }
           } catch (e) {}
         }

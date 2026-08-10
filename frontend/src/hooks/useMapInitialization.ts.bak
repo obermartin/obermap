@@ -333,8 +333,8 @@ export const useMapInitialization = ({
 
       // Find first symbol layer to render deepstate below labels
       const styleLayers = map.getStyle().layers || [];
-      let firstSymbolId: string | undefined;
-      let initFirstAdminId: string | undefined;
+      let firstSymbolId;
+      let initFirstAdminId;
       for (let i = 0; i < styleLayers.length; i++) {
         const id = styleLayers[i].id;
         if (!initFirstAdminId && 
@@ -690,7 +690,7 @@ export const useMapInitialization = ({
               'fill-opacity-transition': { duration: 0 },
               'fill-color': ['coalesce', ['get', 'color'], '#ffffff']
             }
-          }, initFirstAdminId || firstSymbolId);
+          });
         }
 
         // Lines (Paint & Measure & Outlines & Arrows)
@@ -895,7 +895,7 @@ export const useMapInitialization = ({
           });
         }
 
-        setMapLoaded(true);
+        setMapLoaded(true); (window as any).map = map;
       };
 
       let lastStyleLoaded = false;
@@ -913,7 +913,7 @@ export const useMapInitialization = ({
       // Check immediately in case style is already fully loaded
       onStyleData();
 
-      setMapLoaded(true);
+      setMapLoaded(true); (window as any).map = map;
       // Wait for onStyleData to trigger setupCustomLayers instead of doing it immediately.
     });
 

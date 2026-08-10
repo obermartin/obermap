@@ -136,6 +136,25 @@ export function useAnnotationTools({
         }
       } catch (err) {}
 
+      if (clickedAoiFeature) {
+        const aoi = clickedAoiFeature;
+        if (aoi.properties?.activationCode) {
+          let products = undefined;
+          try { products = JSON.parse(aoi.properties._products); } catch (e) {}
+          window.dispatchEvent(new CustomEvent('fetchCemsDetails', {
+            detail: {
+              activationCode: aoi.properties.activationCode,
+              aoiName: aoi.properties.aoiName,
+              cemsType: aoi.properties.cemsType,
+              products
+            }
+          }));
+        }
+        return; // Prevent deselecting parent disasters
+      }
+
+
+
       // Handle flight aircraft selection
       let clickedFlightId: string | null = null;
       try {
@@ -479,21 +498,6 @@ export function useAnnotationTools({
       }
 
       if (activeTool === 'none') {
-        if (clickedAoiFeature) {
-          const aoi = clickedAoiFeature;
-          if (aoi.properties?.activationCode) {
-            let products = undefined;
-            try { products = JSON.parse(aoi.properties._products); } catch (e) {}
-            window.dispatchEvent(new CustomEvent('fetchCemsDetails', {
-              detail: {
-                activationCode: aoi.properties.activationCode,
-                aoiName: aoi.properties.aoiName,
-                cemsType: aoi.properties.cemsType,
-                products
-              }
-            }));
-          }
-        }
         return;
       }
 

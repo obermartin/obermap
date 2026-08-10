@@ -720,6 +720,12 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
 
 
   useEffect(() => {
+    if (mapRef.current) {
+      (window as any).__DEBUG_MAP__ = mapRef.current;
+    }
+  }, [mapLoaded]);
+
+  useEffect(() => {
     if (!mapRef.current || !mapLoaded) return;
     const source = mapRef.current.getSource('selected-geojson-feature') as maplibregl.GeoJSONSource;
     if (!source) return;

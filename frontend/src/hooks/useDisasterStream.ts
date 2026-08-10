@@ -32,9 +32,51 @@ export interface DisasterStreamProps {
 }
 
 const addLayerSafely = (map: maplibregl.Map, layer: any) => {
+  if (map.getLayer(layer.id)) return;
+  
   let beforeId = map.getLayer('custom-polygons') ? 'custom-polygons' : undefined;
-  if (!beforeId) beforeId = map.getLayer('admin-1-boundary-bg') ? 'admin-1-boundary-bg' : undefined;
-  map.addLayer(layer, beforeId as any);
+  
+  if (!beforeId) {
+    if (typeof (map as any)._cachedBeforeAdminId !== 'undefined') {
+      const cached = (map as any)._cachedBeforeAdminId;
+      if (cached === null || map.getLayer(cached)) {
+        beforeId = cached === null ? undefined : cached;
+      } else {
+        (map as any)._cachedBeforeAdminId = undefined;
+      }
+    }
+    
+    if (typeof (map as any)._cachedBeforeAdminId === 'undefined') {
+      const layers = map.getStyle()?.layers || [];
+      for (let i = 0; i < layers.length; i++) {
+        const id = layers[i].id;
+        if ((layers[i].type === 'line' || layers[i].type === 'symbol') &&
+            (id.includes('admin') || id.includes('border') || id.includes('boundar') || id.includes('country'))) {
+          beforeId = id;
+          break;
+        }
+      }
+      if (!beforeId) {
+        beforeId = layers.find(l => l.type === 'symbol')?.id;
+      }
+      (map as any)._cachedBeforeAdminId = beforeId || null;
+    }
+  }
+  
+  if (beforeId && !map.getLayer(beforeId)) {
+    beforeId = undefined;
+  }
+  
+  try {
+    map.addLayer(layer, beforeId as any);
+  } catch (e) {
+    console.warn(`Failed to add layer safely with beforeId ${beforeId}:`, e);
+    try {
+      map.addLayer(layer);
+    } catch (e2) {
+      console.error(`Failed to add layer ${layer.id}:`, e2);
+    }
+  }
 };
 
 export const useDisasterStream = ({
@@ -295,7 +337,7 @@ export const useDisasterStream = ({
   // Fetch detailed CEMS activations for wildfires in the date range
   useEffect(() => {
     const wildfireLayer = settings.layers.find(l => l.type === 'wildfires');
-    if (!wildfireLayer || !wildfireLayer.visible || !wildfireLayer.copernicusEnabled) {
+    if (!wildfireLayer || !wildfireLayer.visible || wildfireLayer.copernicusEnabled === false) {
       if (activeCemsWildfireFeatures) setActiveCemsWildfireFeatures(null);
       window.dispatchEvent(new CustomEvent('exportDataReady', {
         detail: { type: 'cems_wildfire', id: undefined, ready: false }
@@ -426,7 +468,7 @@ export const useDisasterStream = ({
   // Fetch detailed CEMS activations for floods in the date range
   useEffect(() => {
     const floodLayer = settings.layers.find(l => l.id === 'floods');
-    if (!floodLayer || !floodLayer.visible || !floodLayer.copernicusEnabled) {
+    if (!floodLayer || !floodLayer.visible || floodLayer.copernicusEnabled === false) {
       if (activeCemsFloodFeatures) setActiveCemsFloodFeatures(null);
       window.dispatchEvent(new CustomEvent('exportDataReady', {
         detail: { type: 'cems_flood', id: undefined, ready: false }
@@ -912,7 +954,7 @@ export const useDisasterStream = ({
     }
 
     const eqLayer = settings.layers.find(l => l.type === 'gdacs_earthquakes');
-    const isEqCemsEnabled = !!eqLayer?.copernicusEnabled;
+    const isEqCemsEnabled = eqLayer?.copernicusEnabled !== false;
     const isCemsEnabled = selectedEarthquake ? isEqCemsEnabled : isEqCemsEnabled;
     const cemsVisibility = isCemsEnabled ? 'visible' : 'none';
     const isVisible = eqLayer?._effectiveOpacityVisible ?? true;
@@ -1107,7 +1149,7 @@ export const useDisasterStream = ({
     }
 
     const wfLayer = settings.layers.find(l => l.type === 'wildfires');
-    const isCemsEnabled = !!wfLayer?.copernicusEnabled && !!activeCemsWildfireFeatures;
+    const isCemsEnabled = (wfLayer?.copernicusEnabled !== false) && !!activeCemsWildfireFeatures;
     const cemsVisibility = isCemsEnabled ? 'visible' : 'none';
     const isVisible = wfLayer?._effectiveOpacityVisible ?? true;
     const cemsOpacity = isVisible ? (wfLayer?.copernicusOpacity ?? 1.0) : 0;
@@ -1339,7 +1381,7 @@ export const useDisasterStream = ({
     }
 
     const floodLayer = settings.layers.find(l => l.id === 'floods');
-    const isCemsEnabled = !!floodLayer?.copernicusEnabled && !!activeCemsFloodFeatures;
+    const isCemsEnabled = (floodLayer?.copernicusEnabled !== false) && !!activeCemsFloodFeatures;
     const cemsVisibility = isCemsEnabled ? 'visible' : 'none';
     const isVisible = floodLayer?._effectiveOpacityVisible ?? true;
     const cemsOpacity = isVisible ? (floodLayer?.copernicusOpacity ?? 1.0) : 0;

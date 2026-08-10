@@ -3,9 +3,17 @@ import maplibregl from 'maplibre-gl';
 
 export const executeWhenStyleLoaded = (map: maplibregl.Map | null, callback: () => void) => {
   if (!map) return;
-  const isStyleReady = map.isStyleLoaded();
-  if (isStyleReady) {
-    callback();
+  
+  // map.isStyleLoaded() waits for ALL tiles, glyphs, and sprites to load. 
+  // If a tile fails, it might never return true.
+  // We only need the style object to be ready so we can add sources and layers.
+  const style = map.getStyle();
+  if (style && style.layers) {
+    try {
+      callback();
+    } catch (e) {
+      console.error("Error in executeWhenStyleLoaded callback:", e);
+    }
   } else {
     map.once('styledata', () => {
       executeWhenStyleLoaded(map, callback);
@@ -313,6 +321,17 @@ export async function safeFetchCemsJson(url: string) {
         const data = JSON.parse(text);
         return data && data.features ? data.features : (data.type === 'Feature' ? [data] : []);
       } catch (err: any) {
+        try {
+          const fixed = text.trim().replace(/}\s*{/g, '},{');
+          const parsed = JSON.parse(`[${fixed}]`);
+          const features: any[] = [];
+          for (const item of parsed) {
+            if (item.type === 'FeatureCollection' && item.features) features.push(...item.features);
+            else if (item.type === 'Feature') features.push(item);
+          }
+          if (features.length > 0) return features;
+        } catch (e2) {}
+        
         const features: any[] = [];
         let depth = 0;
         let startIdx = -1;
