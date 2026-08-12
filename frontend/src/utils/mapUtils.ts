@@ -144,7 +144,7 @@ export const createArrowFeatures = (start: [number, number], end: [number, numbe
   const shaft: GeoJSON.Feature<GeoJSON.LineString> = {
     type: 'Feature',
     geometry: { type: 'LineString', coordinates: [startCoord, endCoord] },
-    properties: { color, _type: 'LineString', id: `${id}-shaft` }
+    properties: { color, _type: 'LineString', id }
   };
 
   const bearing = turf.bearing(startCoord, endCoord);
@@ -155,7 +155,7 @@ export const createArrowFeatures = (start: [number, number], end: [number, numbe
       type: 'Point',
       coordinates: endCoord
     },
-    properties: { color, _type: 'ArrowHead', id: `${id}-head`, bearing, strokeType: 'solid' }
+    properties: { color, _type: 'ArrowHead', id, bearing, strokeType: 'solid' }
   };
 
   return { shaft, head };

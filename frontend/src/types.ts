@@ -56,6 +56,7 @@ export interface MapLayer {
   startDate?: string;
   endDate?: string;
   isLive?: boolean;
+  defaultStyle?: any;
 
   _isDirty?: boolean;
   _keepExistingData?: boolean;
@@ -187,6 +188,8 @@ export interface AppSettings {
   exportAnnotationScale?: number;
   exportScalePreview?: boolean;
   uiBottomPadding?: number;
+  uiTheme?: 'dark' | 'light';
+  uiLiquidGlass?: boolean;
   icons: IconCategory[];
   labelTemplates?: {
     highlightLabelTemplate?: string;

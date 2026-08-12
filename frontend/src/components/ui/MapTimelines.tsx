@@ -31,7 +31,7 @@ export const CycloneTimelineOverlay: React.FC<CycloneTimelineOverlayProps> = ({
         bottom: `${80 + uiBottomPadding}px`
       }}
     >
-      <div className="w-[75%] h-full bg-black rounded-full px-6 shadow-lg flex items-center justify-between pointer-events-auto relative">
+      <div className="w-[75%] h-full bg-black rounded-full px-6 shadow-lg flex items-center justify-between pointer-events-auto relative ui-glass-panel">
         <span className="text-white/50 font-mono text-[10px] font-bold z-10 w-10 select-none">START</span>
         
         <div className="flex-1 relative h-6 flex items-center mx-4 group">
@@ -123,7 +123,7 @@ export const NighttimeTimelineOverlay: React.FC<NighttimeTimelineOverlayProps> =
         bottom: `${baseBottom + uiBottomPadding}px`
       }}
     >
-      <div className="w-[75%] h-full bg-black rounded-full px-6 shadow-lg flex items-center justify-between pointer-events-auto relative">
+      <div className="w-[75%] h-full bg-black rounded-full px-6 shadow-lg flex items-center justify-between pointer-events-auto relative ui-glass-panel">
         <span className="text-white/50 font-mono text-[10px] font-bold z-10 w-8 select-none">00:00</span>
         
         <div className="flex-1 relative h-6 flex items-center mx-4 group">

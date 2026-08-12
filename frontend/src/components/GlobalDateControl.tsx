@@ -131,7 +131,7 @@ export const GlobalDateControl: React.FC<GlobalDateControlProps> = ({
   };
 
   return (
-    <div className="flex bg-black items-center h-12 text-white max-w-full shrink-0 shadow-lg rounded-full overflow-hidden p-1 gap-1 pointer-events-auto">
+    <div className="flex bg-black items-center h-12 text-white max-w-full shrink-0 shadow-lg rounded-full overflow-hidden p-1 gap-1 pointer-events-auto ui-glass-panel">
       <DateField value={startDate} onChange={onStartDateChange} />
 
       <motion.div

@@ -8,8 +8,8 @@ export interface MapStylingProps {
   map: maplibregl.Map | null;
   mapLoaded: boolean;
   mapStyleLoaded: boolean;
+  mapStyleTick: number;
   settings: AppSettings;
-
   originalFiltersRef: React.MutableRefObject<{ [layerId: string]: any }>;
 }
 
@@ -18,6 +18,7 @@ export const useMapStyling = ({
   map: mapProp,
   mapLoaded,
   mapStyleLoaded,
+  mapStyleTick,
   settings,
 
   originalFiltersRef
@@ -33,19 +34,18 @@ export const useMapStyling = ({
   // Handle dynamic mapbox transitions based on settings
   useEffect(() => {
     if (!mapRef.current || !mapLoaded || !mapStyleLoaded) return;
-    const duration = settings.animationDuration ?? 2000;
     const map = mapRef.current;
     
     try {
-      if (map.getLayer('custom-polygons')) map.setPaintProperty('custom-polygons', 'fill-opacity-transition', { duration });
-      if (map.getLayer('custom-lines-solid')) map.setPaintProperty('custom-lines-solid', 'line-opacity-transition', { duration });
-      if (map.getLayer('custom-lines-dashed-new')) map.setPaintProperty('custom-lines-dashed-new', 'line-opacity-transition', { duration });
-      if (map.getLayer('custom-lines-dotted-new')) map.setPaintProperty('custom-lines-dotted-new', 'line-opacity-transition', { duration });
-      if (map.getLayer('custom-arrow-heads')) map.setPaintProperty('custom-arrow-heads', 'text-opacity-transition', { duration });
+      if (map.getLayer('custom-polygons')) map.setPaintProperty('custom-polygons', 'fill-opacity-transition', { duration: 0 });
+      if (map.getLayer('custom-lines-solid')) map.setPaintProperty('custom-lines-solid', 'line-opacity-transition', { duration: 0 });
+      if (map.getLayer('custom-lines-dashed-new')) map.setPaintProperty('custom-lines-dashed-new', 'line-opacity-transition', { duration: 0 });
+      if (map.getLayer('custom-lines-dotted-new')) map.setPaintProperty('custom-lines-dotted-new', 'line-opacity-transition', { duration: 0 });
+      if (map.getLayer('custom-arrow-heads')) map.setPaintProperty('custom-arrow-heads', 'text-opacity-transition', { duration: 0 });
     } catch (e) {
       // Ignore if style isn't ready
     }
-  }, [settings.animationDuration, mapLoaded, mapStyleLoaded]);
+  }, [mapLoaded, mapStyleLoaded]);
 
   // Handle Map Label Density
   const lastAppliedDensityRef = useRef<number | undefined>(undefined);
@@ -255,9 +255,19 @@ export const useMapStyling = ({
           }
         }
 
-        if (map.getSky && map.getSky()) {
-           map.setSky(undefined as any);
+        try {
+          if (settings.enableSky && map.setSky) {
+             map.setSky({
+               'sky-color': settings.skyColor || '#88C6FC',
+               'sky-type': 'color'
+             } as any);
+          } else if (map.getSky && map.getSky()) {
+             map.setSky(undefined as any);
+          }
+        } catch (e) {
+          console.warn("Could not set sky via setSky", e);
         }
+        
         if (mapContainer.current) {
           mapContainer.current.style.backgroundColor = settings.enableSky ? (settings.skyColor || '#88C6FC') : '';
         }
@@ -355,6 +365,7 @@ export const useMapStyling = ({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapLoaded || !mapStyleLoaded) return;
+    if (!(map as any).style || !(map as any).style._loaded) return;
 
     try {
       if (typeof (map as any).setProjection === 'function') {
@@ -363,5 +374,5 @@ export const useMapStyling = ({
     } catch (e) {
       console.warn("Failed to set map projection", e);
     }
-  }, [mapLoaded, mapStyleLoaded, settings.projection]);
+  }, [mapLoaded, mapStyleLoaded, mapStyleTick, settings.projection]);
 };

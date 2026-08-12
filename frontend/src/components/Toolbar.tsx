@@ -131,7 +131,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
     window.addEventListener('pointerup', onPointerUp);
   };
 
-  const showStrokeControls = ['paint', 'polygon', 'circle', 'arrow', 'highlight'].includes(activeTool);
+  const showStrokeControls = ['paint', 'polygon', 'circle', 'arrow', 'highlight', 'measure', 'route'].includes(activeTool);
   const showFillOpacityControl = ['highlight', 'polygon', 'circle'].includes(activeTool);
   const hideColorSwatches = activeTool === 'headline' || 
                             (activeTool === 'label' && settings.labelTemplates?.regularLabelTemplate);
@@ -146,40 +146,40 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 10, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="flex items-center p-1 gap-1 relative max-w-full bg-black overflow-x-auto overflow-y-hidden no-scrollbar shrink-0 rounded-full shadow-lg"
+            className="flex items-center p-1 gap-1 relative max-w-full bg-ui-bg overflow-x-auto overflow-y-hidden no-scrollbar shrink-0 rounded-full shadow-lg ui-glass-panel"
           >
             <div className="flex flex-col justify-center items-center px-3 min-w-[80px]">
-              <span className="text-[10px] text-white/50 uppercase font-bold tracking-wider mb-1">
+              <span className="text-[10px] text-ui-text/50 uppercase font-bold tracking-wider mb-1">
                 {t(settings.icons?.[currentIconCategoryIdx]?.name || 'Icons')}
               </span>
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => setCurrentIconCategoryIdx(prev => (prev > 0 ? prev - 1 : (settings.icons?.length || 1) - 1))}
-                  className="p-1 hover:bg-white/20 text-white/60 hover:text-white rounded"
+                  className="p-1 hover:bg-ui-text/20 text-ui-text/60 hover:text-ui-text rounded"
                 >
                   <ChevronLeft size={14} />
                 </button>
                 <button
                   onClick={() => setCurrentIconCategoryIdx(prev => (prev < (settings.icons?.length || 1) - 1 ? prev + 1 : 0))}
-                  className="p-1 hover:bg-white/20 text-white/60 hover:text-white rounded"
+                  className="p-1 hover:bg-ui-text/20 text-ui-text/60 hover:text-ui-text rounded"
                 >
                   <ChevronRight size={14} />
                 </button>
               </div>
             </div>
 
-            <div className="w-[1px] h-8 bg-white/20 mx-1 shrink-0" />
+            <div className="w-[1px] h-8 bg-ui-border mx-1 shrink-0" />
 
             {settings.icons?.[currentIconCategoryIdx]?.icons?.map((iconObj, idx) => (
               <button
                 key={iconObj.id || `icon-${idx}`}
                 onPointerDown={(e) => startIconDrag(e, iconObj.id)}
-                className={`w-10 h-10 rounded-full relative flex justify-center items-center cursor-pointer shrink-0 p-2 icon-svg-wrapper z-10 transition-colors ${selectedIconId === iconObj.id ? 'text-black' : 'text-white hover:opacity-80'}`}
+                className={`w-10 h-10 rounded-full relative flex justify-center items-center cursor-pointer shrink-0 p-2 icon-svg-wrapper z-10 transition-colors ${selectedIconId === iconObj.id ? 'text-ui-bg' : 'text-ui-text hover:opacity-80'}`}
                 style={selectedIconId === iconObj.id ? {} : { backgroundColor: currentColor, color: getContrastYIQ(currentColor) }}
                 title={t("Click to select, or drag to place")}
               >
                 {selectedIconId === iconObj.id && (
-                  <motion.div layoutId="icon-active-bg" className="absolute inset-0 bg-white rounded-full -z-10" transition={{ type: "spring", stiffness: 400, damping: 30 }} />
+                  <motion.div layoutId="icon-active-bg" className="absolute inset-0 bg-ui-text rounded-full -z-10" transition={{ type: "spring", stiffness: 400, damping: 30 }} />
                 )}
                 <div dangerouslySetInnerHTML={{ __html: iconObj.svg }} className="w-full h-full pointer-events-none" />
               </button>
@@ -194,7 +194,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 10, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="flex items-center p-1 gap-1 relative max-w-full overflow-x-auto overflow-y-hidden no-scrollbar shrink-0 bg-black rounded-full shadow-lg"
+            className="flex items-center p-1 gap-1 relative max-w-full overflow-x-auto overflow-y-hidden no-scrollbar shrink-0 bg-ui-bg rounded-full shadow-lg ui-glass-panel"
           >
             {[
               { id: 'solid', label: 'Solid Line' },
@@ -204,11 +204,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               <button
                 key={type.id}
                 onClick={() => setCurrentStrokeType?.(type.id as any)}
-                className={`group w-10 h-10 rounded-full relative flex justify-center items-center shrink-0 z-10 transition-colors ${currentStrokeType === type.id ? 'text-black' : 'text-white hover:text-white/80'}`}
+                className={`group w-10 h-10 rounded-full relative flex justify-center items-center shrink-0 z-10 transition-colors ${currentStrokeType === type.id ? 'text-ui-bg' : 'text-ui-text hover:text-ui-text/80'}`}
                 title={t(type.label)}
               >
                 {currentStrokeType === type.id && (
-                  <motion.div layoutId="stroke-active-bg" className="absolute inset-0 bg-white rounded-full -z-10" transition={{ type: "spring", stiffness: 400, damping: 30 }} />
+                  <motion.div layoutId="stroke-active-bg" className="absolute inset-0 bg-ui-text rounded-full -z-10" transition={{ type: "spring", stiffness: 400, damping: 30 }} />
                 )}
                 <div className={clsx("w-5 border-t-2", type.id === 'dashed' && 'border-dashed', type.id === 'dotted' && 'border-dotted')} style={{ borderColor: 'currentColor' }} />
               </button>
@@ -223,7 +223,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 10, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="flex items-center p-1 gap-1 relative max-w-full overflow-x-auto overflow-y-hidden no-scrollbar shrink-0 bg-black rounded-full shadow-lg"
+            className="flex items-center p-1 gap-1 relative max-w-full overflow-x-auto overflow-y-hidden no-scrollbar shrink-0 bg-ui-bg rounded-full shadow-lg ui-glass-panel"
           >
             {[
               { id: 'driving', icon: Car, label: 'Car' },
@@ -233,11 +233,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               <button
                 key={mode.id}
                 onClick={() => setRouteMode?.(mode.id as RouteMode)}
-                className={`group w-10 h-10 rounded-full relative flex justify-center items-center shrink-0 z-10 transition-colors ${routeMode === mode.id ? 'text-black' : 'text-white hover:text-white/80'}`}
+                className={`group w-10 h-10 rounded-full relative flex justify-center items-center shrink-0 z-10 transition-colors ${routeMode === mode.id ? 'text-ui-bg' : 'text-ui-text hover:text-ui-text/80'}`}
                 title={t(mode.label)}
               >
                 {routeMode === mode.id && (
-                  <motion.div layoutId="route-active-bg" className="absolute inset-0 bg-white rounded-full -z-10" transition={{ type: "spring", stiffness: 400, damping: 30 }} />
+                  <motion.div layoutId="route-active-bg" className="absolute inset-0 bg-ui-text rounded-full -z-10" transition={{ type: "spring", stiffness: 400, damping: 30 }} />
                 )}
                 <mode.icon size={18} />
               </button>
@@ -274,9 +274,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                   initial={{ width: 0, opacity: 0 }}
                   animate={{ width: 'auto', opacity: 1 }}
                   exit={{ width: 0, opacity: 0 }}
-                  className="flex items-center px-4 ml-3 h-10 shrink-0 bg-black rounded-full shadow-lg"
+                  className="relative flex items-center px-4 ml-3 h-10 shrink-0 bg-ui-bg rounded-full shadow-lg ui-glass-panel"
                 >
-                  <label className="text-white text-xs font-bold mr-3 uppercase tracking-wider">{t('Fill')}</label>
+                  <label className="text-ui-text text-xs font-bold mr-3 uppercase tracking-wider">{t('Fill')}</label>
                   <input 
                     type="range" 
                     min="0" 
@@ -294,8 +294,8 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       </AnimatePresence>
 
-      <div className="flex bg-black items-center h-12 text-white max-w-full shrink-0 shadow-lg rounded-full overflow-hidden p-1 gap-1">
-        <AnimatePresence>
+      <div className="relative flex bg-ui-bg items-center h-12 text-ui-text max-w-full shrink-0 shadow-lg rounded-full overflow-hidden ui-glass-panel">
+        <AnimatePresence mode="wait">
           {isOpen && (
             <motion.div
               key="main-toolbar"
@@ -303,7 +303,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               animate={{ width: 'auto', opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="flex items-center overflow-x-auto overflow-y-hidden whitespace-nowrap no-scrollbar gap-1 pr-1"
+              className="flex items-center overflow-x-auto overflow-y-hidden whitespace-nowrap no-scrollbar pl-1 pr-1 gap-1"
             >
               <div className="flex items-center shrink-0 gap-1">
                 {TOOLS.map((tool) => {
@@ -315,11 +315,11 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                       onClick={() => {
                         setActiveTool(isActive ? 'none' : tool.id);
                       }}
-                      className={`w-10 h-10 flex justify-center items-center transition-colors group relative rounded-full z-10 shrink-0 ${isActive ? 'text-black' : 'text-white hover:text-white/80'}`}
+                      className={`w-10 h-10 flex justify-center items-center transition-colors group relative rounded-full z-10 shrink-0 ${isActive ? 'text-ui-bg' : 'text-ui-text hover:text-ui-text/80'}`}
                       title={t(tool.label)}
                     >
                       {isActive && (
-                        <motion.div layoutId="main-active-bg" className="absolute inset-0 bg-white rounded-full -z-10" transition={{ type: "spring", stiffness: 400, damping: 30 }} />
+                        <motion.div layoutId="main-active-bg" className="absolute inset-0 bg-ui-text rounded-full -z-10" transition={{ type: "spring", stiffness: 400, damping: 30 }} />
                       )}
                       <Icon size={20} strokeWidth={isActive ? 2.5 : 1.5} />
                     </button>
@@ -327,20 +327,20 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                 })}
               </div>
 
-              <div className="w-[1px] bg-white/30 h-8 mx-1 shrink-0" />
+              <div className="w-[1px] bg-ui-border h-8 mx-1 shrink-0" />
 
               <div className="flex items-center shrink-0 gap-1">
                 <button
                   onClick={onDelete}
                   disabled={!hasSelection && activeTool === 'none'}
-                  className={`w-10 h-10 flex justify-center items-center transition-colors rounded-full shrink-0 ${hasSelection || activeTool !== 'none' ? 'text-white/60 hover:text-white hover:bg-white/20' : 'text-white/20 cursor-not-allowed'}`}
+                  className={`w-10 h-10 flex justify-center items-center transition-colors rounded-full shrink-0 ${hasSelection || activeTool !== 'none' ? 'text-ui-text/60 hover:text-ui-text hover:bg-ui-text/20' : 'text-ui-text/20 cursor-not-allowed'}`}
                   title={hasSelection ? t("Delete Selected") : t("Delete All Active Type")}
                 >
                   <Trash2 size={20} strokeWidth={1.5} />
                 </button>
               </div>
 
-              <div className="w-[1px] bg-white/30 h-8 mx-1 shrink-0" />
+              <div className="w-[1px] bg-ui-border h-8 mx-1 shrink-0" />
             </motion.div>
           )}
         </AnimatePresence>
@@ -356,7 +356,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
               onClearSelection?.();
             }
           }}
-          className="w-10 h-10 rounded-full flex items-center justify-center text-white hover:bg-white hover:text-black transition-colors shrink-0 z-10"
+          className={`w-12 h-12 rounded-full flex items-center justify-center text-ui-text hover:bg-ui-text hover:text-ui-bg transition-colors shrink-0 z-10`}
         >
           <X 
             size={24} 
