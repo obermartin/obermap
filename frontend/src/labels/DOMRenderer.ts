@@ -1,4 +1,4 @@
-import type { LoadedTemplate, Typography } from "./types";
+import type { LoadedTemplate, Typography, Theme } from "./types";
 import { transformText } from "./utils/textUtils";
 
 export class DOMRenderer {
@@ -67,7 +67,8 @@ export class DOMRenderer {
   buildTemplateHtml(
     tpl: LoadedTemplate,
     textInput: string | { primary: string; secondary?: string },
-    hidePointer?: boolean
+    hidePointer?: boolean,
+    theme?: Theme
   ): {
     html: string;
     width: number;
@@ -149,10 +150,11 @@ export class DOMRenderer {
     const hasLeft = sPos === "left";
     const hasRight = sPos === "right";
 
-    const pointerOverhangTop = pointer.attachEdge === "top" ? pointerOverhang : 0;
-    const pointerOverhangBottom = pointer.attachEdge === "bottom" ? pointerOverhang : 0;
-    const pointerOverhangLeft = pointer.attachEdge === "left" ? pointer.width : 0;
-    const pointerOverhangRight = pointer.attachEdge === "right" ? pointer.width : 0;
+    const ptrMargin = pointer.margin || 0;
+    const pointerOverhangTop = pointer.attachEdge === "top" ? pointerOverhang + ptrMargin : 0;
+    const pointerOverhangBottom = pointer.attachEdge === "bottom" ? pointerOverhang + ptrMargin : 0;
+    const pointerOverhangLeft = pointer.attachEdge === "left" ? pointer.width + ptrMargin : 0;
+    const pointerOverhangRight = pointer.attachEdge === "right" ? pointer.width + ptrMargin : 0;
 
     let secondaryAboveBlock = hasAbove ? secondary!.height + gap : 0;
     let secondaryBelowBlock = hasBelow ? secondary!.height + gap : 0;
@@ -196,22 +198,22 @@ export class DOMRenderer {
     let ptrTop = 0;
 
     if (pointer.attachEdge === "bottom") {
-      ptrTop = primaryTop + primary.height - 1;
+      ptrTop = primaryTop + primary.height - 1 + ptrMargin;
       if (pointer.attachFrom === "left") ptrLeft = primaryLeft + pointer.attachOffset - pointer.tipX;
       else if (pointer.attachFrom === "right") ptrLeft = primaryLeft + primaryWidth - pointer.attachOffset - pointer.tipX;
       else if (pointer.attachFrom === "center") ptrLeft = primaryLeft + primaryWidth / 2 + pointer.attachOffset - pointer.tipX;
     } else if (pointer.attachEdge === "top") {
-      ptrTop = primaryTop - pointer.height + 1;
+      ptrTop = primaryTop - pointer.height + 1 - ptrMargin;
       if (pointer.attachFrom === "left") ptrLeft = primaryLeft + pointer.attachOffset - pointer.tipX;
       else if (pointer.attachFrom === "right") ptrLeft = primaryLeft + primaryWidth - pointer.attachOffset - pointer.tipX;
       else if (pointer.attachFrom === "center") ptrLeft = primaryLeft + primaryWidth / 2 + pointer.attachOffset - pointer.tipX;
     } else if (pointer.attachEdge === "left") {
-      ptrLeft = primaryLeft - pointer.width + 1;
+      ptrLeft = primaryLeft - pointer.width + 1 - ptrMargin;
       if (pointer.attachFrom === "top") ptrTop = primaryTop + pointer.attachOffset - pointer.tipY;
       else if (pointer.attachFrom === "bottom") ptrTop = primaryTop + primary.height - pointer.attachOffset - pointer.tipY;
       else if (pointer.attachFrom === "center") ptrTop = primaryTop + primary.height / 2 + pointer.attachOffset - pointer.tipY;
     } else if (pointer.attachEdge === "right") {
-      ptrLeft = primaryLeft + primaryWidth - 1;
+      ptrLeft = primaryLeft + primaryWidth - 1 + ptrMargin;
       if (pointer.attachFrom === "top") ptrTop = primaryTop + pointer.attachOffset - pointer.tipY;
       else if (pointer.attachFrom === "bottom") ptrTop = primaryTop + primary.height - pointer.attachOffset - pointer.tipY;
       else if (pointer.attachFrom === "center") ptrTop = primaryTop + primary.height / 2 + pointer.attachOffset - pointer.tipY;
@@ -268,7 +270,7 @@ export class DOMRenderer {
         <div class="cap left" style="width: ${primaryEffectiveCapWidth}px; height: ${primary.height}px; flex-shrink: 0; overflow: hidden; pointer-events: none;">${tpl.primaryLeftCap}</div>
         ${primaryMiddleStretched > 0 ? `<svg class="middle" width="${primaryMiddleStretched}" height="${primary.height}" viewBox="0 0 ${tpl.primaryMiddleSrcWidth} ${tpl.primaryMiddleSrcHeight}" preserveAspectRatio="none" style="display: block; flex-shrink: 0; pointer-events: none;">${tpl.primaryMiddleInner}</svg>` : ""}
         <div class="cap right" style="width: ${primaryEffectiveCapWidth}px; height: ${primary.height}px; flex-shrink: 0; overflow: hidden; pointer-events: none; display: flex; justify-content: flex-end;">${tpl.primaryRightCap}</div>
-        <span class="text" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; user-select: none; ${buildTypographyCss(primary.typography, "--primary-text-color")}">${transformText(primaryText, primary.typography.textTransform)}</span>
+        <span class="text" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; user-select: none; transform: translateY(${primary.typography.verticalOffset || 0}px); ${buildTypographyCss(primary.typography, "--primary-text-color")}">${transformText(primaryText, primary.typography.textTransform)}</span>
       </div>
     `;
 
@@ -288,7 +290,7 @@ export class DOMRenderer {
           <div class="cap left" style="width: ${secondaryEffectiveCapWidth}px; height: ${secondary.height}px; flex-shrink: 0; overflow: hidden; pointer-events: none;">${tpl.secondaryLeftCap}</div>
           ${secondaryMiddleStretched > 0 ? `<svg class="middle" width="${secondaryMiddleStretched}" height="${secondary.height}" viewBox="0 0 ${tpl.secondaryMiddleSrcWidth} ${tpl.secondaryMiddleSrcHeight}" preserveAspectRatio="none" style="display: block; flex-shrink: 0; pointer-events: none;">${tpl.secondaryMiddleInner}</svg>` : ""}
           <div class="cap right" style="width: ${secondaryEffectiveCapWidth}px; height: ${secondary.height}px; flex-shrink: 0; overflow: hidden; pointer-events: none; display: flex; justify-content: flex-end;">${tpl.secondaryRightCap}</div>
-          <span class="text" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; user-select: none; ${buildTypographyCss(secondary.typography, "--secondary-text-color")}">${transformText(secondaryText, secondary.typography.textTransform)}</span>
+          <span class="text" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; user-select: none; transform: translateY(${secondary.typography.verticalOffset || 0}px); ${buildTypographyCss(secondary.typography, "--secondary-text-color")}">${transformText(secondaryText, secondary.typography.textTransform)}</span>
         </div>
       `;
     }

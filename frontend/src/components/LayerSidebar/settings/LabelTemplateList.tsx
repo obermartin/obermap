@@ -306,6 +306,7 @@ export const LabelTemplateList: React.FC<LabelTemplateListProps> = ({
                       }
                     };
 
+
                     const tplDef = settings.labelTemplates?.availableTemplates?.find(
                       (t: any) => t.id === item.baseTemplate
                     );
@@ -411,6 +412,8 @@ export const LabelTemplateList: React.FC<LabelTemplateListProps> = ({
                             </span>
                           </div>
                         )}
+
+
                       </>
                     );
                   })()

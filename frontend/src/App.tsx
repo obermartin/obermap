@@ -279,7 +279,7 @@ export function App() {
       <div id="global-toolbar-container" className={`absolute left-6 z-10 flex items-end gap-2 transition-all duration-300 ease-in-out ${isLayerSidebarOpen ? 'translate-x-[20rem]' : 'translate-x-0'}`} style={{ bottom: `${24 + (settings.uiBottomPadding || 0)}px` }}>
         <button 
           onClick={() => setIsLayerSidebarOpen(!isLayerSidebarOpen)}
-          className="relative w-12 h-12 flex flex-shrink-0 items-center justify-center transition-colors bg-ui-bg text-ui-text hover:text-ui-bg shadow-lg rounded-full ui-glass-panel group"
+          className="relative w-12 h-12 flex flex-shrink-0 items-center justify-center transition-colors bg-black text-ui-text hover:text-ui-bg shadow-lg rounded-full ui-glass-panel group"
           title="Manage Layers"
         >
           <div className="absolute inset-0 rounded-full transition-colors group-hover:bg-ui-text z-0"></div>

@@ -64,6 +64,12 @@ export const useRasterVisibility = (props: RasterVisibilityProps) => {
 
       if (!map.getLayer(layerId) && map.getSource(sourceId)) {
         if (layer.type === 'nighttime') {
+          let targetBeforeId: string | undefined = undefined;
+          if (map.getLayer('custom-polygons')) {
+            targetBeforeId = 'custom-polygons';
+          } else if (firstAdminId && map.getLayer(firstAdminId)) {
+            targetBeforeId = firstAdminId;
+          }
           map.addLayer({
             id: layerId,
             type: 'fill',
@@ -73,11 +79,18 @@ export const useRasterVisibility = (props: RasterVisibilityProps) => {
               'fill-color': '#000000',
               'fill-opacity': layer.opacity ?? 0.5
             }
-          }, firstAdminId);
+          }, targetBeforeId);
         } else if (layer.type === 'raster' || layer.type === 'satellite') {
           const bMin = layer.brightness !== undefined && layer.brightness > 0 ? layer.brightness : 0;
           const bMax = layer.brightness !== undefined && layer.brightness < 0 ? 1 + layer.brightness : 1;
-          const targetBeforeId = (firstAdminId && map.getLayer(firstAdminId)) ? firstAdminId : undefined;
+          
+          let targetBeforeId: string | undefined = undefined;
+          if (map.getLayer('custom-polygons')) {
+            targetBeforeId = 'custom-polygons';
+          } else if (firstAdminId && map.getLayer(firstAdminId)) {
+            targetBeforeId = firstAdminId;
+          }
+          
           const isEffectiveVis = layer._effectiveOpacityVisible ?? true;
           const initialOpacity = isEffectiveVis ? (layer.opacity ?? 1.0) : 0;
           map.addLayer({

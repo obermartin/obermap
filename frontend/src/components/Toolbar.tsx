@@ -146,7 +146,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 10, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="flex items-center p-1 gap-1 relative max-w-full bg-ui-bg overflow-x-auto overflow-y-hidden no-scrollbar shrink-0 rounded-full shadow-lg ui-glass-panel"
+            className="flex items-center p-1 gap-1 relative max-w-full bg-black overflow-x-auto overflow-y-hidden no-scrollbar shrink-0 rounded-full shadow-lg ui-glass-panel"
           >
             <div className="flex flex-col justify-center items-center px-3 min-w-[80px]">
               <span className="text-[10px] text-ui-text/50 uppercase font-bold tracking-wider mb-1">
@@ -194,7 +194,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 10, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="flex items-center p-1 gap-1 relative max-w-full overflow-x-auto overflow-y-hidden no-scrollbar shrink-0 bg-ui-bg rounded-full shadow-lg ui-glass-panel"
+            className="flex items-center p-1 gap-1 relative max-w-full overflow-x-auto overflow-y-hidden no-scrollbar shrink-0 bg-black rounded-full shadow-lg ui-glass-panel"
           >
             {[
               { id: 'solid', label: 'Solid Line' },
@@ -223,7 +223,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 10, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="flex items-center p-1 gap-1 relative max-w-full overflow-x-auto overflow-y-hidden no-scrollbar shrink-0 bg-ui-bg rounded-full shadow-lg ui-glass-panel"
+            className="flex items-center p-1 gap-1 relative max-w-full overflow-x-auto overflow-y-hidden no-scrollbar shrink-0 bg-black rounded-full shadow-lg ui-glass-panel"
           >
             {[
               { id: 'driving', icon: Car, label: 'Car' },
@@ -274,7 +274,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
                   initial={{ width: 0, opacity: 0 }}
                   animate={{ width: 'auto', opacity: 1 }}
                   exit={{ width: 0, opacity: 0 }}
-                  className="relative flex items-center px-4 ml-3 h-10 shrink-0 bg-ui-bg rounded-full shadow-lg ui-glass-panel"
+                  className="relative flex items-center px-4 ml-3 h-10 shrink-0 bg-black rounded-full shadow-lg ui-glass-panel"
                 >
                   <label className="text-ui-text text-xs font-bold mr-3 uppercase tracking-wider">{t('Fill')}</label>
                   <input 
@@ -294,7 +294,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       </AnimatePresence>
 
-      <div className="relative flex bg-ui-bg items-center h-12 text-ui-text max-w-full shrink-0 shadow-lg rounded-full overflow-hidden ui-glass-panel">
+      <div className="relative flex bg-black items-center h-12 text-ui-text max-w-full shrink-0 shadow-lg rounded-full overflow-hidden ui-glass-panel">
         <AnimatePresence mode="wait">
           {isOpen && (
             <motion.div

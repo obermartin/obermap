@@ -8,6 +8,7 @@ export interface Typography {
   textTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
   textAlign?: "left" | "center" | "right";
   maxWidth?: number;
+  verticalOffset?: number;
 }
 
 export interface Pointer {
@@ -21,6 +22,7 @@ export interface Pointer {
   tipX: number;
   tipY: number;
   independentColor?: boolean;
+  margin?: number;
 }
 
 export interface PrimaryBackplate {

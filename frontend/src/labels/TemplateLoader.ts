@@ -68,7 +68,8 @@ export class TemplateLoader {
           } else if (hasPointer && idx === 3) {
             cssVar = "--pointer-fill";
           }
-          return normalizeSvg(svgString, cssVar);
+          const idSuffix = `-${name.replace(/[^a-zA-Z0-9]/g, "-")}-${idx}`;
+          return normalizeSvg(svgString, cssVar, idSuffix);
         });
 
         if (!hasPointer && !manifest.primary.pointer) {

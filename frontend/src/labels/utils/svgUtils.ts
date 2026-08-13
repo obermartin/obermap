@@ -25,7 +25,7 @@ export function parseMiddleSourceDimensions(svgString: string): {
   return { sourceWidth, sourceHeight };
 }
 
-export function normalizeSvg(svgString: string, cssVarName: string | null): string {
+export function normalizeSvg(svgString: string, cssVarName: string | null, idSuffix: string = ""): string {
   const parser = new DOMParser();
   const doc = parser.parseFromString(svgString, "image/svg+xml");
   const svg = doc.querySelector("svg");
@@ -51,12 +51,21 @@ export function normalizeSvg(svgString: string, cssVarName: string | null): stri
   });
 
   const allEls = svg.querySelectorAll("*");
+  const idMap = new Map<string, string>();
+
   allEls.forEach((el) => {
+    const oldId = el.getAttribute("id");
+    if (idSuffix && oldId) {
+      const newId = oldId + idSuffix;
+      idMap.set(oldId, newId);
+      el.setAttribute("id", newId);
+    }
+
     if (el.hasAttribute("class")) {
       const classes = el.getAttribute("class")?.split(/\s+/) || [];
       classes.forEach((cls) => {
         if (rules[cls]) {
-          ["fill", "stroke", "opacity", "stroke-width"].forEach((attr) => {
+          ["fill", "stroke", "opacity", "stroke-width", "clip-path"].forEach((attr) => {
             if (rules[cls][attr] && !el.hasAttribute(attr)) {
               el.setAttribute(attr, rules[cls][attr]);
             }
@@ -92,5 +101,13 @@ export function normalizeSvg(svgString: string, cssVarName: string | null): stri
     );
   }
 
-  return svg.outerHTML;
+  let resultHtml = svg.outerHTML;
+  if (idSuffix && idMap.size > 0) {
+    idMap.forEach((newId, oldId) => {
+      // replace url(#oldId) with url(#newId) anywhere it appears
+      resultHtml = resultHtml.replace(new RegExp(`url\\(#${oldId}\\)`, "g"), `url(#${newId})`);
+    });
+  }
+
+  return resultHtml;
 }

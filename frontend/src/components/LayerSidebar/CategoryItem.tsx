@@ -57,7 +57,7 @@ export const CategoryItem = ({
       className="flex flex-col gap-[2px] w-full"
     >
       <div className="glass-outlined-container relative flex flex-col transition-all duration-300 w-full rounded-3xl overflow-hidden">
-        <div className="relative p-3 flex items-center justify-between gap-3 bg-ui-bg">
+        <div className="relative p-3 flex items-center justify-between gap-3 bg-black">
           <div className="flex items-center gap-2 flex-1">
             <div
               onPointerDown={(e) => controls.start(e)}
@@ -89,7 +89,7 @@ export const CategoryItem = ({
                   onChange={(e) => setEditName(e.target.value)}
                   onBlur={handleRenameSubmit}
                   onKeyDown={handleKeyDown}
-                  className="w-full bg-ui-bg border border-ui-border text-sm font-semibold tracking-wide px-1 outline-none text-ui-text focus:border-ui-text/50"
+                  className="w-full bg-black border border-ui-border text-sm font-semibold tracking-wide px-1 outline-none text-ui-text focus:border-ui-text/50"
                 />
               ) : (
                 <div
@@ -125,7 +125,7 @@ export const CategoryItem = ({
 
         {isExpanded && (
           <div
-            className="flex flex-wrap gap-2 items-center p-3 bg-ui-bg border-t border-ui-border/50"
+            className="flex flex-wrap gap-2 items-center p-3 bg-black border-t border-ui-border/50"
             onPointerDown={(e) => e.stopPropagation()}
           >
           <div className="flex flex-wrap gap-2 items-center">
@@ -163,7 +163,7 @@ export const CategoryItem = ({
                     return { ...prev, icons: newCategories };
                   });
                 }}
-                className="w-10 h-10 relative group cursor-grab active:cursor-grabbing flex items-center justify-center bg-ui-bg text-ui-text shrink-0"
+                className="w-10 h-10 relative group cursor-grab active:cursor-grabbing flex items-center justify-center bg-black text-ui-text shrink-0"
               >
                 <div
                   className="w-full h-full p-2 icon-svg-wrapper pointer-events-none"
@@ -191,7 +191,7 @@ export const CategoryItem = ({
             ))}
 
             <label
-              className="w-10 h-10 border border-ui-border flex items-center justify-center bg-ui-bg text-ui-text hover:bg-ui-text hover:text-ui-bg transition-colors shrink-0 cursor-pointer"
+              className="w-10 h-10 border border-ui-border flex items-center justify-center bg-black text-ui-text hover:bg-ui-text hover:text-ui-bg transition-colors shrink-0 cursor-pointer"
               title={t("Upload SVG Icon to this Category")}
             >
               +

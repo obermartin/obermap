@@ -1,0 +1,44 @@
+{
+  "kind": [
+    "highlight"
+  ],
+  "fonts": [
+    {
+      "family": "GothamBook",
+      "file": "GothamBook.ttf"
+    }
+  ],
+  "primary": {
+    "overrideColor": false,
+    "color": "#ffffff",
+    "height": 32,
+    "capWidth": 16,
+    "minWidth": 32,
+    "paddingX": 16,
+    "paddingY": 0,
+    "anchor": "center",
+    "pointer": {
+      "overrideColor": false,
+      "color": "#ffffff",
+      "width": 32,
+      "height": 32,
+      "margin": 8,
+      "attachEdge": "left",
+      "attachFrom": "left",
+      "attachOffset": 16,
+      "tipX": 16,
+      "tipY": 16
+    },
+    "typography": {
+      "fontFamily": "GothamBook",
+      "fontSize": 18,
+      "fontWeight": 400,
+      "letterSpacing": 0,
+      "verticalOffset": 6,
+      "lineHeight": 0,
+      "textTransform": "uppercase",
+      "textAlign": "center",
+      "color": "#ffffff"
+    }
+  }
+}

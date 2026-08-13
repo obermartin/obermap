@@ -45,8 +45,7 @@ export const PresetLayersPanel: React.FC<PresetLayersPanelProps> = ({
           animate={{ y: 0 }}
           exit={{ y: "100%" }}
           transition={{ type: "spring", damping: 25, stiffness: 200 }}
-          className="absolute inset-0 z-50 flex flex-col p-4 custom-scrollbar overflow-y-auto"
-          style={{ backgroundColor: "#18181b" }}
+          className="absolute inset-0 z-50 flex flex-col p-4 custom-scrollbar overflow-y-auto bg-zinc-900 ui-glass-panel"
         >
           <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/10">
             <label className="text-xs text-white font-semibold tracking-wider flex items-center gap-2">

@@ -108,17 +108,18 @@ export class Rasterizer {
       }
     }
 
+    const ptrMargin = pointer.margin || 0;
     const primaryTop = hasAbove
-      ? heightAbove + (pointer.attachEdge === "top" ? pointerOverhang : 0)
+      ? heightAbove + (pointer.attachEdge === "top" ? pointerOverhang + ptrMargin : 0)
       : pointer.attachEdge === "top"
-        ? pointerOverhang
+        ? pointerOverhang + ptrMargin
         : 0;
 
     let ptrLeft = 0;
     let ptrTop = 0;
 
     if (pointer.attachEdge === "bottom") {
-      ptrTop = primaryTop + primary.height - 1;
+      ptrTop = primaryTop + primary.height - 1 + ptrMargin;
       if (pointer.attachFrom === "left")
         ptrLeft = primaryLeft + pointer.attachOffset - pointer.tipX;
       else if (pointer.attachFrom === "right")
@@ -128,7 +129,7 @@ export class Rasterizer {
         ptrLeft =
           primaryLeft + primaryWidth / 2 + pointer.attachOffset - pointer.tipX;
     } else if (pointer.attachEdge === "top") {
-      ptrTop = primaryTop - pointer.height + 1;
+      ptrTop = primaryTop - pointer.height + 1 - ptrMargin;
       if (pointer.attachFrom === "left")
         ptrLeft = primaryLeft + pointer.attachOffset - pointer.tipX;
       else if (pointer.attachFrom === "right")
@@ -138,7 +139,7 @@ export class Rasterizer {
         ptrLeft =
           primaryLeft + primaryWidth / 2 + pointer.attachOffset - pointer.tipX;
     } else if (pointer.attachEdge === "left") {
-      ptrLeft = primaryLeft - pointer.width + 1;
+      ptrLeft = primaryLeft - pointer.width + 1 - ptrMargin;
       if (pointer.attachFrom === "top")
         ptrTop = primaryTop + pointer.attachOffset - pointer.tipY;
       else if (pointer.attachFrom === "bottom")
@@ -148,7 +149,7 @@ export class Rasterizer {
         ptrTop =
           primaryTop + primary.height / 2 + pointer.attachOffset - pointer.tipY;
     } else if (pointer.attachEdge === "right") {
-      ptrLeft = primaryLeft + primaryWidth - 1;
+      ptrLeft = primaryLeft + primaryWidth - 1 + ptrMargin;
       if (pointer.attachFrom === "top")
         ptrTop = primaryTop + pointer.attachOffset - pointer.tipY;
       else if (pointer.attachFrom === "bottom")
@@ -203,9 +204,9 @@ export class Rasterizer {
     svg += `
       <style>
         :root {
-          --primary-backplate-fill: ${theme?.primaryBackplateFill || manifest?.primary?.color || "#ffffff"};
-          --secondary-backplate-fill: ${theme?.secondaryBackplateFill || manifest?.secondary?.color || "#ffffff"};
-          --pointer-fill: ${theme?.pointerFill || manifest?.primary?.pointer?.color || "#ffffff"};
+          ${manifest?.primary?.overrideColor ? `--primary-backplate-fill: ${theme?.primaryBackplateFill || manifest?.primary?.color || "#ffffff"};` : ''}
+          ${manifest?.secondary?.overrideColor ? `--secondary-backplate-fill: ${theme?.secondaryBackplateFill || manifest?.secondary?.color || "#ffffff"};` : ''}
+          ${manifest?.primary?.pointer?.overrideColor ? `--pointer-fill: ${theme?.pointerFill || manifest?.primary?.pointer?.color || "#ffffff"};` : ''}
           --primary-text-color: ${theme?.primaryTextColor || manifest?.primary?.typography?.color || "#000000"};
           --secondary-text-color: ${theme?.secondaryTextColor || manifest?.secondary?.typography?.color || "#000000"};
           --accent-fill: ${theme?.accentFill || "#000000"};
@@ -220,7 +221,7 @@ export class Rasterizer {
           <svg x="0" y="0" width="${secondaryEffectiveCapWidth}" height="${secondary.height}" preserveAspectRatio="none">${tpl.secondaryLeftCap}</svg>
           ${secondaryMiddleStretched > 0 ? `<svg x="${secondaryEffectiveCapWidth}" y="0" width="${secondaryMiddleStretched}" height="${secondary.height}" viewBox="0 0 ${tpl.secondaryMiddleSrcWidth} ${tpl.secondaryMiddleSrcHeight}" preserveAspectRatio="none">${tpl.secondaryMiddleInner}</svg>` : ""}
           <svg x="${secondaryWidth - secondaryEffectiveCapWidth}" y="0" width="${secondaryEffectiveCapWidth}" height="${secondary.height}" preserveAspectRatio="none">${tpl.secondaryRightCap}</svg>
-          <text x="50%" y="50%" font-family="${secondary.typography.fontFamily}" font-size="${secondary.typography.fontSize}px" font-weight="${secondary.typography.fontWeight}" fill="var(--secondary-text-color, ${secondary.typography.color})" text-anchor="middle" dominant-baseline="central" letter-spacing="${secondary.typography.letterSpacing || 0}">${transformText(secondaryText, secondary.typography.textTransform)}</text>
+          <text x="50%" y="50%" dy="${secondary.typography.verticalOffset || 0}px" font-family="${secondary.typography.fontFamily}" font-size="${secondary.typography.fontSize}px" font-weight="${secondary.typography.fontWeight}" fill="var(--secondary-text-color, ${secondary.typography.color})" text-anchor="middle" dominant-baseline="central" letter-spacing="${secondary.typography.letterSpacing || 0}">${transformText(secondaryText, secondary.typography.textTransform)}</text>
         </svg>
       `;
     }
@@ -231,7 +232,7 @@ export class Rasterizer {
         <svg x="0" y="0" width="${primaryEffectiveCapWidth}" height="${primary.height}" preserveAspectRatio="none">${tpl.primaryLeftCap}</svg>
         ${primaryMiddleStretched > 0 ? `<svg x="${primaryEffectiveCapWidth}" y="0" width="${primaryMiddleStretched}" height="${primary.height}" viewBox="0 0 ${tpl.primaryMiddleSrcWidth} ${tpl.primaryMiddleSrcHeight}" preserveAspectRatio="none">${tpl.primaryMiddleInner}</svg>` : ""}
         <svg x="${primaryWidth - primaryEffectiveCapWidth}" y="0" width="${primaryEffectiveCapWidth}" height="${primary.height}" preserveAspectRatio="none">${tpl.primaryRightCap}</svg>
-        <text x="50%" y="50%" font-family="${primary.typography.fontFamily}" font-size="${primary.typography.fontSize}px" font-weight="${primary.typography.fontWeight}" fill="var(--primary-text-color, ${primary.typography.color})" text-anchor="middle" dominant-baseline="central" letter-spacing="${primary.typography.letterSpacing || 0}">${transformText(primaryText, primary.typography.textTransform)}</text>
+        <text x="50%" y="50%" dy="${primary.typography.verticalOffset || 0}px" font-family="${primary.typography.fontFamily}" font-size="${primary.typography.fontSize}px" font-weight="${primary.typography.fontWeight}" fill="var(--primary-text-color, ${primary.typography.color})" text-anchor="middle" dominant-baseline="central" letter-spacing="${primary.typography.letterSpacing || 0}">${transformText(primaryText, primary.typography.textTransform)}</text>
       </svg>
     `;
 
@@ -251,7 +252,7 @@ export class Rasterizer {
           <svg x="0" y="0" width="${secondaryEffectiveCapWidth}" height="${secondary.height}" preserveAspectRatio="none">${tpl.secondaryLeftCap}</svg>
           ${secondaryMiddleStretched > 0 ? `<svg x="${secondaryEffectiveCapWidth}" y="0" width="${secondaryMiddleStretched}" height="${secondary.height}" viewBox="0 0 ${tpl.secondaryMiddleSrcWidth} ${tpl.secondaryMiddleSrcHeight}" preserveAspectRatio="none">${tpl.secondaryMiddleInner}</svg>` : ""}
           <svg x="${secondaryWidth - secondaryEffectiveCapWidth}" y="0" width="${secondaryEffectiveCapWidth}" height="${secondary.height}" preserveAspectRatio="none">${tpl.secondaryRightCap}</svg>
-          <text x="50%" y="50%" font-family="${secondary.typography.fontFamily}" font-size="${secondary.typography.fontSize}px" font-weight="${secondary.typography.fontWeight}" fill="var(--secondary-text-color, ${secondary.typography.color})" text-anchor="middle" dominant-baseline="central" letter-spacing="${secondary.typography.letterSpacing || 0}">${transformText(secondaryText, secondary.typography.textTransform)}</text>
+          <text x="50%" y="50%" dy="${secondary.typography.verticalOffset || 0}px" font-family="${secondary.typography.fontFamily}" font-size="${secondary.typography.fontSize}px" font-weight="${secondary.typography.fontWeight}" fill="var(--secondary-text-color, ${secondary.typography.color})" text-anchor="middle" dominant-baseline="central" letter-spacing="${secondary.typography.letterSpacing || 0}">${transformText(secondaryText, secondary.typography.textTransform)}</text>
         </svg>
       `;
     }

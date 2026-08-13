@@ -146,10 +146,10 @@ export function LayerItem(props: {
         className="w-full relative"
       >
         <div
-          className={`glass-outlined-container relative flex flex-col transition-all duration-300 w-full ${isDraggingLayer && layer.type === "split" ? "bg-ui-text/5" : ""} rounded-3xl`}
+          className={`glass-outlined-container relative flex flex-col transition-all duration-300 w-full ${isDraggingLayer && layer.type === "split" ? "bg-ui-text/5" : ""} rounded-3xl overflow-hidden`}
         >
           <div
-            className={`relative p-3 flex items-center gap-3 select-none group transition-opacity duration-200 ${isActiveEdit ? "bg-ui-bg z-10" : layer.visible ? "bg-ui-bg" : "bg-transparent"} ${!layer.visible ? "opacity-40" : "opacity-100"} ${isNestedChild ? "ml-6" : ""}`}
+            className={`relative p-3 flex items-center gap-3 select-none group transition-opacity duration-200 ${isActiveEdit ? "bg-black z-10" : layer.visible ? "bg-black" : "bg-transparent"} ${!layer.visible ? "opacity-40" : "opacity-100"} ${isNestedChild ? "ml-6" : ""}`}
           >
             <div
               className={`cursor-grab active:cursor-grabbing ${iconColorFaded}`}
@@ -200,7 +200,7 @@ export function LayerItem(props: {
                       onChange={(e) => setEditName(e.target.value)}
                       onBlur={handleRenameSubmit}
                       onKeyDown={handleKeyDown}
-                      className="w-full bg-ui-bg border border-ui-border text-sm font-medium px-1 outline-none text-ui-text focus:border-ui-text/50"
+                      className="w-full bg-black border border-ui-border text-sm font-medium px-1 outline-none text-ui-text focus:border-ui-text/50"
                     />
                   ) : (
                     <div

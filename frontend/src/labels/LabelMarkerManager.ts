@@ -49,23 +49,35 @@ export class LabelMarkerManager {
     markerEl.dataset.template = opts.template;
 
     // Apply colors
-    markerEl.style.setProperty(
-      "--primary-backplate-fill",
-      (man.primary.overrideColor && opts.theme?.primaryBackplateFill) ? opts.theme.primaryBackplateFill : (man.primary.color || "#ffffff"),
-    );
+    if (man.primary.overrideColor) {
+      markerEl.style.setProperty(
+        "--primary-backplate-fill",
+        opts.theme?.primaryBackplateFill ? opts.theme.primaryBackplateFill : (man.primary.color || "#ffffff")
+      );
+    } else {
+      markerEl.style.removeProperty("--primary-backplate-fill");
+    }
 
     if (man.secondary) {
-      markerEl.style.setProperty(
-        "--secondary-backplate-fill",
-        (man.secondary.overrideColor && opts.theme?.secondaryBackplateFill) ? opts.theme.secondaryBackplateFill : (man.secondary.color || "#ffffff"),
-      );
+      if (man.secondary.overrideColor) {
+        markerEl.style.setProperty(
+          "--secondary-backplate-fill",
+          opts.theme?.secondaryBackplateFill ? opts.theme.secondaryBackplateFill : (man.secondary.color || "#ffffff")
+        );
+      } else {
+        markerEl.style.removeProperty("--secondary-backplate-fill");
+      }
     }
 
     if (man.primary.pointer) {
-      markerEl.style.setProperty(
-        "--pointer-fill",
-        (man.primary.pointer.overrideColor && opts.theme?.pointerFill) ? opts.theme.pointerFill : (man.primary.pointer.color || "#ffffff"),
-      );
+      if (man.primary.pointer.overrideColor) {
+        markerEl.style.setProperty(
+          "--pointer-fill",
+          opts.theme?.pointerFill ? opts.theme.pointerFill : (man.primary.pointer.color || "#ffffff")
+        );
+      } else {
+        markerEl.style.removeProperty("--pointer-fill");
+      }
     }
 
     markerEl.style.setProperty(
@@ -88,34 +100,48 @@ export class LabelMarkerManager {
       id: opts.id,
       setText: (text: string | { primary: string; secondary?: string }) => {
         opts.text = text;
-        this.render(handle, opts.template, opts.text, opts.hidePointer, opts.onClick);
+        this.render(handle, opts.template, opts.text, opts.hidePointer, opts.onClick, opts.theme);
       },
       setTemplate: (name: string) => {
         if (!this.loader.templates.has(name)) return;
         opts.template = name;
         markerEl.dataset.template = name;
-        this.render(handle, opts.template, opts.text, opts.hidePointer, opts.onClick);
+        this.render(handle, opts.template, opts.text, opts.hidePointer, opts.onClick, opts.theme);
       },
       setTheme: (theme: Partial<Theme>) => {
         opts.theme = { ...opts.theme, ...theme };
+        this.render(handle, opts.template, opts.text, opts.hidePointer, opts.onClick, opts.theme);
         const currentTpl = this.loader.getTemplate(markerEl.dataset.template || "");
         const man = currentTpl?.manifest;
         if (man) {
-          if (man.primary.overrideColor)
+          if (man.primary.overrideColor) {
             markerEl.style.setProperty(
               "--primary-backplate-fill",
               theme.primaryBackplateFill || man.primary.color || "#ffffff"
             );
-          if (man.secondary?.overrideColor)
-            markerEl.style.setProperty(
-              "--secondary-backplate-fill",
-              theme.secondaryBackplateFill || man.secondary.color || "#ffffff"
-            );
-          if (man.primary.pointer?.overrideColor)
-            markerEl.style.setProperty(
-              "--pointer-fill",
-              theme.pointerFill || man.primary.pointer.color || "#ffffff"
-            );
+          } else {
+            markerEl.style.removeProperty("--primary-backplate-fill");
+          }
+          if (man.secondary) {
+            if (man.secondary.overrideColor) {
+              markerEl.style.setProperty(
+                "--secondary-backplate-fill",
+                theme.secondaryBackplateFill || man.secondary.color || "#ffffff"
+              );
+            } else {
+              markerEl.style.removeProperty("--secondary-backplate-fill");
+            }
+          }
+          if (man.primary.pointer) {
+            if (man.primary.pointer.overrideColor) {
+              markerEl.style.setProperty(
+                "--pointer-fill",
+                theme.pointerFill || man.primary.pointer.color || "#ffffff"
+              );
+            } else {
+              markerEl.style.removeProperty("--pointer-fill");
+            }
+          }
           
           markerEl.style.setProperty(
             "--primary-text-color",
@@ -152,7 +178,7 @@ export class LabelMarkerManager {
       },
     };
 
-    this.render(handle, opts.template, opts.text, opts.hidePointer, opts.onClick);
+    this.render(handle, opts.template, opts.text, opts.hidePointer, opts.onClick, opts.theme);
     this.handles.set(opts.id, handle);
     return handle;
   }
@@ -172,12 +198,13 @@ export class LabelMarkerManager {
     text: string | { primary: string; secondary?: string },
     hidePointer?: boolean,
     onClick?: (id: string) => void,
+    theme?: Theme
   ) {
     const tpl = this.loader.getTemplate(templateName);
     if (!tpl) return;
     const markerEl = handle.getElement();
 
-    const data = this.renderer.buildTemplateHtml(tpl, text, hidePointer);
+    const data = this.renderer.buildTemplateHtml(tpl, text, hidePointer, theme);
 
     markerEl.style.width = `${data.width}px`;
     markerEl.style.height = `${data.height}px`;

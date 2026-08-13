@@ -67,7 +67,7 @@ export const createLabelMarker = (ann: Annotation, ctx: MarkerFactoryContext): M
     el.className = 'custom-marker';
     el.innerHTML = `
       <div class="annotation-scale-wrapper" style="display: flex; flex-direction: column; align-items: center; transform-origin: bottom center;">
-        <div class="custom-marker-plate" style="background-color: ${ann.color}; border-color: ${ann.color === '#000000' || ann.color === '#000' ? 'rgba(255,255,255,0.1)' : ann.color}">
+        <div class="custom-marker-plate" style="--marker-bg: ${ann.color}; background-color: ${ann.color}; border-color: ${ann.color === '#000000' || ann.color === '#000' ? 'rgba(255,255,255,0.1)' : ann.color}">
           <div class="custom-marker-text" style="color: ${contrastColor}; display: flex; flex-direction: column; align-items: flex-start;">
             <span style="font-size: 1.6em; line-height: 1;">${ann.text}</span>
             ${ann.secondaryText ? `<span style="font-size: 1em; line-height: 1;">${ann.secondaryText}</span>` : ''}
@@ -164,7 +164,7 @@ export const createHighlightMarker = (ann: Annotation, ctx: MarkerFactoryContext
       el.innerHTML = `
         <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); transform-origin: center center;">
           <div class="annotation-scale-wrapper" style="transform-origin: center center;">
-            <div class="custom-country-plate" style="background-color: ${ann.color};">
+            <div class="custom-country-plate" style="--marker-bg: ${ann.color}; background-color: ${ann.color};">
               <div class="custom-country-text" style="color: ${contrastColor}">
                 ${ann.text || ''}
               </div>
@@ -176,8 +176,8 @@ export const createHighlightMarker = (ann: Annotation, ctx: MarkerFactoryContext
       el.innerHTML = `
         <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); transform-origin: center center;">
           <div class="annotation-scale-wrapper" style="transform-origin: center center;">
-            <div class="custom-highlight-marker" style="background-color: ${ann.color};">
-              <div class="custom-highlight-plate" style="background-color: ${ann.color};">
+            <div class="custom-highlight-marker" style="--marker-bg: ${ann.color}; background-color: ${ann.color};">
+              <div class="custom-highlight-plate" style="--marker-bg: ${ann.color}; background-color: ${ann.color};">
                 <div class="custom-highlight-text" style="color: ${contrastColor}">
                   ${ann.text || ''}
                 </div>
@@ -240,7 +240,7 @@ export const createMeasureMarkers = (ann: Annotation, ctx: MarkerFactoryContext)
     el.innerHTML = `
       <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); transform-origin: center center;">
         <div class="annotation-scale-wrapper" style="transform-origin: center center; display: flex; align-items: center; justify-content: center;">
-          <div class="custom-marker-flat" style="background-color: ${ann.color}; color: ${contrastColor};">
+          <div class="custom-marker-flat" style="--marker-bg: ${ann.color}; background-color: ${ann.color}; color: ${contrastColor};">
             ${totalDistance.toFixed(2)} km
           </div>
         </div>
@@ -303,7 +303,7 @@ export const createRouteMarkers = (ann: Annotation, ctx: MarkerFactoryContext): 
     el.innerHTML = `
         <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); transform-origin: center center;">
           <div class="annotation-scale-wrapper" style="width: 100%; height: 100%; transform-origin: center center; display: flex; align-items: center; justify-content: center;">
-            <div class="${innerClass}" style="background-color: ${ann.color}; color: ${contrastColor};">
+            <div class="${innerClass}" style="--marker-bg: ${ann.color}; background-color: ${ann.color}; color: ${contrastColor};">
               ${innerHtml}
             </div>
           </div>
@@ -349,7 +349,7 @@ export const createCircleMarkers = (ann: Annotation, ctx: MarkerFactoryContext):
     centerEl.innerHTML = `
       <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); transform-origin: center center;">
         <div class="annotation-scale-wrapper" style="transform-origin: center center;">
-          <div class="custom-marker-dot" style="background-color: ${ann.color};"></div>
+          <div class="custom-marker-dot" style="--marker-bg: ${ann.color}; background-color: ${ann.color};"></div>
         </div>
       </div>
     `;
@@ -389,7 +389,7 @@ export const createCircleMarkers = (ann: Annotation, ctx: MarkerFactoryContext):
     labelEl.innerHTML = `
       <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); transform-origin: center center;">
         <div class="annotation-scale-wrapper" style="transform-origin: center center; display: flex; align-items: center; justify-content: center;">
-          <div class="custom-marker-flat" style="background-color: ${ann.color}; color: ${contrastColor};">
+          <div class="custom-marker-flat" style="--marker-bg: ${ann.color}; background-color: ${ann.color}; color: ${contrastColor};">
             ${(ann.radius || 0).toFixed(2)} km
           </div>
         </div>
@@ -441,7 +441,7 @@ export const createIconMarker = (ann: Annotation, ctx: MarkerFactoryContext): Ma
   const allIcons = ctx.settings.icons?.flatMap(cat => cat.icons) || [];
   const iconObj = allIcons.find(i => i.id === ann.iconId);
   if (iconObj) {
-    const isCircular = !!ann.mediaUrl || !!ann.linkUrl;
+    const hasLink = !!ann.mediaUrl || !!ann.linkUrl;
     const el = document.createElement('div');
     el.className = 'label-marker-icon';
     el.style.width = '0px';
@@ -450,7 +450,7 @@ export const createIconMarker = (ann: Annotation, ctx: MarkerFactoryContext): Ma
     el.innerHTML = `
       <div style="position: absolute; left: 0; top: 0; transform: translate(-50%, -50%); transform-origin: center center;">
         <div class="annotation-scale-wrapper" style="transform-origin: center center; display: flex; align-items: center; justify-content: center;">
-          <div class="icon-marker w-16 h-16 flex items-center justify-center p-2 icon-svg-wrapper ${isCircular ? 'rounded-full' : ''}" style="background-color: ${ann.color || '#ffffff'}; color: ${getContrastYIQ(ann.color || '#ffffff')};">
+          <div class="icon-marker w-16 h-16 flex items-center justify-center p-2 icon-svg-wrapper rounded-full" style="--marker-bg: ${ann.color || '#ffffff'}; background-color: ${ann.color || '#ffffff'}; color: ${getContrastYIQ(ann.color || '#ffffff')}; ${hasLink ? `outline: 3px solid ${ann.color || '#ffffff'}; outline-offset: 6px;` : ''}">
             ${iconObj.svg}
           </div>
         </div>

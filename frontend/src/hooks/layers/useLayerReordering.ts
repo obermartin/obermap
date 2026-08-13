@@ -62,9 +62,12 @@ export const useLayerReordering = (props: LayerReorderingProps) => {
       idsToMoveAdmin.forEach(id => {
         if (map.getLayer(id)) {
           try {
-            const targetBeforeId = (firstAdminId && map.getLayer(firstAdminId)) 
-              ? firstAdminId 
-              : (map.getLayer('custom-polygons') ? 'custom-polygons' : undefined);
+            let targetBeforeId: string | undefined = undefined;
+            if (map.getLayer('custom-polygons')) {
+              targetBeforeId = 'custom-polygons';
+            } else if (firstAdminId && map.getLayer(firstAdminId)) {
+              targetBeforeId = firstAdminId;
+            }
             if (targetBeforeId) {
               if (targetBeforeId !== id) {
                 map.moveLayer(id, targetBeforeId);

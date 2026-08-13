@@ -998,6 +998,18 @@
                     /><span class="unit">px</span>
                   </div>
                 </div>
+                <div class="field" style="margin: 0">
+                  <label>vertical offset</label>
+                  <div class="value-wrap">
+                    <input
+                      type="number"
+                      id="primaryVerticalOffset"
+                      value="0"
+                      step="0.1"
+                      style="width: 60px"
+                    /><span class="unit">px</span>
+                  </div>
+                </div>
                 <div
                   class="icon-toggle"
                   id="primaryTextTransformGrp"
@@ -1155,6 +1167,18 @@
                       type="number"
                       id="secondaryLetterSpacing"
                       value="0.3"
+                      step="0.1"
+                      style="width: 60px"
+                    /><span class="unit">px</span>
+                  </div>
+                </div>
+                <div class="field" style="margin: 0">
+                  <label>vertical offset</label>
+                  <div class="value-wrap">
+                    <input
+                      type="number"
+                      id="secondaryVerticalOffset"
+                      value="0"
                       step="0.1"
                       style="width: 60px"
                     /><span class="unit">px</span>
@@ -1377,6 +1401,16 @@
                   id="pointerHeight"
                   value="10"
                   min="1"
+                /><span class="unit">px</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>margin</label>
+              <div class="value-wrap">
+                <input
+                  type="number"
+                  id="pointerMargin"
+                  value="0"
                 /><span class="unit">px</span>
               </div>
             </div>
@@ -2062,6 +2096,7 @@
             if (p.pointer.color) set("pointerColor", p.pointer.color);
             set("pointerWidth", p.pointer.width);
             set("pointerHeight", p.pointer.height);
+            if (p.pointer.margin !== undefined) set("pointerMargin", p.pointer.margin);
             set("pointerAttachEdge", p.pointer.attachEdge);
             set("pointerAttachFrom", p.pointer.attachFrom);
             set("pointerAttachOffset", p.pointer.attachOffset);
@@ -2091,6 +2126,7 @@
             set("primaryFontSize", p.typography.fontSize);
             set("primaryFontWeight", p.typography.fontWeight);
             set("primaryLetterSpacing", p.typography.letterSpacing);
+            if (p.typography.verticalOffset !== undefined) set("primaryVerticalOffset", p.typography.verticalOffset);
             set("primaryLineHeight", p.typography.lineHeight);
             set("primaryTextTransform", p.typography.textTransform);
             set("primaryTextAlign", p.typography.textAlign);
@@ -2144,6 +2180,7 @@
             set("secondaryFontSize", s.typography.fontSize);
             set("secondaryFontWeight", s.typography.fontWeight);
             set("secondaryLetterSpacing", s.typography.letterSpacing);
+            if (s.typography.verticalOffset !== undefined) set("secondaryVerticalOffset", s.typography.verticalOffset);
             set("secondaryLineHeight", s.typography.lineHeight);
             set("secondaryTextTransform", s.typography.textTransform);
             set("secondaryTextAlign", s.typography.textAlign);
@@ -2281,6 +2318,7 @@
                 height: parseFloat(
                   document.getElementById("pointerHeight").value,
                 ),
+                margin: parseFloat(document.getElementById("pointerMargin").value),
                 attachEdge: document.getElementById("pointerAttachEdge").value,
                 attachFrom: document.getElementById("pointerAttachFrom").value,
                 attachOffset: parseFloat(
@@ -2302,6 +2340,9 @@
               ),
               letterSpacing: parseFloat(
                 document.getElementById("primaryLetterSpacing").value,
+              ),
+              verticalOffset: parseFloat(
+                document.getElementById("primaryVerticalOffset").value,
               ),
               lineHeight: parseFloat(
                 document.getElementById("primaryLineHeight").value,
@@ -2350,6 +2391,9 @@
               ),
               letterSpacing: parseFloat(
                 document.getElementById("secondaryLetterSpacing").value,
+              ),
+              verticalOffset: parseFloat(
+                document.getElementById("secondaryVerticalOffset").value,
               ),
               lineHeight: parseFloat(
                 document.getElementById("secondaryLineHeight").value,
@@ -2558,6 +2602,7 @@
     line-height: ${config.typography.lineHeight || 1.2};
     text-transform: ${config.typography.textTransform || "none"};
     text-align: ${config.typography.textAlign};
+    transform: translateY(${config.typography.verticalOffset || 0}px);
     pointer-events: none;
     white-space: nowrap;
   `;
@@ -2607,10 +2652,11 @@
 
         // Compute marker layout
         const p = manifest.primary.pointer;
-        const pointerOverhangTop = p && p.attachEdge === "top" ? p.height : 0;
-        const pointerOverhangBottom = p && p.attachEdge === "bottom" ? p.height : 0;
-        const pointerOverhangLeft = p && p.attachEdge === "left" ? p.width : 0;
-        const pointerOverhangRight = p && p.attachEdge === "right" ? p.width : 0;
+        const ptrMargin = p && p.margin || 0;
+        const pointerOverhangTop = p && p.attachEdge === "top" ? p.height + ptrMargin : 0;
+        const pointerOverhangBottom = p && p.attachEdge === "bottom" ? p.height + ptrMargin : 0;
+        const pointerOverhangLeft = p && p.attachEdge === "left" ? p.width + ptrMargin : 0;
+        const pointerOverhangRight = p && p.attachEdge === "right" ? p.width + ptrMargin : 0;
 
         let secondaryAboveBlock = 0,
           secondaryBelowBlock = 0,
@@ -2695,8 +2741,9 @@
           tipMarkerY = 0;
         if (pointerInfo) {
           const pt = pointerInfo.pointer;
+          const ptMargin = pt.margin || 0;
           if (pt.attachEdge === "bottom") {
-            pointerTop = primaryOffsetY + primary.height;
+            pointerTop = primaryOffsetY + primary.height + ptMargin;
             pointerLeft =
               primaryOffsetX +
               (pt.attachFrom === "right"
@@ -2705,7 +2752,7 @@
                   ? primary.width / 2 - pt.tipX
                   : pt.attachOffset - pt.tipX);
           } else if (pt.attachEdge === "top") {
-            pointerTop = primaryOffsetY - pt.height;
+            pointerTop = primaryOffsetY - pt.height - ptMargin;
             pointerLeft =
               primaryOffsetX +
               (pt.attachFrom === "right"
@@ -2714,7 +2761,7 @@
                   ? primary.width / 2 - pt.tipX
                   : pt.attachOffset - pt.tipX);
           } else if (pt.attachEdge === "left") {
-            pointerLeft = primaryOffsetX - pt.width;
+            pointerLeft = primaryOffsetX - pt.width - ptMargin;
             pointerTop =
               primaryOffsetY +
               (pt.attachFrom === "bottom"
@@ -2724,7 +2771,7 @@
                   : pt.attachOffset - pt.tipY);
           } else {
             // right
-            pointerLeft = primaryOffsetX + primary.width;
+            pointerLeft = primaryOffsetX + primary.width + ptMargin;
             pointerTop =
               primaryOffsetY +
               (pt.attachFrom === "bottom"
