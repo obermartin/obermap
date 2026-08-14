@@ -40,6 +40,15 @@ export const DEFAULT_LAYERS: MapLayer[] = [
     url: "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GPW_Population_Density_2020/default/default/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png",
   },
   {
+    id: "utm_grid",
+    name: "UTM Grid",
+    type: "utm_grid",
+    visible: false,
+    utmGridColor: "#7f7f7f",
+    opacity: 0.5,
+    utmGridLabels: true,
+  },
+  {
     id: "weather_forecast",
     name: "Weather",
     type: "weather_forecast",

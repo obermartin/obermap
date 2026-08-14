@@ -46,7 +46,7 @@ export interface Annotation {
 export interface MapLayer {
   id: string;
   name: string;
-  type: 'geojson' | 'raster' | 'satellite' | 'split' | 'deepstate' | 'empty-slot' | 'flights' | 'vessels' | 'weather_forecast' | 'gdacs_earthquakes' | 'gdacs_volcanoes' | 'wildfires' | 'gdacs_cyclones' | 'nighttime' | 'cems_rapid_mapping';
+  type: 'geojson' | 'raster' | 'satellite' | 'split' | 'deepstate' | 'empty-slot' | 'flights' | 'vessels' | 'weather_forecast' | 'gdacs_earthquakes' | 'gdacs_volcanoes' | 'wildfires' | 'gdacs_cyclones' | 'nighttime' | 'cems_rapid_mapping' | 'utm_grid';
   visible: boolean;
   data?: any; // For GeoJSON
   url?: string; // For XYZ/WMTS
@@ -61,6 +61,8 @@ export interface MapLayer {
   _isDirty?: boolean;
   _keepExistingData?: boolean;
   customLayer?: boolean;
+  utmGridColor?: string;
+  utmGridLabels?: boolean;
   nighttimeDate?: string; // YYYY-MM-DD
   nighttimeHour?: number; // 0-24
   useGlobalDate?: boolean;

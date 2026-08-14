@@ -21,6 +21,7 @@ import { useDisasterStream } from '../hooks/useDisasterStream';
 import { useMapSelection } from '../hooks/useMapSelection';
 import { useLabelTemplates } from '../hooks/useLabelTemplates';
 import { useWeatherTogglePosition } from '../hooks/useWeatherTogglePosition';
+import { useUtmGrid } from '../hooks/layers/useUtmGrid';
 
 import { cleanupDeletedDynamicLayers } from '../hooks/layers/layerVisibilityUtils';
 import { useLayerVisibility } from '../hooks/useLayerVisibility';
@@ -253,6 +254,8 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
     settingsRef,
     setAnnotations
   });
+
+  useUtmGrid(mapRef, settings.layers || []);
 
   useLayerVisibility({
     map: mapRef.current,

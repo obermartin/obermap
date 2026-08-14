@@ -12,7 +12,7 @@ interface MediaViewerModalProps {
 export const MediaViewerModal: React.FC<MediaViewerModalProps> = ({ annotation, onClose }) => {
   const { t } = useTranslation();
 
-  const isVideo = annotation.mediaUrl && annotation.mediaUrl.match(/\.(mp4|webm|ogg)$/i);
+  const isVideo = (annotation.mediaUrl && annotation.mediaUrl.match(/\.(mp4|webm|ogg|mov)(\?.*)?$/i)) || (annotation.mediaName && annotation.mediaName.match(/\.(mp4|webm|ogg|mov)$/i));
 
   let tweetId: string | null = null;
   if (annotation.linkUrl) {

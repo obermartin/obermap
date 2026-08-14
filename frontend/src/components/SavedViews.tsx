@@ -28,6 +28,8 @@ const SavedViewItem = ({ annotation, isRevealDisabled, isHideDisabled, onFlyTo, 
         {isToolbarOpen && (
           <div 
             className="cursor-grab active:cursor-grabbing flex items-center justify-center pl-3 pr-2 bg-black text-ui-text/30 hover:text-ui-text transition-colors shrink-0"
+            onPointerDown={(e) => controls.start(e)}
+            style={{ touchAction: "none" }}
           >
             <GripVertical size={14} />
           </div>

@@ -230,7 +230,8 @@ export function LayerItem(props: {
                 layer.type === "gdacs_volcanoes" ||
                 layer.type === "wildfires" ||
                 layer.type === "gdacs_cyclones" ||
-                layer.type === "nighttime") && (
+                layer.type === "nighttime" ||
+                layer.type === "utm_grid") && (
                 <button
                   onClick={() => {
                     if (!layer.visible) toggleVisibility(layer.id);

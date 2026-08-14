@@ -6,6 +6,7 @@ import { VesselsSettings } from "./VesselsSettings";
 import { WeatherSettings } from "./WeatherSettings";
 import { SplitSettings } from "./SplitSettings";
 import { GeojsonSettings } from "./GeojsonSettings";
+import { UtmGridSettings } from "./UtmGridSettings";
 import { Play } from "lucide-react";
 import { useTranslation } from "../../../contexts/I18nContext";
 
@@ -137,6 +138,8 @@ export const LayerSettings = (props: LayerSettingsProps) => {
         layer.type === "gdacs_cyclones" ||
         layer.type === "nighttime" ? (
         <RasterSettings {...props} />
+      ) : layer.type === "utm_grid" ? (
+        <UtmGridSettings {...props} />
       ) : (
         <GeojsonSettings {...props} />
       )}

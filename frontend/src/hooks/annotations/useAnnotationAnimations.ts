@@ -89,7 +89,7 @@ export const useAnnotationAnimations = ({
         }
       }
 
-      if (mapStyleLoaded) {
+      if (mapStyleLoaded && map.isStyleLoaded() && map.getSource('custom-annotations')) {
         map.setFeatureState(
           { source: 'custom-annotations', id: ann.id },
           { hidden: !isRevealed }

@@ -104,8 +104,8 @@ body, #root {
   border-radius: inherit;
   pointer-events: none;
   background: rgba(150, 150, 150, 0.56) !important;
-  backdrop-filter: blur(3px) !important;
   -webkit-backdrop-filter: blur(3px) !important;
+  backdrop-filter: blur(3px) !important;
   border: none !important;
 }
 
@@ -251,6 +251,7 @@ details.glass-outlined-container {
 .theme-glass .maplibregl-ctrl-geocoder--input::placeholder { color: rgba(255, 255, 255, 0.5) !important; }
 .theme-glass .maplibregl-ctrl-geocoder .suggestions {
   background-color: rgba(0, 0, 0, 0.6) !important;
+  -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
 }
 .theme-glass .maplibregl-ctrl-geocoder .suggestions > li > a { color: #fff !important; }
@@ -692,8 +693,8 @@ html, body, #root {
   border-radius: inherit;
   pointer-events: none;
   background-color: color-mix(in srgb, var(--marker-bg, rgba(150, 150, 150, 1)) 56%, transparent) !important;
-  backdrop-filter: blur(3px) !important;
   -webkit-backdrop-filter: blur(3px) !important;
+  backdrop-filter: blur(3px) !important;
   border: none !important;
 }
 

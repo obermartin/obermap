@@ -100,8 +100,8 @@ export const IconSettingsModal: React.FC<IconSettingsModalProps> = ({ annotation
           )}
           {previewMediaUrl ? (
             <div className="flex items-center gap-4">
-              {previewMediaUrl.match(/\.(mp4|webm|ogg)$/i) ? (
-                <video src={previewMediaUrl} className="w-24 h-24 object-cover rounded-xl" muted />
+              {(mediaFile ? mediaFile.type.startsWith('video/') : (previewMediaUrl.match(/\.(mp4|webm|ogg|mov)(\?.*)?$/i) || (annotation.mediaName && annotation.mediaName.match(/\.(mp4|webm|ogg|mov)$/i)))) ? (
+                <video src={previewMediaUrl} className="w-24 h-24 object-cover rounded-xl" muted autoPlay loop />
               ) : (
                 <img src={previewMediaUrl} alt="Preview" className="w-24 h-24 object-cover rounded-xl" />
               )}

@@ -162,7 +162,7 @@ export const useMapStyling = ({
         }
       });
     }
-  }, [settings.labelDensity, mapLoaded, mapStyleLoaded]);
+  }, [settings.labelDensity, mapLoaded, mapStyleLoaded, mapStyleTick]);
 
   // 3D Terrain & Environment
   useEffect(() => {
@@ -284,7 +284,7 @@ export const useMapStyling = ({
     } catch (e) {
       console.warn("Could not apply 3D terrain styling (style might not be loaded yet)");
     }
-  }, [mapLoaded, mapStyleLoaded, settings.enable3dTerrain, settings.terrainExaggeration, settings.enableHillshade, settings.hillshadeShadowOpacity, settings.hillshadeHighlightOpacity, settings.enableSky, settings.skyColor]);
+  }, [mapLoaded, mapStyleLoaded, mapStyleTick, settings.enable3dTerrain, settings.terrainExaggeration, settings.enableHillshade, settings.hillshadeShadowOpacity, settings.hillshadeHighlightOpacity, settings.enableSky, settings.skyColor]);
 
   // Water Layer Styling
   const lastWaterColorRef = useRef<string | undefined>(undefined);

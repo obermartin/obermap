@@ -68,7 +68,7 @@ export class DOMRenderer {
     tpl: LoadedTemplate,
     textInput: string | { primary: string; secondary?: string },
     hidePointer?: boolean,
-    theme?: Theme
+    _theme?: Theme
   ): {
     html: string;
     width: number;
@@ -295,6 +295,23 @@ export class DOMRenderer {
       `;
     }
 
+    let finalHtml = html;
+    const idRegex = /id="([^"]+)"/g;
+    let match;
+    const ids = new Set<string>();
+    while ((match = idRegex.exec(finalHtml)) !== null) {
+      ids.add(match[1]);
+    }
+    if (ids.size > 0) {
+      const uniqueSuffix = Math.random().toString(36).substring(2, 8);
+      ids.forEach(id => {
+        finalHtml = finalHtml.split(`id="${id}"`).join(`id="${id}-${uniqueSuffix}"`);
+        finalHtml = finalHtml.split(`url(#${id})`).join(`url(#${id}-${uniqueSuffix})`);
+        finalHtml = finalHtml.split(`url('#${id}')`).join(`url('#${id}-${uniqueSuffix}')`);
+        finalHtml = finalHtml.split(`url("#${id}")`).join(`url("#${id}-${uniqueSuffix}")`);
+      });
+    }
+
     let anchorX = ptrLeft + pointer.tipX;
     let anchorY = finalPtrTop + pointer.tipY;
 
@@ -319,7 +336,7 @@ export class DOMRenderer {
     }
 
     return {
-      html,
+      html: finalHtml,
       width: markerWidth,
       height: finalMarkerHeight,
       anchorX,
