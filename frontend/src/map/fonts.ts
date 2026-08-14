@@ -115,3 +115,50 @@ export const applyMapFontOverrides = (
 
   return { firstSymbolId, initFirstAdminId };
 };
+
+export const applyMapFontOverridesToStyleJson = (
+  style: any,
+  settings: AppSettings
+) => {
+  if (settings.replaceGothamFont === false) return style;
+  if (!style || !style.layers) return style;
+
+  const newStyle = JSON.parse(JSON.stringify(style));
+  
+  for (let i = 0; i < newStyle.layers.length; i++) {
+    const layer = newStyle.layers[i];
+    const id = layer.id;
+    if (layer.type === 'symbol' && !id.startsWith('custom-')) {
+      if (layer.layout && layer.layout['text-field']) {
+        if (typeof layer.layout['text-field'] === 'string' || Array.isArray(layer.layout['text-field'])) {
+          let newFont = 'Gotham Condensed Book';
+          const lowerId = id.toLowerCase();
+          
+          if (lowerId.includes('country') || lowerId.includes('admin-0')) {
+            newFont = 'Gotham Condensed Bold';
+          } else if (lowerId.includes('state') || lowerId.includes('admin-1')) {
+            newFont = 'Gotham Condensed Medium';
+          } else if (lowerId.includes('water') || lowerId.includes('marine') || lowerId.includes('ocean')) {
+            newFont = 'Gotham Condensed Book Italic';
+          } else if (lowerId.includes('city') || lowerId.includes('town')) {
+            newFont = 'Gotham Condensed Medium';
+          } else if (lowerId.includes('road') || lowerId.includes('street') || lowerId.includes('path')) {
+            newFont = 'Gotham Condensed Light';
+          } else {
+            try {
+              const currentFonts = JSON.stringify(layer.layout['text-font']).toLowerCase();
+              if (currentFonts.includes('black') || currentFonts.includes('heavy')) newFont = 'Gotham Condensed Black';
+              else if (currentFonts.includes('bold') || currentFonts.includes('strong')) newFont = 'Gotham Condensed Bold';
+              else if (currentFonts.includes('medium')) newFont = 'Gotham Condensed Medium';
+              else if (currentFonts.includes('light') || currentFonts.includes('thin')) newFont = 'Gotham Condensed Light';
+              
+              if (currentFonts.includes('italic')) newFont += ' Italic';
+            } catch (e) {}
+          }
+          layer.layout['text-font'] = [newFont];
+        }
+      }
+    }
+  }
+  return newStyle;
+};

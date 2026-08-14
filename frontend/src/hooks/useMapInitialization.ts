@@ -4,6 +4,13 @@ import type { AppSettings, Annotation } from '../types';
 import { omProtocol } from '@openmeteo/weather-map-layer';
 
 import { loadDefaultMapIcons } from '../map/icons';
+
+// Patch Maplibre getSource to prevent crashes when style is not loaded yet
+const origGetSource = maplibregl.Map.prototype.getSource;
+(maplibregl.Map.prototype as any).getSource = function(id: string) {
+  if (!this.style) return undefined;
+  return origGetSource.call(this, id);
+};
 import { applyMapFontOverrides } from '../map/fonts';
 import { setupCustomMapLayers } from '../map/layers';
 import { setupGeocoder } from './map/useGeocoder';
@@ -89,9 +96,14 @@ export const useMapInitialization = ({
       };
     }
 
+    // Initialize with an empty style if it's a URL string. 
+    // useMapStyling.ts will fetch the actual style, inject Gotham, and call setStyle.
+    // This prevents MapLibre from fetching default Roboto fonts before we can override them.
+    const initialStyle = typeof finalStyle === 'string' ? { version: 8, sources: {}, layers: [] } : finalStyle;
+
     const map = new maplibregl.Map({
       container: mapContainer.current,
-      style: finalStyle,
+      style: initialStyle,
       center: settings.defaultView.center,
       zoom: settings.defaultView.zoom,
       pitch: settings.defaultView.pitch,
@@ -101,14 +113,15 @@ export const useMapInitialization = ({
       canvasContextAttributes: { preserveDrawingBuffer: true, alpha: true, antialias: true },
       attributionControl: false,
       transformRequest: (url: string, resourceType?: string) => {
-        if (resourceType === 'Glyphs' && url.includes('orangemug.github.io/font-glyphs')) {
-          let newUrl = url.replace('https://orangemug.github.io/font-glyphs/glyphs/', 'https://tiles.openfreemap.org/fonts/');
-          newUrl = newUrl.replace(/Arial(?:%20| )Unicode(?:%20| )MS(?:%20| )Regular/gi, 'Noto%20Sans%20Regular');
-          return { url: newUrl };
+        let currentUrl = url;
+        
+        if (resourceType === 'Glyphs' && currentUrl.includes('orangemug.github.io/font-glyphs')) {
+          currentUrl = currentUrl.replace('https://orangemug.github.io/font-glyphs/glyphs/', 'https://tiles.openfreemap.org/fonts/');
+          currentUrl = currentUrl.replace(/Arial(?:%20| )Unicode(?:%20| )MS(?:%20| )Regular/gi, 'Noto%20Sans%20Regular');
         }
 
-        if (url.includes('virtualearth.net/tiles/a/')) {
-          const match = url.match(/\/tiles\/a\/(\d+)\/(\d+)\/(\d+)/);
+        if (currentUrl.includes('virtualearth.net/tiles/a/')) {
+          const match = currentUrl.match(/\/tiles\/a\/(\d+)\/(\d+)\/(\d+)/);
           if (match) {
             const z = parseInt(match[1], 10);
             const x = parseInt(match[2], 10);
@@ -121,23 +134,26 @@ export const useMapInitialization = ({
               if ((y & mask) !== 0) digit += 2;
               quadKey += digit.toString();
             }
-            return { url: url.replace(/\/tiles\/a\/\d+\/\d+\/\d+/, `/tiles/a${quadKey}`) };
+            return { url: currentUrl.replace(/\/tiles\/a\/\d+\/\d+\/\d+/, `/tiles/a${quadKey}`) };
           }
         }
-        if (settings.replaceGothamFont !== false && resourceType === 'Glyphs' && decodeURIComponent(url).includes('Gotham Condensed')) {
+        if (settings.replaceGothamFont !== false && currentUrl.includes('Gotham')) {
           try {
-            const urlObj = new URL(url);
+            const urlObj = new URL(currentUrl);
             const parts = urlObj.pathname.split('/');
             const range = parts.pop();
             const fontstack = decodeURIComponent(parts.pop() || '');
             if (fontstack.startsWith('Gotham Condensed')) {
-              return { url: `${window.location.origin}/fonts/PBF/${fontstack}/${range}` };
+              const primaryFont = fontstack.split(',')[0].trim();
+              const pathname = window.location.pathname;
+              const cleanPath = pathname.endsWith('/') ? pathname : pathname.substring(0, pathname.lastIndexOf('/') + 1);
+              return { url: `${window.location.origin}${cleanPath}fonts/PBF/${encodeURIComponent(primaryFont)}/${range}` };
             }
           } catch (e) {
             console.warn("Failed to rewrite local glyph URL", e);
           }
         }
-        return { url };
+        return { url: currentUrl };
       }
     } as any);
 
@@ -225,11 +241,9 @@ export const useMapInitialization = ({
         }
       }
 
-      const { firstSymbolId, initFirstAdminId } = applyMapFontOverrides(map, settings, originalFiltersRef);
-      
-      loadDefaultMapIcons(map);
-
       const handleStyleLoad = () => {
+        const { firstSymbolId, initFirstAdminId } = applyMapFontOverrides(map, settings, originalFiltersRef);
+        loadDefaultMapIcons(map);
         setupCustomMapLayers(map, initFirstAdminId, firstSymbolId, mapRef, setMapLoaded, settings);
         setMapStyleLoaded(true);
         setMapStyleTick(t => t + 1);

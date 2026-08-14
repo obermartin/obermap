@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import type { AppSettings } from '../types';
 import { upgradeLegacyFilter } from '../utils/mapUtils';
+import { applyMapFontOverridesToStyleJson } from '../map/fonts';
 
 export interface MapStylingProps {
   mapContainer: React.RefObject<HTMLDivElement | null>;
@@ -287,8 +288,6 @@ export const useMapStyling = ({
   }, [mapLoaded, mapStyleLoaded, mapStyleTick, settings.enable3dTerrain, settings.terrainExaggeration, settings.enableHillshade, settings.hillshadeShadowOpacity, settings.hillshadeHighlightOpacity, settings.enableSky, settings.skyColor]);
 
   // Water Layer Styling
-  const lastWaterColorRef = useRef<string | undefined>(undefined);
-  const lastWaterOpacityRef = useRef<number | undefined>(undefined);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapLoaded || !mapStyleLoaded) return;
@@ -296,19 +295,17 @@ export const useMapStyling = ({
     try {
       // Only apply to styles that use the standard 'water' fill layer when style is loaded
       if (map.getStyle() && map.getLayer('water')) {
-        if (settings.waterColor !== undefined && lastWaterColorRef.current !== settings.waterColor) {
-          lastWaterColorRef.current = settings.waterColor;
+        if (settings.waterColor !== undefined) {
           map.setPaintProperty('water', 'fill-color', settings.waterColor);
         }
-        if (settings.waterOpacity !== undefined && lastWaterOpacityRef.current !== settings.waterOpacity) {
-          lastWaterOpacityRef.current = settings.waterOpacity;
+        if (settings.waterOpacity !== undefined) {
           map.setPaintProperty('water', 'fill-opacity', settings.waterOpacity);
         }
       }
     } catch (e) {
       console.warn("Could not apply water layer styling (style might not be loaded yet)");
     }
-  }, [mapLoaded, mapStyleLoaded, settings.waterColor, settings.waterOpacity, settings.mapStyle]);
+  }, [mapLoaded, mapStyleLoaded, mapStyleTick, settings.waterColor, settings.waterOpacity, settings.mapStyle]);
 
   // Dynamic Map Style & Solid Background Color Handler
   const defaultStyleStr = 'https://tiles.openfreemap.org/styles/liberty';
@@ -355,7 +352,25 @@ export const useMapStyling = ({
       // Normal style URL or JSON
       currentMapStyleRef.current = newStyleStr;
       let finalStyle: any = settings.mapStyle || defaultStyleStr;
-      map.setStyle(finalStyle, { diff: false });
+      
+      const applyAndSetStyle = (styleObj: any) => {
+        if (settings.replaceGothamFont !== false && typeof styleObj === 'object' && styleObj !== null) {
+          styleObj = applyMapFontOverridesToStyleJson(styleObj, settings);
+        }
+        map.setStyle(styleObj, { diff: false });
+      };
+
+      if (typeof finalStyle === 'string') {
+        fetch(finalStyle)
+          .then(res => res.json())
+          .then(styleObj => applyAndSetStyle(styleObj))
+          .catch(e => {
+            console.warn("Failed to fetch map style dynamically", e);
+            map.setStyle(finalStyle, { diff: false });
+          });
+      } else {
+        applyAndSetStyle(JSON.parse(JSON.stringify(finalStyle)));
+      }
     } catch (e) {
       console.warn("Could not update map style dynamically", e);
     }

@@ -305,7 +305,7 @@ export const setupCustomMapLayers = (map: maplibregl.Map, initFirstAdminId?: str
             filter: ['==', ['get', 'type'], 'invisible-collision-box'],
             layout: {
               'text-field': ['get', 'text'],
-              'text-font': settings?.replaceGothamFont !== false ? ['Gotham Bold', 'Arial Unicode MS Regular'] : ['Arial Unicode MS Regular'],
+              'text-font': settings?.replaceGothamFont !== false ? ['Gotham Condensed Bold', 'Arial Unicode MS Regular'] : ['Arial Unicode MS Regular'],
               'text-size': 14,
               'text-transform': 'uppercase',
               'text-allow-overlap': true,

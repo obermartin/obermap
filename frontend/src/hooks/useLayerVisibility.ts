@@ -71,7 +71,7 @@ export const useLayerVisibility = (props: LayerVisibilityProps) => {
       }
     }
 
-    const fallbFont = settings.replaceGothamFont !== false ? ['Gotham Bold', ...fSymbolFont] : fSymbolFont;
+    const fallbFont = settings.replaceGothamFont !== false ? ['Gotham Condensed Bold', ...fSymbolFont] : fSymbolFont;
 
     return { firstAdminId: fAdminId, firstSymbolId: fSymbolId, fallbackFont: fallbFont, computedLayers: layers };
   }, [map, mapStyleLoaded, settings, annotations, activeTool, revealedTriggers, hiddenTriggers]);

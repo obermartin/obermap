@@ -94,7 +94,7 @@ export const getBaseMapLayersInfo = (map: maplibregl.Map, settings: any) => {
     }
   }
 
-  const fallbackFont = settings.replaceGothamFont !== false ? ['Gotham Bold', ...firstSymbolFont] : firstSymbolFont;
+  const fallbackFont = settings.replaceGothamFont !== false ? ['Gotham Condensed Bold', ...firstSymbolFont] : firstSymbolFont;
 
   return { firstSymbolId, firstAdminId, fallbackFont, styleLayers };
 };
