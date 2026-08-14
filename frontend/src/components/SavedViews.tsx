@@ -82,7 +82,7 @@ const SavedViewItem = ({ annotation, isRevealDisabled, isHideDisabled, onFlyTo, 
                 e.stopPropagation();
                 window.dispatchEvent(new CustomEvent('updateCropKeyframe', { detail: { targetId: annotation.id, format: activeCropOverlay } }));
               }}
-              className={`w-9 h-9 rounded-full flex items-center justify-center border border-ui-border transition-colors shadow-lg ${annotation.cropSettings?.[activeCropOverlay] ? 'bg-ui-text text-ui-bg' : 'bg-black text-ui-text hover:bg-ui-text hover:text-ui-bg'}`}
+              className={`relative w-9 h-9 rounded-full flex items-center justify-center border border-ui-border transition-colors shadow-lg ui-glass-panel ${annotation.cropSettings?.[activeCropOverlay] ? 'bg-ui-text text-ui-bg active-glass-trigger' : 'bg-black text-ui-text hover:bg-ui-text hover:text-ui-bg'}`}
               title={t("Toggle Crop Keyframe")}
             >
               <KeyframeDiamond size={14} fill={annotation.cropSettings?.[activeCropOverlay] ? "currentColor" : "none"} />
@@ -95,7 +95,7 @@ const SavedViewItem = ({ annotation, isRevealDisabled, isHideDisabled, onFlyTo, 
               e.stopPropagation();
               window.dispatchEvent(new CustomEvent('updateAnimationTrigger', { detail: { targetId: selectedAnnotationId, triggerId: annotation.id, clearHideTrigger: isRevealDisabled } }));
             }}
-            className={`w-9 h-9 rounded-full flex items-center justify-center border border-ui-border transition-colors shadow-lg ${revealTriggerId === annotation.id ? 'bg-ui-text text-ui-bg' : 'bg-black text-ui-text hover:bg-ui-text hover:text-ui-bg'}`}
+            className={`relative w-9 h-9 rounded-full flex items-center justify-center border border-ui-border transition-colors shadow-lg ui-glass-panel ${revealTriggerId === annotation.id ? 'bg-ui-text text-ui-bg active-glass-trigger' : 'bg-black text-ui-text hover:bg-ui-text hover:text-ui-bg'}`}
             title={revealTriggerId === annotation.id ? t("Remove reveal animation trigger") : (isRevealDisabled ? t("Set as reveal trigger (will clear conflicting hide trigger)") : t("Set as reveal animation trigger for selected annotation"))}
           >
             <Play size={14} fill={revealTriggerId === annotation.id ? "currentColor" : "none"} className={revealTriggerId === annotation.id ? '' : 'ml-0.5'} />
@@ -105,7 +105,7 @@ const SavedViewItem = ({ annotation, isRevealDisabled, isHideDisabled, onFlyTo, 
               e.stopPropagation();
               window.dispatchEvent(new CustomEvent('updateHideAnimationTrigger', { detail: { targetId: selectedAnnotationId, triggerId: annotation.id, clearRevealTrigger: isHideDisabled } }));
             }}
-            className={`w-9 h-9 rounded-full flex items-center justify-center border border-ui-border transition-colors shadow-lg ${hideTriggerId === annotation.id ? 'bg-ui-text text-ui-bg' : 'bg-black text-ui-text hover:bg-ui-text hover:text-ui-bg'}`}
+            className={`relative w-9 h-9 rounded-full flex items-center justify-center border border-ui-border transition-colors shadow-lg ui-glass-panel ${hideTriggerId === annotation.id ? 'bg-ui-text text-ui-bg active-glass-trigger' : 'bg-black text-ui-text hover:bg-ui-text hover:text-ui-bg'}`}
             title={hideTriggerId === annotation.id ? t("Remove hide animation trigger") : (isHideDisabled ? t("Set as hide trigger (will clear conflicting reveal trigger)") : t("Set as hide animation trigger for selected annotation"))}
           >
             <Play size={14} fill={hideTriggerId === annotation.id ? "currentColor" : "none"} className={hideTriggerId === annotation.id ? 'scale-x-[-1]' : 'scale-x-[-1] ml-[-2px]'} />
@@ -203,7 +203,7 @@ export const SavedViews: React.FC<SavedViewsProps> = ({ annotations, onFlyTo, de
                   e.stopPropagation();
                   window.dispatchEvent(new CustomEvent('updateCropKeyframe', { detail: { targetId: 'overview', format: activeCropOverlay } }));
                 }}
-                className={`w-9 h-9 rounded-full flex items-center justify-center border border-ui-border transition-colors shadow-lg ${defaultView.cropSettings?.[activeCropOverlay] ? 'bg-ui-text text-ui-bg' : 'bg-black text-ui-text hover:bg-ui-text hover:text-ui-bg'}`}
+                className={`relative w-9 h-9 rounded-full flex items-center justify-center border border-ui-border transition-colors shadow-lg ui-glass-panel ${defaultView.cropSettings?.[activeCropOverlay] ? 'bg-ui-text text-ui-bg active-glass-trigger' : 'bg-black text-ui-text hover:bg-ui-text hover:text-ui-bg'}`}
                 title={t("Toggle Crop Keyframe")}
               >
                 <KeyframeDiamond size={14} fill={defaultView.cropSettings?.[activeCropOverlay] ? "currentColor" : "none"} />

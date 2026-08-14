@@ -76,21 +76,21 @@ export const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({ settings, se
             <label className="text-[10px] text-white font-semibold tracking-wider">
               {t("UI THEME")}
             </label>
-            <div className="flex bg-white/10 rounded-sm p-0.5">
+            <div className="flex bg-white/10 rounded-full p-0.5">
               <button
-                className={`text-[10px] px-2 py-0.5 rounded-sm transition-colors ${(!settings.uiTheme || settings.uiTheme === 'dark') && !settings.uiLiquidGlass ? 'bg-white text-black font-bold' : 'text-white/50 hover:text-white'}`}
+                className={`text-[10px] px-2 py-0.5 rounded-full transition-colors ${(!settings.uiTheme || settings.uiTheme === 'dark') && !settings.uiLiquidGlass ? 'bg-white text-black font-bold' : 'text-white/50 hover:text-white'}`}
                 onClick={() => setSettings(prev => ({ ...prev, uiTheme: 'dark', uiLiquidGlass: false }))}
               >
                 {t("DARK")}
               </button>
               <button
-                className={`text-[10px] px-2 py-0.5 rounded-sm transition-colors ${settings.uiTheme === 'light' && !settings.uiLiquidGlass ? 'bg-white text-black font-bold' : 'text-white/50 hover:text-white'}`}
+                className={`text-[10px] px-2 py-0.5 rounded-full transition-colors ${settings.uiTheme === 'light' && !settings.uiLiquidGlass ? 'bg-white text-black font-bold' : 'text-white/50 hover:text-white'}`}
                 onClick={() => setSettings(prev => ({ ...prev, uiTheme: 'light', uiLiquidGlass: false }))}
               >
                 {t("LIGHT")}
               </button>
               <button
-                className={`text-[10px] px-2 py-0.5 rounded-sm transition-colors ${settings.uiLiquidGlass ? 'bg-white text-black font-bold' : 'text-white/50 hover:text-white'}`}
+                className={`text-[10px] px-2 py-0.5 rounded-full transition-colors ${settings.uiLiquidGlass ? 'bg-white text-black font-bold' : 'text-white/50 hover:text-white'}`}
                 onClick={() => setSettings(prev => ({ ...prev, uiLiquidGlass: true }))}
               >
                 {t("GLASS")}

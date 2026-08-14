@@ -79,7 +79,7 @@ export const IconSettingsModal: React.FC<IconSettingsModalProps> = ({ annotation
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto">
-      <div className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 min-w-[350px] max-w-md shadow-2xl mx-4 w-full rounded-3xl">
+      <div className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 min-w-[350px] max-w-md shadow-2xl mx-4 w-full rounded-3xl relative ui-glass-panel">
         <h3 className="text-white font-semibold flex items-center gap-2 text-sm uppercase tracking-wider border-b border-white/10 pb-2">
           {t('Icon Settings')}
         </h3>
@@ -110,7 +110,7 @@ export const IconSettingsModal: React.FC<IconSettingsModalProps> = ({ annotation
                   setMediaFile(null);
                   setPreviewMediaUrl('');
                 }}
-                className="text-white hover:text-white/70 p-2 transition-colors rounded-full hover:bg-white/10"
+                className="relative text-white hover:text-white/70 p-2 transition-colors rounded-full hover:bg-black ui-glass-panel"
                 title={t('Remove')}
               >
                 <Trash2 size={20} />
@@ -148,7 +148,7 @@ export const IconSettingsModal: React.FC<IconSettingsModalProps> = ({ annotation
         <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-white/10">
           <button
             onClick={onClose}
-            className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors rounded-full"
+            className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors rounded-full modal-secondary-btn"
             disabled={isUploading}
           >
             {t('Cancel')}
@@ -156,7 +156,7 @@ export const IconSettingsModal: React.FC<IconSettingsModalProps> = ({ annotation
           <button
             onClick={handleSave}
             disabled={isUploading}
-            className="px-6 py-2 bg-white text-black hover:bg-white/90 text-sm transition-colors rounded-full flex items-center justify-center min-w-[100px]"
+            className="relative px-6 py-2 bg-white text-black hover:bg-white/90 text-sm transition-colors rounded-full flex items-center justify-center min-w-[100px] ui-glass-panel modal-primary-btn"
           >
             {isUploading ? <span className="animate-pulse">...</span> : t('Save')}
           </button>

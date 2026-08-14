@@ -65,7 +65,7 @@ export const GlobalDialog: React.FC = () => {
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto">
-      <div className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 min-w-[350px] max-w-md shadow-2xl mx-4 w-full rounded-3xl">
+      <div className="relative ui-glass-panel bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 min-w-[350px] max-w-md shadow-2xl mx-4 w-full rounded-3xl">
         <h3 className="text-white font-semibold flex items-center gap-2 text-sm uppercase tracking-wider border-b border-white/10 pb-2">
           {dialog.type === 'alert' && t('ATTENTION')}
           {dialog.type === 'confirm' && t('CONFIRMATION REQUIRED')}
@@ -87,14 +87,14 @@ export const GlobalDialog: React.FC = () => {
           {dialog.type !== 'alert' && (
             <button
               onClick={handleCancel}
-              className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors rounded-full"
+              className="px-6 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors rounded-full modal-secondary-btn"
             >
               {dialog.cancelLabel ? t(dialog.cancelLabel) : t('Cancel')}
             </button>
           )}
           <button
             onClick={handleConfirm}
-            className="px-6 py-2 bg-white text-black hover:bg-white/90 text-sm transition-colors rounded-full"
+            className="relative px-6 py-2 bg-white text-black hover:bg-white/90 text-sm transition-colors rounded-full ui-glass-panel modal-primary-btn"
           >
             {dialog.type === 'alert' ? t('OK') : (dialog.confirmLabel ? t(dialog.confirmLabel) : t('Confirm'))}
           </button>

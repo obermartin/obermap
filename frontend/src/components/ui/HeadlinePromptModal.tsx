@@ -31,7 +31,7 @@ export function HeadlinePromptModal({
 
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto">
-      <div className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 min-w-[350px] max-w-md shadow-2xl">
+      <div className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 min-w-[350px] max-w-md shadow-2xl relative ui-glass-panel rounded-3xl">
         <h3 className="text-white font-semibold flex items-center gap-2 text-sm uppercase tracking-wider border-b border-white/10 pb-2">
           {headlinePrompt.id ? t("Edit Headline") : t("Add Headline")}
         </h3>
@@ -63,14 +63,14 @@ export function HeadlinePromptModal({
         <div className="flex justify-end gap-2 mt-2 pt-4 border-t border-white/10">
           <button 
             onClick={() => setHeadlinePrompt(null)}
-            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors rounded-full"
+            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors rounded-full modal-secondary-btn"
           >
             {t("Cancel")}
           </button>
           <button 
             onClick={handleSave}
             disabled={!headlineInput.trim() && !highlightedLineInput.trim()}
-            className="px-4 py-2 bg-white text-black hover:bg-white/90 text-sm font-semibold transition-colors rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
+            className="relative px-4 py-2 bg-white text-black hover:bg-white/90 text-sm font-semibold transition-colors rounded-full disabled:opacity-50 disabled:cursor-not-allowed ui-glass-panel modal-primary-btn"
           >
             {t("Save")}
           </button>

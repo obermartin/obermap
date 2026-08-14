@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 32 32">
+<svg id="Layer_1-primary-pointer" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 32 32">
   <defs>
     <style>
       .cls-1 {
-        fill: url(#linear-gradient-2);
+        fill: url(#linear-gradient-2-primary-pointer);
       }
 
       .cls-2 {
-        fill: url(#linear-gradient);
+        fill: url(#linear-gradient-primary-pointer);
       }
 
       .cls-2, .cls-3 {
@@ -150,13 +150,13 @@
         opacity: 0;
       }
     </style>
-    <linearGradient id="linear-gradient" x1="16" y1="32" x2="16" y2="0" gradientUnits="userSpaceOnUse">
+    <linearGradient id="linear-gradient-primary-pointer" x1="16" y1="32" x2="16" y2="0" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#96161a"/>
       <stop offset=".55" stop-color="#e0363a"/>
       <stop offset=".74" stop-color="#e3373b"/>
       <stop offset="1" stop-color="#aa1e22"/>
     </linearGradient>
-    <linearGradient id="linear-gradient-2" x1="15.16" y1=".02" x2="16.84" y2="31.98" gradientUnits="userSpaceOnUse">
+    <linearGradient id="linear-gradient-2-primary-pointer" x1="15.16" y1=".02" x2="16.84" y2="31.98" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#fff"/>
       <stop offset=".32" stop-color="#bf282b"/>
       <stop offset=".64" stop-color="#cd5759"/>

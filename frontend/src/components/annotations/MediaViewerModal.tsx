@@ -62,7 +62,7 @@ export const MediaViewerModal: React.FC<MediaViewerModalProps> = ({ annotation, 
       onClick={onClose}
     >
       <div 
-        className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 shadow-2xl mx-4 rounded-3xl w-[75vw] h-[75vh]"
+        className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 shadow-2xl mx-4 rounded-3xl w-[75vw] h-[75vh] relative ui-glass-panel"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center shrink-0">
