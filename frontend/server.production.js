@@ -215,7 +215,12 @@ app.use(async (req, res, next) => {
       if (!targetUrl.startsWith("https://maps.effis.emergency.copernicus.eu/")) {
         return res.status(400).json({ error: "Invalid url" });
       }
-      const proxyReq = https.request(targetUrl, { method: "GET", headers: {} }, (proxyRes) => {
+      const proxyReq = https.request(targetUrl, { 
+        method: "GET", 
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+      }, (proxyRes) => {
         if (proxyRes.statusCode !== 200) {
           res.writeHead(200, {
             "Content-Type": "image/png",
@@ -251,6 +256,29 @@ app.use(async (req, res, next) => {
         method: "GET", 
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        },
+        rejectUnauthorized: false
+      }, (proxyRes) => {
+        res.writeHead(proxyRes.statusCode || 200, {
+          "Content-Type": proxyRes.headers["content-type"] || "application/json",
+          "Access-Control-Allow-Origin": "*",
+        });
+        proxyRes.pipe(res);
+      });
+      proxyReq.on("error", (e) => res.status(500).json({ error: e.message }));
+      proxyReq.end();
+      return;
+    }
+
+    if (action === "proxy_cems") {
+      const targetUrl = req.query.url || "";
+      if (!targetUrl.startsWith("https://rapidmapping.emergency.copernicus.eu/")) {
+        return res.status(400).json({ error: "Invalid url" });
+      }
+      const proxyReq = https.request(targetUrl, { 
+        method: "GET", 
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         },
         rejectUnauthorized: false
       }, (proxyRes) => {

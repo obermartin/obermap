@@ -1,9 +1,8 @@
 import React from "react";
-import { Download, Loader2 } from "lucide-react";
 import { useTranslation } from "../../../../contexts/I18nContext";
 import type { LayerSettingsProps } from "../types";
 
-export const WildfireFloodSettings: React.FC<LayerSettingsProps> = ({ layer, updateLayerProperty, exportReadyData }) => {
+export const WildfireFloodSettings: React.FC<LayerSettingsProps> = ({ layer, updateLayerProperty }) => {
   const { t } = useTranslation();
 
   if (layer.type !== "wildfires" && layer.id !== "floods") return null;
@@ -57,45 +56,7 @@ export const WildfireFloodSettings: React.FC<LayerSettingsProps> = ({ layer, upd
               className="w-full accent-white h-1 bg-white/20 appearance-none cursor-pointer"
             />
 
-            {/* CEMS Export Button */}
-            {(() => {
-              const cemsType =
-                layer.type === "wildfires" ? "cems_wildfire" : "cems_flood";
-              const readyData = exportReadyData[cemsType];
-              if (!readyData || readyData.ready === "empty") return null;
 
-              return (
-                <div className="flex flex-col gap-2 mt-2">
-                  <button
-                    disabled={!readyData.ready}
-                    onClick={() => {
-                      window.dispatchEvent(
-                        new CustomEvent("requestGeoJsonExport", {
-                          detail: { type: cemsType, id: layer.id },
-                        })
-                      );
-                    }}
-                    className={`text-xs py-1.5 px-3 rounded flex items-center gap-2 justify-center transition-colors ${
-                      readyData.ready
-                        ? "bg-white/10 hover:bg-white/20 text-white cursor-pointer"
-                        : "bg-white/5 text-white/50 cursor-not-allowed"
-                    }`}
-                  >
-                    {readyData.ready ? (
-                      <>
-                        <Download size={14} />
-                        {t("Download GeoJSON")}
-                      </>
-                    ) : (
-                      <>
-                        <Loader2 size={14} className="animate-spin" />
-                        {t("Loading...")}
-                      </>
-                    )}
-                  </button>
-                </div>
-              );
-            })()}
           </div>
         )}
       </div>

@@ -4,7 +4,7 @@
 
 - When making code changes, as a last verification step before declaring a task finished, ALWAYS check if the app loads without crashing (e.g. by checking the local dev server logs or requesting the user to verify).
 
-- When reporting a task as done, ALWAYS make sure the local dev server is currently up and running so the user can immediately test it without having to start it themselves. If it immediately crashes on startup, DO NOT report the task as done. Instead, fix whatever is causing the crash, restart the server, and verify it stays up before completing your turn.
+- When reporting a task as done, ALWAYS make sure the local dev server is currently up and running so the user can immediately test it without having to start it themselves. However, before you go starting a local dev server, please check if there is already one running at port 5173. If there is, don't start a new one. If it immediately crashes on startup, DO NOT report the task as done. Instead, fix whatever is causing the crash, restart the server, and verify it stays up before completing your turn.
 
 - Always keep files small and modular. If a React component or hook starts growing beyond 300-400 lines, automatically pause and suggest a plan to split it into smaller, reusable sub-components or utility files before adding more logic.
 

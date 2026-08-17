@@ -246,6 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2); // Connect quickly or fail
     curl_setopt($ch, CURLOPT_TIMEOUT, 4); // Don't hang PHP workers for long if EFFIS is slow
+    curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -279,6 +280,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -291,6 +293,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['act
     } else {
         http_response_code($httpCode ? $httpCode : 500);
         echo json_encode(['error' => 'Proxy request failed']);
+    }
+    exit;
+}
+
+// Handle CEMS proxy request
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['action']) && $_GET['action'] === 'proxy_cems') {
+    $targetUrl = $_GET['url'] ?? '';
+    if (!$targetUrl || (strpos($targetUrl, 'https://rapidmapping.emergency.copernicus.eu/') !== 0 && strpos($targetUrl, 'https://rapidmapping-viewer.s3.eu-west-1.amazonaws.com/') !== 0)) {
+        http_response_code(400);
+        echo json_encode(['error' => 'Invalid or missing target URL']);
+        exit;
+    }
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $targetUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    curl_close($ch);
+    
+    if ($httpCode === 200 && $response) {
+        header("Content-Type: " . ($contentType ? $contentType : "application/json"));
+        echo $response;
+    } else {
+        http_response_code($httpCode ? $httpCode : 500);
+        echo json_encode(['error' => 'Proxy request failed', 'code' => $httpCode]);
     }
     exit;
 }

@@ -1,6 +1,7 @@
 import maplibregl from 'maplibre-gl';
 import type { AppSettings } from '../../../types';
 import type { MutableRefObject } from 'react';
+import * as turf from '@turf/turf';
 
 export const handleCemsSelection = (
   e: maplibregl.MapMouseEvent,
@@ -33,18 +34,29 @@ export const handleCemsSelection = (
   }
 
   if (clickedAoiFeatures.length > 0) {
+    console.log(`[CEMS Debug] Clicked ${clickedAoiFeatures.length} AOI features`, clickedAoiFeatures[0].properties);
     clickedAoiFeatures.forEach(aoi => {
       if (aoi.properties?.activationCode) {
         let products = undefined;
-        try { products = JSON.parse(aoi.properties._products); } catch (e) {}
+        try { products = JSON.parse(aoi.properties._products); } catch (e) {
+          console.warn(`[CEMS Debug] Failed to parse products JSON`, e);
+        }
+        
+        // Dispatch event with the centroid for the download overlay
+        const centroid = turf.centroid(aoi.geometry as any);
+        const coordinates = centroid.geometry.coordinates as [number, number];
+
         window.dispatchEvent(new CustomEvent('fetchCemsDetails', {
           detail: {
             activationCode: aoi.properties.activationCode,
             aoiName: aoi.properties.aoiName,
             cemsType: aoi.properties.cemsType,
-            products
+            products,
+            coordinates // Pass coordinates for the overlay
           }
         }));
+      } else {
+        console.warn(`[CEMS Debug] AOI feature has no activationCode!`, aoi.properties);
       }
     });
     return true;

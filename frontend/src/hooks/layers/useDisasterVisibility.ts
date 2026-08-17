@@ -173,17 +173,38 @@ export const useDisasterVisibility = (props: DisasterVisibilityProps) => {
       if (layer.type.startsWith('gdacs_') || layer.type === 'cems_rapid_mapping') {
         const sourceId = `dynamic-source-${layer.id}`;
         let { effectiveStartDate: startDate, effectiveEndDate: endDate } = getEffectiveLayerDates(layer, settings);
-        const cacheKey = `${layer.type}-${startDate}-${endDate}`;
+        
+        // CEMS data is fetched once (limit=50) and cached without dates, then filtered client-side.
+        const cacheKey = layer.type === 'cems_rapid_mapping' 
+          ? `${layer.type}-base` 
+          : `${layer.type}-${startDate}-${endDate}`;
+
         if (gdacsDataCacheRef.current[cacheKey]) {
-          if ((map as any)[`_gdacsAppliedKey_${layer.id}`] !== cacheKey) {
+          if ((map as any)[`_gdacsAppliedKey_${layer.id}`] !== `${cacheKey}-${startDate}-${endDate}`) {
             const source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
             if (source) {
-              source.setData(gdacsDataCacheRef.current[cacheKey]);
-              (map as any)[`_gdacsAppliedKey_${layer.id}`] = cacheKey;
+              let finalData = gdacsDataCacheRef.current[cacheKey];
+              
+              if (layer.type === 'cems_rapid_mapping') {
+                 // Filter cached CEMS data by the current timeslider dates
+                 const start = new Date(startDate).getTime();
+                 const end = new Date(endDate).getTime();
+                 finalData = {
+                   ...finalData,
+                   features: finalData.features.filter((f: any) => {
+                     const activationT = new Date(f.properties.activationTime || f.properties.eventTime).getTime();
+                     const endT = f.properties.closed 
+                       ? new Date(f.properties.lastUpdate || f.properties.activationTime).getTime() 
+                       : Date.now();
+                     return activationT <= end && endT >= start;
+                   })
+                 };
+              }
+              
+              source.setData(finalData);
+              (map as any)[`_gdacsAppliedKey_${layer.id}`] = `${cacheKey}-${startDate}-${endDate}`;
             }
           }
-        } else if ((map as any)[`_gdacsPendingKey_${layer.id}`] === cacheKey) {
-          // Already fetching this exact key, don't abort and restart
         } else {
           // Cancel any in-flight requests for this layer (for a DIFFERENT key)
           if ((map as any)[`_gdacsAbort_${layer.id}`]) {
@@ -197,13 +218,13 @@ export const useDisasterVisibility = (props: DisasterVisibilityProps) => {
             try {
               let geojsonData: any = { type: 'FeatureCollection', features: [] };
               if (layer.type === 'cems_rapid_mapping') {
-                const url = `https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations-info/?limit=50`;
+                const rawUrl = `https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations-info/?limit=50`;
+                const url = `./api.php?action=proxy_cems&url=${encodeURIComponent(rawUrl)}`;
                 const res = await fetch(url, { signal: abortController.signal });
                 if (!res.ok) throw new Error(`Failed to fetch CEMS data`);
                 const data = await res.json();
                 if (data && data.results) {
                   geojsonData.features = data.results
-                    .filter((act: any) => act.category === 'Earthquake')
                     .map((act: any) => {
                       const geom = parseWKT(act.centroid);
                       if (!geom) return null;
@@ -251,8 +272,23 @@ export const useDisasterVisibility = (props: DisasterVisibilityProps) => {
               }
               gdacsDataCacheRef.current[cacheKey] = geojsonData;
               if (map && map.getStyle() && map.getSource(sourceId)) {
-                (map.getSource(sourceId) as maplibregl.GeoJSONSource).setData(geojsonData);
-                (map as any)[`_gdacsAppliedKey_${layer.id}`] = cacheKey;
+                let finalData = geojsonData;
+                if (layer.type === 'cems_rapid_mapping') {
+                  const start = new Date(startDate).getTime();
+                  const end = new Date(endDate).getTime();
+                  finalData = {
+                    ...finalData,
+                    features: finalData.features.filter((f: any) => {
+                      const activationT = new Date(f.properties.activationTime || f.properties.eventTime).getTime();
+                      const endT = f.properties.closed 
+                        ? new Date(f.properties.lastUpdate || f.properties.activationTime).getTime() 
+                        : Date.now();
+                      return activationT <= end && endT >= start;
+                    })
+                  };
+                }
+                (map.getSource(sourceId) as maplibregl.GeoJSONSource).setData(finalData);
+                (map as any)[`_gdacsAppliedKey_${layer.id}`] = `${cacheKey}-${startDate}-${endDate}`;
               }
             } catch (err: any) {
               if (err.name === 'AbortError') return;

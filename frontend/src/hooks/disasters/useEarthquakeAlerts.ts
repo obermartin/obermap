@@ -39,7 +39,9 @@ export const useEarthquakeAlerts = (
     let isSubscribed = true;
     (async () => {
       try {
-        const res = await fetch(`https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations/?code=${selectedCemsEarthquake.code}`);
+        const rawUrl = `https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations/?code=${selectedCemsEarthquake.code}`;
+        const url = `./api.php?action=proxy_cems&url=${encodeURIComponent(rawUrl)}`;
+        const res = await fetch(url);
         if (!res.ok) throw new Error('Failed to fetch detailed CEMS activation');
         const data = await res.json();
         
@@ -431,54 +433,69 @@ export const useEarthquakeAlerts = (
     (async () => {
       try {
         console.log(`Fetching CEMS for gdacsId: EQ${selectedEarthquake.id}`);
-        const res = await fetch(`https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations-info/?gdacsId=EQ${selectedEarthquake.id}`);
+        const rawUrl = `https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations-info/?gdacsId=EQ${selectedEarthquake.id}`;
+        const url = `./api.php?action=proxy_cems&url=${encodeURIComponent(rawUrl)}`;
+        const res = await fetch(url);
         let act = null;
-
         if (res.ok) {
-           const data = await res.json();
-           if (data && data.results && data.results.length > 0) {
-             act = data.results[0];
-           }
+          try {
+            const data = await res.json();
+            if (data.results && data.results.length > 0) {
+              act = data.results[0];
+              console.log(`[CEMS Debug] Found CEMS activation for gdacsId EQ${selectedEarthquake.id}:`, act.code);
+            }
+          } catch (e) {
+            console.warn(`[CEMS Debug] Invalid JSON when fetching by gdacsId:`, e);
+          }
         }
         
         // Fallback to spatial matching if gdacsId fails
         if (!act) {
-           console.log(`gdacsId match failed. Attempting spatial matching for earthquake coordinates:`, selectedEarthquake.coordinates);
-           const allRes = await fetch(`https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations-info/`);
+           console.log(`[CEMS Debug] gdacsId match failed. Attempting spatial matching for earthquake coordinates:`, selectedEarthquake.coordinates);
+           const rawUrl2 = `https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations-info/`;
+           const url2 = `./api.php?action=proxy_cems&url=${encodeURIComponent(rawUrl2)}`;
+           const allRes = await fetch(url2);
            if (allRes.ok) {
              const allData = await allRes.json();
              if (allData && allData.results) {
+               console.log(`[CEMS Debug] Spatial match search - fetched ${allData.results.length} activations`);
                // Find all earthquake activations
                const earthquakes = allData.results.filter((a: any) => a.category === 'Earthquake' && a.centroid);
                
-               let closestAct = null;
-               let minDistance = Infinity;
-
-               for (const a of earthquakes) {
+                let bestMatch = null;
+               let bestDist = Infinity;
+               
+               console.log(`[CEMS Debug] Evaluating ${earthquakes.length} earthquakes for spatial match against ${selectedEarthquake.coordinates}`);
+               
+               for (const eq of earthquakes) {
                  // Ensure the CEMS event time is within 7 days of the GDACS earthquake time
                  const eqDate = new Date(selectedEarthquake.properties.fromdate);
-                 const cemsDate = new Date(a.eventTime || a.activationTime);
+                 const cemsDate = new Date(eq.eventTime || eq.activationTime);
                  const timeDiffDays = Math.abs(eqDate.getTime() - cemsDate.getTime()) / (1000 * 3600 * 24);
                  
                  if (isNaN(timeDiffDays) || timeDiffDays > 7) {
                    continue;
                  }
 
-                 const geom = parseWKT(a.centroid);
-                 if (geom && geom.geometry && geom.geometry.type === 'Point') {
-                   const cemsCoords = geom.geometry.coordinates as [number, number];
-                   const dist = haversineDistance(selectedEarthquake.coordinates, cemsCoords);
-                   if (dist < minDistance) {
-                     minDistance = dist;
-                     closestAct = a;
+                 const geom = parseWKT(eq.centroid);
+                 if (geom) {
+                   const dist = haversineDistance(
+                     [selectedEarthquake.coordinates[0], selectedEarthquake.coordinates[1]],
+                     geom.geometry.coordinates
+                   );
+                   console.log(`[CEMS Debug] EQ ${eq.code} distance: ${dist}km. Expected [lon,lat] but got selectedEQ=${selectedEarthquake.coordinates[0]},${selectedEarthquake.coordinates[1]} and CEMS=${geom.geometry.coordinates[0]},${geom.geometry.coordinates[1]}`);
+                   // Buffer of 100km
+                   if (dist <= 100 && dist < bestDist) {
+                     bestDist = dist;
+                     bestMatch = eq;
                    }
                  }
                }
 
                // If the closest CEMS earthquake is within 100km, match it
-               if (closestAct && minDistance <= 100) {
-                 console.log(`Spatial match found: ${closestAct.code} at distance ${minDistance.toFixed(2)}km`);
-                 act = closestAct;
+               if (bestMatch && bestDist <= 100) {
+                 console.log(`[CEMS Debug] Spatial match found: ${bestMatch.code} at distance ${bestDist.toFixed(2)}km`);
+                 act = bestMatch;
                }
              }
            }

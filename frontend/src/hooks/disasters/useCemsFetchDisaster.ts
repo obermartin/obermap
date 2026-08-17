@@ -43,12 +43,17 @@ export const useCemsFetchDisaster = ({
     (async () => {
       try {
         if (!allCemsActivationsRef.current) {
-          allCemsActivationsRef.current = fetch(`https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations-info/?limit=2000`)
+          const rawUrl = `https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations-info/?limit=2000`;
+          const url = `./api.php?action=proxy_cems&url=${encodeURIComponent(rawUrl)}`;
+          allCemsActivationsRef.current = fetch(url)
             .then(res => res.json())
             .then(data => data?.results || []);
         }
         const activations = await allCemsActivationsRef.current;
-        if (!activations) return;
+        if (!activations) {
+           console.log(`[CEMS Debug] ${cemsType} - no activations returned from limit=2000`);
+           return;
+        }
 
         const sDate = new Date(effectiveStartDate).getTime();
         const eDate = new Date(effectiveEndDate).getTime() + 24 * 60 * 60 * 1000 - 1;
@@ -58,6 +63,8 @@ export const useCemsFetchDisaster = ({
           const buffer = 7 * 24 * 60 * 60 * 1000;
           return (actTime >= sDate - buffer && actTime <= eDate + buffer);
         });
+        
+        console.log(`[CEMS Debug] ${cemsType} - found ${matching.length} matching activations for ${category} between ${new Date(sDate).toISOString()} and ${new Date(eDate).toISOString()}`);
 
         if (matching.length === 0) {
           if (isSubscribed) {
@@ -70,7 +77,9 @@ export const useCemsFetchDisaster = ({
         const fetchPromises = matching.map((act: any) => {
           if (!cemsFeatureCacheRef.current[act.code]) {
             cemsFeatureCacheRef.current[act.code] = (async () => {
-              const res = await fetch(`https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations/?code=${act.code}`);
+              const rawUrl2 = `https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations/?code=${act.code}`;
+              const url2 = `./api.php?action=proxy_cems&url=${encodeURIComponent(rawUrl2)}`;
+              const res = await fetch(url2);
               const data = await res.json();
               const actFeatures: any[] = [];
               if (data?.results?.[0]?.aois) {
@@ -104,6 +113,7 @@ export const useCemsFetchDisaster = ({
         });
 
         const allFeatures = (await Promise.all(fetchPromises)).flat();
+        console.log(`[CEMS Debug] ${cemsType} - successfully extracted ${allFeatures.length} AOI features`);
         if (isSubscribed) {
           if (allFeatures.length > 0) {
             setActiveFeatures({ type: 'FeatureCollection', features: allFeatures });

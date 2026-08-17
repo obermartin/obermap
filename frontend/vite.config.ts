@@ -232,7 +232,12 @@ function mockPhpBackend(env: Record<string, string>) {
               res.end(JSON.stringify({ error: "Invalid url" }));
               return;
             }
-            const options: any = { method: "GET", headers: {} };
+            const options: any = { 
+              method: "GET", 
+              headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+              }
+            };
             const proxyReq = https.request(targetUrl, options, (proxyRes) => {
               if (proxyRes.statusCode !== 200) {
                 res.writeHead(200, {
@@ -284,6 +289,32 @@ function mockPhpBackend(env: Record<string, string>) {
             }
             return;
           }
+
+          if (action === "proxy_cems") {
+            const targetUrl = urlObj.searchParams.get("url") || "";
+            if (!targetUrl.startsWith("https://rapidmapping.emergency.copernicus.eu/") && !targetUrl.startsWith("https://rapidmapping-viewer.s3.eu-west-1.amazonaws.com/")) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: "Invalid url" }));
+              return;
+            }
+            try {
+              const fetchRes = await fetch(targetUrl, {
+                headers: {
+                  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                }
+              });
+              const buffer = await fetchRes.arrayBuffer();
+              res.statusCode = fetchRes.status;
+              res.setHeader("Content-Type", fetchRes.headers.get("content-type") || "application/json");
+              res.setHeader("Access-Control-Allow-Origin", "*");
+              res.end(Buffer.from(buffer));
+            } catch (e: any) {
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: e.message }));
+            }
+            return;
+          }
+
 
           if (action === "migrate_to_sql" || action === "migrate_to_mongodb") {
             res.setHeader("Content-Type", "application/json");

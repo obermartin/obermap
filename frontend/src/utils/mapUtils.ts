@@ -4,20 +4,36 @@ import maplibregl from 'maplibre-gl';
 export const executeWhenStyleLoaded = (map: maplibregl.Map | null, callback: () => void) => {
   if (!map) return;
   
-  // map.isStyleLoaded() waits for ALL tiles, glyphs, and sprites to load. 
-  // If a tile fails, it might never return true.
-  // We only need the style object to be ready so we can add sources and layers.
-  const style = map.getStyle();
-  if (style && style.layers) {
-    try {
-      callback();
-    } catch (e) {
-      console.error("Error in executeWhenStyleLoaded callback:", e);
+  const checkAndRun = () => {
+    const style = map.getStyle();
+    if (style && style.layers && style.layers.length > 0) {
+      try {
+        console.log("[CEMS Debug] executeWhenStyleLoaded: style is loaded, running callback...");
+        callback();
+      } catch (e) {
+        console.error("Error in executeWhenStyleLoaded callback:", e);
+      }
+      return true;
     }
-  } else {
+    return false;
+  };
+
+  if (!checkAndRun()) {
+    console.log("[CEMS Debug] executeWhenStyleLoaded: style not ready, waiting for styledata or load...");
+    // Fallback if events are missed
+    const interval = setInterval(() => {
+      if (checkAndRun()) clearInterval(interval);
+    }, 500);
+
     map.once('styledata', () => {
-      executeWhenStyleLoaded(map, callback);
+      if (checkAndRun()) clearInterval(interval);
     });
+    map.once('load', () => {
+      if (checkAndRun()) clearInterval(interval);
+    });
+    
+    // Clear interval after 15 seconds to prevent memory leaks if map completely fails
+    setTimeout(() => clearInterval(interval), 15000);
   }
 };
 export const createCirclePolygon = (center: [number, number], radiusKm: number, points: number = 64) => {
@@ -314,7 +330,8 @@ let activeCemsFetches = 0;
 export async function safeFetchCemsJson(url: string) {
   return enqueueCemsFetch(async () => {
     try {
-      const res = await fetch(url);
+      const proxyUrl = `./api.php?action=proxy_cems&url=${encodeURIComponent(url)}`;
+      const res = await fetch(proxyUrl);
       if (!res.ok) return [];
       const text = await res.text();
       try {

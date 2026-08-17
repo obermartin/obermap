@@ -49,12 +49,17 @@ export const addLayerSafely = (map: maplibregl.Map, layer: any, explicitBeforeId
 };
 
 export const setupCemsLayers = (map: maplibregl.Map, sourceId: string) => {
-  if (map.getSource(sourceId)) return;
+  if (map.getSource(sourceId)) {
+    console.log(`[CEMS Debug] Source ${sourceId} already exists, skipping setup.`);
+    return;
+  }
 
+  console.log(`[CEMS Debug] Adding source ${sourceId}...`);
   map.addSource(sourceId, {
     type: 'geojson',
-    data: { type: 'FeatureCollection', features: [] },
-    tolerance: 0.5 // Reduce geometry complexity to save Web Worker RAM
+    data: { type: 'FeatureCollection', features: [] }
+    // Removed tolerance: 0 to allow Mapbox to simplify geometries. 
+    // Without simplification, 6000+ complex MultiPolygons cause an Out of Memory WebWorker crash.
   });
 
   const layerPrefix = sourceId.replace('-source', '');
@@ -159,7 +164,18 @@ export const setupCemsLayers = (map: maplibregl.Map, sourceId: string) => {
     source: sourceId,
     filter: ['all', 
       ['!=', 'isExtent', true],
-      ['==', '_isPoint', true]
+      ['==', '_isPoint', true],
+      ['any',
+        ['==', 'damage_gra', 'Destroyed'],
+        ['==', 'damage_gra', 'Damaged'],
+        ['==', 'damage_gra', 'Possibly damaged'],
+        ['==', 'grading', 'Destroyed'],
+        ['==', 'grading', 'Damaged'],
+        ['==', 'grading', 'Possibly damaged'],
+        ['==', 'notation', 'Destroyed'],
+        ['==', 'notation', 'Damaged'],
+        ['==', 'notation', 'Possibly damaged']
+      ]
     ],
     layout: { 'visibility': 'visible' },
     paint: {
