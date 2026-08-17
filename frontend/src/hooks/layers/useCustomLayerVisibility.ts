@@ -49,8 +49,8 @@ export const useCustomLayerVisibility = (props: CustomLayerVisibilityProps) => {
             source: sourceId,
             layout: { visibility: layer.visible ? 'visible' : 'none' },
             paint: {
-              'fill-color': ['coalesce', ['get', 'fillColor'], '#00A79D'],
-              'fill-opacity': ['coalesce', ['get', 'fillOpacity'], 0.5]
+              'fill-color': ['coalesce', ['get', 'fill'], '#00A79D'],
+              'fill-opacity': ['coalesce', ['get', 'fill-opacity'], 0.5]
             }
           }, firstAdminId);
           map.addLayer({
@@ -59,9 +59,9 @@ export const useCustomLayerVisibility = (props: CustomLayerVisibilityProps) => {
             source: sourceId,
             layout: { visibility: layer.visible ? 'visible' : 'none' },
             paint: {
-              'line-color': ['coalesce', ['get', 'outlineColor'], 'transparent'],
-              'line-width': ['coalesce', ['get', 'outlineWidth'], 0],
-              'line-opacity': ['coalesce', ['get', 'outlineOpacity'], 1.0]
+              'line-color': ['coalesce', ['get', 'stroke'], 'transparent'],
+              'line-width': ['coalesce', ['get', 'stroke-width'], 0],
+              'line-opacity': ['coalesce', ['get', 'stroke-opacity'], 1.0]
             }
           }, firstAdminId);
         } else if (layer.type === 'deepstate') {
@@ -298,14 +298,14 @@ export const useCustomLayerVisibility = (props: CustomLayerVisibilityProps) => {
             map.setPaintProperty('selected-vessel-track-layer', 'line-color', trackColorExp as any);
           }
         } else if (layer.type === 'geojson') {
-          setLayerFade(layerId, 'fill', layer._effectiveOpacityVisible ?? true, ['coalesce', ['get', 'fillOpacity'], 0.5] as any, layer.visible);
+          setLayerFade(layerId, 'fill', layer._effectiveOpacityVisible ?? true, ['coalesce', ['get', 'fill-opacity'], 0.5] as any, layer.visible);
         }
       }
 
       if (map.getLayer(lineId)) {
         map.setLayoutProperty(lineId, 'visibility', layer.visible ? 'visible' : 'none');
         if (layer.type === 'geojson') {
-          setLayerFade(lineId, 'line', layer._effectiveOpacityVisible ?? true, ['coalesce', ['get', 'lineOpacity'], 1.0] as any, layer.visible);
+          setLayerFade(lineId, 'line', layer._effectiveOpacityVisible ?? true, ['coalesce', ['get', 'stroke-opacity'], 1.0] as any, layer.visible);
         }
       }
 

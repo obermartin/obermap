@@ -21,6 +21,8 @@ export interface Annotation {
   iconId?: string;
   mediaUrl?: string;
   mediaName?: string;
+  mediaHeadline?: string;
+  mediaDataSource?: string;
   linkUrl?: string;
   routeGeometry?: any;
   routeMode?: RouteMode;

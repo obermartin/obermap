@@ -147,17 +147,14 @@ export const useDisasterVisibility = (props: DisasterVisibilityProps) => {
 
       if (map.getLayer(layerId)) {
         map.setLayoutProperty(layerId, 'visibility', layer.visible ? 'visible' : 'none');
-        if (layer.type === 'wildfires') {
-          if (map.getLayer(`${layerId}-effis`)) {
-            setLayerFade(`${layerId}-effis`, 'raster', layer._effectiveOpacityVisible ?? true, layer.opacity ?? 0.75, layer.visible);
-            map.setLayoutProperty(`${layerId}-effis`, 'visibility', layer.visible ? 'visible' : 'none');
-          }
-        } else if (layer.type === 'gdacs_earthquakes' || layer.type === 'gdacs_volcanoes') {
+        if (layer.type === 'gdacs_earthquakes' || layer.type === 'gdacs_volcanoes') {
           setLayerFade(layerId, 'circle', layer._effectiveOpacityVisible ?? true, layer.opacity ?? 0.8, layer.visible);
           if (map.getLayer(`${layerId}-label`)) {
             setLayerFade(`${layerId}-label`, 'text', layer._effectiveOpacityVisible ?? true, 1.0, layer.visible);
             map.setLayoutProperty(`${layerId}-label`, 'visibility', layer.visible ? 'visible' : 'none');
           }
+        } else if (layer.type === 'gdacs_cyclones') {
+          setLayerFade(layerId, 'fill', layer._effectiveOpacityVisible ?? true, layer.opacity ?? 0.3, layer.visible);
         } else if (layer.type === 'cems_rapid_mapping') {
           setLayerFade(layerId, 'circle', layer._effectiveOpacityVisible ?? true, layer.opacity ?? 0.8, layer.visible);
           if (map.getLayer(`${layerId}-label`)) {
@@ -165,6 +162,11 @@ export const useDisasterVisibility = (props: DisasterVisibilityProps) => {
             map.setLayoutProperty(`${layerId}-label`, 'visibility', layer.visible ? 'visible' : 'none');
           }
         }
+      }
+
+      if (layer.type === 'wildfires' && map.getLayer(`${layerId}-effis`)) {
+        setLayerFade(`${layerId}-effis`, 'raster', layer._effectiveOpacityVisible ?? true, layer.opacity ?? 0.75, layer.visible);
+        map.setLayoutProperty(`${layerId}-effis`, 'visibility', layer.visible ? 'visible' : 'none');
       }
     });
 

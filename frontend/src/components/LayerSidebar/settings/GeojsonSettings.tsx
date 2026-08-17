@@ -10,7 +10,7 @@ export const GeojsonSettings = (props: LayerSettingsProps) => {
   const [editTarget, setEditTarget] = useState<"fill" | "outline">("fill");
   const feature = selectedFeatureId !== null 
     ? layer.data?.features?.find((f: any) => f.id === selectedFeatureId) 
-    : null;
+    : layer.data?.features?.[0] || null;
     
   const currentFillColor = feature?.properties?.fill || layer.defaultStyle?.fill || "#3b82f6";
   const currentFillOpacity = feature?.properties?.["fill-opacity"] ?? layer.defaultStyle?.fillOpacity ?? 0.5;

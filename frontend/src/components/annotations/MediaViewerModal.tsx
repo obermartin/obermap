@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from '../../contexts/I18nContext';
-import { Tweet } from 'react-tweet';
-import { ExternalLink } from 'lucide-react';
+import { CustomTweetView } from './CustomTweetView';
+import { X } from 'lucide-react';
 import type { Annotation } from '../../types';
 
 interface MediaViewerModalProps {
@@ -42,17 +42,22 @@ export const MediaViewerModal: React.FC<MediaViewerModalProps> = ({ annotation, 
     }
   }, [annotation.linkUrl, tweetId]);
 
-  let heading = t('Media Viewer');
-  if (annotation.mediaName) {
-    heading = annotation.mediaName;
-  } else if (annotation.mediaUrl) {
-    const filename = annotation.mediaUrl.split('/').pop();
-    if (filename) heading = decodeURIComponent(filename);
-  } else if (annotation.linkUrl) {
-    try {
-      heading = new URL(annotation.linkUrl).hostname;
-    } catch {
-      heading = annotation.linkUrl;
+  let displayHeadline = annotation.mediaHeadline || '';
+
+  if (!annotation.mediaHeadline) {
+    if (annotation.mediaName) {
+      displayHeadline = annotation.mediaName;
+    } else if (annotation.mediaUrl) {
+      const filename = annotation.mediaUrl.split('/').pop();
+      if (filename) {
+        displayHeadline = decodeURIComponent(filename);
+      }
+    } else if (annotation.linkUrl) {
+      try {
+        displayHeadline = new URL(annotation.linkUrl).hostname;
+      } catch {
+        displayHeadline = annotation.linkUrl;
+      }
     }
   }
 
@@ -62,47 +67,90 @@ export const MediaViewerModal: React.FC<MediaViewerModalProps> = ({ annotation, 
       onClick={onClose}
     >
       <div 
-        className="bg-zinc-900 border border-white/10 p-6 flex flex-col gap-4 shadow-2xl mx-4 rounded-3xl w-[75vw] h-[75vh] relative ui-glass-panel"
+        className="bg-zinc-900 border border-white/10 p-6 flex flex-col shadow-2xl mx-4 rounded-3xl w-[75vw] h-[75vh] relative ui-glass-panel"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-between items-center shrink-0">
-          <h3 className="text-white font-semibold text-sm uppercase tracking-wider truncate pr-4">
-            {heading}
-          </h3>
-          <div className="flex items-center gap-4">
-            {annotation.linkUrl && (
-              <a 
-                href={annotation.linkUrl} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-white/60 hover:text-white transition-colors flex items-center"
-                title={t('Open in new tab')}
-              >
-                <ExternalLink size={18} />
-              </a>
-            )}
-            <button onClick={onClose} className="text-white/60 hover:text-white transition-colors flex items-center">✕</button>
-          </div>
+        <div className="absolute top-6 right-6 flex items-center gap-4 z-50">
+          <button 
+            onClick={onClose}
+            className="text-white/60 hover:text-white transition-colors flex items-center"
+            title={t('Close')}
+          >
+            <X size={32} />
+          </button>
         </div>
         
-        <div className="flex flex-col flex-1 min-h-0 relative">
+        <div className="flex flex-col flex-1 min-h-0 relative items-center justify-center w-full">
+          <style>{`
+            .theme-glass .ui-glass-panel.glass-red::before { background: rgba(220, 38, 38, 0.56) !important; }
+            .theme-glass .ui-glass-panel.glass-red::after {
+              box-shadow: 
+                inset 0.63px 1.36px 0.5px color-mix(in srgb, rgba(220, 38, 38, 1) 40%, rgba(255, 255, 255, 1.00)),
+                inset -0.63px -1.36px 1px color-mix(in srgb, rgba(220, 38, 38, 1) 40%, rgba(255, 255, 255, 0.55)),
+                inset 1.01px 2.18px 4.5px rgba(0, 0, 0, 0.15),
+                inset -1.01px -2.18px 4.5px rgba(0, 0, 0, 0.10),
+                inset 0 0 30px rgba(255, 255, 255, 0.12),
+                inset 0.63px 1.36px 3px rgba(90, 170, 255, 0.00),
+                inset -0.63px -1.36px 3px rgba(255, 140, 90, 0.00) !important;
+            }
+          `}</style>
+          
           {annotation.mediaUrl && (
-            <div className="flex justify-center overflow-hidden h-full">
+            <div className={`relative z-0 flex justify-center items-center max-h-full max-w-full min-h-0 min-w-0 ${document.querySelector('.theme-glass') ? 'ui-glass-panel rounded-2xl' : ''}`}>
+              {displayHeadline && (
+                <div className={`absolute z-20 top-[1em] left-[-2em] ${document.querySelector('.theme-glass') ? 'ui-glass-panel rounded-2xl px-6 py-2' : ''}`}>
+                  <h1 
+                    className="text-[3em] font-bold leading-none text-white text-left whitespace-nowrap"
+                    style={
+                      document.querySelector('.theme-glass') ? {} :
+                      document.querySelector('.theme-light') ? { textShadow: 'rgba(255, 255, 255, 1) 0px 12px 24px, rgba(255, 255, 255, 1) 0px 12px 24px' } :
+                      { textShadow: 'rgba(0, 0, 0, 1) 0px 12px 24px, rgba(0, 0, 0, 1) 0px 12px 24px' }
+                    }
+                  >
+                    {displayHeadline}
+                  </h1>
+                </div>
+              )}
               {isVideo ? (
-                <video src={annotation.mediaUrl} controls className="w-full h-full object-contain" autoPlay />
+                <video src={annotation.mediaUrl} controls className={`max-w-full max-h-full min-h-0 min-w-0 object-contain ${document.querySelector('.theme-glass') ? 'rounded-2xl' : ''}`} autoPlay />
               ) : (
-                <img src={annotation.mediaUrl} alt="Icon media" className="w-full h-full object-contain" />
+                <img src={annotation.mediaUrl} alt="Icon media" className={`max-w-full max-h-full min-h-0 min-w-0 object-contain ${document.querySelector('.theme-glass') ? 'rounded-2xl' : ''}`} />
+              )}
+              {annotation.mediaDataSource && (
+                <div 
+                  className={`absolute z-20 ${isVideo ? 'bottom-[4em]' : 'bottom-[1em]'} right-[-2em] px-4 py-2 font-medium ${
+                    document.querySelector('.theme-glass') 
+                      ? 'ui-glass-panel glass-red rounded-xl text-[#fff] shadow-xl'
+                      : document.querySelector('.theme-light')
+                        ? 'bg-[#000] text-[#fff]'
+                        : 'bg-[#fff] text-[#000]'
+                  }`}
+                >
+                  QUELLE: {annotation.mediaDataSource}
+                </div>
               )}
             </div>
           )}
 
-          {annotation.linkUrl && (
-            <>
+          {annotation.linkUrl && !annotation.mediaUrl && (
+            <div className="relative flex flex-col items-center justify-center w-full h-full max-h-full">
+              {displayHeadline && (!tweetId || annotation.mediaHeadline) && (
+                <div className={`absolute z-20 top-[1em] left-[-2em] ${document.querySelector('.theme-glass') ? 'ui-glass-panel rounded-2xl px-6 py-2' : ''}`}>
+                  <h1 
+                    className="text-[3em] font-bold leading-none text-white text-left whitespace-nowrap"
+                    style={
+                      document.querySelector('.theme-glass') ? {} :
+                      document.querySelector('.theme-light') ? { textShadow: 'rgba(255, 255, 255, 1) 0px 12px 24px, rgba(255, 255, 255, 1) 0px 12px 24px' } :
+                      { textShadow: 'rgba(0, 0, 0, 1) 0px 12px 24px, rgba(0, 0, 0, 1) 0px 12px 24px' }
+                    }
+                  >
+                    {displayHeadline}
+                  </h1>
+                </div>
+              )}
               {tweetId ? (
-                <div className="flex-1 w-full h-full overflow-y-auto" data-theme="dark">
-                  <div className="flex justify-center min-h-min pb-8 pt-0" style={{ zoom: 1.5, '--tweet-container-margin': '0 auto' } as any}>
-                    <Tweet id={tweetId} />
-                  </div>
+                <div className="flex-1 w-full h-full p-2">
+                  <CustomTweetView id={tweetId} />
                 </div>
               ) : embedStatus === 'loading' ? (
                 <div className="flex-1 flex items-center justify-center text-white/50 text-sm">
@@ -128,7 +176,20 @@ export const MediaViewerModal: React.FC<MediaViewerModalProps> = ({ annotation, 
                   sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
                 />
               )}
-            </>
+              {annotation.mediaDataSource && (
+                <div 
+                  className={`absolute z-20 bottom-[1em] right-[-2em] px-4 py-2 font-medium ${
+                    document.querySelector('.theme-glass') 
+                      ? 'ui-glass-panel glass-red rounded-xl text-[#fff] shadow-xl'
+                      : document.querySelector('.theme-light')
+                        ? 'bg-[#000] text-[#fff]'
+                        : 'bg-[#fff] text-[#000]'
+                  }`}
+                >
+                  QUELLE: {annotation.mediaDataSource}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

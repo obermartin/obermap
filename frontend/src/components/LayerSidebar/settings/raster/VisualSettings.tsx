@@ -33,8 +33,8 @@ export const VisualSettings: React.FC<LayerSettingsProps> = ({ layer, updateLaye
           className={`flex flex-col gap-1 mt-1 ${layer.type === "deepstate" ? "" : "pt-2 border-t border-white/10"}`}
         >
           <div className="flex justify-between items-end">
-            <label className="text-[10px] text-white font-semibold tracking-wider">
-              {t("OPACITY")}
+            <label className="text-[10px] text-white font-semibold tracking-wider uppercase">
+              {layer.type === "wildfires" ? t("EFFIS OPACITY") : t("OPACITY")}
             </label>
             <span className="text-[10px] text-white/70 font-mono">
               {Math.round(

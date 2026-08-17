@@ -284,10 +284,8 @@ export const useCemsRapidMapping = ({
         return;
       }
 
-      console.log(`[CEMS Debug] Received fetchCemsDetails for ${aoiName}`, { cemsType, productsCount: products?.length });
       
       if (!products || !aoiName) {
-        console.warn(`[CEMS Debug] Missing products or aoiName! Aborting.`);
         return;
       }
       
@@ -295,7 +293,6 @@ export const useCemsRapidMapping = ({
       const vtPromises: Promise<any>[] = [];
       
       const productsWithVt = products.filter((p: any) => p.layers && p.layers.some((l: any) => l.format === 'vt'));
-      console.log(`[CEMS Debug] Filtered products with 'vt' format: ${productsWithVt.length} out of ${products.length}`);
       
       const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b: any) => {
         const typePrio: any = { 'GRA': 4, 'DEL': 3, 'FEP': 2, 'REF': 1 };
@@ -304,15 +301,12 @@ export const useCemsRapidMapping = ({
         return (b.monitoringNumber || 0) - (a.monitoringNumber || 0);
       })[0] : null;
       
-      if (latestProduct) console.log(`[CEMS Debug] Selected latest product:`, latestProduct.type);
-      else console.warn(`[CEMS Debug] No products with 'vt' format found for ${aoiName}!`);
       
       const productsToProcess = latestProduct ? [latestProduct] : [];
       for (const product of productsToProcess) {
         if (product.layers) {
           for (const layer of product.layers) {
             if (layer.format === 'vt' && layer.json) {
-              console.log(`[CEMS Debug] Pushing fetch promise for VT layer:`, layer.json);
               vtPromises.push(safeFetchCemsJson(layer.json));
             }
           }

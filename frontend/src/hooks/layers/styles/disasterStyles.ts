@@ -16,7 +16,14 @@ export const addDisasterLayers = (
       source: sourceId,
       layout: { visibility: layer.visible ? 'visible' : 'none' },
       paint: {
-        'circle-radius': [
+        'circle-radius': layer.type === 'gdacs_volcanoes' ? [
+          'match',
+          ['get', 'alertlevel'],
+          'Red', 16,
+          'Orange', 12,
+          'Green', 8,
+          10
+        ] : [
           'interpolate', ['linear'], ['coalesce', ['get', 'severity', ['get', 'severitydata']], ['get', 'severity'], 5],
           4, 4,
           9, 16

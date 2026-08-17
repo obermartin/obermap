@@ -442,30 +442,25 @@ export const useEarthquakeAlerts = (
             const data = await res.json();
             if (data.results && data.results.length > 0) {
               act = data.results[0];
-              console.log(`[CEMS Debug] Found CEMS activation for gdacsId EQ${selectedEarthquake.id}:`, act.code);
             }
           } catch (e) {
-            console.warn(`[CEMS Debug] Invalid JSON when fetching by gdacsId:`, e);
           }
         }
         
         // Fallback to spatial matching if gdacsId fails
         if (!act) {
-           console.log(`[CEMS Debug] gdacsId match failed. Attempting spatial matching for earthquake coordinates:`, selectedEarthquake.coordinates);
            const rawUrl2 = `https://rapidmapping.emergency.copernicus.eu/backend/dashboard-api/public-activations-info/`;
            const url2 = `./api.php?action=proxy_cems&url=${encodeURIComponent(rawUrl2)}`;
            const allRes = await fetch(url2);
            if (allRes.ok) {
              const allData = await allRes.json();
              if (allData && allData.results) {
-               console.log(`[CEMS Debug] Spatial match search - fetched ${allData.results.length} activations`);
                // Find all earthquake activations
                const earthquakes = allData.results.filter((a: any) => a.category === 'Earthquake' && a.centroid);
                
                 let bestMatch = null;
                let bestDist = Infinity;
                
-               console.log(`[CEMS Debug] Evaluating ${earthquakes.length} earthquakes for spatial match against ${selectedEarthquake.coordinates}`);
                
                for (const eq of earthquakes) {
                  // Ensure the CEMS event time is within 7 days of the GDACS earthquake time
@@ -483,7 +478,6 @@ export const useEarthquakeAlerts = (
                      [selectedEarthquake.coordinates[0], selectedEarthquake.coordinates[1]],
                      geom.geometry.coordinates
                    );
-                   console.log(`[CEMS Debug] EQ ${eq.code} distance: ${dist}km. Expected [lon,lat] but got selectedEQ=${selectedEarthquake.coordinates[0]},${selectedEarthquake.coordinates[1]} and CEMS=${geom.geometry.coordinates[0]},${geom.geometry.coordinates[1]}`);
                    // Buffer of 100km
                    if (dist <= 100 && dist < bestDist) {
                      bestDist = dist;
@@ -494,7 +488,6 @@ export const useEarthquakeAlerts = (
 
                // If the closest CEMS earthquake is within 100km, match it
                if (bestMatch && bestDist <= 100) {
-                 console.log(`[CEMS Debug] Spatial match found: ${bestMatch.code} at distance ${bestDist.toFixed(2)}km`);
                  act = bestMatch;
                }
              }

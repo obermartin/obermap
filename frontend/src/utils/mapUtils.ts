@@ -8,7 +8,6 @@ export const executeWhenStyleLoaded = (map: maplibregl.Map | null, callback: () 
     const style = map.getStyle();
     if (style && style.layers && style.layers.length > 0) {
       try {
-        console.log("[CEMS Debug] executeWhenStyleLoaded: style is loaded, running callback...");
         callback();
       } catch (e) {
         console.error("Error in executeWhenStyleLoaded callback:", e);
@@ -19,7 +18,6 @@ export const executeWhenStyleLoaded = (map: maplibregl.Map | null, callback: () 
   };
 
   if (!checkAndRun()) {
-    console.log("[CEMS Debug] executeWhenStyleLoaded: style not ready, waiting for styledata or load...");
     // Fallback if events are missed
     const interval = setInterval(() => {
       if (checkAndRun()) clearInterval(interval);

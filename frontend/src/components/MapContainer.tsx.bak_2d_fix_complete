@@ -5736,9 +5736,7 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
         try {
           // Await the promise (it might be already resolved, or currently fetching)
           activations = await allCemsActivationsRef.current;
-          console.log('[CEMS Debug] Fetched global activations count:', activations?.length);
         } catch (err) {
-          console.error('[CEMS Debug] Failed to fetch global activations:', err);
           allCemsActivationsRef.current = null; // reset on error
           return;
         }
@@ -5756,7 +5754,6 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
           return actTime >= sDate - buffer && actTime <= eDate + buffer;
         });
 
-        console.log(`[CEMS Debug] Matching wildfire activations in range (${new Date(sDate).toISOString()} to ${new Date(eDate).toISOString()}):`, matchingActivations.map((a: any) => a.code));
 
         if (matchingActivations.length === 0) {
           if (isSubscribed) setActiveCemsWildfireFeatures(null);
@@ -5810,7 +5807,6 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
           }
 
           return cemsFeatureCacheRef.current[act.code].catch((e: any) => {
-            console.error('[CEMS Debug] Failed to fetch detailed CEMS activation', e);
             delete cemsFeatureCacheRef.current[act.code];
             return [];
           });
@@ -5818,9 +5814,7 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
 
         const allResults = await Promise.all(fetchPromises);
         const allFeatures = allResults.flat();
-        console.log('[CEMS Debug] FLOOD FEATURES RESOLVED:', allFeatures.length);
 
-        console.log(`[CEMS Debug] Total features to render:`, allFeatures.length);
 
         if (isSubscribed) {
           setActiveCemsWildfireFeatures({
@@ -5863,9 +5857,7 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
         try {
           // Await the promise (it might be already resolved, or currently fetching)
           activations = await allCemsActivationsRef.current;
-          console.log('[CEMS Debug] Fetched global activations count:', activations?.length);
         } catch (err) {
-          console.error('[CEMS Debug] Failed to fetch global activations:', err);
           allCemsActivationsRef.current = null; // reset on error
           return;
         }
@@ -5883,7 +5875,6 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
           return actTime >= sDate - buffer && actTime <= eDate + buffer;
         });
 
-        console.log(`[CEMS Debug] Matching flood activations in range (${new Date(sDate).toISOString()} to ${new Date(eDate).toISOString()}):`, matchingActivations.map((a: any) => a.code));
 
         if (matchingActivations.length === 0) {
           if (isSubscribed) setActiveCemsFloodFeatures(null);
@@ -5937,7 +5928,6 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
           }
 
           return cemsFeatureCacheRef.current[act.code].catch((e: any) => {
-            console.error('[CEMS Debug] Failed to fetch detailed CEMS activation', e);
             delete cemsFeatureCacheRef.current[act.code];
             return [];
           });
@@ -5945,7 +5935,6 @@ const latestProduct = productsWithVt.length > 0 ? productsWithVt.sort((a: any, b
 
         const allResults = await Promise.all(fetchPromises);
         const allFeatures = allResults.flat();
-        console.log('[CEMS Debug] FLOOD FEATURES RESOLVED:', allFeatures.length);
 
         if (isSubscribed) {
           setActiveCemsFloodFeatures({

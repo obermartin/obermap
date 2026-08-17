@@ -18,6 +18,8 @@ export const IconSettingsModal: React.FC<IconSettingsModalProps> = ({ annotation
   const [linkUrl, setLinkUrl] = useState(annotation.linkUrl || '');
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [previewMediaUrl, setPreviewMediaUrl] = useState(annotation.mediaUrl || '');
+  const [mediaHeadline, setMediaHeadline] = useState(annotation.mediaHeadline || '');
+  const [mediaDataSource, setMediaDataSource] = useState(annotation.mediaDataSource || '');
   const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
@@ -27,7 +29,7 @@ export const IconSettingsModal: React.FC<IconSettingsModalProps> = ({ annotation
   }, [annotation.coordinates]);
 
   const handleSave = async () => {
-    const updates: Partial<Annotation> = { linkUrl };
+    const updates: Partial<Annotation> = { linkUrl, mediaHeadline, mediaDataSource };
     
     if (!previewMediaUrl && annotation.mediaUrl) {
       updates.mediaUrl = '';
@@ -131,6 +133,28 @@ export const IconSettingsModal: React.FC<IconSettingsModalProps> = ({ annotation
               }}
             />
           )}
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-white/60 text-xs">{t('Headline (Optional)')}</label>
+          <input
+            type="text"
+            placeholder={t('Displayed above the media')}
+            className="w-full bg-black/60 border border-white/10 px-4 py-2 outline-none font-mono text-sm text-white focus:border-white/50 transition-colors rounded-xl"
+            value={mediaHeadline}
+            onChange={(e) => setMediaHeadline(e.target.value)}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-white/60 text-xs">{t('Data Source (Quelle)')}</label>
+          <input
+            type="text"
+            placeholder={t('Displayed below the media')}
+            className="w-full bg-black/60 border border-white/10 px-4 py-2 outline-none font-mono text-sm text-white focus:border-white/50 transition-colors rounded-xl"
+            value={mediaDataSource}
+            onChange={(e) => setMediaDataSource(e.target.value)}
+          />
         </div>
 
         <div className="flex flex-col gap-1">

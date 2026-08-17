@@ -34,12 +34,10 @@ export const handleCemsSelection = (
   }
 
   if (clickedAoiFeatures.length > 0) {
-    console.log(`[CEMS Debug] Clicked ${clickedAoiFeatures.length} AOI features`, clickedAoiFeatures[0].properties);
     clickedAoiFeatures.forEach(aoi => {
       if (aoi.properties?.activationCode) {
         let products = undefined;
         try { products = JSON.parse(aoi.properties._products); } catch (e) {
-          console.warn(`[CEMS Debug] Failed to parse products JSON`, e);
         }
         
         // Dispatch event with the centroid for the download overlay
@@ -56,7 +54,6 @@ export const handleCemsSelection = (
           }
         }));
       } else {
-        console.warn(`[CEMS Debug] AOI feature has no activationCode!`, aoi.properties);
       }
     });
     return true;

@@ -51,7 +51,6 @@ export const useCemsFetchDisaster = ({
         }
         const activations = await allCemsActivationsRef.current;
         if (!activations) {
-           console.log(`[CEMS Debug] ${cemsType} - no activations returned from limit=2000`);
            return;
         }
 
@@ -64,7 +63,6 @@ export const useCemsFetchDisaster = ({
           return (actTime >= sDate - buffer && actTime <= eDate + buffer);
         });
         
-        console.log(`[CEMS Debug] ${cemsType} - found ${matching.length} matching activations for ${category} between ${new Date(sDate).toISOString()} and ${new Date(eDate).toISOString()}`);
 
         if (matching.length === 0) {
           if (isSubscribed) {
@@ -113,7 +111,6 @@ export const useCemsFetchDisaster = ({
         });
 
         const allFeatures = (await Promise.all(fetchPromises)).flat();
-        console.log(`[CEMS Debug] ${cemsType} - successfully extracted ${allFeatures.length} AOI features`);
         if (isSubscribed) {
           if (allFeatures.length > 0) {
             setActiveFeatures({ type: 'FeatureCollection', features: allFeatures });
@@ -126,5 +123,20 @@ export const useCemsFetchDisaster = ({
       }
     })();
     return () => { isSubscribed = false; };
-  }, [settings.layers, settings.globalDateMode, settings.globalStartDate, settings.globalEndDate, map]);
+  }, [
+    layerId,
+    category,
+    cemsType,
+    map,
+    allCemsActivationsRef,
+    cemsFeatureCacheRef,
+    setActiveFeatures,
+    settings.layers.find((l: any) => l.type === layerId || l.id === layerId)?.visible,
+    settings.layers.find((l: any) => l.type === layerId || l.id === layerId)?.copernicusEnabled,
+    settings.layers.find((l: any) => l.type === layerId || l.id === layerId)?.startDate,
+    settings.layers.find((l: any) => l.type === layerId || l.id === layerId)?.endDate,
+    settings.globalDateMode,
+    settings.globalStartDate,
+    settings.globalEndDate
+  ]);
 };

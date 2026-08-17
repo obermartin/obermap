@@ -35,7 +35,7 @@ export const WildfireFloodSettings: React.FC<LayerSettingsProps> = ({ layer, upd
           <div className="flex flex-col gap-1 mt-1">
             <div className="flex justify-between items-end">
               <label className="text-[10px] text-white/60 font-semibold tracking-wider uppercase">
-                {t("OPACITY")}
+                {t("CEMS OPACITY")}
               </label>
               <span className="text-[10px] text-white/50 font-mono">
                 {Math.round((layer.copernicusOpacity ?? 1.0) * 100)}%

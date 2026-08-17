@@ -50,11 +50,9 @@ export const addLayerSafely = (map: maplibregl.Map, layer: any, explicitBeforeId
 
 export const setupCemsLayers = (map: maplibregl.Map, sourceId: string) => {
   if (map.getSource(sourceId)) {
-    console.log(`[CEMS Debug] Source ${sourceId} already exists, skipping setup.`);
     return;
   }
 
-  console.log(`[CEMS Debug] Adding source ${sourceId}...`);
   map.addSource(sourceId, {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] }
