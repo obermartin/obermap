@@ -7,6 +7,75 @@ interface CustomTweetViewProps {
   id: string;
 }
 
+const VideoPlayer = ({ media, tweetUrl }: { media: any, tweetUrl: string }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const togglePlay = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (!videoRef.current || hasError) return;
+    if (videoRef.current.paused) {
+      videoRef.current.play().catch(err => {
+        console.error("Play error:", err);
+        setHasError(true);
+      });
+    } else {
+      videoRef.current.pause();
+    }
+  };
+
+  if (hasError) {
+    return (
+      <div className="relative w-full h-full flex flex-col items-center justify-center bg-zinc-900 rounded-3xl p-6 text-center gap-4 min-w-0 min-h-0">
+        <div className="text-white/60 mb-2">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-4 opacity-50"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <p className="text-lg">Video playback blocked by X (Twitter)</p>
+          <p className="text-sm mt-1 opacity-70">Twitter no longer allows some videos to be embedded directly.</p>
+        </div>
+        <a 
+          href={tweetUrl} 
+          target="_blank" 
+          rel="noreferrer" 
+          className="px-6 py-3 bg-white text-black font-semibold rounded-full hover:bg-white/90 transition-colors pointer-events-auto mt-2"
+        >
+          Watch on X
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative w-full h-full flex items-center justify-center group/video">
+      <video 
+        ref={videoRef}
+        poster={media.poster} 
+        controls 
+        playsInline 
+        referrerPolicy="no-referrer"
+        className="max-w-full max-h-full w-full h-full object-contain bg-black min-w-0 min-h-0 relative z-10" 
+        onClick={togglePlay}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onError={() => setHasError(true)}
+      >
+        <source src={media.url} type="video/mp4" />
+      </video>
+      {!isPlaying && (
+        <button 
+          onClick={togglePlay}
+          className="absolute inset-0 m-auto w-24 h-24 flex items-center justify-center bg-black/60 hover:bg-black/80 rounded-full text-white transition-colors z-20 backdrop-blur-sm pointer-events-auto"
+        >
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+      )}
+    </div>
+  );
+};
+
 export const CustomTweetView: React.FC<CustomTweetViewProps> = ({ id }) => {
   const { data: tweet, isLoading, error } = useTweet(id);
   const { t } = useTranslation();
@@ -119,11 +188,11 @@ export const CustomTweetView: React.FC<CustomTweetViewProps> = ({ id }) => {
 
           {/* Slide 2+: Media */}
           {mediaItems.map((media, idx) => (
-            <div key={idx} className="min-w-full h-full snap-center flex items-center justify-center shrink-0">
+            <div key={idx} className="relative z-0 min-w-full w-full h-full snap-center flex items-center justify-center shrink-0 min-w-0 min-h-0 overflow-hidden">
               {media.type === 'photo' ? (
-                <img src={media.url} alt="Tweet media" className="max-w-full max-h-full object-contain select-none" />
+                <img src={media.url} alt="Tweet media" className="max-w-full max-h-full w-full h-full object-contain select-none min-w-0 min-h-0 relative z-10" />
               ) : (
-                <video src={media.url} poster={media.poster} controls className="max-w-full max-h-full object-contain bg-black" />
+                <VideoPlayer media={media} tweetUrl={`https://x.com/${tweet.user.screen_name}/status/${tweet.id_str}`} />
               )}
             </div>
           ))}

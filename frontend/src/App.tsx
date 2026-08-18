@@ -22,6 +22,8 @@ import { TitleOverlay } from './components/ui/TitleOverlay';
 import { useAppActions } from './hooks/useAppActions';
 import { useDataLoader } from './hooks/useDataLoader';
 import { useAppState } from './hooks/useAppState';
+import { GlobalDialog } from './components/GlobalDialog';
+
 export function App() {
   const { t, language } = useTranslation();
   const {
@@ -384,6 +386,8 @@ export function App() {
         highlightedLineInput={highlightedLineInput}
         setHighlightedLineInput={setHighlightedLineInput}
       />
+
+      <GlobalDialog />
 
     </div>
   );

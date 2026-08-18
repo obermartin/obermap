@@ -112,9 +112,52 @@ export const MediaViewerModal: React.FC<MediaViewerModalProps> = ({ annotation, 
                 </div>
               )}
               {isVideo ? (
-                <video src={annotation.mediaUrl} controls className={`max-w-full max-h-full min-h-0 min-w-0 object-contain ${document.querySelector('.theme-glass') ? 'rounded-2xl' : ''}`} autoPlay />
+                <div className={`relative w-full h-full flex items-center justify-center ${document.querySelector('.theme-glass') ? 'rounded-2xl' : ''}`}>
+                  <video 
+                    id="generic-video-player"
+                    poster={annotation.mediaUrl.replace(/\.(mp4|webm|ogg|mov)$/i, '.jpg')}
+                    controls 
+                    referrerPolicy="no-referrer"
+                    className={`max-w-full max-h-full min-h-0 min-w-0 object-contain relative z-10 w-full h-full ${document.querySelector('.theme-glass') ? 'rounded-2xl' : ''}`} 
+                    autoPlay 
+                    onPlay={(e) => {
+                      const btn = document.getElementById('generic-video-play-btn');
+                      if (btn) btn.style.display = 'none';
+                    }}
+                    onPause={(e) => {
+                      const btn = document.getElementById('generic-video-play-btn');
+                      if (btn) btn.style.display = 'flex';
+                    }}
+                    onClick={(e) => {
+                      const video = e.currentTarget;
+                      if (video.paused) {
+                        video.play().catch(() => {});
+                      } else {
+                        video.pause();
+                      }
+                    }}
+                  >
+                    <source src={annotation.mediaUrl} type="video/mp4" />
+                  </video>
+                  <button 
+                    id="generic-video-play-btn"
+                    style={{ display: 'none' }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const video = document.getElementById('generic-video-player') as HTMLVideoElement;
+                      if (video) {
+                        video.play().catch(() => {});
+                        e.currentTarget.style.display = 'none';
+                      }
+                    }}
+                    className="absolute inset-0 m-auto w-24 h-24 items-center justify-center bg-black/60 hover:bg-black/80 rounded-full text-white transition-colors z-20 backdrop-blur-sm pointer-events-auto"
+                  >
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  </button>
+                </div>
               ) : (
-                <img src={annotation.mediaUrl} alt="Icon media" className={`max-w-full max-h-full min-h-0 min-w-0 object-contain ${document.querySelector('.theme-glass') ? 'rounded-2xl' : ''}`} />
+                <img src={annotation.mediaUrl} alt="Icon media" className={`max-w-full max-h-full min-h-0 min-w-0 object-contain relative z-10 ${document.querySelector('.theme-glass') ? 'rounded-2xl' : ''}`} />
               )}
               {annotation.mediaDataSource && (
                 <div 

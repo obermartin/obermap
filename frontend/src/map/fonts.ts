@@ -59,15 +59,15 @@ export const applyMapFontOverrides = (
                   
                   if (isCountry) {
                     textFieldExp = [
-                      'coalesce', ['get', 'name:de'], ['get', 'name:en'], ['get', 'name:latin'], layout['text-field']
+                      'coalesce', ['get', 'name:de'], ['get', 'name:latin'], layout['text-field']
                     ];
                   } else {
                     textFieldExp = [
                       'case',
                       ['in', ['coalesce', ['get', 'name:de'], ''], ['literal', excludedCities]],
-                      ['coalesce', ['get', 'name:latin'], ['get', 'name:en'], layout['text-field']],
+                      ['coalesce', ['get', 'name:latin'], layout['text-field']],
                       
-                      ['coalesce', ['get', 'name:de'], ['get', 'name:en'], ['get', 'name:latin'], layout['text-field']]
+                      ['coalesce', ['get', 'name:de'], ['get', 'name:latin'], layout['text-field']]
                     ];
                   }
 
