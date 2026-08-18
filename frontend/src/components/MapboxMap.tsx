@@ -38,6 +38,7 @@ import { useMapEvents } from '../hooks/useMapEvents';
 import { useWeatherLayer } from '../hooks/useWeatherLayer';
 import { useWindAnimation } from '../hooks/useWindAnimation';
 import { useNighttimeLayer } from '../hooks/useNighttimeLayer';
+import { useContourLayer } from '../hooks/layers/useContourLayer';
 import { useAircraftSearch } from '../hooks/useAircraftSearch';
 import { useAircraftPopup } from '../hooks/useAircraftPopup';
 import { useMapDrawingCursor } from '../hooks/useMapDrawingCursor';
@@ -471,6 +472,14 @@ export const MapboxMap: React.FC<MapContainerProps & { isSecondary?: boolean, cl
   useNighttimeLayer({
     map: mapRef.current,
     mapLoaded,
+    settings
+  });
+
+  useContourLayer({
+    map: mapRef.current,
+    mapLoaded,
+    mapStyleLoaded,
+    mapStyleTick,
     settings
   });
 

@@ -117,14 +117,14 @@ export const MediaViewerModal: React.FC<MediaViewerModalProps> = ({ annotation, 
                     id="generic-video-player"
                     poster={annotation.mediaUrl.replace(/\.(mp4|webm|ogg|mov)$/i, '.jpg')}
                     controls 
-                    referrerPolicy="no-referrer"
+                    
                     className={`max-w-full max-h-full min-h-0 min-w-0 object-contain relative z-10 w-full h-full ${document.querySelector('.theme-glass') ? 'rounded-2xl' : ''}`} 
                     autoPlay 
-                    onPlay={(e) => {
+                    onPlay={() => {
                       const btn = document.getElementById('generic-video-play-btn');
                       if (btn) btn.style.display = 'none';
                     }}
-                    onPause={(e) => {
+                    onPause={() => {
                       const btn = document.getElementById('generic-video-play-btn');
                       if (btn) btn.style.display = 'flex';
                     }}

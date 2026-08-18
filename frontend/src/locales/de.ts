@@ -208,6 +208,8 @@ export const de: Record<string, string> = {
   "Floods": "Überschwemmungen",
   "Earthquakes": "Erdbeben",
   "Volcanoes": "Vulkanausbrüche",
+  "Contour Lines": "Höhenlinien",
+  "COLOR": "FARBE",
 
   // Items in various layer settings
   "from": "Startdatum",

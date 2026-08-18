@@ -55,7 +55,7 @@ const VideoPlayer = ({ media, tweetUrl }: { media: any, tweetUrl: string }) => {
         poster={media.poster} 
         controls 
         playsInline 
-        referrerPolicy="no-referrer"
+        
         className="max-w-full max-h-full w-full h-full object-contain bg-black min-w-0 min-h-0 relative z-10" 
         onClick={togglePlay}
         onPlay={() => setIsPlaying(true)}

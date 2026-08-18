@@ -36,6 +36,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     { id: 'wildfires', name: 'Wildfires', type: 'wildfires', visible: false, url: 'https://maps.effis.emergency.copernicus.eu/gwis?service=WMS&request=GetMap&layers=nrt.ba&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}/{date-end}' },
     { id: 'floods', name: 'Floods', type: 'raster', visible: false, url: 'https://geoserver.gfm.eodc.eu/geoserver/gfm/wms?service=WMS&request=GetMap&layers=observed_flood_extent&version=1.1.1&format=image/png&transparent=true&srs=EPSG:3857&width=256&height=256&styles=&bbox={bbox-epsg-3857}&time={date-start}T00:00:00.000Z/{date-end}T23:59:59.000Z' },
     { id: 'gdacs_earthquakes', name: 'Earthquakes', type: 'gdacs_earthquakes', visible: false },
-    { id: 'gdacs_volcanoes', name: 'Volcanoes', type: 'gdacs_volcanoes', visible: false }
+    { id: 'gdacs_volcanoes', name: 'Volcanoes', type: 'gdacs_volcanoes', visible: false },
+    { id: 'contour_lines', name: 'Contour Lines', type: 'contour_lines', visible: false, opacity: 0.5, contourColor: '#ffffff', contourWidth: 1 }
   ]
 };

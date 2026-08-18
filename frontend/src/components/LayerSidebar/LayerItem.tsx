@@ -231,6 +231,7 @@ export function LayerItem(props: {
                 layer.type === "wildfires" ||
                 layer.type === "gdacs_cyclones" ||
                 layer.type === "nighttime" ||
+                layer.type === "contour_lines" ||
                 layer.type === "utm_grid") && (
                 <button
                   onClick={() => {

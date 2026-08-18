@@ -48,7 +48,7 @@ export interface Annotation {
 export interface MapLayer {
   id: string;
   name: string;
-  type: 'geojson' | 'raster' | 'satellite' | 'split' | 'deepstate' | 'empty-slot' | 'flights' | 'vessels' | 'weather_forecast' | 'gdacs_earthquakes' | 'gdacs_volcanoes' | 'wildfires' | 'gdacs_cyclones' | 'nighttime' | 'cems_rapid_mapping' | 'utm_grid';
+  type: 'geojson' | 'raster' | 'satellite' | 'split' | 'deepstate' | 'empty-slot' | 'flights' | 'vessels' | 'weather_forecast' | 'gdacs_earthquakes' | 'gdacs_volcanoes' | 'wildfires' | 'gdacs_cyclones' | 'nighttime' | 'cems_rapid_mapping' | 'utm_grid' | 'contour_lines';
   visible: boolean;
   data?: any; // For GeoJSON
   url?: string; // For XYZ/WMTS
@@ -145,6 +145,10 @@ export interface MapLayer {
   showCityWeatherIcons?: boolean;
   limitCityWeatherToGermany?: boolean;
   weatherForecastTime?: string; // the time step to fetch
+
+  // Contour lines specific
+  contourColor?: string;
+  contourWidth?: number;
 }
 
 export interface IconCategory {

@@ -101,5 +101,14 @@ export const DEFAULT_LAYERS: MapLayer[] = [
     type: "gdacs_cyclones",
     visible: false,
   },
+  {
+    id: "contour_lines",
+    name: "Contour Lines",
+    type: "contour_lines",
+    visible: false,
+    opacity: 0.5,
+    contourColor: "#ffffff",
+    contourWidth: 1,
+  },
 ];
 

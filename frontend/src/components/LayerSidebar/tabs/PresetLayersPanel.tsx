@@ -45,45 +45,47 @@ export const PresetLayersPanel: React.FC<PresetLayersPanelProps> = ({
           animate={{ y: 0 }}
           exit={{ y: "100%" }}
           transition={{ type: "spring", damping: 25, stiffness: 200 }}
-          className="absolute inset-0 z-50 flex flex-col p-4 custom-scrollbar overflow-y-auto bg-zinc-900 ui-glass-panel"
+          className="absolute inset-0 z-50 flex flex-col bg-zinc-900 ui-glass-panel"
         >
-          <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/10">
-            <label className="text-xs text-white font-semibold tracking-wider flex items-center gap-2">
-              <Layers size={14} /> {t("PRESET LAYERS")}
-            </label>
-            <button
-              onClick={() => setShowPresetLayers(false)}
-              className="text-white/50 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full p-1.5"
-            >
-              <X size={16} />
-            </button>
-          </div>
-          <div className="flex flex-col gap-2">
-            {[...DEFAULT_LAYERS, ...(settings.presetLayers || [])].map(
-              (layer) => {
-                const isEnabled = settings.layers.some(
-                  (l) => l.id === layer.id,
-                );
-                return (
-                  <div
-                    key={layer.id}
-                    className="flex items-center justify-between px-2 py-2"
-                  >
-                    <span className="text-sm font-medium text-white">
-                      {t(layer.name)}
-                    </span>
-                    <button
-                      onClick={() => toggleDefaultLayer(layer)}
-                      className={`w-9 h-5 rounded-full relative transition-colors ${isEnabled ? "bg-white" : "bg-white/20"}`}
+          <div className="flex flex-col p-4 h-full">
+            <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/10 shrink-0">
+              <label className="text-xs text-white font-semibold tracking-wider flex items-center gap-2">
+                <Layers size={14} /> {t("PRESET LAYERS")}
+              </label>
+              <button
+                onClick={() => setShowPresetLayers(false)}
+                className="text-white/50 hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full p-1.5"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="flex flex-col gap-2 overflow-y-auto custom-scrollbar flex-1 pb-4">
+              {[...DEFAULT_LAYERS, ...(settings.presetLayers || [])].map(
+                (layer) => {
+                  const isEnabled = settings.layers.some(
+                    (l) => l.id === layer.id,
+                  );
+                  return (
+                    <div
+                      key={layer.id}
+                      className="flex items-center justify-between px-2 py-2 shrink-0"
                     >
-                      <div
-                        className={`w-3 h-3 rounded-full absolute top-1 transition-all ${isEnabled ? "left-5 bg-black" : "left-1 bg-white"}`}
-                      />
-                    </button>
-                  </div>
-                );
-              },
-            )}
+                      <span className="text-sm font-medium text-white">
+                        {t(layer.name)}
+                      </span>
+                      <button
+                        onClick={() => toggleDefaultLayer(layer)}
+                        className={`w-9 h-5 rounded-full relative transition-colors ${isEnabled ? "bg-white" : "bg-white/20"}`}
+                      >
+                        <div
+                          className={`w-3 h-3 rounded-full absolute top-1 transition-all ${isEnabled ? "left-5 bg-black" : "left-1 bg-white"}`}
+                        />
+                      </button>
+                    </div>
+                  );
+                },
+              )}
+            </div>
           </div>
         </motion.div>
       )}

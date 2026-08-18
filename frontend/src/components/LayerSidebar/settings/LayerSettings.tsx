@@ -7,6 +7,7 @@ import { WeatherSettings } from "./WeatherSettings";
 import { SplitSettings } from "./SplitSettings";
 import { GeojsonSettings } from "./GeojsonSettings";
 import { UtmGridSettings } from "./UtmGridSettings";
+import { ContourSettings } from "./ContourSettings";
 import { Play } from "lucide-react";
 import { useTranslation } from "../../../contexts/I18nContext";
 
@@ -140,6 +141,8 @@ export const LayerSettings = (props: LayerSettingsProps) => {
         <RasterSettings {...props} />
       ) : layer.type === "utm_grid" ? (
         <UtmGridSettings {...props} />
+      ) : layer.type === "contour_lines" ? (
+        <ContourSettings {...props} />
       ) : (
         <GeojsonSettings {...props} />
       )}
